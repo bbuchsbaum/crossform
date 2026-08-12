@@ -158,3 +158,58 @@ test_that("descriptor specifications reject closures and environments", {
     "serializable values"
   )
 })
+
+test_that("execution sessions deduplicate descriptors and close exactly once", {
+  revision <- paste0("sha256:", paste(rep("f", 64), collapse = ""))
+  descriptor <- effectagram:::.shared_source_descriptor(
+    "test", "same-segment", c(2, 3), revision
+  )
+  rel <- relation(list(run1 = descriptor, run2 = descriptor),
+    effects = c("a", "b"))
+  opens <- 0L
+  closes <- 0L
+  opener <- function(value, expected_revision, shared_opener) {
+    opens <<- opens + 1L
+    effectagram:::.new_source_handle(
+      value,
+      read = function(features) matrix(features, 2, length(features), byrow = TRUE),
+      close = function() closes <<- closes + 1L,
+      owns_handle = TRUE
+    )
+  }
+  session <- effectagram:::.open_relation_source_session(rel,
+    open_descriptor = opener)
+
+  expect_identical(opens, 1L)
+  expect_equal(session$read("run1", c(1, 3)),
+    matrix(c(1, 3, 1, 3), 2, byrow = TRUE))
+  expect_equal(session$read("run2", 2), matrix(2, 2, 1))
+  expect_identical(session$summary()$distinct_owned_handles, 1L)
+  expect_identical(unname(session$summary()$read_count), c(1L, 1L))
+  expect_identical(unname(session$summary()$bytes_read), c(32, 16))
+  effectagram:::.close_source_session(session)
+  effectagram:::.close_source_session(session)
+  expect_identical(closes, 1L)
+  expect_identical(session$summary()$close_attempts, 1L)
+})
+
+test_that("partially opened sessions clean up when later admission fails", {
+  first_revision <- paste0("sha256:", paste(rep("1", 64), collapse = ""))
+  second_revision <- paste0("sha256:", paste(rep("2", 64), collapse = ""))
+  first <- effectagram:::.shared_source_descriptor("test", "one", c(2, 3),
+    first_revision)
+  second <- effectagram:::.shared_source_descriptor("test", "two", c(2, 3),
+    second_revision)
+  rel <- relation(list(one = first, two = second), effects = c("a", "b"))
+  closes <- 0L
+  opener <- function(value, expected_revision, shared_opener) {
+    if (identical(value$spec$token, "two")) stop("admission failed")
+    effectagram:::.new_source_handle(value,
+      read = function(features) matrix(0, 2, length(features)),
+      close = function() closes <<- closes + 1L, owns_handle = TRUE)
+  }
+
+  expect_error(effectagram:::.open_relation_source_session(rel,
+    open_descriptor = opener), "admission failed")
+  expect_identical(closes, 1L)
+})

@@ -313,6 +313,8 @@
 
   value <- .execute_guarded(
     compute = function() {
+      source_session <- .open_relation_source_session(x)
+      on.exit(.close_source_session(source_session), add = TRUE)
       total_accumulator <- NULL
       if (storage == "block") {
         total_accumulator <- function(rows, coordinates, increment) {
@@ -324,7 +326,8 @@
       streamed <- .streamed_crossgram_contraction(
         frame = at,
         read_relation = function(partition, features) {
-          relation_block(x, partition, features)
+          .relation_block_with_reader(x, partition, features,
+            source_session$read)
         },
         partitions = x$partitions,
         effects = x$effect_space$coordinates,
@@ -379,6 +382,8 @@
           coherent = if (requirements$coherent) coherent$diagnostics else NULL),
         scientific_plan_id = plan_id
       )
+      source_session$close()
+      metadata$source_session <- source_session$summary()
       result <- if (is.null(query)) {
         effect_geometry(total_value, coherent_value, marginals,
           effects = x$effect_space, receipt = planned_receipt,

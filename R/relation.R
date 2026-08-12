@@ -296,7 +296,15 @@ relation <- function(sources, extract = NULL, effects = NULL,
 #' @return A finite effect-by-feature matrix.
 #' @export
 relation_block <- function(x, partition, features) {
+  .relation_block_with_reader(x, partition, features,
+    function(partition, features) x$sources[[partition]]$read(features))
+}
+
+.relation_block_with_reader <- function(x, partition, features, read_response) {
   .validate_relation(x)
+  if (!is.function(read_response)) {
+    stop("Relation response reader must be a function.", call. = FALSE)
+  }
   if (is.numeric(partition) && length(partition) == 1L && !is.na(partition) &&
       partition %% 1 == 0 && partition >= 1L && partition <= length(x$partitions)) {
     partition <- x$partitions[[as.integer(partition)]]
@@ -313,7 +321,7 @@ relation_block <- function(x, partition, features) {
   }
   features <- as.integer(features)
   source <- x$sources[[partition]]
-  response <- source$read(features)
+  response <- read_response(partition, features)
   if (!is.matrix(response) || !is.numeric(response) ||
       !identical(dim(response), c(source$dim[[1L]], length(features))) ||
       any(!is.finite(response))) {

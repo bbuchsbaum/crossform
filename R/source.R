@@ -271,3 +271,104 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
   on.exit(.close_source_handle(handle), add = TRUE)
   code(handle)
 }
+
+.source_descriptor_key <- function(descriptor) {
+  descriptor <- .validate_source_descriptor(descriptor)
+  paste0("sha256:", digest::digest(descriptor, algo = "sha256",
+    serialize = TRUE))
+}
+
+.open_relation_source_session <- function(relation,
+                                          open_descriptor = .open_source_descriptor,
+                                          shared_opener = NULL) {
+  .validate_relation(relation)
+  if (!is.function(open_descriptor)) {
+    stop("`open_descriptor` must be a function.", call. = FALSE)
+  }
+  handles <- list()
+  partition_keys <- stats::setNames(vector("list", length(relation$partitions)),
+    relation$partitions)
+  facts <- new.env(parent = emptyenv())
+  facts$closed <- FALSE
+  facts$close_attempts <- 0L
+  facts$read_count <- stats::setNames(integer(length(relation$partitions)),
+    relation$partitions)
+  facts$bytes_read <- stats::setNames(numeric(length(relation$partitions)),
+    relation$partitions)
+
+  close_opened <- function() {
+    if (!facts$closed) {
+      facts$close_attempts <- facts$close_attempts + 1L
+      for (handle in rev(handles)) {
+        try(.close_source_handle(handle), silent = TRUE)
+      }
+      facts$closed <- TRUE
+    }
+    invisible(NULL)
+  }
+
+  for (partition in relation$partitions) {
+    descriptor <- relation$sources[[partition]]$descriptor
+    if (is.null(descriptor) || identical(descriptor$access, "coordinator")) {
+      partition_keys[partition] <- list(NULL)
+      next
+    }
+    key <- .source_descriptor_key(descriptor)
+    partition_keys[[partition]] <- key
+    if (is.null(handles[[key]])) {
+      handle <- tryCatch(
+        open_descriptor(descriptor,
+          expected_revision = relation$capabilities[[partition]]$stable_revision,
+          shared_opener = shared_opener),
+        error = function(error) {
+          close_opened()
+          stop(error)
+        }
+      )
+      handles[[key]] <- handle
+    }
+  }
+
+  read <- function(partition, features) {
+    if (facts$closed) stop("Source session is closed.", call. = FALSE)
+    if (!partition %in% relation$partitions) {
+      stop("Source session partition is invalid.", call. = FALSE)
+    }
+    features <- .validate_source_features(features, relation$n_features)
+    key <- partition_keys[[partition]]
+    value <- if (is.null(key)) {
+      relation$sources[[partition]]$read(features)
+    } else {
+      handles[[key]]$read(features)
+    }
+    facts$read_count[[partition]] <- facts$read_count[[partition]] + 1L
+    facts$bytes_read[[partition]] <- facts$bytes_read[[partition]] +
+      prod(as.double(dim(value))) * 8
+    value
+  }
+
+  summary <- function() {
+    descriptors <- lapply(relation$sources, `[[`, "descriptor")
+    access <- vapply(descriptors, function(descriptor) {
+      if (is.null(descriptor)) "opaque_coordinator" else descriptor$access
+    }, character(1))
+    list(
+      access_mode = stats::setNames(access, relation$partitions),
+      distinct_owned_handles = length(handles),
+      read_count = facts$read_count,
+      bytes_read = facts$bytes_read,
+      closed = facts$closed,
+      close_attempts = facts$close_attempts
+    )
+  }
+
+  structure(list(read = read, close = close_opened, summary = summary),
+    class = "effect_source_session")
+}
+
+.close_source_session <- function(session) {
+  if (!inherits(session, "effect_source_session") || !is.function(session$close)) {
+    stop("`session` must be an effectagram source session.", call. = FALSE)
+  }
+  session$close()
+}

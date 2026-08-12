@@ -148,6 +148,53 @@ test_that("block-backed public geometry remains complete and readable", {
     geometry_component(memory, "configuration"), tolerance = 1e-12)
 })
 
+test_that("compiler reuses one admitted file handle across feature blocks", {
+  values <- matrix(seq_len(16), 2, 8)
+  path <- tempfile("effectagram-session-", fileext = ".bin")
+  on.exit(unlink(path), add = TRUE)
+  connection <- file(path, open = "wb")
+  writeBin(as.double(values), connection, size = 8, endian = .Platform$endian)
+  close(connection)
+  descriptor <- file_matrix_source(path, dim(values))
+  domain <- abstract_domain(8)
+  rel <- relation(list(run1 = descriptor, run2 = descriptor),
+    effects = c("a", "b"), domain = domain)
+  got <- geometry(rel, frame(whole_brain(), domain), cross_partitions(rel),
+    compute = compute_policy(block_features = 2))
+
+  expect_identical(got$metadata$source_session$distinct_owned_handles, 1L)
+  expect_identical(unname(got$metadata$source_session$read_count), c(4L, 4L))
+  expect_identical(got$metadata$source_session$close_attempts, 1L)
+  expect_true(got$metadata$source_session$closed)
+})
+
+test_that("compiler hashes a file source once at session admission", {
+  values <- matrix(seq_len(12), 2, 6)
+  path <- tempfile("effectagram-hash-session-", fileext = ".bin")
+  on.exit(unlink(path), add = TRUE)
+  connection <- file(path, open = "wb")
+  writeBin(as.double(values), connection, size = 8, endian = .Platform$endian)
+  close(connection)
+  descriptor <- file_matrix_source(path, dim(values))
+  original_hash <- effectagram:::.file_sha256
+  hashes <- 0L
+  testthat::local_mocked_bindings(
+    .file_sha256 = function(path) {
+      hashes <<- hashes + 1L
+      original_hash(path)
+    },
+    .package = "effectagram"
+  )
+  domain <- abstract_domain(6)
+  rel <- relation(list(run1 = descriptor, run2 = descriptor),
+    effects = c("a", "b"), domain = domain)
+
+  geometry(rel, frame(whole_brain(), domain), cross_partitions(rel),
+    compute = compute_policy(block_features = 1))
+
+  expect_identical(hashes, 1L)
+})
+
 test_that("compile and budget failures occur before opaque source reads", {
   reads <- 0L
   source <- function(features) {
