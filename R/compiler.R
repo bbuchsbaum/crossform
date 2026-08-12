@@ -15,7 +15,9 @@
   capabilities
 }
 
-.compiler_query <- function(query, q) {
+.compiler_query <- function(query, effect_space) {
+  effect_space <- .validate_effect_space(effect_space)
+  q <- length(effect_space$coordinates)
   packed_width <- q * (q + 1L) / 2L
   if (inherits(query, "effect_query")) {
     .validate_query_for_compile(query)
@@ -24,6 +26,11 @@
     }
     if (nrow(query$operator) != q) {
       stop("The query operator dimension must equal the effect dimension.",
+        call. = FALSE)
+    }
+    if (!is.null(query$effect_space) &&
+        !.same_effect_space(query$effect_space, effect_space)) {
+      stop("The query and relation effect spaces are incompatible.",
         call. = FALSE)
     }
     value <- matrix(.svec_symmetric(query$operator), ncol = 1L)
@@ -109,7 +116,7 @@
     source_revisions = vapply(x$capabilities, `[[`, character(1),
       "stable_revision"),
     extractors = lapply(x$extractors, function(value) value$map),
-    effects = x$effects,
+    effect_space = x$effect_space,
     partitions = x$partitions,
     domain_id = x$domain_id,
     frame = list(weights = at$weights, normalization = at$normalization,
@@ -232,7 +239,7 @@
                                    storage_path, query, component, reporter) {
   compute <- .validate_compute_policy(compute)
   .validate_compiler_inputs(x, at, over)
-  if (!is.null(query)) query <- .compiler_query(query, length(x$effects))
+  if (!is.null(query)) query <- .compiler_query(query, x$effect_space)
   component <- if (is.null(query)) "full" else
     match.arg(component, c("total", "coherent", "configuration"))
   if (!is.null(query) && storage != "memory") {
@@ -244,7 +251,7 @@
   })$source_capabilities
   x$capabilities <- capabilities
 
-  q <- length(x$effects)
+  q <- length(x$effect_space$coordinates)
   h <- q * (q + 1L) / 2L
   output_width <- if (is.null(query)) h else ncol(query)
   feature_block <- if (is.null(compute$block_features)) {
@@ -290,7 +297,7 @@
           relation_block(x, partition, features)
         },
         partitions = x$partitions,
-        effects = x$effects,
+        effects = x$effect_space$coordinates,
         over = over,
         feature_block = feature_block,
         row_tile = row_tile,
@@ -327,7 +334,7 @@
       )
       result <- if (is.null(query)) {
         effect_geometry(total_value, coherent_value, marginals,
-          effects = x$effects, receipt = planned_receipt,
+          effects = x$effect_space, receipt = planned_receipt,
           index = .compiler_index(at), metadata = metadata)
       } else {
         total_matrix <- if (storage == "memory") total_value else
@@ -341,6 +348,7 @@
         )
         colnames(values) <- colnames(query)
         effect_view(values, query, component, planned_receipt,
+          effects = x$effect_space,
           index = .compiler_index(at), metadata = metadata)
       }
       completed$value <- TRUE

@@ -81,6 +81,40 @@ test_that("direct queries equal late queries without claiming full geometry", {
   }
 })
 
+test_that("compiler rejects a same-shaped query from another effect space", {
+  fixture <- compiler_fixture()
+  query <- bilinear_query(diag(2), effects = effect_space(
+    c("face", "house"), basis_id = "different:basis"))
+
+  expect_error(evaluate_geometry(fixture$relation, fixture$at, fixture$over,
+    query), "effect spaces are incompatible")
+})
+
+test_that("experimental reparameterization preserves bound scalar queries", {
+  fixture <- compiler_fixture()
+  base_space <- effect_space(c("face", "house"), basis_id = "means:v1")
+  transformed_space <- effect_space(c("sum", "difference"),
+    basis_id = "sum-difference:v1")
+  base <- relation(fixture$matrices, effects = base_space,
+    domain_id = fixture$relation$domain_id)
+  transform <- matrix(c(1, 1, 1, -1), 2, byrow = TRUE)
+  transformed <- relation(lapply(fixture$matrices, function(value) {
+    unname(transform %*% value)
+  }), effects = transformed_space, domain_id = fixture$relation$domain_id)
+  operator <- tcrossprod(c(1, -0.5))
+  inverse <- solve(transform)
+  transformed_operator <- t(inverse) %*% operator %*% inverse
+
+  original <- evaluate_geometry(base, fixture$at, fixture$over,
+    bilinear_query(operator, effects = base_space))
+  changed <- evaluate_geometry(transformed, fixture$at, fixture$over,
+    bilinear_query(transformed_operator, effects = transformed_space))
+
+  expect_equal(original$values, changed$values, tolerance = 1e-12)
+  expect_false(identical(original$receipt$scientific_plan_id,
+    changed$receipt$scientific_plan_id))
+})
+
 test_that("block-backed public geometry remains complete and readable", {
   fixture <- compiler_fixture()
   path <- tempfile("effectagram-store-")

@@ -68,9 +68,10 @@ factor_frame <- function(factors, locally_estimated = FALSE,
 #'
 #' @param operator A finite square numeric matrix.
 #' @param fixed Whether the query is fixed before local data are inspected.
+#' @param effects Optional `effect_space()` binding for the operator axes.
 #' @return A declarative query value.
 #' @export
-bilinear_query <- function(operator, fixed = TRUE) {
+bilinear_query <- function(operator, fixed = TRUE, effects = NULL) {
   if (!is.matrix(operator) || !is.numeric(operator) ||
       nrow(operator) != ncol(operator) || nrow(operator) < 1L ||
       any(!is.finite(operator))) {
@@ -80,8 +81,10 @@ bilinear_query <- function(operator, fixed = TRUE) {
     stop("`fixed` must be TRUE or FALSE.", call. = FALSE)
   }
 
+  if (!is.null(effects)) effects <- .as_effect_space(effects, nrow(operator))
   structure(
-    list(kind = "bilinear", fixed = fixed, operator = operator),
+    list(kind = "bilinear", fixed = fixed, operator = operator,
+      effect_space = effects),
     class = "effect_query"
   )
 }
@@ -225,6 +228,12 @@ compile_lowering <- function(frame, query) {
   }
   if (!is.logical(query$fixed) || length(query$fixed) != 1L || is.na(query$fixed)) {
     stop("Query fixedness must be one logical value.", call. = FALSE)
+  }
+  if (!is.null(query$effect_space)) {
+    .validate_effect_space(query$effect_space)
+    if (length(query$effect_space$coordinates) != nrow(operator)) {
+      stop("Query effect-space dimension must match its operator.", call. = FALSE)
+    }
   }
   invisible(query)
 }

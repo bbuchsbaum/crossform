@@ -8,6 +8,14 @@ test_that("collapse is admitted only for additive fixed-bilinear work", {
   expect_identical(plan$kind, "additive_contraction")
 })
 
+test_that("bilinear queries can bind their experimental axes", {
+  space <- effect_space(c("a", "b"), basis_id = "basis:v1")
+  query <- bilinear_query(diag(2), effects = space)
+
+  expect_identical(query$effect_space, space)
+  expect_error(bilinear_query(diag(3), effects = space), "dimension")
+})
+
 test_that("factor, local, adaptive, and nonlinear work have separate lowerings", {
   additive <- additive_frame(matrix(1, nrow = 1, ncol = 2))
   factor <- factor_frame(list(diag(2)))

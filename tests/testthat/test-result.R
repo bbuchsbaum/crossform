@@ -4,11 +4,21 @@ test_that("complete geometry and query-only view are distinct contracts", {
   view <- query_geometry(geometry, query, component = "total")
 
   expect_s3_class(geometry, "effect_geometry")
+  expect_s3_class(geometry$effect_space, "effect_space")
   expect_identical(geometry$completeness, "full")
   expect_s3_class(view, "effect_view")
   expect_identical(view$completeness, "query_only")
   expect_false(inherits(view, "effect_geometry"))
   expect_error(geometry_component(view), "complete effect_geometry")
+})
+
+test_that("geometry queries enforce experimental-space identity", {
+  geometry <- result_fixture()
+  incompatible <- bilinear_query(diag(2), effects = effect_space(
+    c("a", "b"), basis_id = "different:basis"))
+
+  expect_error(query_geometry(geometry, incompatible),
+    "effect spaces are incompatible")
 })
 
 test_that("full materialization and direct query agree", {
@@ -28,6 +38,7 @@ test_that("full materialization and direct query agree", {
 
   expect_equal(materialized$values, direct$values, tolerance = 1e-14)
   expect_identical(materialized$completeness, "query_only")
+  expect_s3_class(direct$effect_space, "effect_space")
 })
 
 test_that("bilinear operators compile only after their contracts are checked", {

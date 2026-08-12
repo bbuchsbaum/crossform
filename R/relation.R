@@ -69,7 +69,8 @@
 #' @param sources A matrix, or a named list of matrix, function, or
 #'   `effect_source_descriptor` response sources.
 #' @param extract NULL, one `effect_extractor`, or one extractor per partition.
-#' @param effects Effect names for already estimated sources.
+#' @param effects An `effect_space()` for already estimated sources, or unique
+#'   names used as shorthand for an unspecified-basis effect space.
 #' @param source_dims Required dimensions for function sources, as one
 #'   two-element vector per partition.
 #' @param partitions Optional partition names when not supplied by `sources`.
@@ -115,6 +116,57 @@ relation <- function(sources, extract = NULL, effects = NULL,
   if (!is.list(source_dims) || length(source_dims) != length(sources)) {
     stop("`source_dims` must provide one entry per source.", call. = FALSE)
   }
+  declared_effect_space <- !is.null(effects)
+  if (is.null(extract)) {
+    first_dimension <- if (is.matrix(sources[[1L]])) {
+      nrow(sources[[1L]])
+    } else if (inherits(sources[[1L]], "effect_source_descriptor")) {
+      .validate_source_descriptor(sources[[1L]])$dim[[1L]]
+    } else {
+      source_dims[[1L]][[1L]]
+    }
+    if (is.null(effects)) {
+      if (!all(vapply(sources, is.matrix, logical(1)))) {
+        stop("Non-matrix precomputed sources require an explicit effect space.",
+          call. = FALSE)
+      }
+      names_first <- .matrix_effect_names(sources[[1L]], required = TRUE)
+      effects <- effect_space(names_first)
+    } else {
+      effects <- .as_effect_space(effects, first_dimension)
+    }
+    for (partition in partitions) {
+      source <- sources[[partition]]
+      source_dimension <- if (is.matrix(source)) nrow(source) else if (
+        inherits(source, "effect_source_descriptor")) {
+        .validate_source_descriptor(source)$dim[[1L]]
+      } else {
+        source_dims[[match(partition, partitions)]][[1L]]
+      }
+      if (!identical(as.integer(source_dimension),
+          as.integer(length(effects$coordinates)))) {
+        stop("Precomputed effect sources must share one effect dimension.",
+          call. = FALSE)
+      }
+      if (is.matrix(source)) {
+        source_names <- .matrix_effect_names(source,
+          required = !declared_effect_space)
+        if (!is.null(source_names)) {
+          missing <- setdiff(effects$coordinates, source_names)
+          extra <- setdiff(source_names, effects$coordinates)
+          if (length(missing) || length(extra)) {
+            stop("A precomputed partition has missing or extra effect coordinates.",
+              call. = FALSE)
+          }
+          source <- source[match(effects$coordinates, source_names), , drop = FALSE]
+        } else {
+          rownames(source) <- effects$coordinates
+        }
+        sources[[partition]] <- source
+      }
+    }
+  }
+
   compiled_sources <- Map(function(source, dim) {
     if (is.matrix(source)) {
       .matrix_response_source(source)
@@ -128,12 +180,6 @@ relation <- function(sources, extract = NULL, effects = NULL,
 
   if (is.null(extract)) {
     q <- compiled_sources[[1L]]$dim[[1L]]
-    inferred_effects <- if (is.null(effects) && is.matrix(sources[[1L]])) {
-      rownames(sources[[1L]])
-    } else {
-      effects
-    }
-    effects <- .validate_effect_names(inferred_effects, q)
     extractors <- lapply(compiled_sources, function(source) {
       if (source$dim[[1L]] != q) {
         stop("Precomputed effect sources must share one effect dimension.",
@@ -151,7 +197,15 @@ relation <- function(sources, extract = NULL, effects = NULL,
       stop("`extract` must supply one extractor per partition.", call. = FALSE)
     }
     extractors <- lapply(extractors, .validate_effect_extractor)
-    effects <- extractors[[1L]]$effects
+    extractor_space <- extractors[[1L]]$effect_space
+    if (!is.null(effects)) {
+      declared <- .as_effect_space(effects, length(extractor_space$coordinates))
+      if (!.same_effect_space(declared, extractor_space)) {
+        stop("The declared and extractor effect spaces are incompatible.",
+          call. = FALSE)
+      }
+    }
+    effects <- extractor_space
   }
   names(extractors) <- partitions
   for (partition in partitions) {
@@ -159,8 +213,8 @@ relation <- function(sources, extract = NULL, effects = NULL,
         compiled_sources[[partition]]$dim[[1L]]) {
       stop("Extractor observations must match their response source.", call. = FALSE)
     }
-    if (!identical(extractors[[partition]]$effects, effects)) {
-      stop("All partition extractors must share one named effect space.",
+    if (!.same_effect_space(extractors[[partition]]$effect_space, effects)) {
+      stop("All partition extractors must share one identical effect space.",
         call. = FALSE)
     }
   }
@@ -212,7 +266,8 @@ relation <- function(sources, extract = NULL, effects = NULL,
     list(
       sources = compiled_sources,
       extractors = extractors,
-      effects = effects,
+      effect_space = effects,
+      effects = effects$coordinates,
       partitions = partitions,
       n_features = feature_counts[[1L]],
       domain_id = domain_id,
@@ -259,13 +314,13 @@ relation_block <- function(x, partition, features) {
   if (any(!is.finite(value))) {
     stop("Effect extraction produced non-finite relation values.", call. = FALSE)
   }
-  dimnames(value) <- list(x$effects, NULL)
+  dimnames(value) <- list(x$effect_space$coordinates, NULL)
   value
 }
 
 .validate_relation <- function(x) {
-  expected <- c("sources", "extractors", "effects", "partitions", "n_features",
-    "domain_id", "capabilities", "provenance")
+  expected <- c("sources", "extractors", "effect_space", "effects",
+    "partitions", "n_features", "domain_id", "capabilities", "provenance")
   if (!inherits(x, "effect_relation") || !is.list(x) ||
       !identical(names(x), expected) || !is.list(x$sources) ||
       !is.list(x$extractors) || length(x$sources) < 1L ||
@@ -274,7 +329,11 @@ relation_block <- function(x, partition, features) {
       !identical(names(x$extractors), x$partitions)) {
     stop("Relation fields are missing or noncanonical.", call. = FALSE)
   }
-  .validate_effect_names(x$effects, length(x$effects))
+  effect_space <- .validate_effect_space(x$effect_space)
+  if (!identical(x$effects, effect_space$coordinates)) {
+    stop("Relation coordinate labels are inconsistent with its effect space.",
+      call. = FALSE)
+  }
   if (!is.numeric(x$n_features) || length(x$n_features) != 1L ||
       is.na(x$n_features) || !is.finite(x$n_features) ||
       x$n_features < 1L || x$n_features %% 1 != 0) {
@@ -298,7 +357,7 @@ relation_block <- function(x, partition, features) {
     }
     extractor <- .validate_effect_extractor(x$extractors[[partition]])
     if (extractor$n_observations != source$dim[[1L]] ||
-        !identical(extractor$effects, x$effects)) {
+        !.same_effect_space(extractor$effect_space, effect_space)) {
       stop("Relation extractor metadata is inconsistent.", call. = FALSE)
     }
   }
@@ -311,6 +370,23 @@ relation_block <- function(x, partition, features) {
     lapply(x$capabilities, .validate_source_capabilities)
   }
   invisible(x)
+}
+
+.matrix_effect_names <- function(x, required = FALSE) {
+  value <- rownames(x)
+  if (is.null(value)) {
+    if (required) {
+      stop("Every inferred precomputed partition requires complete row names.",
+        call. = FALSE)
+    }
+    return(NULL)
+  }
+  if (length(value) != nrow(x) || anyNA(value) || any(!nzchar(value)) ||
+      anyDuplicated(value)) {
+    stop("Precomputed partition row names must be complete and unique.",
+      call. = FALSE)
+  }
+  value
 }
 
 .relation_source_descriptors <- function(x, require_reopenable = FALSE) {

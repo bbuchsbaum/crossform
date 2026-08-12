@@ -13,6 +13,46 @@ test_that("precomputed effect matrices form an identity relation", {
     runs$run2[, c(2, 5)], tolerance = 0)
 })
 
+test_that("named precomputed partitions align to the declared effect space", {
+  space <- effect_space(c("face", "house"), basis_id = "conditions:v1",
+    units = "percent-signal")
+  canonical <- matrix(1:6, 2, 3,
+    dimnames = list(c("face", "house"), NULL))
+  reversed <- canonical[c("house", "face"), , drop = FALSE]
+  rel <- relation(list(first = canonical, second = reversed), effects = space)
+
+  expect_identical(rel$effect_space, space)
+  expect_equal(relation_block(rel, "second", 1:3), canonical, tolerance = 0)
+})
+
+test_that("precomputed coordinate ambiguity fails during construction", {
+  space <- effect_space(c("a", "b"), basis_id = "basis:v1")
+  missing <- matrix(1:6, 2, 3, dimnames = list(c("a", "c"), NULL))
+  partial <- matrix(1:6, 2, 3, dimnames = list(c("a", ""), NULL))
+
+  expect_error(relation(list(run = missing), effects = space),
+    "missing or extra")
+  expect_error(relation(list(run = partial), effects = space),
+    "complete and unique")
+  expect_error(relation(list(run = unname(matrix(1:6, 2, 3)))),
+    "complete row names")
+})
+
+test_that("extractor bases and units must match across partitions", {
+  first <- effect_extractor(diag(2),
+    effect_space(c("a", "b"), basis_id = "basis:v1", units = "z"))
+  other_basis <- effect_extractor(diag(2),
+    effect_space(c("a", "b"), basis_id = "basis:v2", units = "z"))
+  other_units <- effect_extractor(diag(2),
+    effect_space(c("a", "b"), basis_id = "basis:v1", units = "percent"))
+  sources <- list(one = matrix(1, 2, 3), two = matrix(1, 2, 3))
+
+  expect_error(relation(sources, extract = list(first, other_basis)),
+    "identical effect space")
+  expect_error(relation(sources, extract = list(first, other_units)),
+    "identical effect space")
+})
+
 test_that("raw response and materialized effect relations are equivalent", {
   set.seed(61)
   design <- cbind(1, condition = rep(c(-0.5, 0.5), 6))

@@ -6,7 +6,8 @@
 #' data and may therefore be reused across feature blocks.
 #'
 #' @param map A finite effect-by-observation numeric matrix.
-#' @param effects Unique names for the effect coordinates.
+#' @param effects An `effect_space()` or unique names used as shorthand for an
+#'   unspecified-basis effect space.
 #' @param estimator Short estimator identity.
 #' @param diagnostics Optional estimator diagnostics.
 #' @return An `effect_extractor`.
@@ -18,7 +19,7 @@ effect_extractor <- function(map, effects = rownames(map),
     stop("`map` must be a finite nonempty effect-by-observation matrix.",
       call. = FALSE)
   }
-  effects <- .validate_effect_names(effects, nrow(map))
+  effects <- .as_effect_space(effects, nrow(map))
   if (!is.character(estimator) || length(estimator) != 1L ||
       is.na(estimator) || !nzchar(estimator)) {
     stop("`estimator` must be one nonempty identifier.", call. = FALSE)
@@ -26,11 +27,12 @@ effect_extractor <- function(map, effects = rownames(map),
   if (!is.list(diagnostics)) {
     stop("`diagnostics` must be a list.", call. = FALSE)
   }
-  rownames(map) <- effects
+  rownames(map) <- effects$coordinates
   structure(
     list(
       map = map,
-      effects = effects,
+      effect_space = effects,
+      effects = effects$coordinates,
       n_observations = ncol(map),
       estimator = estimator,
       diagnostics = diagnostics
@@ -49,7 +51,7 @@ effect_extractor <- function(map, effects = rownames(map),
 #' @param design Finite observation-by-coefficient design matrix.
 #' @param effects Finite effect-by-coefficient target matrix.
 #' @param whiten Optional finite square observation whitener `L`.
-#' @param effect_names Optional names for target effects.
+#' @param effect_names Optional names or an `effect_space()` for target effects.
 #' @param tolerance Positive rank and estimability tolerance.
 #' @return An `effect_extractor`.
 #' @export
@@ -77,7 +79,8 @@ lm_extractor <- function(design, effects, whiten = NULL,
     stop("`whiten` must be NULL or a finite square observation matrix.",
       call. = FALSE)
   }
-  effect_names <- .validate_effect_names(effect_names, nrow(effects))
+  effect_names <- .as_effect_space(effect_names, nrow(effects))
+  coordinate_names <- effect_names$coordinates
   whitened_design <- whiten %*% design
   decomposition <- qr(whitened_design, tol = tolerance, LAPACK = FALSE)
   rank <- decomposition$rank
@@ -101,7 +104,7 @@ lm_extractor <- function(design, effects, whiten = NULL,
     scale <- pmax(1, sqrt(rowSums(effects^2)))
     estimability_error <- sqrt(rowSums((effects - projected)^2)) / scale
     if (any(estimability_error > tolerance * 10)) {
-      bad <- effect_names[estimability_error > tolerance * 10]
+      bad <- coordinate_names[estimability_error > tolerance * 10]
       stop(sprintf("Requested effects are not estimable: %s.",
         paste(bad, collapse = ", ")), call. = FALSE)
     }
@@ -121,7 +124,7 @@ lm_extractor <- function(design, effects, whiten = NULL,
       coefficients = coefficients,
       rank = as.integer(rank),
       rank_deficient = rank < coefficients,
-      estimability_error = stats::setNames(estimability_error, effect_names),
+      estimability_error = stats::setNames(estimability_error, coordinate_names),
       tolerance = tolerance
     )
   )
@@ -138,11 +141,15 @@ lm_extractor <- function(design, effects, whiten = NULL,
 
 .validate_effect_extractor <- function(x) {
   if (!inherits(x, "effect_extractor") || !is.list(x) ||
-      !identical(names(x), c("map", "effects", "n_observations", "estimator",
-        "diagnostics"))) {
+      !identical(names(x), c("map", "effect_space", "effects",
+        "n_observations", "estimator", "diagnostics"))) {
     stop("Extractor fields are missing or noncanonical.", call. = FALSE)
   }
-  rebuilt <- effect_extractor(x$map, x$effects, x$estimator, x$diagnostics)
+  rebuilt <- effect_extractor(x$map, x$effect_space, x$estimator, x$diagnostics)
+  if (!identical(x$effects, rebuilt$effects)) {
+    stop("Extractor coordinate labels are inconsistent with its effect space.",
+      call. = FALSE)
+  }
   if (!identical(x$n_observations, rebuilt$n_observations)) {
     stop("Extractor observation metadata is inconsistent with its map.",
       call. = FALSE)

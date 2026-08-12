@@ -67,8 +67,9 @@
 #'   or internal geometry stores having the same dimensions.
 #' @param marginals Pairing-appropriate signed marginals. Undirected pairings
 #'   contain `endpoint`; directed pairings contain `left` and `right`.
-#' @param effects Unique experimental-coordinate names. Their count must match
-#'   the triangular packed-geometry width and marginal columns.
+#' @param effects An `effect_space()` whose dimension must match the triangular
+#'   packed-geometry width and marginal columns. Unique names are accepted as
+#'   shorthand for an unspecified-basis space.
 #' @param index Optional measurement index with one entry per geometry row.
 #' @param receipt The `execution_receipt()` proving how the result was made.
 #' @param metadata Optional compact semantic metadata.
@@ -90,7 +91,8 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
       total = total,
       coherent = coherent,
       marginals = marginals,
-      effects = validated$effects,
+      effect_space = validated$effect_space,
+      effects = validated$effect_space$coordinates,
       index = index,
       metadata = metadata,
       receipt = receipt,
@@ -136,11 +138,8 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
   if (!is.finite(effect_count) || effect_count %% 1 != 0) {
     stop("Packed geometry width is not triangular.", call. = FALSE)
   }
-  if (!is.character(effects) || length(effects) != effect_count ||
-      anyNA(effects) || any(!nzchar(effects)) || anyDuplicated(effects)) {
-    stop("`effects` must uniquely identify every packed experimental coordinate.",
-      call. = FALSE)
-  }
+  effects <- .as_effect_space(effects, effect_count)
+  effect_names <- effects$coordinates
   if (!inherits(marginals, "effect_marginals") || length(marginals) < 1L) {
     stop("`marginals` must be a nonempty pairing-appropriate marginal object.",
       call. = FALSE)
@@ -158,7 +157,7 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
   if (!all(vapply(marginals, function(x) {
     is.matrix(x) && is.numeric(x) && identical(dim(x),
       c(total$dim[[1L]], as.integer(effect_count))) && all(is.finite(x)) &&
-      identical(colnames(x), effects)
+      identical(colnames(x), effect_names)
   }, logical(1)))) {
     stop("Every marginal must match measurement rows and named effect columns.",
       call. = FALSE)
@@ -173,7 +172,7 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
     stop("Result metadata and execution receipt identify different scientific plans.",
       call. = FALSE)
   }
-  list(effects = effects)
+  list(effect_space = effects)
 }
 
 #' Construct an explicit query-only effect view
@@ -187,10 +186,11 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
 #' @param index Optional measurement index.
 #' @param receipt The `execution_receipt()` proving how the view was made.
 #' @param metadata Optional compact semantic metadata.
+#' @param effects The `effect_space()` to which the view coordinates refer.
 #' @return A query-only `effect_view`.
 #' @export
 effect_view <- function(values, query, component, receipt, index = NULL,
-                        metadata = list()) {
+                        metadata = list(), effects = NULL) {
   if (!is.matrix(values) || !is.numeric(values) || any(!is.finite(values))) {
     stop("`values` must be a finite numeric matrix.", call. = FALSE)
   }
@@ -203,11 +203,33 @@ effect_view <- function(values, query, component, receipt, index = NULL,
     stop("`metadata` must be a list.", call. = FALSE)
   }
   .validate_execution_receipt(receipt)
+  if (is.null(effects) && inherits(query, "effect_query") &&
+      !is.null(query$effect_space)) {
+    effects <- query$effect_space
+  }
+  if (is.null(effects)) {
+    packed_width <- if (inherits(query, "effect_query")) {
+      nrow(query$operator) * (nrow(query$operator) + 1L) / 2L
+    } else if (is.matrix(query)) {
+      nrow(query)
+    } else {
+      NA_real_
+    }
+    effect_count <- (sqrt(8 * packed_width + 1) - 1) / 2
+    if (!is.finite(effect_count) || effect_count < 1L || effect_count %% 1 != 0) {
+      stop("`effects` is required when the query does not identify a packed effect space.",
+        call. = FALSE)
+    }
+    effects <- effect_space(paste0("effect", seq_len(effect_count)))
+  } else {
+    effects <- .validate_effect_space(effects)
+  }
 
   structure(
     list(
       values = values,
       query = query,
+      effect_space = effects,
       component = component,
       index = index,
       metadata = metadata,
@@ -275,6 +297,7 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
     receipt = x$receipt,
     index = x$index,
     metadata = x$metadata
+    , effects = x$effect_space
   )
 }
 
@@ -285,6 +308,11 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
       any(!is.finite(x$total$dim)) || any(x$total$dim < 1L)) {
     stop("`x` must be a structurally complete effect_geometry.", call. = FALSE)
   }
+  effect_space <- .validate_effect_space(x$effect_space)
+  if (!identical(x$effects, effect_space$coordinates)) {
+    stop("Geometry coordinate labels are inconsistent with its effect space.",
+      call. = FALSE)
+  }
   component <- match.arg(component, c("total", "coherent", "configuration"))
   row_block <- .validate_tile_size(row_block, "row_block")
 
@@ -293,8 +321,13 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
     if (!identical(query$kind, "bilinear") || !isTRUE(query$fixed)) {
       stop("Geometry operator queries must be fixed bilinear queries.", call. = FALSE)
     }
-    if (nrow(query$operator) != length(x$effects)) {
+    if (nrow(query$operator) != length(x$effect_space$coordinates)) {
       stop("The query operator dimension must equal the experimental dimension.",
+        call. = FALSE)
+    }
+    if (!is.null(query$effect_space) &&
+        !.same_effect_space(query$effect_space, x$effect_space)) {
+      stop("The query and geometry effect spaces are incompatible.",
         call. = FALSE)
     }
     query <- matrix(.svec_symmetric(query$operator), ncol = 1L,
