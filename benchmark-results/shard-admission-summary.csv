@@ -1,0 +1,6 @@
+"mode","phase","staging","parallel","elapsed_seconds","speedup_vs_sequential","staging_seconds","pool_seconds","aggregate_peak_tree_rss_bytes","aggregate_peak_after_ready_bytes","shared_bytes","task_payload_bytes","total_parity","coherent_parity","pool_stopped","backing_removed"
+"sequential-response","cold","response",FALSE,0.419,1,0,0,1052655616,1052655616,0,26971008,TRUE,TRUE,TRUE,TRUE
+"shard-response-cold","cold","response",TRUE,1.627,0.257529194837124,0.0269999999999999,0.845,774995968,774995968,113246208,26971008,TRUE,TRUE,TRUE,TRUE
+"shard-response-warm","warm","response",TRUE,0.78,0.537179487179487,0.028,0.818,844120064,844120064,113246208,26971008,TRUE,TRUE,TRUE,TRUE
+"shard-relation-cold","cold","relation",TRUE,1.529,0.274035317200785,0.073,0.898,852164608,852164608,12582912,26971008,TRUE,TRUE,TRUE,TRUE
+"shard-relation-warm","warm","relation",TRUE,0.528,0.793560606060606,0.099,0.834,770457600,770457600,12582912,26971008,TRUE,TRUE,TRUE,TRUE

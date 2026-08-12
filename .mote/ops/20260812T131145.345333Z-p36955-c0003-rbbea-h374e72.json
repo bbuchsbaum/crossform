@@ -1,0 +1,1 @@
+{"actor":"codex-effectgeom","entity":"bd-01KZV0AMRRV135A5TBHC74TJ09","kind":"note","note_kind":"progress","op":"20260812T131145.345333Z-p36955-c0003-rbbea-h374e72","text":"Replacing error-only cleanup with an exactly-once finalizer and preserving primary computation or interrupt conditions when cleanup/reporting also fail.","ts":"2026-08-12T13:11:45.345333Z","v":1}

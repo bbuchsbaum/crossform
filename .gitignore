@@ -1,0 +1,14 @@
+.DS_Store
+.RData
+.Rhistory
+.Rproj.user/
+*.Rcheck/
+*.tar.gz
+Rplots.pdf
+
+# Benchmark summaries and compact data are evidence; console logs are transient.
+benchmark-results/*.stdout.txt
+benchmark-results/*.stderr.txt
+
+# Mote's operation log is durable project history; actor identity is local.
+.mote/local/

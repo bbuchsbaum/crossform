@@ -1,0 +1,196 @@
+---
+title: "From partitioned effects to interpretable geometry"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{From partitioned effects to interpretable geometry}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(effectagram)
+```
+
+`effectagram` computes one durable object: experimental geometry that
+reproduces across declared partitions under a declared spatial measurement.
+Changing a searchlight to an ROI changes the measurement frame. Changing a
+contrast to RSA changes the view. Neither choice introduces another fitting
+engine.
+
+This vignette starts from precomputed run effects. The final section shows where
+a linear extractor enters when responses have not yet been reduced to effects.
+
+## Declare the native relation
+
+The rows below are experimental effects and the columns are native neural
+features. Runs remain separate because agreement between independent estimates
+defines the cross-generalized quantity.
+
+```{r data}
+domain <- abstract_domain(
+  6,
+  coordinates = cbind(x = 0:5, y = 0),
+  id = "native:demo"
+)
+
+run1 <- rbind(
+  face   = c(2, 1, 0.5, -0.5, 0, 1),
+  house  = c(0, 1, 2, 1, 0.5, 0),
+  object = c(0.5, 0.5, 1, 1.5, 1, 0.5)
+)
+run2 <- rbind(
+  face   = c(2.2, 0.8, 0.4, -0.4, 0.1, 0.9),
+  house  = c(0.1, 1.2, 1.8, 0.9, 0.6, 0.1),
+  object = c(0.4, 0.6, 1.1, 1.4, 0.9, 0.6)
+)
+
+rel <- relation(list(run1 = run1, run2 = run2), domain = domain)
+```
+
+`relation()` records a common experimental basis, partition identity, native
+domain identity, and source revisions. It does not concatenate runs or resample
+features.
+
+## Measure locally and require cross-run agreement
+
+```{r geometry}
+at <- frame(searchlights(radius = 1.01, normalization = "local"), domain)
+over <- cross_partitions(rel)
+g <- geometry(rel, at = at, over = over)
+```
+
+The searchlights are rows of one sparse additive frame. `over` is an undirected
+edge table containing each run pair once. The geometry engine reads each
+feature block once per partition, forms cross-run feature atoms, and contracts
+the whole frame.
+
+`g` retains complete packed total and coherent geometry. Configuration is
+derived as `total - coherent`, so the decomposition cannot drift across reruns.
+
+## Read level and configuration together
+
+```{r contrast}
+face_house <- contrast(g, c(face = 1, house = -1, object = 0))
+round(cbind(
+  signed = face_house$signed,
+  coherent = face_house$coherent,
+  configuration = face_house$configuration,
+  total = face_house$total
+), 3)
+stopifnot(isTRUE(all.equal(
+  face_house$total,
+  face_house$coherent + face_house$configuration,
+  tolerance = 0
+)))
+```
+
+The signed column is the locally averaged contrast. Coherent energy asks
+whether that local average reproduces across runs. Configuration energy asks
+whether spatial departures from the average reproduce. Total energy is their
+exact sum. Configuration is not evidence that every single feature is
+marginally silent, nor that a biological interaction exists.
+
+Because cross-products are unbiased around zero, coherent, configuration, and
+total estimates can be negative. The package preserves those values.
+
+## Change the question, not the analysis
+
+Squared experimental distances are a fixed linear transform of geometry:
+
+```{r rdm}
+distances <- rdm(g)
+round(distances$values[1:2, ], 3)
+distances$pairs
+```
+
+Multiple-regression RSA compiles that same distance transform together with a
+fixed regression design:
+
+```{r rsa}
+category_rdm <- matrix(
+  c(0, 0, 1,
+    0, 0, 1,
+    1, 1, 0),
+  3, 3, byrow = TRUE,
+  dimnames = list(rownames(run1), rownames(run1))
+)
+model_fit <- rsa(g, models = list(category = category_rdm))
+round(model_fit$coefficients, 3)
+model_fit$terms
+```
+
+Named RDM axes are aligned to the geometry's effect identities. Rank-deficient
+RSA designs fail before any geometry rows are read.
+
+The geometry spectrum is the nonlinear descriptive view in this workflow:
+
+```{r spectrum}
+roots <- geometry_spectrum(g)
+round(roots$values[1:2, ], 3)
+```
+
+Negative roots are retained. A later positive-semidefinite latent model may be
+useful for description, but truncating the unbiased estimate would change its
+inferential meaning.
+
+## Choose the frame interpretation explicitly
+
+```{r frames}
+point_frame <- frame(voxels(), domain)
+roi_frame <- frame(
+  regions(c("anterior", "anterior", "anterior",
+            "posterior", "posterior", "posterior")),
+  domain
+)
+global_frame <- frame(whole_brain(), domain)
+```
+
+These values all enter the same `geometry()` call. With `normalization =
+"local"`, each row is an average. With `normalization = "conservative"`, each
+feature distributes unit mass across overlapping rows and local total geometry
+sums to global geometry.
+
+## Avoid materializing unused geometry
+
+If only one fixed bilinear question is needed, compile it before execution:
+
+```{r direct}
+query <- bilinear_query(tcrossprod(c(1, -1, 0)))
+direct <- evaluate_geometry(rel, at, over, query, component = "total")
+late <- query_geometry(g, query, component = "total")
+stopifnot(isTRUE(all.equal(direct$values, late$values, tolerance = 1e-12)))
+direct$completeness
+```
+
+`evaluate_geometry()` returns a query-only `effect_view`. `geometry()` always
+returns complete geometry. Storage or memory policy never changes that semantic
+distinction.
+
+## Supply an extractor when effects are still implicit
+
+For responses `Y`, a fixed extractor `E` defines the lazy relation `B = E Y`.
+`lm_extractor()` compiles an already constructed design and target map using QR,
+or an estimability-checked SVD when the design is rank deficient.
+
+```{r extractor, eval=FALSE}
+extractor <- lm_extractor(
+  design = X,
+  effects = C,
+  whiten = L
+)
+rel <- relation(response_runs, extract = extractor, domain = domain)
+```
+
+The package does not construct event designs, HRFs, nuisance models, temporal
+whitening, or registration. Those choices remain upstream and explicit.
+
+Function-backed sources must also provide `source_capabilities()` with a strong
+immutable SHA-256 revision. Matrix sources receive this identity automatically.
+The compiler validates the scientific objects and conservative memory plan
+before reading source blocks.
+
+Version 0.1 executes sequentially. The current claim is local and precise:
+additive-frame searchlights are sparse contraction rows rather than independent
+worker jobs. Locally learned covariance, adaptive feature selection, nonlinear
+normalization, and classifier accuracy remain outside this bilinear core.

@@ -1,0 +1,1 @@
+{"actor":"codex-effectgeom","entity":"bd-01KZV0AKJGXH33XK8YNETJCYP6","kind":"note","note_kind":"progress","op":"20260812T130633.034724Z-p35672-c0003-rcd26-hfbfd17","text":"Adding a centralized packed-query contract plus read-counting adversarial tests proving all invalid queries fail before store I/O.","ts":"2026-08-12T13:06:33.034724Z","v":1}
