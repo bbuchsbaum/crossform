@@ -3,6 +3,14 @@
 Status: design guidance, not implementation
 Date: 2026-08-11
 
+Implementation baseline: commit
+`01f3763c6aa00ebe50e69fc966d5201a861e4b09` (2026-08-12). The interim
+implementation audit used aggregate source SHA-256
+`13fe403a2ad6deec5b70c769dd39d226c993254cba4b4a206b5e3036e6c71e4c`.
+Its eight remediation decisions are frozen in the opening sections of
+`effectagram-package-design.md` and `effectagram-execution-design.md`; those
+sections supersede any incompatible provisional guidance in this review.
+
 ## Recommendation
 
 Build the package, but freeze it as a small effect-geometry compiler—not as the full Unified Effect Geometry platform imagined in the earlier ledger.

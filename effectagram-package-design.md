@@ -7,6 +7,57 @@ checks on 2026-08-12 found the name available on CRAN, Bioconductor, and GitHub
 and found no obvious exact-name scientific-software collision. This is a naming
 check, not trademark clearance.
 
+## Version 0.1 contract freeze
+
+The implementation baseline is commit
+`01f3763c6aa00ebe50e69fc966d5201a861e4b09` (2026-08-12). The interim audit
+reviewed the same package sources under aggregate SHA-256
+`13fe403a2ad6deec5b70c769dd39d226c993254cba4b4a206b5e3036e6c71e4c`.
+The following decisions are binding before the public API freezes:
+
+1. Experimental identity is an `effect_space`, not a character vector. It
+   contains ordered coordinate identifiers, a semantic `basis_id`,
+   per-coordinate units and scaling, optional design/contrast provenance, and a
+   stable signature. Named precomputed partitions are aligned to this order;
+   partial names, missing or extra coordinates, incompatible bases, and
+   incompatible units fail before source access.
+2. Neural identity is a compact immutable domain reference containing ordered
+   `feature_ids`, feature count, coordinate units/geometry identity, and a stable
+   signature. Relations and frames carry the reference and must agree exactly;
+   a shared string and feature count are insufficient.
+3. Direct execution is component-aware. Total-only work does not allocate local
+   relations or calculate coherent geometry or marginals. Coherent-only work
+   retains local relations but not total atoms. Configuration calculates total
+   and coherent. Complete geometry calculates both and retains
+   pairing-appropriate marginals.
+4. `workspace_bytes` means the conservative peak of effectagram-owned live
+   objects and temporaries. Baseline, incremental, and absolute process RSS are
+   separate observations. Any hard aggregate RSS limit is an explicit optional
+   policy and is enforced only where RSS can be observed reliably.
+5. File-backed execution opens each distinct immutable source once per
+   execution scope, validates its revision on admission, reuses the owned
+   read-only handle across blocks, and closes it exactly once. Content hashing
+   is never repeated for every block.
+6. Execution receipts distinguish requested policy from observed execution.
+   They record actual task progress, blocks, bytes, timings, access modes,
+   runtime identities, memory observations, reporter failures, checkpoint
+   state, and checked cleanup outcomes. An unobservable BLAS thread count is
+   recorded as unknown, never invented as one.
+7. Volumetric searchlight geometry is a conditional `neuroim2` adapter under
+   `Suggests`. It consumes `neuroim2::searchlight_indices()` and maps stable
+   full-volume indices through the domain reference. It does not import ROI
+   iteration, data extraction, result types, or parallel state.
+8. The supported public constructor is `compile_frame()`, avoiding the
+   `graphics::frame` collision. Factor frames, nonlinear queries, and compiler
+   decision objects remain internal until an executable public workflow earns
+   them. Every exported consumer reconstructs or validates its value objects at
+   the boundary.
+
+These contracts supersede looser examples or field sketches later in this
+document where they conflict. The API-freeze gate is the installed source
+artifact plus semantic, adversarial, resource, adapter, documentation, and
+package checks; a green source-tree unit suite alone is not certification.
+
 ## Outcome
 
 Build a small R package whose only numerical responsibility is to compile lazy partitioned brain–experiment relations into cross-generalized experimental geometries. Voxelwise, searchlight, ROI, and global analyses are spatial frames. Contrasts, squared-distance RSA, MANOVA-like subspaces, and spectra are views. Cross-validation is a partition-pair relation. Scalarization occurs last.

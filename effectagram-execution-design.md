@@ -4,6 +4,42 @@ Status: architecture proposal; review corrections incorporated, not implementati
 Date: 2026-08-12
 Companion to: [effectagram-package-design.md](effectagram-package-design.md)
 
+## Version 0.1 execution contract freeze
+
+The audited baseline is
+`01f3763c6aa00ebe50e69fc966d5201a861e4b09`. Before API freeze, execution is
+governed by these non-negotiable rules:
+
+- semantic validation compares exact effect-space and ordered feature-domain
+  signatures before opening a source;
+- the component requirement graph removes unrequested work before planning;
+- the compiler searches legal feature, row, and coordinate tiles within
+  `workspace_bytes` rather than testing one fixed default;
+- the memory model includes the actual dense or sparse frame, resident sources,
+  scoped handles, component-dependent local state, output, contraction and
+  replacement copies, and active buffers;
+- baseline RSS, incremental RSS, absolute peak RSS, and planned package
+  workspace are distinct quantities in both benchmarks and receipts;
+- each distinct descriptor is admitted and opened once per execution scope,
+  reused across feature tasks, and closed with a checked outcome;
+- the coordinator advances receipt task and byte counters only when canonical
+  reduction commits a task; failure receipts therefore report genuine partial
+  progress without exposing a partial scientific result;
+- requested BLAS threads and observed BLAS threads are separate fields. Unknown
+  observations stay unknown. Version 0.1 does not mutate ambient global thread
+  or executor state to manufacture compliance;
+- cleanup is successful only when every owned close, detach, and deletion is
+  confirmed; and
+- optional `neuroim2` integration supplies only domain and neighborhood index
+  geometry. It never supplies the scientific kernel or an executor.
+
+These rules supersede older `memory_budget` sketches below. The public policy
+name is `workspace_bytes`; a future `rss_limit_bytes` may be admitted only with
+portable observation and failure semantics. Full certification requires
+component-elision probes, source lifecycle fault injection, measured memory
+evidence, installed-artifact tests, conditional neuroim2 parity, rendered
+documentation, and `R CMD check`.
+
 ## Outcome
 
 `effectagram` should not replace rMVPA’s `future` calls with another parallel map. For its additive fixed-bilinear core, it should eliminate the unit of work that made that machinery necessary.
