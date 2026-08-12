@@ -10,7 +10,8 @@ test_that("receipt separates scientific and numerical execution identity", {
   expect_identical(receipt$reduction_plan_id, "ascending-block-id")
   expect_identical(receipt$completion_status, "complete")
   expect_identical(receipt$task_count, receipt$completed_task_count)
-  expect_identical(receipt$blas$threads, 1L)
+  expect_identical(receipt$blas$requested_threads, 1L)
+  expect_true(is.na(receipt$blas$observed_threads))
   expect_null(receipt$reporter)
 })
 
@@ -37,14 +38,16 @@ test_that("receipts preserve every compute field and completion fact", {
     "kernel", "tasks-32", "ascending", precision = "double",
     completion_status = "complete", task_count = 9,
     completed_task_count = 9, elapsed_seconds = 1.25,
-    blas = list(vendor = "Accelerate", threads = 1)
+    blas = list(vendor = "Accelerate", requested_threads = 1,
+      observed_threads = NA_integer_)
   )
 
   expect_identical(receipt$compute, compute)
   expect_identical(receipt$task_count, 9)
   expect_identical(receipt$completed_task_count, 9)
   expect_identical(receipt$elapsed_seconds, 1.25)
-  expect_identical(receipt$blas, list(vendor = "Accelerate", threads = 1L))
+  expect_identical(receipt$blas, list(vendor = "Accelerate",
+    requested_threads = 1L, observed_threads = NA_integer_))
 })
 
 test_that("receipt construction rejects contradictory execution claims", {
@@ -75,8 +78,9 @@ test_that("receipt construction rejects contradictory execution claims", {
   expect_error(execution_receipt(
     "plan", compute_policy(), source, memory_plan(),
     "kernel", "tasks", "reduction",
-    blas = list(vendor = "OpenBLAS", threads = 2)
-  ), "one-thread")
+    blas = list(vendor = "OpenBLAS", requested_threads = 2,
+      observed_threads = 2)
+  ), "requested and observed")
   blocked_source <- list(source_capabilities(FALSE,
     stable_revision = paste0("sha256:", paste(rep("e", 64), collapse = ""))))
   expect_error(execution_receipt(

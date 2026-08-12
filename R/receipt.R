@@ -75,6 +75,8 @@ source_capabilities <- function(block_read, reopenable = FALSE,
 #' @param task_count,completed_task_count Nonnegative exact whole task counts.
 #' @param elapsed_seconds Nonnegative finite elapsed wall time.
 #' @param blas A list naming the BLAS vendor and positive thread count.
+#' @param observed Canonical observed execution facts. Planned receipts use an
+#'   empty observation record that is populated by the coordinator.
 #' @return An immutable-by-convention execution receipt.
 #' @export
 execution_receipt <- function(scientific_plan_id, compute, sources, memory,
@@ -85,8 +87,10 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
                               task_count = 1L,
                               completed_task_count = NULL,
                               elapsed_seconds = 0,
-                              blas = list(vendor = "unknown", threads = 1L),
-                              domain_signature = NULL) {
+                              blas = list(vendor = "unknown", requested_threads = 1L,
+                                observed_threads = NA_integer_),
+                              domain_signature = NULL,
+                              observed = .empty_execution_observations()) {
   ids <- list(
     scientific_plan_id = scientific_plan_id,
     kernel_version = kernel_version,
@@ -127,6 +131,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   memory <- .validate_memory_plan_for_receipt(memory)
   numeric_contract <- .validate_numeric_contract_for_receipt(numeric_contract)
   blas <- .validate_blas_identity(blas)
+  observed <- .validate_execution_observations(observed)
   task_count <- .receipt_whole(task_count, "task_count")
   completed_task_count <- .receipt_whole(completed_task_count,
     "completed_task_count")
@@ -166,11 +171,103 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
       task_count = task_count,
       completed_task_count = completed_task_count,
       elapsed_seconds = elapsed_seconds,
-      blas = blas
+      blas = blas,
+      observed = observed
     )),
     class = "effect_execution_receipt"
   )
   .validate_execution_receipt(receipt)
+}
+
+.empty_execution_observations <- function() {
+  list(
+    task_counts = c(planned = 0, started = 0, completed = 0, failed = 0,
+      retried = 0),
+    features_completed = 0,
+    bytes_read = 0,
+    tiles = list(feature_block = NULL, row_tile = NULL, coordinate_tile = NULL),
+    stage_seconds = numeric(),
+    source_access = character(),
+    memory = list(baseline_rss_bytes = NULL, incremental_peak_rss_bytes = NULL,
+      absolute_peak_rss_bytes = NULL, measured_workspace_bytes = NULL),
+    runtime = list(package_version = as.character(utils::packageVersion("effectagram")),
+      r_version = R.version.string, platform = R.version$platform),
+    reporter_failures = character(),
+    checkpoint = list(enabled = FALSE, resumed = FALSE, artifacts_written = 0L),
+    cleanup = list(attempted = FALSE, success = NA, message = NULL)
+  )
+}
+
+.validate_execution_observations <- function(x) {
+  expected <- names(.empty_execution_observations())
+  if (!is.list(x) || !identical(names(x), expected)) {
+    stop("Execution observations are missing or noncanonical.", call. = FALSE)
+  }
+  expected_counts <- c("planned", "started", "completed", "failed", "retried")
+  if (!is.numeric(x$task_counts) || !identical(names(x$task_counts), expected_counts) ||
+      anyNA(x$task_counts) || any(!is.finite(x$task_counts)) ||
+      any(x$task_counts < 0) || any(x$task_counts %% 1 != 0)) {
+    stop("Observed task counts are invalid.", call. = FALSE)
+  }
+  .receipt_whole(x$features_completed, "features_completed")
+  if (!is.numeric(x$bytes_read) || length(x$bytes_read) != 1L ||
+      is.na(x$bytes_read) || !is.finite(x$bytes_read) || x$bytes_read < 0) {
+    stop("Observed bytes read are invalid.", call. = FALSE)
+  }
+  tile_names <- c("feature_block", "row_tile", "coordinate_tile")
+  if (!is.list(x$tiles) || !identical(names(x$tiles), tile_names) ||
+      any(!vapply(x$tiles, function(value) is.null(value) ||
+        (is.numeric(value) && length(value) == 1L && !is.na(value) &&
+         is.finite(value) && value >= 1 && value %% 1 == 0), logical(1)))) {
+    stop("Observed execution tiles are invalid.", call. = FALSE)
+  }
+  if (!is.numeric(x$stage_seconds) || anyNA(x$stage_seconds) ||
+      any(!is.finite(x$stage_seconds)) || any(x$stage_seconds < 0) ||
+      (length(x$stage_seconds) &&
+       (is.null(names(x$stage_seconds)) || any(!nzchar(names(x$stage_seconds)))))) {
+    stop("Observed stage timings are invalid.", call. = FALSE)
+  }
+  if (!is.character(x$source_access) || anyNA(x$source_access) ||
+      (length(x$source_access) && (is.null(names(x$source_access)) ||
+       any(!nzchar(names(x$source_access)))))) {
+    stop("Observed source access modes are invalid.", call. = FALSE)
+  }
+  memory_names <- c("baseline_rss_bytes", "incremental_peak_rss_bytes",
+    "absolute_peak_rss_bytes", "measured_workspace_bytes")
+  if (!is.list(x$memory) || !identical(names(x$memory), memory_names) ||
+      any(!vapply(x$memory, function(value) is.null(value) ||
+        (is.numeric(value) && length(value) == 1L && !is.na(value) &&
+         is.finite(value) && value >= 0), logical(1)))) {
+    stop("Observed memory evidence is invalid.", call. = FALSE)
+  }
+  if (!is.list(x$runtime) ||
+      !identical(names(x$runtime), c("package_version", "r_version", "platform")) ||
+      any(!vapply(x$runtime, function(value) is.character(value) &&
+        length(value) == 1L && !is.na(value) && nzchar(value), logical(1)))) {
+    stop("Observed runtime identity is invalid.", call. = FALSE)
+  }
+  if (!is.character(x$reporter_failures) || anyNA(x$reporter_failures)) {
+    stop("Observed reporter failures are invalid.", call. = FALSE)
+  }
+  if (!is.list(x$checkpoint) ||
+      !identical(names(x$checkpoint), c("enabled", "resumed", "artifacts_written")) ||
+      !all(vapply(x$checkpoint[c("enabled", "resumed")], function(value) {
+        is.logical(value) && length(value) == 1L && !is.na(value)
+      }, logical(1)))) {
+    stop("Observed checkpoint state is invalid.", call. = FALSE)
+  }
+  .receipt_whole(x$checkpoint$artifacts_written, "artifacts_written")
+  if (!is.list(x$cleanup) ||
+      !identical(names(x$cleanup), c("attempted", "success", "message")) ||
+      !is.logical(x$cleanup$attempted) || length(x$cleanup$attempted) != 1L ||
+      is.na(x$cleanup$attempted) || !is.logical(x$cleanup$success) ||
+      length(x$cleanup$success) != 1L ||
+      !(is.na(x$cleanup$success) || !is.na(x$cleanup$success)) ||
+      !(is.null(x$cleanup$message) || (is.character(x$cleanup$message) &&
+        length(x$cleanup$message) == 1L && !is.na(x$cleanup$message)))) {
+    stop("Observed cleanup outcome is invalid.", call. = FALSE)
+  }
+  x
 }
 
 .receipt_whole <- function(value, name) {
@@ -246,20 +343,22 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
 }
 
 .validate_blas_identity <- function(blas) {
-  if (!is.list(blas) || !identical(names(blas), c("vendor", "threads")) ||
+  if (!is.list(blas) || !identical(names(blas),
+      c("vendor", "requested_threads", "observed_threads")) ||
       !is.character(blas$vendor) || length(blas$vendor) != 1L ||
       is.na(blas$vendor) || !nzchar(blas$vendor) ||
-      !is.numeric(blas$threads) || length(blas$threads) != 1L ||
-      is.na(blas$threads) || !is.finite(blas$threads) ||
-      blas$threads < 1 || blas$threads %% 1 != 0) {
-    stop("`blas` must name one vendor and one positive whole thread count.",
+      !is.numeric(blas$requested_threads) || length(blas$requested_threads) != 1L ||
+      is.na(blas$requested_threads) || !is.finite(blas$requested_threads) ||
+      blas$requested_threads != 1 ||
+      !is.numeric(blas$observed_threads) || length(blas$observed_threads) != 1L ||
+      (!is.na(blas$observed_threads) && (!is.finite(blas$observed_threads) ||
+       blas$observed_threads < 1 || blas$observed_threads %% 1 != 0))) {
+    stop("`blas` must separate requested and observed thread counts.",
       call. = FALSE)
   }
-  if (blas$threads != 1) {
-    stop("effectagram 0.1 receipts require a one-thread BLAS identity.",
-      call. = FALSE)
-  }
-  list(vendor = blas$vendor, threads = 1L)
+  list(vendor = blas$vendor, requested_threads = 1L,
+    observed_threads = if (is.na(blas$observed_threads)) NA_integer_ else
+      as.integer(blas$observed_threads))
 }
 
 .validate_execution_receipt <- function(receipt) {
@@ -270,7 +369,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     "scientific_plan_id", "domain_signature", "kernel_version", "task_partition_id",
     "reduction_plan_id", "precision", "compute", "sources", "memory",
     "numeric_contract", "completion_status", "task_count",
-    "completed_task_count", "elapsed_seconds", "blas"
+    "completed_task_count", "elapsed_seconds", "blas", "observed"
   )
   if (!identical(names(receipt), expected)) {
     stop("Execution receipt fields are missing or noncanonical.", call. = FALSE)
@@ -299,6 +398,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   canonical_memory <- .validate_memory_plan_for_receipt(receipt$memory)
   .validate_numeric_contract_for_receipt(receipt$numeric_contract)
   .validate_blas_identity(receipt$blas)
+  .validate_execution_observations(receipt$observed)
   status <- receipt$completion_status
   if (!is.character(status) || length(status) != 1L ||
       !status %in% c("complete", "planned", "failed", "interrupted")) {

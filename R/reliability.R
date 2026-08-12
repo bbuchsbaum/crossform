@@ -74,15 +74,18 @@
   )
 }
 
-.receipt_with_status <- function(receipt, status, elapsed_seconds) {
+.receipt_with_status <- function(receipt, status, elapsed_seconds,
+                                 observed = receipt$observed) {
   receipt$completion_status <- status
   if (status == "complete") receipt$completed_task_count <- receipt$task_count
   receipt$elapsed_seconds <- elapsed_seconds
+  receipt$observed <- observed
   .validate_execution_receipt(receipt)
   receipt
 }
 
-.execute_guarded <- function(compute, receipt, reporter = NULL, cleanup = NULL) {
+.execute_guarded <- function(compute, receipt, reporter = NULL, cleanup = NULL,
+                             observations = NULL, receipt_sink = NULL) {
   if (!is.function(compute)) {
     stop("`compute` must be a function.", call. = FALSE)
   }
@@ -92,6 +95,13 @@
   state$cleanup_status <- NULL
   state$receipt <- receipt
   state$observer_failures <- character()
+  if (is.null(observations)) observations <- function() receipt$observed
+  if (!is.function(observations)) {
+    stop("`observations` must be NULL or a function.", call. = FALSE)
+  }
+  if (!is.null(receipt_sink) && !is.function(receipt_sink)) {
+    stop("`receipt_sink` must be NULL or a function.", call. = FALSE)
+  }
   started <- proc.time()[["elapsed"]]
   report_failure <- .safe_report(reporter, list(type = "start", receipt = receipt))
   if (!is.null(report_failure)) {
@@ -103,10 +113,11 @@
     state$cleanup_status <- .run_cleanup(cleanup)
     final_status <- if (requested_status == "complete" &&
       !state$cleanup_status$success) "failed" else requested_status
-    state$receipt <- .receipt_with_status(
-      receipt, final_status, max(0, proc.time()[["elapsed"]] - started)
-    )
-    state$finalized <- TRUE
+    observed <- observations()
+    observed$cleanup <- state$cleanup_status
+    observed$reporter_failures <- state$observer_failures
+    state$receipt <- .receipt_with_status(receipt, final_status,
+      max(0, proc.time()[["elapsed"]] - started), observed)
     report_failure <- .safe_report(reporter, list(
       type = final_status,
       receipt = state$receipt,
@@ -115,6 +126,10 @@
     if (!is.null(report_failure)) {
       state$observer_failures <- c(state$observer_failures, report_failure)
     }
+    state$receipt$observed$reporter_failures <- state$observer_failures
+    .validate_execution_receipt(state$receipt)
+    if (!is.null(receipt_sink)) receipt_sink(state$receipt)
+    state$finalized <- TRUE
     invisible(NULL)
   }
   on.exit({

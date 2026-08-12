@@ -29,6 +29,7 @@ test_that("execution failure carries receipt and successful cleanup status", {
   expect_true(cleaned)
   expect_match(condition$message, "kernel failed")
   expect_identical(condition$receipt$completion_status, "failed")
+  expect_true(condition$receipt$observed$cleanup$success)
 })
 
 test_that("cleanup failure is itself a receipt-bearing execution failure", {
@@ -47,6 +48,7 @@ test_that("cleanup failure is itself a receipt-bearing execution failure", {
   expect_match(condition$cleanup_status$message, "close failed")
   expect_identical(condition$receipt$scientific_plan_id, receipt$scientific_plan_id)
   expect_identical(condition$receipt$completion_status, "failed")
+  expect_false(condition$receipt$observed$cleanup$success)
 })
 
 test_that("reporter diagnostics remain nonsemantic on computational failure", {
@@ -63,6 +65,7 @@ test_that("reporter diagnostics remain nonsemantic on computational failure", {
   expect_match(condition$message, "science failed")
   expect_true(length(condition$observer_failures) >= 1)
   expect_false("reporter" %in% names(condition$receipt))
+  expect_true(length(condition$receipt$observed$reporter_failures) >= 1)
 })
 
 test_that("synthetic interrupts preserve interrupt semantics and clean exactly once", {

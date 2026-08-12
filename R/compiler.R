@@ -233,7 +233,8 @@
   vendor <- tryCatch(unname(extSoftVersion()[["BLAS"]]), error = function(e) NULL)
   if (is.null(vendor) || !is.character(vendor) || length(vendor) != 1L ||
       is.na(vendor) || !nzchar(vendor)) vendor <- "unknown"
-  list(vendor = vendor, threads = 1L)
+  list(vendor = vendor, requested_threads = 1L,
+    observed_threads = NA_integer_)
 }
 
 .planned_compiler_receipt <- function(x, compute, memory, plan_id,
@@ -317,8 +318,17 @@
   function() {
     if (!isTRUE(completed$value) && length(storage$created)) {
       unlink(storage$created)
-      if (storage$created_directory) unlink(dirname(storage$created[[1L]]),
-        recursive = TRUE)
+      remaining <- storage$created[file.exists(storage$created)]
+      if (length(remaining)) {
+        stop("Failed to remove incomplete geometry components.", call. = FALSE)
+      }
+      if (storage$created_directory) {
+        directory <- dirname(storage$created[[1L]])
+        unlink(directory, recursive = TRUE)
+        if (dir.exists(directory)) {
+          stop("Failed to remove incomplete geometry directory.", call. = FALSE)
+        }
+      }
     }
     invisible(NULL)
   }
@@ -367,11 +377,30 @@
   completed$value <- FALSE
   final_receipt <- new.env(parent = emptyenv())
   final_receipt$value <- planned_receipt
+  observed <- .empty_execution_observations()
+  observed$task_counts[["planned"]] <- task_count
+  observed$tiles <- list(feature_block = feature_block, row_tile = row_tile,
+    coordinate_tile = coordinate_tile)
+  observed_state <- new.env(parent = emptyenv())
+  observed_state$value <- observed
+  task_observer <- function(event, features) {
+    observed_state$value$task_counts[[event]] <-
+      observed_state$value$task_counts[[event]] + 1
+    if (identical(event, "completed")) {
+      observed_state$value$features_completed <-
+        observed_state$value$features_completed + length(features)
+    }
+    invisible(NULL)
+  }
 
   value <- .execute_guarded(
     compute = function() {
+      admission_started <- proc.time()[["elapsed"]]
       source_session <- .open_relation_source_session(x)
       on.exit(.close_source_session(source_session), add = TRUE)
+      observed_state$value$stage_seconds[["source_admission"]] <-
+        max(0, proc.time()[["elapsed"]] - admission_started)
+      observed_state$value$source_access <- source_session$summary()$access_mode
       total_accumulator <- NULL
       if (storage == "block") {
         total_accumulator <- function(rows, coordinates, increment) {
@@ -380,11 +409,15 @@
             existing + increment)
         }
       }
+      kernel_started <- proc.time()[["elapsed"]]
       streamed <- .streamed_crossgram_contraction(
         frame = at,
         read_relation = function(partition, features) {
-          .relation_block_with_reader(x, partition, features,
+          value <- .relation_block_with_reader(x, partition, features,
             source_session$read)
+          observed_state$value$bytes_read <-
+            sum(source_session$summary()$bytes_read)
+          value
         },
         partitions = x$partitions,
         effects = x$effect_space$coordinates,
@@ -395,8 +428,11 @@
         accumulate_tile = total_accumulator,
         retain_local_relations = requirements$coherent,
         query = query,
-        form_total = requirements$total
+        form_total = requirements$total,
+        task_observer = task_observer
       )
+      observed_state$value$stage_seconds[["feature_tasks"]] <-
+        max(0, proc.time()[["elapsed"]] - kernel_started)
       coherent_writer <- if (storage == "block") {
         function(rows, coordinates, value) {
           .write_geometry_tile(geometry_storage$coherent, rows, coordinates, value)
@@ -404,6 +440,7 @@
       } else {
         NULL
       }
+      coherent_started <- proc.time()[["elapsed"]]
       coherent <- if (requirements$coherent) {
         .coherent_geometry_from_local(
           streamed$local_relations, over, Matrix::rowSums(at$weights),
@@ -412,6 +449,8 @@
       } else {
         NULL
       }
+      observed_state$value$stage_seconds[["coherent"]] <-
+        max(0, proc.time()[["elapsed"]] - coherent_started)
       total_value <- if (!requirements$total) NULL else if (storage == "memory") {
         streamed$value
       } else {
@@ -423,12 +462,15 @@
       } else {
         geometry_storage$coherent
       }
+      marginal_started <- proc.time()[["elapsed"]]
       marginals <- if (requirements$marginals) {
         pairing_marginals(streamed$local_relations, over,
           mass = Matrix::rowSums(at$weights))
       } else {
         NULL
       }
+      observed_state$value$stage_seconds[["marginals"]] <-
+        max(0, proc.time()[["elapsed"]] - marginal_started)
       metadata <- list(
         frame = list(representation = at$representation,
           normalization = at$normalization, domain = at$domain),
@@ -442,7 +484,9 @@
         scientific_plan_id = plan_id
       )
       source_session$close()
-      metadata$source_session <- source_session$summary()
+      source_summary <- source_session$summary()
+      metadata$source_session <- source_summary
+      observed_state$value$bytes_read <- sum(source_summary$bytes_read)
       result <- if (is.null(query)) {
         effect_geometry(total_value, coherent_value, marginals,
           effects = x$effect_space, receipt = planned_receipt,
@@ -465,7 +509,9 @@
     },
     receipt = planned_receipt,
     reporter = .compiler_reporter(reporter, final_receipt),
-    cleanup = .compiler_cleanup(geometry_storage, completed)
+    cleanup = .compiler_cleanup(geometry_storage, completed),
+    observations = function() observed_state$value,
+    receipt_sink = function(receipt) final_receipt$value <- receipt
   )
   value$receipt <- final_receipt$value
   value

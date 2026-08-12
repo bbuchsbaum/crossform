@@ -61,6 +61,16 @@ test_that("public geometry compiles relation frame and pairing once", {
   expect_identical(got$receipt$completion_status, "complete")
   expect_identical(got$receipt$task_count, 2)
   expect_identical(got$receipt$completed_task_count, 2)
+  expect_identical(got$receipt$observed$task_counts,
+    c(planned = 2, started = 2, completed = 2, failed = 0, retried = 0))
+  expect_identical(got$receipt$observed$features_completed, 4)
+  expect_gt(got$receipt$observed$bytes_read, 0)
+  expect_identical(got$receipt$observed$tiles$feature_block, 2L)
+  expect_true(all(c("source_admission", "feature_tasks", "coherent", "marginals") %in%
+    names(got$receipt$observed$stage_seconds)))
+  expect_true(got$receipt$observed$cleanup$success)
+  expect_false(got$receipt$observed$checkpoint$enabled)
+  expect_true(is.na(got$receipt$blas$observed_threads))
   expect_identical(got$metadata$pairing_estimate, "cross_generalized")
 })
 
@@ -351,4 +361,5 @@ test_that("reporters remain nonsemantic at the public compiler boundary", {
   expect_s3_class(got, "effect_geometry")
   expect_identical(got$receipt$completion_status, "complete")
   expect_false("reporter" %in% names(got$receipt))
+  expect_true(length(got$receipt$observed$reporter_failures) >= 1L)
 })

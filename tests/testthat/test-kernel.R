@@ -300,3 +300,23 @@ test_that("streamed cross-Gram fails closed on malformed relation blocks", {
     fixture$partitions, fixture$effects, forged_pairing
   ), "nonnegative")
 })
+
+test_that("task observers record a failed task boundary", {
+  fixture <- crossgram_fixture()
+  events <- character()
+  features <- list()
+  observer <- function(event, feature_ids) {
+    events <<- c(events, event)
+    features[[length(features) + 1L]] <<- feature_ids
+  }
+  bad_reader <- function(partition, feature_ids) {
+    if (feature_ids[[1L]] > 3L) stop("block failed")
+    fixture$relation[[partition]][, feature_ids, drop = FALSE]
+  }
+
+  expect_error(effectagram:::.streamed_crossgram_contraction(
+    fixture$frame, bad_reader, fixture$partitions, fixture$effects,
+    fixture$over, feature_block = 3, task_observer = observer), "block failed")
+  expect_identical(events, c("started", "completed", "started", "failed"))
+  expect_identical(features[[4L]], 4:6)
+})

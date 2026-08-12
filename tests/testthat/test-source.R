@@ -213,3 +213,22 @@ test_that("partially opened sessions clean up when later admission fails", {
     open_descriptor = opener), "admission failed")
   expect_identical(closes, 1L)
 })
+
+test_that("source-session close failures are reported rather than swallowed", {
+  revision <- paste0("sha256:", paste(rep("3", 64), collapse = ""))
+  descriptor <- effectagram:::.shared_source_descriptor(
+    "test", "failing-close", c(2, 2), revision
+  )
+  rel <- relation(list(run = descriptor), effects = c("a", "b"))
+  opener <- function(value, expected_revision, shared_opener) {
+    effectagram:::.new_source_handle(value,
+      read = function(features) matrix(0, 2, length(features)),
+      close = function() stop("detach failed"), owns_handle = TRUE)
+  }
+  session <- effectagram:::.open_relation_source_session(rel,
+    open_descriptor = opener)
+
+  expect_error(effectagram:::.close_source_session(session),
+    "cleanup failed.*detach failed")
+  expect_true(session$summary()$closed)
+})

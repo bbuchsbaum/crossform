@@ -299,10 +299,19 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
   close_opened <- function() {
     if (!facts$closed) {
       facts$close_attempts <- facts$close_attempts + 1L
+      failures <- character()
       for (handle in rev(handles)) {
-        try(.close_source_handle(handle), silent = TRUE)
+        failure <- tryCatch({
+          .close_source_handle(handle)
+          NULL
+        }, error = function(error) conditionMessage(error))
+        if (!is.null(failure)) failures <- c(failures, failure)
       }
       facts$closed <- TRUE
+      if (length(failures)) {
+        stop(paste("Source-session cleanup failed:",
+          paste(failures, collapse = "; ")), call. = FALSE)
+      }
     }
     invisible(NULL)
   }
@@ -321,7 +330,14 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
           expected_revision = relation$capabilities[[partition]]$stable_revision,
           shared_opener = shared_opener),
         error = function(error) {
-          close_opened()
+          cleanup_error <- tryCatch({
+            close_opened()
+            NULL
+          }, error = function(cleanup) conditionMessage(cleanup))
+          if (!is.null(cleanup_error)) {
+            stop(paste(conditionMessage(error), cleanup_error, sep = "; "),
+              call. = FALSE)
+          }
           stop(error)
         }
       )

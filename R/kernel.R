@@ -89,7 +89,8 @@
                                             accumulate_tile = NULL,
                                             retain_local_relations = FALSE,
                                             query = NULL,
-                                            form_total = TRUE) {
+                                            form_total = TRUE,
+                                            task_observer = NULL) {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
     stop("The streamed cross-Gram lowering requires an additive diagonal frame.",
@@ -128,6 +129,9 @@
     stop("Streaming must form total output, local relations, or both.",
       call. = FALSE)
   }
+  if (!is.null(task_observer) && !is.function(task_observer)) {
+    stop("`task_observer` must be NULL or a function.", call. = FALSE)
+  }
 
   features <- ncol(frame$weights)
   q <- length(effects)
@@ -153,26 +157,42 @@
 
   for (feature_start in .tile_starts(features, feature_block)) {
     feature_ids <- feature_start:min(feature_start + feature_block - 1L, features)
-    relations <- stats::setNames(lapply(partitions, function(partition) {
-      value <- read_relation(partition, feature_ids)
-      if (!is.matrix(value) || !is.numeric(value) ||
-          !identical(dim(value), c(q, length(feature_ids))) ||
-          any(!is.finite(value))) {
-        stop("Relation reader returned an invalid effect-by-feature block.",
-          call. = FALSE)
+    if (!is.null(task_observer)) task_observer("started", feature_ids)
+    task <- tryCatch(
+      {
+        relations <- stats::setNames(lapply(partitions, function(partition) {
+          value <- read_relation(partition, feature_ids)
+          if (!is.matrix(value) || !is.numeric(value) ||
+              !identical(dim(value), c(q, length(feature_ids))) ||
+              any(!is.finite(value))) {
+            stop("Relation reader returned an invalid effect-by-feature block.",
+              call. = FALSE)
+          }
+          value
+        }), partitions)
+        .crossgram_feature_task(
+          relations = relations,
+          feature_ids = feature_ids,
+          effects = effects,
+          partitions = partitions,
+          over = over,
+          query = query,
+          form_atoms = form_total
+        )
+      },
+      error = function(error) {
+        if (!is.null(task_observer)) task_observer("failed", feature_ids)
+        stop(error)
       }
-      value
-    }), partitions)
-    task <- .crossgram_feature_task(
-      relations = relations,
-      feature_ids = feature_ids,
-      effects = effects,
-      partitions = partitions,
-      over = over,
-      query = query,
-      form_atoms = form_total
     )
-    .reduce_crossgram_task(reducer, task)
+    tryCatch(
+      .reduce_crossgram_task(reducer, task),
+      error = function(error) {
+        if (!is.null(task_observer)) task_observer("failed", feature_ids)
+        stop(error)
+      }
+    )
+    if (!is.null(task_observer)) task_observer("completed", feature_ids)
   }
 
   list(
