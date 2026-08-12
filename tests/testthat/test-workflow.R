@@ -93,17 +93,22 @@ test_that("public geometry is invariant to joint feature permutation and blockin
   rownames(matrices$run1) <- rownames(matrices$run2) <- c("a", "b", "c")
   weights <- matrix(runif(4 * 7), 4, 7)
   permutation <- sample(seq_len(7))
+  original_domain <- abstract_domain(7, feature_ids = paste0("v", seq_len(7)),
+    id = "permutation-law")
+  permuted_domain <- abstract_domain(7,
+    feature_ids = original_domain$feature_ids[permutation],
+    id = "permutation-law")
   over <- cross_partitions(c("run1", "run2"))
   original <- geometry(
-    relation(matrices, domain_id = "permutation-law"),
-    additive_frame(weights, domain_id = "permutation-law"), over,
+    relation(matrices, domain = original_domain),
+    additive_frame(weights, domain = original_domain), over,
     compute = compute_policy(block_features = 1)
   )
   permuted <- geometry(
     relation(lapply(matrices, function(value) value[, permutation, drop = FALSE]),
-      effects = c("a", "b", "c"), domain_id = "permutation-law"),
+      effects = c("a", "b", "c"), domain = permuted_domain),
     additive_frame(weights[, permutation, drop = FALSE],
-      domain_id = "permutation-law"), over,
+      domain = permuted_domain), over,
     compute = compute_policy(block_features = 4)
   )
   expect_equal(geometry_component(permuted, "total"),

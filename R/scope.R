@@ -10,10 +10,25 @@
 #' @param normalization One of `none`, `local` (row sums equal one), or
 #'   `conservative` (column sums equal one).
 #' @param domain_id Stable identity of the neural feature domain.
+#' @param domain Optional exact `effect_domain` or internal domain reference.
 #' @return A declarative frame value.
 #' @export
 additive_frame <- function(weights, normalization = "none",
-                           domain_id = "abstract") {
+                           domain_id = "abstract", domain = NULL) {
+  width <- if (length(dim(weights)) == 2L) ncol(weights) else NA_integer_
+  domain <- if (is.null(domain)) {
+    .positional_domain_reference(width, domain_id)
+  } else {
+    reference <- .domain_reference(domain)
+    if (!identical(domain_id, "abstract") && !identical(domain_id, reference$id)) {
+      stop("`domain` and `domain_id` identify different neural domains.",
+        call. = FALSE)
+    }
+    if (!identical(as.integer(width), reference$n_features)) {
+      stop("The frame width must match its exact neural domain.", call. = FALSE)
+    }
+    reference
+  }
   frame <- structure(
     list(
       representation = "additive_diagonal",
@@ -21,7 +36,8 @@ additive_frame <- function(weights, normalization = "none",
       locally_estimated = FALSE,
       weights = weights,
       normalization = normalization,
-      domain_id = domain_id
+      domain = domain,
+      domain_id = domain$id
     ),
     class = "effect_frame"
   )
@@ -39,10 +55,11 @@ additive_frame <- function(weights, normalization = "none",
 #' @param locally_estimated Whether the factors are estimated independently at
 #'   each location.
 #' @param domain_id Stable identity of the neural feature domain.
+#' @param domain Optional exact `effect_domain` or internal domain reference.
 #' @return A declarative frame value.
 #' @export
 factor_frame <- function(factors, locally_estimated = FALSE,
-                         domain_id = "abstract") {
+                         domain_id = "abstract", domain = NULL) {
   if (!is.list(factors) || length(factors) < 1L ||
       !all(vapply(factors, function(x) is.matrix(x) && is.numeric(x), logical(1)))) {
     stop("`factors` must be a nonempty list of numeric matrices.", call. = FALSE)
@@ -51,6 +68,16 @@ factor_frame <- function(factors, locally_estimated = FALSE,
       is.na(locally_estimated)) {
     stop("`locally_estimated` must be TRUE or FALSE.", call. = FALSE)
   }
+  domain <- if (is.null(domain)) {
+    .positional_domain_reference(ncol(factors[[1L]]), domain_id)
+  } else {
+    reference <- .domain_reference(domain)
+    if (!identical(domain_id, "abstract") && !identical(domain_id, reference$id)) {
+      stop("`domain` and `domain_id` identify different neural domains.",
+        call. = FALSE)
+    }
+    reference
+  }
 
   structure(
     list(
@@ -58,7 +85,8 @@ factor_frame <- function(factors, locally_estimated = FALSE,
       fixed = !locally_estimated,
       locally_estimated = locally_estimated,
       factors = factors,
-      domain_id = domain_id
+      domain = domain,
+      domain_id = domain$id
     ),
     class = "effect_frame"
   )
@@ -166,6 +194,11 @@ compile_lowering <- function(frame, query) {
 
 .validate_frame_for_compile <- function(frame) {
   .validate_domain_id(frame$domain_id)
+  domain <- .validate_domain_reference(frame$domain)
+  if (!identical(frame$domain_id, domain$id)) {
+    stop("Frame domain label is inconsistent with its exact domain reference.",
+      call. = FALSE)
+  }
   if (identical(frame$representation, "additive_diagonal")) {
     if (!isTRUE(frame$fixed) || isTRUE(frame$locally_estimated)) {
       stop("An additive collapse frame must be fixed and not locally estimated.",
@@ -176,6 +209,10 @@ compile_lowering <- function(frame, query) {
     if (length(dim(weights)) != 2L || any(dim(weights) < 1L) ||
         any(!is.finite(values)) || any(values < 0)) {
       stop("Additive weights must have positive dimensions and finite nonnegative values.",
+        call. = FALSE)
+    }
+    if (!identical(as.integer(ncol(weights)), domain$n_features)) {
+      stop("Frame width is inconsistent with its exact neural domain.",
         call. = FALSE)
     }
     normalization <- frame$normalization
@@ -209,6 +246,10 @@ compile_lowering <- function(frame, query) {
     widths <- vapply(frame$factors, ncol, integer(1))
     if (length(unique(widths)) != 1L) {
       stop("All factor-frame elements must share one feature dimension.",
+        call. = FALSE)
+    }
+    if (!identical(widths[[1L]], domain$n_features)) {
+      stop("Factor-frame width is inconsistent with its exact neural domain.",
         call. = FALSE)
     }
   } else {

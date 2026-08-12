@@ -62,6 +62,8 @@ source_capabilities <- function(block_read, reopenable = FALSE,
 #'
 #' @param scientific_plan_id Stable identity of relation, frame, pairing, and
 #'   query/materialization semantics.
+#' @param domain_signature Optional exact neural-domain signature. Compiler
+#'   receipts always provide it; standalone receipts may omit it.
 #' @param compute An `effect_compute_policy`.
 #' @param sources A nonempty list of `effect_source_capabilities` values.
 #' @param memory An `effect_memory_plan`.
@@ -83,7 +85,8 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
                               task_count = 1L,
                               completed_task_count = NULL,
                               elapsed_seconds = 0,
-                              blas = list(vendor = "unknown", threads = 1L)) {
+                              blas = list(vendor = "unknown", threads = 1L),
+                              domain_signature = NULL) {
   ids <- list(
     scientific_plan_id = scientific_plan_id,
     kernel_version = kernel_version,
@@ -98,6 +101,13 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   }
   if (!identical(precision, "double")) {
     stop("effectagram 0.1 supports only `precision = \"double\"`.", call. = FALSE)
+  }
+  if (!is.null(domain_signature) &&
+      (!is.character(domain_signature) || length(domain_signature) != 1L ||
+       is.na(domain_signature) ||
+       !grepl("^sha256:[[:xdigit:]]{64}$", domain_signature))) {
+    stop("`domain_signature` must be NULL or one strong sha256 identifier.",
+      call. = FALSE)
   }
   completion_status <- match.arg(completion_status,
     c("complete", "planned", "failed", "interrupted"))
@@ -146,7 +156,8 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   }
 
   receipt <- structure(
-    c(ids, list(
+    c(ids["scientific_plan_id"], list(domain_signature = domain_signature),
+      ids[-1L], list(
       compute = compute,
       sources = sources,
       memory = memory,
@@ -252,7 +263,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     stop("`receipt` must be an effectagram execution receipt.", call. = FALSE)
   }
   expected <- c(
-    "scientific_plan_id", "kernel_version", "task_partition_id",
+    "scientific_plan_id", "domain_signature", "kernel_version", "task_partition_id",
     "reduction_plan_id", "precision", "compute", "sources", "memory",
     "numeric_contract", "completion_status", "task_count",
     "completed_task_count", "elapsed_seconds", "blas"
@@ -266,6 +277,12 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
   }, logical(1))) || !identical(receipt$precision, "double")) {
     stop("Execution receipt identities or precision are invalid.", call. = FALSE)
+  }
+  if (!is.null(receipt$domain_signature) &&
+      (!is.character(receipt$domain_signature) ||
+       length(receipt$domain_signature) != 1L || is.na(receipt$domain_signature) ||
+       !grepl("^sha256:[[:xdigit:]]{64}$", receipt$domain_signature))) {
+    stop("Execution receipt domain signature is invalid.", call. = FALSE)
   }
   canonical_compute <- .validate_compute_policy(receipt$compute)
   if (!is.list(receipt$sources) || length(receipt$sources) < 1L) {

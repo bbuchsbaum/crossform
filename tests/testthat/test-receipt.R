@@ -3,6 +3,7 @@ test_that("receipt separates scientific and numerical execution identity", {
 
   expect_s3_class(receipt, "effect_execution_receipt")
   expect_identical(receipt$scientific_plan_id, "plan-sha256:abc")
+  expect_null(receipt$domain_signature)
   expect_identical(receipt$compute$process_backend, "sequential")
   expect_identical(receipt$sources[[1]]$stable_revision,
     paste0("sha256:", paste(rep("a", 64), collapse = "")))
@@ -11,6 +12,19 @@ test_that("receipt separates scientific and numerical execution identity", {
   expect_identical(receipt$task_count, receipt$completed_task_count)
   expect_identical(receipt$blas$threads, 1L)
   expect_null(receipt$reporter)
+})
+
+test_that("compiler receipts expose exact neural-domain identity", {
+  domain <- abstract_domain(3, feature_ids = c("left", "middle", "right"),
+    id = "line:v1")
+  matrices <- list(run1 = matrix(1, 2, 3), run2 = matrix(2, 2, 3))
+  rel <- relation(matrices, effects = c("a", "b"), domain = domain)
+  geometry <- geometry(rel, frame(voxels(), domain), cross_partitions(rel))
+
+  expect_identical(geometry$receipt$domain_signature,
+    domain$reference$signature)
+  expect_identical(geometry$metadata$frame$domain,
+    domain$reference)
 })
 
 test_that("receipts preserve every compute field and completion fact", {

@@ -110,7 +110,7 @@ test_that("mutated relation metadata fails before source reads", {
     source_dims = list(c(2, 3)))
   rel$n_features <- 4L
 
-  expect_error(relation_block(rel, "run1", 1), "source metadata")
+  expect_error(relation_block(rel, "run1", 1), "metadata")
   expect_identical(reads, 0L)
 })
 
@@ -135,6 +135,9 @@ test_that("a relation accepts a domain without exposing identity plumbing", {
   rel <- relation(list(run1 = matrix(1, 2, 4)), effects = c("a", "b"),
     domain = domain)
   expect_identical(rel$domain_id, domain$id)
+  expect_identical(rel$domain, domain$reference)
+  expect_error(relation(list(run1 = matrix(1, 2, 3)), effects = c("a", "b"),
+    domain = domain), "feature count")
   expect_error(relation(list(run1 = matrix(1, 2, 4)), effects = c("a", "b"),
     domain = domain, domain_id = "other"), "different neural domains")
 })

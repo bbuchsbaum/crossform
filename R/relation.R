@@ -98,13 +98,15 @@ relation <- function(sources, extract = NULL, effects = NULL,
     stop("Partitions must have unique nonempty names.", call. = FALSE)
   }
   names(sources) <- partitions
+  domain_reference <- NULL
   if (!is.null(domain)) {
-    .validate_domain(domain)
-    if (!identical(domain_id, "abstract") && !identical(domain_id, domain$id)) {
+    domain_reference <- .domain_reference(domain)
+    if (!identical(domain_id, "abstract") &&
+        !identical(domain_id, domain_reference$id)) {
       stop("`domain` and `domain_id` identify different neural domains.",
         call. = FALSE)
     }
-    domain_id <- domain$id
+    domain_id <- domain_reference$id
   }
   if (!is.character(domain_id) || length(domain_id) != 1L ||
       is.na(domain_id) || !nzchar(domain_id)) {
@@ -223,6 +225,13 @@ relation <- function(sources, extract = NULL, effects = NULL,
     stop("All relation sources must share one neural feature dimension.",
       call. = FALSE)
   }
+  if (is.null(domain_reference)) {
+    domain_reference <- .positional_domain_reference(feature_counts[[1L]],
+      domain_id)
+  } else if (!identical(domain_reference$n_features, feature_counts[[1L]])) {
+    stop("Relation sources must match the exact neural-domain feature count.",
+      call. = FALSE)
+  }
   if (is.null(capabilities) && all(vapply(compiled_sources, function(source) {
     !is.null(source$descriptor)
   }, logical(1)))) {
@@ -270,7 +279,8 @@ relation <- function(sources, extract = NULL, effects = NULL,
       effects = effects$coordinates,
       partitions = partitions,
       n_features = feature_counts[[1L]],
-      domain_id = domain_id,
+      domain = domain_reference,
+      domain_id = domain_reference$id,
       capabilities = capabilities,
       provenance = provenance
     ),
@@ -320,7 +330,8 @@ relation_block <- function(x, partition, features) {
 
 .validate_relation <- function(x) {
   expected <- c("sources", "extractors", "effect_space", "effects",
-    "partitions", "n_features", "domain_id", "capabilities", "provenance")
+    "partitions", "n_features", "domain", "domain_id", "capabilities",
+    "provenance")
   if (!inherits(x, "effect_relation") || !is.list(x) ||
       !identical(names(x), expected) || !is.list(x$sources) ||
       !is.list(x$extractors) || length(x$sources) < 1L ||
@@ -338,6 +349,12 @@ relation_block <- function(x, partition, features) {
       is.na(x$n_features) || !is.finite(x$n_features) ||
       x$n_features < 1L || x$n_features %% 1 != 0) {
     stop("Relation feature metadata is invalid.", call. = FALSE)
+  }
+  domain <- .validate_domain_reference(x$domain)
+  if (!identical(domain$n_features, as.integer(x$n_features)) ||
+      !identical(domain$id, x$domain_id)) {
+    stop("Relation metadata is inconsistent with its exact neural domain.",
+      call. = FALSE)
   }
   for (partition in x$partitions) {
     source <- x$sources[[partition]]

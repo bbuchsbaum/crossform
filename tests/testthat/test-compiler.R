@@ -6,10 +6,10 @@ compiler_fixture <- function() {
   domain <- abstract_domain(4, coordinates = matrix(c(
     0, 0, 1, 0, 2, 0, 3, 0
   ), ncol = 2, byrow = TRUE), id = "line:v1")
-  rel <- relation(list(run1 = run1, run2 = run2), domain_id = domain$id)
+  rel <- relation(list(run1 = run1, run2 = run2), domain = domain)
   at <- frame(searchlights(radius = 1.01, normalization = "local"), domain)
   list(relation = rel, at = at, over = cross_partitions(rel$partitions),
-    matrices = list(run1 = run1, run2 = run2))
+    matrices = list(run1 = run1, run2 = run2), domain = domain)
 }
 
 test_that("direct execution preserves compiled query labels", {
@@ -96,11 +96,11 @@ test_that("experimental reparameterization preserves bound scalar queries", {
   transformed_space <- effect_space(c("sum", "difference"),
     basis_id = "sum-difference:v1")
   base <- relation(fixture$matrices, effects = base_space,
-    domain_id = fixture$relation$domain_id)
+    domain = fixture$domain)
   transform <- matrix(c(1, 1, 1, -1), 2, byrow = TRUE)
   transformed <- relation(lapply(fixture$matrices, function(value) {
     unname(transform %*% value)
-  }), effects = transformed_space, domain_id = fixture$relation$domain_id)
+  }), effects = transformed_space, domain = fixture$domain)
   operator <- tcrossprod(c(1, -0.5))
   inverse <- solve(transform)
   transformed_operator <- t(inverse) %*% operator %*% inverse
@@ -151,6 +151,38 @@ test_that("compile and budget failures occur before opaque source reads", {
   expect_error(geometry(rel, at, over,
     compute = compute_policy(memory_bytes = 1)), "exceeding")
   expect_identical(reads, 0L)
+})
+
+test_that("exact domain mismatches fail before lazy source reads", {
+  reads <- 0L
+  source <- function(features) {
+    reads <<- reads + 1L
+    matrix(1, 2, length(features))
+  }
+  revision <- paste0("sha256:", paste(rep("b", 64), collapse = ""))
+  relation_domain <- abstract_domain(4, feature_ids = letters[1:4],
+    id = "same-label")
+  reversed_domain <- abstract_domain(4, feature_ids = rev(letters[1:4]),
+    id = "same-label")
+  rel <- relation(list(run1 = source, run2 = source),
+    source_dims = list(c(2, 4), c(2, 4)), effects = c("a", "b"),
+    domain = relation_domain,
+    capabilities = source_capabilities(TRUE, stable_revision = revision))
+  at <- additive_frame(diag(4), domain = reversed_domain)
+
+  expect_error(geometry(rel, at, cross_partitions(rel)), "exact neural-domain")
+  expect_identical(reads, 0L)
+})
+
+test_that("volume spacing participates in compiler domain identity", {
+  mask <- array(TRUE, c(2, 2, 1))
+  first <- volume_domain(mask, spacing = c(1, 1, 1), id = "volume")
+  changed <- volume_domain(mask, spacing = c(2, 1, 1), id = "volume")
+  matrices <- list(run1 = matrix(1, 2, 4), run2 = matrix(2, 2, 4))
+  rel <- relation(matrices, effects = c("a", "b"), domain = first)
+
+  expect_error(geometry(rel, frame(voxels(), changed), cross_partitions(rel)),
+    "exact neural-domain")
 })
 
 test_that("opaque sources without revisions fail before reading", {

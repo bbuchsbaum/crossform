@@ -53,8 +53,9 @@
   if (!identical(at$representation, "additive_diagonal")) {
     stop("effectagram 0.1 executes only additive diagonal frames.", call. = FALSE)
   }
-  if (!identical(at$domain_id, x$domain_id)) {
-    stop("Relation and frame `domain_id` values must agree.", call. = FALSE)
+  if (!.same_domain_reference(at$domain, x$domain)) {
+    stop("Relation and frame exact neural-domain identities must agree.",
+      call. = FALSE)
   }
   if (ncol(at$weights) != x$n_features) {
     stop("The frame feature dimension must equal the relation feature dimension.",
@@ -118,9 +119,9 @@
     extractors = lapply(x$extractors, function(value) value$map),
     effect_space = x$effect_space,
     partitions = x$partitions,
-    domain_id = x$domain_id,
+    domain = x$domain,
     frame = list(weights = at$weights, normalization = at$normalization,
-      domain_id = at$domain_id),
+      domain = at$domain),
     pairing = list(edges = unclass(as.data.frame(over)),
       directed = attr(over, "directed"),
       self_pairs = attr(over, "self_pairs"),
@@ -162,7 +163,8 @@
     completion_status = "planned",
     task_count = task_count,
     completed_task_count = 0L,
-    blas = .compiler_blas()
+    blas = .compiler_blas(),
+    domain_signature = x$domain$signature
   )
 }
 
@@ -325,7 +327,7 @@
         mass = Matrix::rowSums(at$weights))
       metadata <- list(
         frame = list(representation = at$representation,
-          normalization = at$normalization, domain_id = at$domain_id),
+          normalization = at$normalization, domain = at$domain),
         pairing_estimate = attr(over, "estimate"),
         storage = storage,
         diagnostics = list(total = streamed$diagnostics,

@@ -5,7 +5,26 @@ test_that("abstract domains retain explicit feature identity and coordinates", {
   expect_s3_class(domain, "effect_domain")
   expect_identical(domain$n_features, 3L)
   expect_identical(domain$feature_ids, c("a", "b", "c"))
+  expect_s3_class(domain$reference, "effect_domain_reference")
+  expect_match(domain$reference$signature, "^sha256:[[:xdigit:]]{64}$")
   expect_error(abstract_domain(3, feature_ids = c("a", "a", "b")), "uniquely")
+})
+
+test_that("domain references include ordered features, units, and geometry", {
+  first <- abstract_domain(3, coordinates = cbind(x = 0:2, y = 1),
+    feature_ids = c("a", "b", "c"), id = "native:s01",
+    coordinate_units = "mm")
+  reversed <- abstract_domain(3, coordinates = cbind(x = 2:0, y = 1),
+    feature_ids = c("c", "b", "a"), id = "native:s01",
+    coordinate_units = "mm")
+  other_units <- abstract_domain(3, coordinates = cbind(x = 0:2, y = 1),
+    feature_ids = c("a", "b", "c"), id = "native:s01",
+    coordinate_units = "voxel")
+
+  expect_false(identical(first$reference$signature,
+    reversed$reference$signature))
+  expect_false(identical(first$reference$signature,
+    other_units$reference$signature))
 })
 
 test_that("volume domains preserve mask order and physical coordinates", {

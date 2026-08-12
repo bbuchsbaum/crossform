@@ -18,6 +18,7 @@ test_that("all spatial scopes compile to one sparse additive representation", {
     expect_true(inherits(candidate$weights, "sparseMatrix"))
     expect_identical(candidate$representation, "additive_diagonal")
     expect_identical(candidate$domain_id, domain$id)
+    expect_identical(candidate$domain, domain$reference)
   }
   expect_equal(dim(frames$point$weights), c(9, 9))
   expect_equal(dim(frames$searchlight$weights), c(9, 9))

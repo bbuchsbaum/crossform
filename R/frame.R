@@ -131,7 +131,7 @@ frame <- function(specification, domain) {
 
   weights <- .normalize_frame(weights, specification$normalization)
   result <- additive_frame(weights, normalization = specification$normalization,
-    domain_id = domain$id)
+    domain = domain)
   result$index <- index
   result$domain_kind <- domain$kind
   result$specification <- specification
