@@ -57,6 +57,10 @@ test_that("compiler revalidates mutated and forged objects", {
   frame$domain_id <- ""
   expect_error(compile_lowering(frame, bilinear_query(diag(2))), "domain_id")
 
+  frame <- additive_frame(diag(2), normalization = "local")
+  frame$invented <- TRUE
+  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "noncanonical")
+
   factor <- factor_frame(list(diag(2)))
   factor$factors[[1]][1, 1] <- Inf
   expect_error(compile_lowering(factor, bilinear_query(diag(2))), "finite")
@@ -64,6 +68,10 @@ test_that("compiler revalidates mutated and forged objects", {
   query <- bilinear_query(diag(2))
   query$operator[1, 2] <- 1
   expect_error(compile_lowering(additive_frame(diag(2)), query), "symmetric")
+
+  query <- bilinear_query(diag(2))
+  query$invented <- TRUE
+  expect_error(compile_lowering(additive_frame(diag(2)), query), "noncanonical")
 })
 
 test_that("sparse additive frames have an explicit collapse contract", {

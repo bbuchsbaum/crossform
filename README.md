@@ -28,9 +28,15 @@ coordinates.
 ```r
 library(effectagram)
 
+effects <- effect_space(
+  c("face", "house", "object"),
+  basis_id = "condition-means:v1",
+  units = "percent-signal"
+)
 domain <- abstract_domain(
   6,
   coordinates = cbind(x = 0:5, y = 0),
+  feature_ids = paste0("feature", 1:6),
   id = "native:demo"
 )
 
@@ -45,8 +51,9 @@ run2 <- rbind(
   object = c(0.4, 0.6, 1.1, 1.4, 0.9, 0.6)
 )
 
-rel <- relation(list(run1 = run1, run2 = run2), domain = domain)
-at <- frame(searchlights(radius = 1.01, normalization = "local"), domain)
+rel <- relation(list(run1 = run1, run2 = run2), effects = effects,
+  domain = domain)
+at <- compile_frame(searchlights(radius = 1.01, normalization = "local"), domain)
 g <- geometry(rel, at = at, over = cross_partitions(rel))
 ```
 
@@ -111,10 +118,10 @@ silently converting the estimate into a positive-semidefinite description.
 All ordinary additive scopes compile to one sparse measurement frame:
 
 ```r
-point_frame  <- frame(voxels(), domain)
-local_frame  <- frame(searchlights(radius = 1.01), domain)
-region_frame <- frame(regions(c("A", "A", "A", "B", "B", "B")), domain)
-global_frame <- frame(whole_brain(), domain)
+point_frame  <- compile_frame(voxels(), domain)
+local_frame  <- compile_frame(searchlights(radius = 1.01), domain)
+region_frame <- compile_frame(regions(c("A", "A", "A", "B", "B", "B")), domain)
+global_frame <- compile_frame(whole_brain(), domain)
 ```
 
 Local normalization makes every row sum to one, so measurements are local
@@ -131,7 +138,7 @@ directory.
 Use `evaluate_geometry()` when only a fixed bilinear question is needed:
 
 ```r
-query <- bilinear_query(tcrossprod(c(1, -1, 0)))
+query <- bilinear_query(tcrossprod(c(1, -1, 0)), effects = effects)
 only_total <- evaluate_geometry(rel, at, cross_partitions(rel), query)
 ```
 
@@ -153,7 +160,14 @@ correct motion, or register images. Function-backed sources must declare a
 strong immutable revision with `source_capabilities()`; matrix-backed sources
 receive one automatically. Execution validates the compute policy, source
 capabilities, frame, pairing, query, and conservative memory plan before reading
-neural blocks.
+neural blocks. `compute_policy(workspace_bytes = ...)` optionally imposes a
+hard budget on effectagram-owned live workspace; process RSS is recorded
+separately rather than folded into that limit.
+
+For neuroim2 volumes, `neuroim2_volume_domain()` and
+`neuroim2_searchlights()` provide a narrow conditional bridge to stable
+full-volume indices. They do not import neuroim2 ROI iteration, data
+extraction, result objects, or parallel state.
 
 Version 0.1 supports one owned sequential worker. It first removes repeated
 searchlight work through the additive contraction; process-level parallelism is

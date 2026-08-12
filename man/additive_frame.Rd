@@ -4,7 +4,12 @@
 \alias{additive_frame}
 \title{Describe an additive diagonal spatial frame}
 \usage{
-additive_frame(weights, normalization = "none", domain_id = "abstract")
+additive_frame(
+  weights,
+  normalization = "none",
+  domain_id = "abstract",
+  domain = NULL
+)
 }
 \arguments{
 \item{weights}{A finite, nonnegative measurement-by-feature base or sparse
@@ -14,6 +19,8 @@ additive_frame(weights, normalization = "none", domain_id = "abstract")
 `conservative` (column sums equal one).}
 
 \item{domain_id}{Stable identity of the neural feature domain.}
+
+\item{domain}{Optional exact `effect_domain` or internal domain reference.}
 }
 \value{
 A declarative frame value.

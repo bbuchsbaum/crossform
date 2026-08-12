@@ -423,27 +423,34 @@ The kernel sees feature count, block reader, and compiled frame only.
 
 ## 4. Public API
 
-Version 0.1 should export approximately these functions.
+Version 0.1 exports only functions that lead to an implemented workflow.
 
 ```r
 # Relations
 relation()
+relation_block()
 effect_extractor()
 lm_extractor()
+effect_space()
+file_matrix_source()
+source_capabilities()
 
 # Domains and frames
 abstract_domain()
 volume_domain()
-frame()
+compile_frame()
 voxels()
 searchlights()
 regions()
 whole_brain()
+additive_frame()
+neuroim2_volume_domain()
+neuroim2_searchlights()
 
 # Pairings
 pairing()
 cross_partitions()
-cross_domains()
+pairing_marginals()
 
 # Computation
 compute_policy()
@@ -451,21 +458,28 @@ geometry()
 evaluate_geometry()
 
 # Views
-geom_contrast()
 contrast()
+geometry_component()
+query_geometry()
 rdm()
 rsa()
-spectrum()
-effective_rank()
-information()
-as_neuro()
+geometry_spectrum()
+
+# Numerical contracts
+numerical_contract()
+numerical_agreement()
 ```
 
-Surface support should be a suggested adapter or version 0.2 unless it can reuse the exact domain protocol without expanding the core.
+Factor frames, nonlinear queries, cross-domain pairings, information summaries,
+and presentation adapters remain internal or deferred until a supported public
+workflow and contract exist. Surface support remains a suggested adapter or
+version 0.2 concern unless it can reuse the exact domain protocol without
+expanding the core.
 
 ### Raw response example
 
 ```r
+domain <- volume_domain(mask)
 rel <- relation(
   bold_runs,
   extract = lm_extractor(
@@ -473,14 +487,16 @@ rel <- relation(
     effects = C,
     whiten  = L_runs
   ),
-  domain = volume_domain(mask)
+  domain = domain
 )
+
+at <- compile_frame(searchlights(radius = 6, normalization = "local"), domain)
+over <- cross_partitions(rel)
 
 g <- geometry(
   rel,
-  at   = searchlights(radius = 6, normalize = "local"),
-  over = cross_partitions(),
-  materialize = "full",
+  at = at,
+  over = over,
   storage = "memory",
   compute = compute_policy(workers = 1)
 )
@@ -501,9 +517,9 @@ contains distinct left/right signed effects.
 ```r
 fh_direct <- evaluate_geometry(
   rel,
-  at = searchlights(radius = 6, normalize = "local"),
-  over = cross_partitions(),
-  query = geom_contrast(c(face = 1, house = -1)),
+  at = at,
+  over = over,
+  query = bilinear_query(tcrossprod(c(face = 1, house = -1))),
   compute = compute_policy(workers = 1)
 )
 ```
@@ -523,7 +539,11 @@ rel <- relation(
 
 Identity extractors make this equivalent to raw-source execution through the corresponding \(E_rY_r\).
 
-### Cross-domain example
+### Deferred cross-domain example
+
+Cross-domain pairing is not part of the version 0.1 public API. A later
+contract may admit syntax such as the following only after it can preserve
+explicit domain identity and role-specific marginals:
 
 ```r
 g_x <- geometry(

@@ -18,7 +18,9 @@ execution_receipt(
   task_count = 1L,
   completed_task_count = NULL,
   elapsed_seconds = 0,
-  blas = list(vendor = "unknown", threads = 1L)
+  blas = list(vendor = "unknown", requested_threads = 1L, observed_threads = NA_integer_),
+  domain_signature = NULL,
+  observed = .empty_execution_observations()
 )
 }
 \arguments{
@@ -44,6 +46,12 @@ execution identity strings.}
 \item{elapsed_seconds}{Nonnegative finite elapsed wall time.}
 
 \item{blas}{A list naming the BLAS vendor and positive thread count.}
+
+\item{domain_signature}{Optional exact neural-domain signature. Compiler
+receipts always provide it; standalone receipts may omit it.}
+
+\item{observed}{Canonical observed execution facts. Planned receipts use an
+empty observation record that is populated by the coordinator.}
 }
 \value{
 An immutable-by-convention execution receipt.
@@ -53,3 +61,4 @@ A receipt separates scientific-plan identity, numerical execution policy,
 source revisions, and reduction identity. Progress reporters and other
 nonsemantic observers are intentionally absent.
 }
+\keyword{internal}

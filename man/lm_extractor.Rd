@@ -19,7 +19,7 @@ lm_extractor(
 
 \item{whiten}{Optional finite square observation whitener `L`.}
 
-\item{effect_names}{Optional names for target effects.}
+\item{effect_names}{Optional names or an `effect_space()` for target effects.}
 
 \item{tolerance}{Positive rank and estimability tolerance.}
 }

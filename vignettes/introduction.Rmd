@@ -28,9 +28,15 @@ features. Runs remain separate because agreement between independent estimates
 defines the cross-generalized quantity.
 
 ```{r data}
+effects <- effect_space(
+  c("face", "house", "object"),
+  basis_id = "condition-means:v1",
+  units = "percent-signal"
+)
 domain <- abstract_domain(
   6,
   coordinates = cbind(x = 0:5, y = 0),
+  feature_ids = paste0("feature", 1:6),
   id = "native:demo"
 )
 
@@ -45,17 +51,19 @@ run2 <- rbind(
   object = c(0.4, 0.6, 1.1, 1.4, 0.9, 0.6)
 )
 
-rel <- relation(list(run1 = run1, run2 = run2), domain = domain)
+rel <- relation(list(run1 = run1, run2 = run2), effects = effects,
+  domain = domain)
 ```
 
-`relation()` records a common experimental basis, partition identity, native
-domain identity, and source revisions. It does not concatenate runs or resample
-features.
+`relation()` records the ordered experimental basis, units and scaling,
+partition identity, exact ordered neural domain, and source revisions. It does
+not concatenate runs or resample features. A matching name and dimension alone
+cannot substitute for either identity.
 
 ## Measure locally and require cross-run agreement
 
 ```{r geometry}
-at <- frame(searchlights(radius = 1.01, normalization = "local"), domain)
+at <- compile_frame(searchlights(radius = 1.01, normalization = "local"), domain)
 over <- cross_partitions(rel)
 g <- geometry(rel, at = at, over = over)
 ```
@@ -137,13 +145,13 @@ inferential meaning.
 ## Choose the frame interpretation explicitly
 
 ```{r frames}
-point_frame <- frame(voxels(), domain)
-roi_frame <- frame(
+point_frame <- compile_frame(voxels(), domain)
+roi_frame <- compile_frame(
   regions(c("anterior", "anterior", "anterior",
             "posterior", "posterior", "posterior")),
   domain
 )
-global_frame <- frame(whole_brain(), domain)
+global_frame <- compile_frame(whole_brain(), domain)
 ```
 
 These values all enter the same `geometry()` call. With `normalization =
@@ -156,7 +164,7 @@ sums to global geometry.
 If only one fixed bilinear question is needed, compile it before execution:
 
 ```{r direct}
-query <- bilinear_query(tcrossprod(c(1, -1, 0)))
+query <- bilinear_query(tcrossprod(c(1, -1, 0)), effects = effects)
 direct <- evaluate_geometry(rel, at, over, query, component = "total")
 late <- query_geometry(g, query, component = "total")
 stopifnot(isTRUE(all.equal(direct$values, late$values, tolerance = 1e-12)))
@@ -164,8 +172,8 @@ direct$completeness
 ```
 
 `evaluate_geometry()` returns a query-only `effect_view`. `geometry()` always
-returns complete geometry. Storage or memory policy never changes that semantic
-distinction.
+returns complete geometry. Storage or workspace policy never changes that
+semantic distinction.
 
 ## Supply an extractor when effects are still implicit
 
@@ -187,8 +195,16 @@ whitening, or registration. Those choices remain upstream and explicit.
 
 Function-backed sources must also provide `source_capabilities()` with a strong
 immutable SHA-256 revision. Matrix sources receive this identity automatically.
-The compiler validates the scientific objects and conservative memory plan
-before reading source blocks.
+The compiler validates the scientific objects and conservative workspace plan
+before reading source blocks. A `workspace_bytes` limit covers only
+effectagram-owned live workspace. Baseline, incremental peak, and absolute peak
+process RSS remain separate observations.
+
+If your native mask is a neuroim2 `NeuroVol`, use
+`neuroim2_volume_domain()` and `neuroim2_searchlights()` to preserve its stable
+full-volume feature indices and spacing. This optional adapter compiles geometry
+only; neuroim2 ROI iteration, data extraction, results, and parallel state do
+not enter effectagram.
 
 Version 0.1 executes sequentially. The current claim is local and precise:
 additive-frame searchlights are sparse contraction rows rather than independent

@@ -20,7 +20,7 @@ test_that("compiler receipts expose exact neural-domain identity", {
     id = "line:v1")
   matrices <- list(run1 = matrix(1, 2, 3), run2 = matrix(2, 2, 3))
   rel <- relation(matrices, effects = c("a", "b"), domain = domain)
-  geometry <- geometry(rel, frame(voxels(), domain), cross_partitions(rel))
+  geometry <- geometry(rel, compile_frame(voxels(), domain), cross_partitions(rel))
 
   expect_identical(geometry$receipt$domain_signature,
     domain$reference$signature)

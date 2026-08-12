@@ -2,15 +2,16 @@
 % Please edit documentation in R/memory.R
 \name{memory_plan}
 \alias{memory_plan}
-\title{Construct a conservative peak-memory plan}
+\title{Construct an effectagram-owned workspace plan}
 \usage{
 memory_plan(
-  shared_source_bytes = 0,
-  runtime_reserve_bytes = 64 * 1024^2,
-  private_source_bytes = 0,
+  frame_bytes = 0,
+  resident_source_bytes = 0,
+  source_handle_bytes = 0,
   source_block_bytes = 0,
   relation_block_bytes = 0,
   atom_block_bytes = 0,
+  local_state_bytes = 0,
   output_bytes = 0,
   contraction_bytes = 0,
   replacement_copy_bytes = 0,
@@ -21,53 +22,46 @@ memory_plan(
   n_active = workers,
   safety_factor = 1.25,
   budget_bytes = NULL,
-  measured_peak_bytes = NULL
+  measured_workspace_bytes = NULL,
+  baseline_rss_bytes = NULL,
+  peak_rss_bytes = NULL
 )
 }
 \arguments{
-\item{shared_source_bytes}{Source memory shared across workers.}
+\item{frame_bytes}{Resident dense or sparse frame storage.}
 
-\item{runtime_reserve_bytes}{Fixed process-level reserve for R, Matrix/BLAS
-lazy initialization, allocator arenas, and other measured runtime pages
-that are not attributable to one scientific array. The default 64 MiB is
-intentionally conservative and must remain benchmark-validated.}
+\item{resident_source_bytes}{Resident source objects owned by effectagram.}
 
-\item{private_source_bytes}{Source memory privately held by each worker.}
+\item{source_handle_bytes}{Execution-owned source handles and bookkeeping.}
 
-\item{source_block_bytes, relation_block_bytes, atom_block_bytes}{Working
-blocks retained during one contraction task.}
+\item{source_block_bytes, relation_block_bytes, atom_block_bytes}{Per-active-task
+data blocks.}
 
-\item{output_bytes}{Durable in-memory output or active output tiles.}
+\item{local_state_bytes}{Durable component-dependent local relation state.}
 
-\item{contraction_bytes}{Largest dense sparse-contraction result temporary.}
+\item{output_bytes}{Durable in-memory result components.}
 
-\item{replacement_copy_bytes}{Allowance for R copy-on-modify/replacement.}
+\item{contraction_bytes, replacement_copy_bytes}{Per-task contraction and
+copy-on-modify temporaries.}
 
-\item{serialization_overlap_bytes}{Data simultaneously present while being
-serialized or transferred.}
+\item{serialization_overlap_bytes, reorder_buffer_bytes, checkpoint_buffer_bytes}{Optional per-task execution buffers.}
 
-\item{reorder_buffer_bytes}{Maximum bounded out-of-order result buffer.}
+\item{workers, n_active}{Positive worker and active-task counts.}
 
-\item{checkpoint_buffer_bytes}{Maximum checkpoint staging buffer.}
+\item{safety_factor}{Multiplicative headroom, at least one.}
 
-\item{workers}{Positive worker count represented by the plan.}
+\item{budget_bytes}{Optional hard owned-workspace budget.}
 
-\item{n_active}{Maximum concurrently active tasks. It cannot exceed workers.}
+\item{measured_workspace_bytes}{Optional observed package-owned live bytes.}
 
-\item{safety_factor}{Multiplicative allocator/implementation headroom, at
-least one.}
-
-\item{budget_bytes}{Optional positive memory budget.}
-
-\item{measured_peak_bytes}{Optional observed aggregate peak RSS for
-validation.}
+\item{baseline_rss_bytes, peak_rss_bytes}{Optional process RSS observations.}
 }
 \value{
-A categorized conservative memory plan.
+An immutable-by-convention `effect_memory_plan`.
 }
 \description{
-The plan names every allocation category required by the execution design.
-It is an upper-bound model, not a promise of exact portable prediction: R,
-BLAS, allocators, and operating systems may add unobserved overhead. Plans
-should therefore be checked against measured aggregate peak memory.
+The hard budget covers package-owned live objects and conservative temporary
+overlap. Process baseline RSS and absolute RSS are observations, not hidden
+additions to the workspace model.
 }
+\keyword{internal}

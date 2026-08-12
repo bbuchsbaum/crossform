@@ -78,7 +78,7 @@ source_capabilities <- function(block_read, reopenable = FALSE,
 #' @param observed Canonical observed execution facts. Planned receipts use an
 #'   empty observation record that is populated by the coordinator.
 #' @return An immutable-by-convention execution receipt.
-#' @export
+#' @keywords internal
 execution_receipt <- function(scientific_plan_id, compute, sources, memory,
                               kernel_version, task_partition_id,
                               reduction_plan_id, precision = "double",

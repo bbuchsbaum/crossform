@@ -15,3 +15,4 @@ A declarative query value.
 \description{
 Describe a nonlinear geometry readout
 }
+\keyword{internal}

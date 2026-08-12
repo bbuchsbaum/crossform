@@ -4,7 +4,12 @@
 \alias{factor_frame}
 \title{Describe a fixed or locally estimated factor frame}
 \usage{
-factor_frame(factors, locally_estimated = FALSE, domain_id = "abstract")
+factor_frame(
+  factors,
+  locally_estimated = FALSE,
+  domain_id = "abstract",
+  domain = NULL
+)
 }
 \arguments{
 \item{factors}{A nonempty list of numeric factor matrices.}
@@ -13,6 +18,8 @@ factor_frame(factors, locally_estimated = FALSE, domain_id = "abstract")
 each location.}
 
 \item{domain_id}{Stable identity of the neural feature domain.}
+
+\item{domain}{Optional exact `effect_domain` or internal domain reference.}
 }
 \value{
 A declarative frame value.
@@ -22,3 +29,4 @@ Factor frames use a separate contraction lowering. A locally estimated
 factor retains location-dependent fitting and is never treated as an
 additive-frame collapse.
 }
+\keyword{internal}

@@ -74,7 +74,7 @@
 #' @param receipt The `execution_receipt()` proving how the result was made.
 #' @param metadata Optional compact semantic metadata.
 #' @return A complete `effect_geometry`.
-#' @export
+#' @keywords internal
 effect_geometry <- function(total, coherent, marginals, effects, receipt, index = NULL,
                             metadata = list()) {
   total <- .as_geometry_store(total)
@@ -103,7 +103,7 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
   )
 }
 
-.validate_geometry_store <- function(store, label) {
+.validate_geometry_store <- function(store, label, probe = TRUE) {
   if (!inherits(store, "effect_geometry_store") ||
       !is.numeric(store$dim) || length(store$dim) != 2L ||
       anyNA(store$dim) || any(!is.finite(store$dim)) || any(store$dim < 1L) ||
@@ -117,19 +117,21 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
     stop(sprintf("`%s` has an incomplete or inconsistent store manifest.", label),
       call. = FALSE)
   }
-  probes <- unique(c(1L, store$dim[[1L]]))
-  tryCatch(
-    .read_geometry_store(store, probes),
-    error = function(error) stop(sprintf("`%s` reader cannot supply claimed geometry: %s",
-      label, conditionMessage(error)), call. = FALSE)
-  )
+  if (isTRUE(probe)) {
+    probes <- unique(c(1L, store$dim[[1L]]))
+    tryCatch(
+      .read_geometry_store(store, probes),
+      error = function(error) stop(sprintf("`%s` reader cannot supply claimed geometry: %s",
+        label, conditionMessage(error)), call. = FALSE)
+    )
+  }
   invisible(store)
 }
 
 .validate_complete_geometry <- function(total, coherent, marginals, effects,
-                                        index, receipt, metadata) {
-  .validate_geometry_store(total, "total")
-  .validate_geometry_store(coherent, "coherent")
+                                        index, receipt, metadata, probe = TRUE) {
+  .validate_geometry_store(total, "total", probe = probe)
+  .validate_geometry_store(coherent, "coherent", probe = probe)
   if (!identical(total$dim, coherent$dim)) {
     stop("`total` and `coherent` must have identical dimensions.", call. = FALSE)
   }
@@ -175,6 +177,29 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
   list(effect_space = effects)
 }
 
+.validate_effect_geometry <- function(x, probe = TRUE) {
+  expected <- c("total", "coherent", "marginals", "effect_space", "effects",
+    "index", "metadata", "receipt", "completeness", "storage")
+  if (!inherits(x, "effect_geometry") || !is.list(x) ||
+      !identical(names(x), expected) || !identical(x$completeness, "full")) {
+    stop("`x` must be a canonical complete effect_geometry.", call. = FALSE)
+  }
+  validated <- .validate_complete_geometry(
+    x$total, x$coherent, x$marginals, x$effect_space, x$index,
+    x$receipt, x$metadata, probe = probe
+  )
+  if (!identical(x$effects, validated$effect_space$coordinates)) {
+    stop("Geometry coordinate labels are inconsistent with its effect space.",
+      call. = FALSE)
+  }
+  expected_storage <- unique(c(x$total$representation, x$coherent$representation))
+  if (!identical(x$storage, expected_storage)) {
+    stop("Geometry storage metadata is inconsistent with its component stores.",
+      call. = FALSE)
+  }
+  invisible(x)
+}
+
 #' Construct an explicit query-only effect view
 #'
 #' An `effect_view` contains derived values but not the geometry from which they
@@ -188,7 +213,7 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
 #' @param metadata Optional compact semantic metadata.
 #' @param effects The `effect_space()` to which the view coordinates refer.
 #' @return A query-only `effect_view`.
-#' @export
+#' @keywords internal
 effect_view <- function(values, query, component, receipt, index = NULL,
                         metadata = list(), effects = NULL) {
   if (!is.matrix(values) || !is.numeric(values) || any(!is.finite(values))) {
@@ -248,7 +273,8 @@ effect_view <- function(values, query, component, receipt, index = NULL,
 #' @return A packed numeric geometry matrix.
 #' @export
 geometry_component <- function(x, component = "total", rows = NULL) {
-  if (!inherits(x, "effect_geometry")) {
+  if (!inherits(x, "effect_geometry") || !is.list(x) ||
+      !inherits(x$total, "effect_geometry_store")) {
     stop("`x` must be a complete effect_geometry, not a query-only view.",
       call. = FALSE)
   }
@@ -258,6 +284,11 @@ geometry_component <- function(x, component = "total", rows = NULL) {
        any(rows < 1) || any(rows > x$total$dim[[1L]]))) {
     stop("`rows` contains invalid measurement indices.", call. = FALSE)
   }
+  .validate_effect_geometry(x)
+  .geometry_component_validated(x, component, rows)
+}
+
+.geometry_component_validated <- function(x, component, rows = NULL) {
   total <- if (component != "coherent") .read_geometry_store(x$total, rows) else NULL
   coherent <- if (component != "total") .read_geometry_store(x$coherent, rows) else NULL
 
@@ -288,7 +319,7 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
   colnames(values) <- colnames(query)
   for (start in .tile_starts(x$total$dim[[1L]], row_block)) {
     rows <- start:min(start + row_block - 1L, x$total$dim[[1L]])
-    values[rows, ] <- geometry_component(x, component, rows = rows) %*% query
+    values[rows, ] <- .geometry_component_validated(x, component, rows) %*% query
   }
   effect_view(
     values = values,
@@ -343,6 +374,7 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
       call. = FALSE)
   }
   if (is.null(colnames(query))) colnames(query) <- paste0("view", seq_len(ncol(query)))
+  .validate_effect_geometry(x)
   list(query = query, component = component, row_block = row_block)
 }
 

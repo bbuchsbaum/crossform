@@ -14,7 +14,8 @@ effect_extractor(
 \arguments{
 \item{map}{A finite effect-by-observation numeric matrix.}
 
-\item{effects}{Unique names for the effect coordinates.}
+\item{effects}{An `effect_space()` or unique names used as shorthand for an
+unspecified-basis effect space.}
 
 \item{estimator}{Short estimator identity.}
 

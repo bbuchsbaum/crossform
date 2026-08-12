@@ -4,12 +4,14 @@
 \alias{bilinear_query}
 \title{Describe a bilinear geometry query}
 \usage{
-bilinear_query(operator, fixed = TRUE)
+bilinear_query(operator, fixed = TRUE, effects = NULL)
 }
 \arguments{
 \item{operator}{A finite square numeric matrix.}
 
 \item{fixed}{Whether the query is fixed before local data are inspected.}
+
+\item{effects}{Optional `effect_space()` binding for the operator axes.}
 }
 \value{
 A declarative query value.

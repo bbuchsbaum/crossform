@@ -65,17 +65,9 @@ whole_brain <- function(normalization = "local") {
 #' @return An `effect_frame` whose weights are a sparse measurement-by-feature
 #'   matrix.
 #' @export
-frame <- function(specification, domain) {
+compile_frame <- function(specification, domain) {
   .validate_domain(domain)
-  if (!inherits(specification, "effect_frame_spec") ||
-      !is.list(specification) ||
-      !is.character(specification$kind) || length(specification$kind) != 1L ||
-      !is.character(specification$normalization) ||
-      length(specification$normalization) != 1L ||
-      !specification$normalization %in% c("none", "local", "conservative")) {
-    stop("`specification` must be a valid additive frame specification.",
-      call. = FALSE)
-  }
+  specification <- .validate_frame_specification(specification)
   n <- domain$n_features
   kind <- specification$kind
   if (kind == "voxels") {
@@ -136,6 +128,39 @@ frame <- function(specification, domain) {
   result$domain_kind <- domain$kind
   result$specification <- specification
   result
+}
+
+.validate_frame_specification <- function(specification) {
+  if (!inherits(specification, "effect_frame_spec") ||
+      !is.list(specification) || !is.character(specification$kind) ||
+      length(specification$kind) != 1L || is.na(specification$kind) ||
+      !is.character(specification$normalization) ||
+      length(specification$normalization) != 1L ||
+      is.na(specification$normalization)) {
+    stop("`specification` must be a valid additive frame specification.",
+      call. = FALSE)
+  }
+  rebuilt <- switch(specification$kind,
+    voxels = voxels(specification$normalization),
+    searchlights = {
+      if (!identical(names(specification), c("kind", "normalization", "radius"))) {
+        stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
+      }
+      searchlights(specification$radius, specification$normalization)
+    },
+    regions = {
+      if (!identical(names(specification), c("kind", "normalization", "labels"))) {
+        stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
+      }
+      regions(specification$labels, specification$normalization)
+    },
+    whole_brain = whole_brain(specification$normalization),
+    stop("Unknown additive frame specification.", call. = FALSE)
+  )
+  if (!identical(specification, rebuilt)) {
+    stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
+  }
+  rebuilt
 }
 
 .normalize_frame <- function(weights, normalization) {

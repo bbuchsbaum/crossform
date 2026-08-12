@@ -18,11 +18,12 @@ relation(
 }
 \arguments{
 \item{sources}{A matrix, or a named list of matrix, function, or
-\code{effect_source_descriptor} response sources.}
+`effect_source_descriptor` response sources.}
 
 \item{extract}{NULL, one `effect_extractor`, or one extractor per partition.}
 
-\item{effects}{Effect names for already estimated sources.}
+\item{effects}{An `effect_space()` for already estimated sources, or unique
+names used as shorthand for an unspecified-basis effect space.}
 
 \item{source_dims}{Required dimensions for function sources, as one
 two-element vector per partition.}

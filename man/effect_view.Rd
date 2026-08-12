@@ -4,7 +4,15 @@
 \alias{effect_view}
 \title{Construct an explicit query-only effect view}
 \usage{
-effect_view(values, query, component, receipt, index = NULL, metadata = list())
+effect_view(
+  values,
+  query,
+  component,
+  receipt,
+  index = NULL,
+  metadata = list(),
+  effects = NULL
+)
 }
 \arguments{
 \item{values}{A finite numeric measurement-by-view matrix.}
@@ -18,6 +26,8 @@ effect_view(values, query, component, receipt, index = NULL, metadata = list())
 \item{index}{Optional measurement index.}
 
 \item{metadata}{Optional compact semantic metadata.}
+
+\item{effects}{The `effect_space()` to which the view coordinates refer.}
 }
 \value{
 A query-only `effect_view`.
@@ -26,3 +36,4 @@ A query-only `effect_view`.
 An `effect_view` contains derived values but not the geometry from which they
 arose. It is never returned where a complete `effect_geometry` is promised.
 }
+\keyword{internal}

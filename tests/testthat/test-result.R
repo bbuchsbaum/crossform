@@ -114,6 +114,29 @@ test_that("query labels survive bounded result allocation", {
     c("first", "second"))
 })
 
+test_that("public geometry consumers reject mutated result contracts", {
+  geometry <- result_fixture()
+
+  mutated <- geometry
+  mutated$completeness <- "query_only"
+  expect_error(geometry_component(mutated), "canonical complete")
+
+  mutated <- geometry
+  mutated$effects <- rev(mutated$effects)
+  expect_error(query_geometry(mutated, matrix(1, 3, 1)),
+    "coordinate labels")
+
+  mutated <- geometry
+  mutated$receipt$completion_status <- "invented"
+  expect_error(rdm(mutated), "receipt|completion")
+
+  mutated <- geometry
+  mutated$storage <- "memory"
+  mutated$total$representation <- "forged"
+  expect_error(contrast(mutated, c(a = 1, b = -1)),
+    "storage metadata")
+})
+
 test_that("storage representation cannot change semantic completeness", {
   geometry <- result_fixture()
   total <- geometry_component(geometry, "total")

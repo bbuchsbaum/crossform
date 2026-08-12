@@ -19,3 +19,4 @@ Only an additive diagonal frame paired with a fixed bilinear query admits
 the searchlight-collapse lowering. Factor frames, locally estimated
 transforms, adaptive queries, and nonlinear readouts remain distinct work.
 }
+\keyword{internal}

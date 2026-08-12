@@ -58,9 +58,7 @@ numerical_agreement <- function(x, y,
                                               "cross_platform"),
                                 contract = numerical_contract()) {
   guarantee <- match.arg(guarantee)
-  if (!inherits(contract, "effect_numerical_contract")) {
-    stop("`contract` must be an effectagram numerical contract.", call. = FALSE)
-  }
+  contract <- .validate_numerical_contract(contract)
   if (!is.numeric(x) || !is.numeric(y) || !identical(dim(x), dim(y)) ||
       length(x) != length(y) || any(!is.finite(x)) || any(!is.finite(y))) {
     stop("`x` and `y` must be finite numeric objects with identical dimensions.",
@@ -84,6 +82,18 @@ numerical_agreement <- function(x, y,
     ),
     class = "effect_numeric_agreement"
   )
+}
+
+.validate_numerical_contract <- function(contract) {
+  if (!inherits(contract, "effect_numerical_contract") || !is.list(contract)) {
+    stop("`contract` must be an effectagram numerical contract.", call. = FALSE)
+  }
+  rebuilt <- numerical_contract(contract$atol, contract$rtol)
+  if (!identical(contract, rebuilt)) {
+    stop("Numerical contract fields are inconsistent or noncanonical.",
+      call. = FALSE)
+  }
+  rebuilt
 }
 
 .canonical_reduce <- function(values, task_id) {

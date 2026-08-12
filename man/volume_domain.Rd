@@ -4,7 +4,12 @@
 \alias{volume_domain}
 \title{Construct a native volumetric neural feature domain}
 \usage{
-volume_domain(mask, spacing = c(1, 1, 1), id = "native-volume")
+volume_domain(
+  mask,
+  spacing = c(1, 1, 1),
+  id = "native-volume",
+  coordinate_units = "mm"
+)
 }
 \arguments{
 \item{mask}{A three-dimensional logical or numeric mask. Finite nonzero
@@ -13,6 +18,8 @@ entries are included.}
 \item{spacing}{Three positive finite voxel spacings.}
 
 \item{id}{Stable domain identity.}
+
+\item{coordinate_units}{One physical coordinate unit or one per axis.}
 }
 \value{
 An `effect_domain` with native voxel and physical coordinates.

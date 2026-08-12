@@ -21,8 +21,9 @@ or internal geometry stores having the same dimensions.}
 \item{marginals}{Pairing-appropriate signed marginals. Undirected pairings
 contain `endpoint`; directed pairings contain `left` and `right`.}
 
-\item{effects}{Unique experimental-coordinate names. Their count must match
-the triangular packed-geometry width and marginal columns.}
+\item{effects}{An `effect_space()` whose dimension must match the triangular
+packed-geometry width and marginal columns. Unique names are accepted as
+shorthand for an unspecified-basis space.}
 
 \item{receipt}{The `execution_receipt()` proving how the result was made.}
 
@@ -39,3 +40,4 @@ Its storage may be in memory or block-backed, but storage never changes the
 result's completeness. Configuration geometry is derived exactly as total
 minus coherent.
 }
+\keyword{internal}

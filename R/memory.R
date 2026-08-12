@@ -23,7 +23,7 @@
 #' @param measured_workspace_bytes Optional observed package-owned live bytes.
 #' @param baseline_rss_bytes,peak_rss_bytes Optional process RSS observations.
 #' @return An immutable-by-convention `effect_memory_plan`.
-#' @export
+#' @keywords internal
 memory_plan <- function(frame_bytes = 0,
                         resident_source_bytes = 0,
                         source_handle_bytes = 0,

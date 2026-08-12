@@ -1,6 +1,9 @@
 test_that("the documented first workflow runs through every public layer", {
+  effects <- effect_space(c("face", "house", "object"),
+    basis_id = "condition-means:v1", units = "percent-signal")
   domain <- abstract_domain(6,
-    coordinates = cbind(x = 0:5, y = 0), id = "native:demo")
+    coordinates = cbind(x = 0:5, y = 0),
+    feature_ids = paste0("feature", 1:6), id = "native:demo")
   run1 <- rbind(
     face = c(2, 1, 0.5, -0.5, 0, 1),
     house = c(0, 1, 2, 1, 0.5, 0),
@@ -11,8 +14,9 @@ test_that("the documented first workflow runs through every public layer", {
     house = c(0.1, 1.2, 1.8, 0.9, 0.6, 0.1),
     object = c(0.4, 0.6, 1.1, 1.4, 0.9, 0.6)
   )
-  rel <- relation(list(run1 = run1, run2 = run2), domain = domain)
-  at <- frame(searchlights(radius = 1.01, normalization = "local"), domain)
+  rel <- relation(list(run1 = run1, run2 = run2), effects = effects,
+    domain = domain)
+  at <- compile_frame(searchlights(radius = 1.01, normalization = "local"), domain)
   over <- cross_partitions(rel)
   g <- geometry(rel, at, over)
   result <- contrast(g, c(face = 1, house = -1, object = 0))
@@ -31,7 +35,7 @@ test_that("the documented first workflow runs through every public layer", {
   expect_equal(result$total, result$coherent + result$configuration,
     tolerance = 0)
 
-  query <- bilinear_query(tcrossprod(c(1, -1, 0)))
+  query <- bilinear_query(tcrossprod(c(1, -1, 0)), effects = effects)
   expect_equal(
     evaluate_geometry(rel, at, over, query)$values,
     query_geometry(g, query)$values,
@@ -53,7 +57,7 @@ test_that("raw extraction and materialized effects compile to equal geometry", {
   domain <- abstract_domain(5, id = "raw-effect-law")
   raw_relation <- relation(raw, extract = extractor, domain = domain)
   effect_relation <- relation(effects, effects = extractor$effects, domain = domain)
-  at <- frame(whole_brain(), domain)
+  at <- compile_frame(whole_brain(), domain)
   over <- cross_partitions(raw_relation)
 
   from_raw <- geometry(raw_relation, at, over)
@@ -73,13 +77,13 @@ test_that("public frame laws preserve point decomposition and global total", {
   )
   rel <- relation(effects, domain = domain)
   over <- cross_partitions(rel)
-  point <- geometry(rel, frame(voxels(), domain), over)
+  point <- geometry(rel, compile_frame(voxels(), domain), over)
   expect_equal(geometry_component(point, "configuration"),
     matrix(0, 5, 3), tolerance = 1e-14)
 
   local <- geometry(rel,
-    frame(searchlights(1.01, normalization = "conservative"), domain), over)
-  global <- geometry(rel, frame(whole_brain(normalization = "none"), domain), over)
+    compile_frame(searchlights(1.01, normalization = "conservative"), domain), over)
+  global <- geometry(rel, compile_frame(whole_brain(normalization = "none"), domain), over)
   expect_equal(colSums(geometry_component(local, "total")),
     drop(geometry_component(global, "total")), tolerance = 1e-13)
 })
@@ -123,7 +127,7 @@ test_that("the cross-null sign distribution is exactly centered publicly", {
   run2 <- matrix(rnorm(3 * 6), 3, 6)
   rownames(run1) <- rownames(run2) <- c("a", "b", "c")
   domain <- abstract_domain(6, id = "cross-null")
-  at <- frame(whole_brain(), domain)
+  at <- compile_frame(whole_brain(), domain)
   positive_relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
   negative_relation <- relation(list(run1 = run1, run2 = -run2), domain = domain)
   positive <- geometry(positive_relation, at, cross_partitions(positive_relation))

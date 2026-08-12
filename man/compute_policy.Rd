@@ -4,14 +4,15 @@
 \alias{compute_policy}
 \title{Construct the version 0.1 compute policy}
 \usage{
-compute_policy(workers = 1L, block_features = NULL, memory_bytes = NULL)
+compute_policy(workers = 1L, block_features = NULL, workspace_bytes = NULL)
 }
 \arguments{
 \item{workers}{Number of R workers. Must be exactly one in version 0.1.}
 
 \item{block_features}{Optional positive feature-block size.}
 
-\item{memory_bytes}{Optional positive conservative memory budget in bytes.}
+\item{workspace_bytes}{Optional positive budget for effectagram-owned live
+workspace. Baseline and total process RSS are not charged to this budget.}
 }
 \value{
 An immutable-by-convention declarative compute policy.

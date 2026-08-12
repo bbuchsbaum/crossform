@@ -32,6 +32,7 @@ contrast <- function(x, weights) {
   if (!inherits(x, "effect_geometry")) {
     stop("`x` must be a complete effect_geometry.", call. = FALSE)
   }
+  .validate_effect_geometry(x, probe = FALSE)
   weights <- .align_contrast(weights, x$effects)
   query <- bilinear_query(tcrossprod(weights))
   total <- drop(query_geometry(x, query, "total")$values)
@@ -95,6 +96,7 @@ rdm <- function(x, component = c("total", "coherent", "configuration")) {
   if (!inherits(x, "effect_geometry")) {
     stop("`x` must be a complete effect_geometry.", call. = FALSE)
   }
+  .validate_effect_geometry(x, probe = FALSE)
   component <- match.arg(component)
   compiled <- .rdm_query(x$effects)
   view <- query_geometry(x, compiled$query, component)
@@ -166,6 +168,7 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
   if (!inherits(x, "effect_geometry")) {
     stop("`x` must be a complete effect_geometry.", call. = FALSE)
   }
+  .validate_effect_geometry(x, probe = FALSE)
   if (!is.logical(intercept) || length(intercept) != 1L || is.na(intercept)) {
     stop("`intercept` must be TRUE or FALSE.", call. = FALSE)
   }
@@ -244,12 +247,13 @@ geometry_spectrum <- function(x,
   }
   component <- match.arg(component)
   row_block <- .validate_tile_size(row_block, "row_block")
+  .validate_effect_geometry(x)
   q <- length(x$effects)
   values <- matrix(0, x$total$dim[[1L]], q,
     dimnames = list(NULL, paste0("root", seq_len(q))))
   for (start in .tile_starts(nrow(values), row_block)) {
     rows <- start:min(start + row_block - 1L, nrow(values))
-    packed <- geometry_component(x, component, rows)
+    packed <- .geometry_component_validated(x, component, rows)
     for (position in seq_along(rows)) {
       values[rows[[position]], ] <- eigen(
         .unsvec_symmetric(packed[position, ], q), symmetric = TRUE,

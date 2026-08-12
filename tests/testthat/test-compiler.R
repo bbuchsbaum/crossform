@@ -7,7 +7,7 @@ compiler_fixture <- function() {
     0, 0, 1, 0, 2, 0, 3, 0
   ), ncol = 2, byrow = TRUE), id = "line:v1")
   rel <- relation(list(run1 = run1, run2 = run2), domain = domain)
-  at <- frame(searchlights(radius = 1.01, normalization = "local"), domain)
+  at <- compile_frame(searchlights(radius = 1.01, normalization = "local"), domain)
   list(relation = rel, at = at, over = cross_partitions(rel$partitions),
     matrices = list(run1 = run1, run2 = run2), domain = domain)
 }
@@ -169,7 +169,7 @@ test_that("compiler reuses one admitted file handle across feature blocks", {
   domain <- abstract_domain(8)
   rel <- relation(list(run1 = descriptor, run2 = descriptor),
     effects = c("a", "b"), domain = domain)
-  got <- geometry(rel, frame(whole_brain(), domain), cross_partitions(rel),
+  got <- geometry(rel, compile_frame(whole_brain(), domain), cross_partitions(rel),
     compute = compute_policy(block_features = 2))
 
   expect_identical(got$metadata$source_session$distinct_owned_handles, 1L)
@@ -199,7 +199,7 @@ test_that("compiler hashes a file source once at session admission", {
   rel <- relation(list(run1 = descriptor, run2 = descriptor),
     effects = c("a", "b"), domain = domain)
 
-  geometry(rel, frame(whole_brain(), domain), cross_partitions(rel),
+  geometry(rel, compile_frame(whole_brain(), domain), cross_partitions(rel),
     compute = compute_policy(block_features = 1))
 
   expect_identical(hashes, 1L)
@@ -215,7 +215,7 @@ test_that("compile and budget failures occur before opaque source reads", {
   rel <- relation(list(run1 = source, run2 = source),
     source_dims = list(c(2, 4), c(2, 4)), effects = c("a", "b"),
     capabilities = source_capabilities(TRUE, stable_revision = revision))
-  at <- frame(voxels(), abstract_domain(4))
+  at <- compile_frame(voxels(), abstract_domain(4))
   over <- cross_partitions(rel$partitions)
 
   expect_error(evaluate_geometry(rel, at, over, matrix(1, 2, 1)),
@@ -310,7 +310,7 @@ test_that("volume spacing participates in compiler domain identity", {
   matrices <- list(run1 = matrix(1, 2, 4), run2 = matrix(2, 2, 4))
   rel <- relation(matrices, effects = c("a", "b"), domain = first)
 
-  expect_error(geometry(rel, frame(voxels(), changed), cross_partitions(rel)),
+  expect_error(geometry(rel, compile_frame(voxels(), changed), cross_partitions(rel)),
     "exact neural-domain")
 })
 
@@ -322,7 +322,7 @@ test_that("opaque sources without revisions fail before reading", {
   }
   rel <- relation(list(run1 = source, run2 = source),
     source_dims = list(c(2, 3), c(2, 3)), effects = c("a", "b"))
-  at <- frame(voxels(), abstract_domain(3))
+  at <- compile_frame(voxels(), abstract_domain(3))
 
   expect_error(geometry(rel, at, cross_partitions(rel$partitions)),
     "explicit `source_capabilities")
@@ -342,7 +342,7 @@ test_that("kernel failure removes only newly created block stores", {
     capabilities = source_capabilities(TRUE, stable_revision = revision))
   path <- tempfile("failed-geometry-")
   condition <- tryCatch(
-    geometry(rel, frame(voxels(), abstract_domain(4)),
+    geometry(rel, compile_frame(voxels(), abstract_domain(4)),
       cross_partitions(rel$partitions), storage = "block", storage_path = path,
       compute = compute_policy(block_features = 2)),
     effect_execution_error = identity

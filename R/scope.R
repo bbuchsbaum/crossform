@@ -57,7 +57,7 @@ additive_frame <- function(weights, normalization = "none",
 #' @param domain_id Stable identity of the neural feature domain.
 #' @param domain Optional exact `effect_domain` or internal domain reference.
 #' @return A declarative frame value.
-#' @export
+#' @keywords internal
 factor_frame <- function(factors, locally_estimated = FALSE,
                          domain_id = "abstract", domain = NULL) {
   if (!is.list(factors) || length(factors) < 1L ||
@@ -121,7 +121,7 @@ bilinear_query <- function(operator, fixed = TRUE, effects = NULL) {
 #'
 #' @param fun A function applied after local geometry is constructed.
 #' @return A declarative query value.
-#' @export
+#' @keywords internal
 nonlinear_query <- function(fun) {
   if (!is.function(fun)) {
     stop("`fun` must be a function.", call. = FALSE)
@@ -141,7 +141,7 @@ nonlinear_query <- function(fun) {
 #' @param frame An `effect_frame`.
 #' @param query An `effect_query`.
 #' @return A small compiler-decision value.
-#' @export
+#' @keywords internal
 compile_lowering <- function(frame, query) {
   if (!inherits(frame, "effect_frame")) {
     stop("`frame` must be an effect frame.", call. = FALSE)
@@ -193,6 +193,26 @@ compile_lowering <- function(frame, query) {
 }
 
 .validate_frame_for_compile <- function(frame) {
+  if (!inherits(frame, "effect_frame") || !is.list(frame)) {
+    stop("Frame fields are missing or noncanonical.", call. = FALSE)
+  }
+  expected_names <- if (identical(frame$representation, "additive_diagonal")) {
+    c("representation", "fixed", "locally_estimated", "weights",
+      "normalization", "domain", "domain_id")
+  } else if (identical(frame$representation, "factor")) {
+    c("representation", "fixed", "locally_estimated", "factors", "domain",
+      "domain_id")
+  } else {
+    stop("Unknown frame representation.", call. = FALSE)
+  }
+  optional_names <- c("index", "domain_kind", "specification")
+  trailing_names <- names(frame)[length(expected_names) +
+    seq_len(max(0L, length(frame) - length(expected_names)))]
+  if (!identical(names(frame)[seq_along(expected_names)], expected_names) ||
+      !(identical(trailing_names, character()) ||
+        identical(trailing_names, optional_names)) || anyDuplicated(names(frame))) {
+    stop("Frame fields are missing or noncanonical.", call. = FALSE)
+  }
   .validate_domain_id(frame$domain_id)
   domain <- .validate_domain_reference(frame$domain)
   if (!identical(frame$domain_id, domain$id)) {
@@ -252,14 +272,26 @@ compile_lowering <- function(frame, query) {
       stop("Factor-frame width is inconsistent with its exact neural domain.",
         call. = FALSE)
     }
-  } else {
-    stop("Unknown frame representation.", call. = FALSE)
   }
   invisible(frame)
 }
 
 .validate_query_for_compile <- function(query) {
-  if (!identical(query$kind, "bilinear")) return(invisible(query))
+  if (!inherits(query, "effect_query") || !is.list(query) ||
+      !is.character(query$kind) || length(query$kind) != 1L || is.na(query$kind)) {
+    stop("Query fields are missing or noncanonical.", call. = FALSE)
+  }
+  if (!identical(query$kind, "bilinear")) {
+    if (!identical(query$kind, "nonlinear") ||
+        !identical(names(query), c("kind", "fixed", "fun")) ||
+        !identical(query$fixed, TRUE) || !is.function(query$fun)) {
+      stop("Query fields are missing or noncanonical.", call. = FALSE)
+    }
+    return(invisible(query))
+  }
+  if (!identical(names(query), c("kind", "fixed", "operator", "effect_space"))) {
+    stop("Query fields are missing or noncanonical.", call. = FALSE)
+  }
   operator <- query$operator
   if (!is.matrix(operator) || !is.numeric(operator) || nrow(operator) < 1L ||
       nrow(operator) != ncol(operator) || any(!is.finite(operator)) ||
@@ -271,12 +303,18 @@ compile_lowering <- function(frame, query) {
     stop("Query fixedness must be one logical value.", call. = FALSE)
   }
   if (!is.null(query$effect_space)) {
-    .validate_effect_space(query$effect_space)
+    effect_space <- .validate_effect_space(query$effect_space)
     if (length(query$effect_space$coordinates) != nrow(operator)) {
       stop("Query effect-space dimension must match its operator.", call. = FALSE)
     }
+  } else {
+    effect_space <- NULL
   }
-  invisible(query)
+  rebuilt <- bilinear_query(operator, query$fixed, effect_space)
+  if (!identical(query, rebuilt)) {
+    stop("Query fields are missing or noncanonical.", call. = FALSE)
+  }
+  invisible(rebuilt)
 }
 
 .new_lowering <- function(kind, collapsed, reason) {

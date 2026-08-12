@@ -70,3 +70,11 @@ test_that("non-finite comparisons and invalid tolerances are rejected", {
     "unique"
   )
 })
+
+test_that("numerical agreement revalidates mutated contracts", {
+  contract <- numerical_contract()
+  contract$block_partition$guarantee <- "bitwise"
+
+  expect_error(numerical_agreement(1, 1, contract = contract),
+    "inconsistent or noncanonical")
+})

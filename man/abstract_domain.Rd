@@ -8,7 +8,8 @@ abstract_domain(
   n_features,
   coordinates = NULL,
   feature_ids = NULL,
-  id = "abstract"
+  id = "abstract",
+  coordinate_units = "arbitrary"
 )
 }
 \arguments{
@@ -20,6 +21,8 @@ spatial frame builders.}
 \item{feature_ids}{Optional unique feature identifiers.}
 
 \item{id}{Stable nonempty domain identity.}
+
+\item{coordinate_units}{One coordinate unit or one per coordinate axis.}
 }
 \value{
 An `effect_domain`.
