@@ -196,6 +196,23 @@ test_that("the same relation reads can retain bounded coherent marginals", {
   expect_gt(got$diagnostics$max_local_replacement_bytes, 0)
 })
 
+test_that("coherent-only streaming omits atom formation and total output", {
+  fixture <- crossgram_fixture()
+  got <- effectagram:::.streamed_crossgram_contraction(
+    fixture$frame,
+    function(partition, features) {
+      fixture$relation[[partition]][, features, drop = FALSE]
+    },
+    fixture$partitions, fixture$effects, fixture$over,
+    feature_block = 3, retain_local_relations = TRUE, form_total = FALSE
+  )
+
+  expect_null(got$value)
+  expect_equal(got$diagnostics$atom_count, 0)
+  expect_equal(got$diagnostics$max_atom_bytes, 0)
+  expect_gt(got$diagnostics$durable_local_relation_bytes, 0)
+})
+
 test_that("coherent geometry from retained relations matches an explicit oracle", {
   fixture <- crossgram_fixture()
   streamed <- run_streamed_fixture(fixture, feature_block = 4,

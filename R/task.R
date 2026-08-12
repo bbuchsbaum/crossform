@@ -61,7 +61,7 @@
 # executors. The same pure function is used in-process and by any later worker.
 .crossgram_feature_task <- function(relations, feature_ids, effects,
                                     partitions = names(relations), over,
-                                    query = NULL) {
+                                    query = NULL, form_atoms = TRUE) {
   validated <- .validate_relation_task_inputs(
     relations, feature_ids, effects, partitions, over, query
   )
@@ -71,38 +71,48 @@
   right_index <- match(over$right, partitions)
   q <- length(effects)
 
-  atoms <- matrix(0, length(feature_ids), validated$packed_width)
+  if (!is.logical(form_atoms) || length(form_atoms) != 1L || is.na(form_atoms)) {
+    stop("`form_atoms` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  atoms <- if (form_atoms) {
+    matrix(0, length(feature_ids), validated$packed_width)
+  } else {
+    NULL
+  }
   packed_coordinate <- 0L
   max_atom_work_bytes <- 0
-  for (column in seq_len(q)) {
-    for (row in column:q) {
-      packed_coordinate <- packed_coordinate + 1L
-      atom_work <- numeric(length(feature_ids))
-      for (edge in seq_len(nrow(over))) {
-        left <- relations[[left_index[[edge]]]]
-        right <- relations[[right_index[[edge]]]]
-        atom_work <- atom_work + over$weight[[edge]] * 0.5 *
-          (left[row, ] * right[column, ] +
-            right[row, ] * left[column, ])
+  if (form_atoms) {
+    for (column in seq_len(q)) {
+      for (row in column:q) {
+        packed_coordinate <- packed_coordinate + 1L
+        atom_work <- numeric(length(feature_ids))
+        for (edge in seq_len(nrow(over))) {
+          left <- relations[[left_index[[edge]]]]
+          right <- relations[[right_index[[edge]]]]
+          atom_work <- atom_work + over$weight[[edge]] * 0.5 *
+            (left[row, ] * right[column, ] +
+              right[row, ] * left[column, ])
+        }
+        if (row != column) atom_work <- sqrt(2) * atom_work
+        if (any(!is.finite(atom_work))) {
+          stop("Cross-Gram atom formation produced non-finite values.",
+            call. = FALSE)
+        }
+        atoms[, packed_coordinate] <- atom_work
+        max_atom_work_bytes <- max(
+          max_atom_work_bytes, .measured_object_bytes(atom_work)
+        )
       }
-      if (row != column) atom_work <- sqrt(2) * atom_work
-      if (any(!is.finite(atom_work))) {
-        stop("Cross-Gram atom formation produced non-finite values.",
-          call. = FALSE)
-      }
-      atoms[, packed_coordinate] <- atom_work
-      max_atom_work_bytes <- max(
-        max_atom_work_bytes, .measured_object_bytes(atom_work)
-      )
     }
   }
 
   relation_bytes <- sum(vapply(
     relations, .measured_object_bytes, numeric(1)
   ))
-  atom_bytes <- .measured_object_bytes(atoms)
+  atom_bytes <- if (is.null(atoms)) 0 else .measured_object_bytes(atoms)
   query_atom_bytes <- 0
-  if (!is.null(query)) {
+  if (!is.null(query) && form_atoms) {
     atoms <- atoms %*% query
     query_atom_bytes <- .measured_object_bytes(atoms)
   }
@@ -113,7 +123,8 @@
     effects = effects,
     relations = relations,
     atoms = atoms,
-    projected = !is.null(query),
+    projected = !is.null(query) && form_atoms,
+    atoms_formed = form_atoms,
     packed_width = validated$packed_width,
     diagnostics = list(
       relation_bytes = relation_bytes,
@@ -127,11 +138,23 @@
 .new_crossgram_reducer <- function(frame, partitions, effects, output_width,
                                    row_tile, coordinate_tile,
                                    accumulate_tile = NULL,
-                                   retain_local_relations = FALSE) {
+                                   retain_local_relations = FALSE,
+                                   form_total = TRUE) {
   .validate_frame_for_compile(frame)
   row_tile <- .validate_tile_size(row_tile, "row_tile")
   coordinate_tile <- .validate_tile_size(coordinate_tile, "coordinate_tile")
-  output_width <- .validate_tile_size(output_width, "output_width")
+  if (!is.logical(form_total) || length(form_total) != 1L || is.na(form_total)) {
+    stop("`form_total` must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (form_total) {
+    output_width <- .validate_tile_size(output_width, "output_width")
+  } else {
+    output_width <- 0L
+    if (!retain_local_relations) {
+      stop("A reducer must form total output, local relations, or both.",
+        call. = FALSE)
+    }
+  }
   if (!is.null(accumulate_tile) && !is.function(accumulate_tile)) {
     stop("`accumulate_tile` must be NULL or a function.", call. = FALSE)
   }
@@ -151,8 +174,9 @@
   state$coordinate_tile <- coordinate_tile
   state$accumulate_tile <- accumulate_tile
   state$retain_local_relations <- retain_local_relations
+  state$form_total <- form_total
   state$next_feature <- 1L
-  state$output <- if (is.null(accumulate_tile)) {
+  state$output <- if (form_total && is.null(accumulate_tile)) {
     matrix(0, measurements, output_width)
   } else {
     NULL
@@ -212,7 +236,8 @@
       call. = FALSE)
   }
   if (max(task$feature_ids) > ncol(reducer$weights) ||
-      ncol(task$atoms) != reducer$output_width) {
+      !identical(isTRUE(task$atoms_formed), reducer$form_total) ||
+      (reducer$form_total && ncol(task$atoms) != reducer$output_width)) {
     stop("Task dimensions do not match the reducer.", call. = FALSE)
   }
 
@@ -221,7 +246,9 @@
   diagnostics$feature_blocks <- diagnostics$feature_blocks + 1L
   diagnostics$relation_reads <- diagnostics$relation_reads +
     length(task$partitions)
-  diagnostics$atom_count <- diagnostics$atom_count + length(task$feature_ids)
+  if (reducer$form_total) {
+    diagnostics$atom_count <- diagnostics$atom_count + length(task$feature_ids)
+  }
   diagnostics$max_relation_bytes <- max(
     diagnostics$max_relation_bytes, task_diag$relation_bytes
   )
@@ -273,7 +300,7 @@
       }
     }
 
-    for (coordinate_start in .tile_starts(
+    if (reducer$form_total) for (coordinate_start in .tile_starts(
       reducer$output_width, reducer$coordinate_tile
     )) {
       coordinates <- coordinate_start:min(
@@ -334,7 +361,8 @@
                                     output_width, row_tile = 1024L,
                                     coordinate_tile = 256L,
                                     accumulate_tile = NULL,
-                                    retain_local_relations = FALSE) {
+                                    retain_local_relations = FALSE,
+                                    form_total = TRUE) {
   if (!is.list(tasks) || length(tasks) < 1L ||
       any(!vapply(tasks, inherits, logical(1), "effect_feature_task_result"))) {
     stop("`tasks` must be a nonempty list of canonical feature-task results.",
@@ -348,7 +376,7 @@
   tasks <- tasks[order(starts)]
   reducer <- .new_crossgram_reducer(
     frame, partitions, effects, output_width, row_tile, coordinate_tile,
-    accumulate_tile, retain_local_relations
+    accumulate_tile, retain_local_relations, form_total
   )
   for (task in tasks) .reduce_crossgram_task(reducer, task)
   if (reducer$next_feature != ncol(frame$weights) + 1L) {

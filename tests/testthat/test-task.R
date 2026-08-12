@@ -74,7 +74,7 @@ test_that("feature-task payloads are bounded and executor agnostic", {
 
   expect_named(task, c(
     "feature_ids", "partitions", "effects", "relations", "atoms",
-    "projected", "packed_width", "diagnostics"
+    "projected", "atoms_formed", "packed_width", "diagnostics"
   ))
   expect_false(any(vapply(task, is.function, logical(1))))
   expect_false(any(c("frame", "source", "reader", "output", "executor") %in%
@@ -87,6 +87,19 @@ test_that("feature-task payloads are bounded and executor agnostic", {
     as.double(utils::object.size(task)),
     component_bytes + 20000
   )
+})
+
+test_that("coherent-only feature tasks omit cross-Gram atoms", {
+  fixture <- task_fixture()
+  task <- effectagram:::.crossgram_feature_task(
+    fixture$relations, 1:7, fixture$effects, fixture$partitions,
+    fixture$over, form_atoms = FALSE
+  )
+
+  expect_null(task$atoms)
+  expect_false(task$atoms_formed)
+  expect_equal(task$diagnostics$atom_bytes, 0)
+  expect_equal(task$diagnostics$max_atom_work_bytes, 0)
 })
 
 test_that("query projection is part of the same pure feature task", {

@@ -88,7 +88,8 @@
                                             coordinate_tile = 256L,
                                             accumulate_tile = NULL,
                                             retain_local_relations = FALSE,
-                                            query = NULL) {
+                                            query = NULL,
+                                            form_total = TRUE) {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
     stop("The streamed cross-Gram lowering requires an additive diagonal frame.",
@@ -120,6 +121,13 @@
       length(retain_local_relations) != 1L || is.na(retain_local_relations)) {
     stop("`retain_local_relations` must be TRUE or FALSE.", call. = FALSE)
   }
+  if (!is.logical(form_total) || length(form_total) != 1L || is.na(form_total)) {
+    stop("`form_total` must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (!form_total && !retain_local_relations) {
+    stop("Streaming must form total output, local relations, or both.",
+      call. = FALSE)
+  }
 
   features <- ncol(frame$weights)
   q <- length(effects)
@@ -139,7 +147,8 @@
     row_tile = row_tile,
     coordinate_tile = coordinate_tile,
     accumulate_tile = accumulate_tile,
-    retain_local_relations = retain_local_relations
+    retain_local_relations = retain_local_relations,
+    form_total = form_total
   )
 
   for (feature_start in .tile_starts(features, feature_block)) {
@@ -160,7 +169,8 @@
       effects = effects,
       partitions = partitions,
       over = over,
-      query = query
+      query = query,
+      form_atoms = form_total
     )
     .reduce_crossgram_task(reducer, task)
   }

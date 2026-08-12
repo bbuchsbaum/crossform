@@ -78,6 +78,22 @@ test_that("direct queries equal late queries without claiming full geometry", {
     expect_identical(direct$completeness, "query_only")
     expect_equal(direct$values, late$values, tolerance = 1e-12)
     expect_identical(direct$receipt$completion_status, "complete")
+    expect_identical(direct$metadata$requirements$total,
+      component %in% c("total", "configuration"))
+    expect_identical(direct$metadata$requirements$coherent,
+      component %in% c("coherent", "configuration"))
+    expect_false(direct$metadata$requirements$marginals)
+    if (component == "total") {
+      expect_null(direct$metadata$diagnostics$coherent)
+      expect_equal(direct$metadata$diagnostics$total$durable_local_relation_bytes,
+        0)
+      expect_equal(direct$receipt$memory$categories[["atom_block"]] > 0, TRUE)
+    }
+    if (component == "coherent") {
+      expect_null(direct$metadata$diagnostics$total)
+      expect_equal(direct$receipt$memory$categories[["atom_block"]], 0)
+      expect_gt(direct$receipt$memory$categories[["output"]], 0)
+    }
   }
 })
 

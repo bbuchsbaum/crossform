@@ -46,6 +46,20 @@
   query
 }
 
+.component_requirements <- function(query, component) {
+  if (is.null(query)) {
+    return(list(total = TRUE, coherent = TRUE, marginals = TRUE,
+      materialization = "full_geometry"))
+  }
+  component <- match.arg(component, c("total", "coherent", "configuration"))
+  list(
+    total = component %in% c("total", "configuration"),
+    coherent = component %in% c("coherent", "configuration"),
+    marginals = FALSE,
+    materialization = paste0("direct_", component)
+  )
+}
+
 .validate_compiler_inputs <- function(x, at, over) {
   .validate_relation(x)
   .validate_frame_for_compile(at)
@@ -69,7 +83,8 @@
 }
 
 .compiler_memory_plan <- function(x, at, compute, feature_block, row_tile,
-                                  coordinate_tile, output_width, storage) {
+                                  coordinate_tile, output_width, storage,
+                                  requirements) {
   q <- length(x$effects)
   h <- q * (q + 1L) / 2L
   p <- x$n_features
@@ -85,18 +100,30 @@
   }, numeric(1)))
   source_block <- max_observations * f * 8
   relation_block <- r * q * f * 8
-  atom_block <- f * (h + output_width) * 8
-  local_bytes <- m * q * r * 8
-  # Marginals are conservatively counted as two endpoint roles; undirected
-  # pairings will use only half this allowance.
-  marginal_bytes <- 2 * m * q * 8
-  durable_geometry <- if (storage == "memory") 2 * m * output_width * 8 else 0
+  atom_block <- if (requirements$total) f * (h + output_width) * 8 else 0
+  local_bytes <- if (requirements$coherent) m * q * r * 8 else 0
+  marginal_bytes <- if (requirements$marginals) 2 * m * q * 8 else 0
+  component_count <- as.integer(requirements$total) +
+    as.integer(requirements$coherent)
+  durable_geometry <- if (storage == "memory") {
+    component_count * m * output_width * 8
+  } else {
+    0
+  }
   output_bytes <- local_bytes + marginal_bytes + durable_geometry
-  contraction <- (
+  total_contraction <- if (requirements$total) (
     rows * f + f * coordinates + rows * coordinates + rows * q +
       rows * h
-  ) * 8
-  replacement <- (2 * rows * coordinates + 2 * rows * q) * 8
+  ) * 8 else 0
+  coherent_contraction <- if (requirements$coherent) (
+    rows * f + rows * q * 3 + rows * h + rows * output_width
+  ) * 8 else 0
+  contraction <- max(total_contraction, coherent_contraction)
+  replacement <- if (requirements$total) {
+    (2 * rows * coordinates + 2 * rows * q) * 8
+  } else {
+    2 * rows * q * 8
+  }
 
   memory_plan(
     shared_source_bytes = source_shared,
@@ -244,6 +271,7 @@
   if (!is.null(query)) query <- .compiler_query(query, x$effect_space)
   component <- if (is.null(query)) "full" else
     match.arg(component, c("total", "coherent", "configuration"))
+  requirements <- .component_requirements(query, component)
   if (!is.null(query) && storage != "memory") {
     stop("Direct query execution returns an in-memory view and does not create geometry stores.",
       call. = FALSE)
@@ -264,14 +292,14 @@
   row_tile <- min(256L, nrow(at$weights))
   coordinate_tile <- min(64L, output_width)
   memory <- .compiler_memory_plan(x, at, compute, feature_block, row_tile,
-    coordinate_tile, output_width, storage)
+    coordinate_tile, output_width, storage, requirements)
   if (identical(memory$fits_budget, FALSE)) {
     stop(sprintf(
       "The conservative memory plan requires %.0f bytes, exceeding the %.0f-byte budget.",
       memory$conservative_peak_bytes, compute$memory_bytes
     ), call. = FALSE)
   }
-  materialization <- if (is.null(query)) "full_geometry" else "direct_query"
+  materialization <- requirements$materialization
   plan_id <- .compiler_plan_id(x, at, over, materialization, query, component)
   task_count <- ceiling(x$n_features / feature_block)
   planned_receipt <- .planned_compiler_receipt(x, compute, memory, plan_id,
@@ -305,8 +333,9 @@
         row_tile = row_tile,
         coordinate_tile = coordinate_tile,
         accumulate_tile = total_accumulator,
-        retain_local_relations = TRUE,
-        query = query
+        retain_local_relations = requirements$coherent,
+        query = query,
+        form_total = requirements$total
       )
       coherent_writer <- if (storage == "block") {
         function(rows, coordinates, value) {
@@ -315,23 +344,39 @@
       } else {
         NULL
       }
-      coherent <- .coherent_geometry_from_local(
-        streamed$local_relations, over, Matrix::rowSums(at$weights),
-        row_tile = row_tile, write_tile = coherent_writer, query = query
-      )
-      total_value <- if (storage == "memory") streamed$value else
+      coherent <- if (requirements$coherent) {
+        .coherent_geometry_from_local(
+          streamed$local_relations, over, Matrix::rowSums(at$weights),
+          row_tile = row_tile, write_tile = coherent_writer, query = query
+        )
+      } else {
+        NULL
+      }
+      total_value <- if (!requirements$total) NULL else if (storage == "memory") {
+        streamed$value
+      } else {
         geometry_storage$total
-      coherent_value <- if (storage == "memory") coherent$value else
+      }
+      coherent_value <- if (!requirements$coherent) NULL else if (
+        storage == "memory") {
+        coherent$value
+      } else {
         geometry_storage$coherent
-      marginals <- pairing_marginals(streamed$local_relations, over,
-        mass = Matrix::rowSums(at$weights))
+      }
+      marginals <- if (requirements$marginals) {
+        pairing_marginals(streamed$local_relations, over,
+          mass = Matrix::rowSums(at$weights))
+      } else {
+        NULL
+      }
       metadata <- list(
         frame = list(representation = at$representation,
           normalization = at$normalization, domain = at$domain),
         pairing_estimate = attr(over, "estimate"),
         storage = storage,
-        diagnostics = list(total = streamed$diagnostics,
-          coherent = coherent$diagnostics),
+        requirements = requirements,
+        diagnostics = list(total = if (requirements$total) streamed$diagnostics else NULL,
+          coherent = if (requirements$coherent) coherent$diagnostics else NULL),
         scientific_plan_id = plan_id
       )
       result <- if (is.null(query)) {
@@ -339,10 +384,8 @@
           effects = x$effect_space, receipt = planned_receipt,
           index = .compiler_index(at), metadata = metadata)
       } else {
-        total_matrix <- if (storage == "memory") total_value else
-          .read_geometry_store(total_value)
-        coherent_matrix <- if (storage == "memory") coherent_value else
-          .read_geometry_store(coherent_value)
+        total_matrix <- if (requirements$total) total_value else NULL
+        coherent_matrix <- if (requirements$coherent) coherent_value else NULL
         values <- switch(component,
           total = total_matrix,
           coherent = coherent_matrix,
