@@ -147,9 +147,9 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     stop("Receipt compute and memory plans must use the same worker count.",
       call. = FALSE)
   }
-  if (!identical(is.null(compute$memory_bytes), is.null(memory$budget_bytes)) ||
-      (!is.null(compute$memory_bytes) &&
-       !isTRUE(all.equal(compute$memory_bytes, memory$budget_bytes,
+  if (!identical(is.null(compute$workspace_bytes), is.null(memory$budget_bytes)) ||
+      (!is.null(compute$workspace_bytes) &&
+       !isTRUE(all.equal(compute$workspace_bytes, memory$budget_bytes,
          tolerance = 0)))) {
     stop("Receipt compute and memory plans must declare the same memory budget.",
       call. = FALSE)
@@ -187,8 +187,8 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     stop("`memory` must be an effectagram memory plan.", call. = FALSE)
   }
   expected_categories <- c(
-    "shared_source", "runtime_reserve", "private_source_per_worker", "source_block",
-    "relation_block", "atom_block", "output", "contraction",
+    "frame", "resident_source", "source_handles", "source_block",
+    "relation_block", "atom_block", "local_state", "output", "contraction",
     "replacement_copy", "serialization_overlap", "reorder_buffer",
     "checkpoint_buffer"
   )
@@ -197,12 +197,13 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   }
   c <- memory$categories
   rebuilt <- memory_plan(
-    shared_source_bytes = c[["shared_source"]],
-    runtime_reserve_bytes = c[["runtime_reserve"]],
-    private_source_bytes = c[["private_source_per_worker"]],
+    frame_bytes = c[["frame"]],
+    resident_source_bytes = c[["resident_source"]],
+    source_handle_bytes = c[["source_handles"]],
     source_block_bytes = c[["source_block"]],
     relation_block_bytes = c[["relation_block"]],
     atom_block_bytes = c[["atom_block"]],
+    local_state_bytes = c[["local_state"]],
     output_bytes = c[["output"]],
     contraction_bytes = c[["contraction"]],
     replacement_copy_bytes = c[["replacement_copy"]],
@@ -213,12 +214,15 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     n_active = memory$n_active,
     safety_factor = memory$safety_factor,
     budget_bytes = memory$budget_bytes,
-    measured_peak_bytes = memory$measured_peak_bytes
+    measured_workspace_bytes = memory$measured_workspace_bytes,
+    baseline_rss_bytes = memory$baseline_rss_bytes,
+    peak_rss_bytes = memory$absolute_peak_rss_bytes
   )
   derived <- c(
-    "worker_private_total_bytes", "task_private_per_active_bytes",
-    "active_task_total_bytes", "modeled_peak_bytes", "conservative_peak_bytes",
-    "fits_budget", "measurement_within_plan", "prediction_kind"
+    "persistent_workspace_bytes", "task_workspace_per_active_bytes",
+    "active_task_workspace_bytes", "modeled_workspace_bytes",
+    "planned_workspace_bytes", "fits_budget", "measured_workspace_within_plan",
+    "incremental_peak_rss_bytes", "prediction_kind"
   )
   if (!all(vapply(derived, function(name) identical(memory[[name]], rebuilt[[name]]),
     logical(1)))) {
@@ -312,10 +316,10 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     stop("Execution receipt elapsed time is invalid.", call. = FALSE)
   }
   if (!identical(canonical_memory$workers, canonical_compute$workers) ||
-      !identical(is.null(canonical_compute$memory_bytes),
+      !identical(is.null(canonical_compute$workspace_bytes),
         is.null(canonical_memory$budget_bytes)) ||
-      (!is.null(canonical_compute$memory_bytes) &&
-       !isTRUE(all.equal(canonical_compute$memory_bytes,
+      (!is.null(canonical_compute$workspace_bytes) &&
+       !isTRUE(all.equal(canonical_compute$workspace_bytes,
          canonical_memory$budget_bytes, tolerance = 0)))) {
     stop("Execution receipt compute and memory policies are inconsistent.",
       call. = FALSE)

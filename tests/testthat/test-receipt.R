@@ -28,7 +28,7 @@ test_that("compiler receipts expose exact neural-domain identity", {
 })
 
 test_that("receipts preserve every compute field and completion fact", {
-  compute <- compute_policy(block_features = 32, memory_bytes = 4096)
+  compute <- compute_policy(block_features = 32, workspace_bytes = 4096)
   receipt <- execution_receipt(
     "plan", compute,
     list(source_capabilities(TRUE,
@@ -55,7 +55,7 @@ test_that("receipt construction rejects contradictory execution claims", {
     "kernel", "tasks", "reduction"
   ), "same worker count")
   expect_error(execution_receipt(
-    "plan", compute_policy(memory_bytes = 100), source,
+    "plan", compute_policy(workspace_bytes = 100), source,
     memory_plan(budget_bytes = 200), "kernel", "tasks", "reduction"
   ), "same memory budget")
   expect_error(execution_receipt(
@@ -97,7 +97,7 @@ test_that("mutated receipt internals fail result certification", {
   ), "workers")
 
   bad_memory <- geometry$receipt
-  bad_memory$memory$modeled_peak_bytes <- 999
+  bad_memory$memory$modeled_workspace_bytes <- 999
   expect_error(effect_geometry(
     geometry_component(geometry, "total"),
     geometry_component(geometry, "coherent"), geometry$marginals,

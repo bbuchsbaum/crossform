@@ -59,8 +59,6 @@ for (scenario_index in seq_len(nrow(scenarios))) {
   result$os_peak_rss_bytes <- peak_rss
   result$aggregate_peak_rss_bytes <- result$os_peak_rss_bytes + result$worker_peak_rss_bytes
   result$incremental_peak_rss_bytes <- max(0, peak_rss - result$rss_before_bytes)
-  result$plan_covers_incremental_peak <-
-    result$plan$conservative_peak_bytes >= result$incremental_peak_rss_bytes
   result$rss_evidence <- "isolated_child_process_polled_os_peak"
   saveRDS(result, result_path)
   summary_rows[[scenario_index]] <- data.frame(
@@ -69,11 +67,13 @@ for (scenario_index in seq_len(nrow(scenarios))) {
     phase = result$scenario$phase,
     os_peak_rss_bytes = result$os_peak_rss_bytes,
     incremental_peak_rss_bytes = result$incremental_peak_rss_bytes,
-    planned_peak_bytes = result$plan$conservative_peak_bytes,
-    plan_covers_incremental_peak = result$plan_covers_incremental_peak,
+    baseline_rss_bytes = result$rss_before_bytes,
+    absolute_peak_rss_bytes = result$aggregate_peak_rss_bytes,
+    planned_workspace_bytes = result$plan$planned_workspace_bytes,
     allocated_bytes = result$allocation$allocated_bytes,
     largest_allocation_bytes = result$allocation$largest_allocation_bytes,
-    runtime_reserve_bytes = result$plan$categories[["runtime_reserve"]],
+    frame_bytes = result$plan$categories[["frame"]],
+    resident_source_bytes = result$plan$categories[["resident_source"]],
     max_measured_live_temporary_bytes = result$total$max_live_temporary_bytes,
     stringsAsFactors = FALSE
   )

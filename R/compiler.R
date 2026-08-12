@@ -96,8 +96,21 @@
   max_observations <- max(vapply(x$sources, function(source) source$dim[[1L]],
     integer(1)))
   source_shared <- sum(vapply(x$sources, function(source) {
-    if (identical(source$kind, "matrix")) prod(as.double(source$dim)) * 8 else 0
+    if (identical(source$kind, "matrix")) {
+      prod(as.double(source$dim)) * 8 +
+        as.double(utils::object.size(source))
+    } else {
+      0
+    }
   }, numeric(1)))
+  distinct_handles <- unique(vapply(x$sources, function(source) {
+    descriptor <- source$descriptor
+    if (is.null(descriptor) || identical(descriptor$access, "coordinator")) {
+      return(NA_character_)
+    }
+    .source_descriptor_key(descriptor)
+  }, character(1)))
+  distinct_handles <- sum(!is.na(distinct_handles))
   source_block <- max_observations * f * 8
   relation_block <- r * q * f * 8
   atom_block <- if (requirements$total) f * (h + output_width) * 8 else 0
@@ -110,7 +123,7 @@
   } else {
     0
   }
-  output_bytes <- local_bytes + marginal_bytes + durable_geometry
+  output_bytes <- marginal_bytes + durable_geometry
   total_contraction <- if (requirements$total) (
     rows * f + f * coordinates + rows * coordinates + rows * q +
       rows * h
@@ -126,17 +139,64 @@
   }
 
   memory_plan(
-    shared_source_bytes = source_shared,
+    frame_bytes = as.double(utils::object.size(at$weights)),
+    resident_source_bytes = source_shared,
+    source_handle_bytes = distinct_handles * 4096,
     source_block_bytes = source_block,
     relation_block_bytes = relation_block,
     atom_block_bytes = atom_block,
+    local_state_bytes = local_bytes,
     output_bytes = output_bytes,
     contraction_bytes = contraction,
     replacement_copy_bytes = replacement,
     workers = 1L,
     n_active = 1L,
-    budget_bytes = compute$memory_bytes
+    budget_bytes = compute$workspace_bytes
   )
+}
+
+.descending_tiles <- function(maximum, initial = maximum) {
+  value <- min(as.integer(maximum), as.integer(initial))
+  out <- integer()
+  while (value > 1L) {
+    out <- c(out, value)
+    value <- max(1L, as.integer(floor(value / 2)))
+  }
+  unique(c(out, 1L))
+}
+
+.select_compiler_memory_plan <- function(x, at, compute, output_width, storage,
+                                         requirements) {
+  if (is.null(compute$workspace_bytes)) {
+    feature <- min(if (is.null(compute$block_features)) 1024L else
+      compute$block_features, x$n_features)
+    rows <- min(256L, nrow(at$weights))
+    coordinates <- min(64L, output_width)
+    return(list(feature_block = feature, row_tile = rows,
+      coordinate_tile = coordinates,
+      memory = .compiler_memory_plan(x, at, compute, feature, rows,
+        coordinates, output_width, storage, requirements)))
+  }
+  feature_candidates <- if (is.null(compute$block_features)) {
+    .descending_tiles(x$n_features)
+  } else {
+    min(as.integer(compute$block_features), x$n_features)
+  }
+  row_candidates <- .descending_tiles(nrow(at$weights))
+  coordinate_candidates <- .descending_tiles(output_width)
+  smallest <- NULL
+  for (feature in feature_candidates) {
+    for (rows in row_candidates) {
+      for (coordinates in coordinate_candidates) {
+        memory <- .compiler_memory_plan(x, at, compute, feature, rows,
+          coordinates, output_width, storage, requirements)
+        smallest <- list(feature_block = feature, row_tile = rows,
+          coordinate_tile = coordinates, memory = memory)
+        if (isTRUE(memory$fits_budget)) return(smallest)
+      }
+    }
+  }
+  smallest
 }
 
 .compiler_plan_id <- function(x, at, over, materialization, query, component) {
@@ -284,19 +344,16 @@
   q <- length(x$effect_space$coordinates)
   h <- q * (q + 1L) / 2L
   output_width <- if (is.null(query)) h else ncol(query)
-  feature_block <- if (is.null(compute$block_features)) {
-    min(1024L, x$n_features)
-  } else {
-    min(as.integer(compute$block_features), x$n_features)
-  }
-  row_tile <- min(256L, nrow(at$weights))
-  coordinate_tile <- min(64L, output_width)
-  memory <- .compiler_memory_plan(x, at, compute, feature_block, row_tile,
-    coordinate_tile, output_width, storage, requirements)
+  selected <- .select_compiler_memory_plan(x, at, compute, output_width,
+    storage, requirements)
+  feature_block <- selected$feature_block
+  row_tile <- selected$row_tile
+  coordinate_tile <- selected$coordinate_tile
+  memory <- selected$memory
   if (identical(memory$fits_budget, FALSE)) {
     stop(sprintf(
       "The conservative memory plan requires %.0f bytes, exceeding the %.0f-byte budget.",
-      memory$conservative_peak_bytes, compute$memory_bytes
+      memory$planned_workspace_bytes, compute$workspace_bytes
     ), call. = FALSE)
   }
   materialization <- requirements$materialization
@@ -377,6 +434,8 @@
           normalization = at$normalization, domain = at$domain),
         pairing_estimate = attr(over, "estimate"),
         storage = storage,
+        tiles = list(feature_block = feature_block, row_tile = row_tile,
+          coordinate_tile = coordinate_tile),
         requirements = requirements,
         diagnostics = list(total = if (requirements$total) streamed$diagnostics else NULL,
           coherent = if (requirements$coherent) coherent$diagnostics else NULL),

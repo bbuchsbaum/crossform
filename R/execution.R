@@ -8,16 +8,17 @@
 #'
 #' @param workers Number of R workers. Must be exactly one in version 0.1.
 #' @param block_features Optional positive feature-block size.
-#' @param memory_bytes Optional positive conservative memory budget in bytes.
+#' @param workspace_bytes Optional positive budget for effectagram-owned live
+#'   workspace. Baseline and total process RSS are not charged to this budget.
 #' @return An immutable-by-convention declarative compute policy.
 #' @export
 compute_policy <- function(workers = 1L, block_features = NULL,
-                           memory_bytes = NULL) {
+                           workspace_bytes = NULL) {
   policy <- structure(
     list(
       workers = workers,
       block_features = block_features,
-      memory_bytes = memory_bytes,
+      workspace_bytes = workspace_bytes,
       process_backend = "sequential"
     ),
     class = "effect_compute_policy"
@@ -29,7 +30,8 @@ compute_policy <- function(workers = 1L, block_features = NULL,
   if (!inherits(policy, "effect_compute_policy")) {
     stop("`compute` must be an effectagram compute policy.", call. = FALSE)
   }
-  expected_names <- c("workers", "block_features", "memory_bytes", "process_backend")
+  expected_names <- c("workers", "block_features", "workspace_bytes",
+    "process_backend")
   if (!identical(names(policy), expected_names)) {
     stop("Compute policy fields are missing, extra, or out of canonical order.",
       call. = FALSE)
@@ -46,11 +48,13 @@ compute_policy <- function(workers = 1L, block_features = NULL,
        policy$block_features < 1 || policy$block_features %% 1 != 0)) {
     stop("`block_features` must be NULL or one positive integer.", call. = FALSE)
   }
-  if (!is.null(policy$memory_bytes) &&
-      (!is.numeric(policy$memory_bytes) || length(policy$memory_bytes) != 1L ||
-       is.na(policy$memory_bytes) || !is.finite(policy$memory_bytes) ||
-       policy$memory_bytes <= 0)) {
-    stop("`memory_bytes` must be NULL or one positive finite number.", call. = FALSE)
+  if (!is.null(policy$workspace_bytes) &&
+      (!is.numeric(policy$workspace_bytes) ||
+       length(policy$workspace_bytes) != 1L ||
+       is.na(policy$workspace_bytes) || !is.finite(policy$workspace_bytes) ||
+       policy$workspace_bytes <= 0)) {
+    stop("`workspace_bytes` must be NULL or one positive finite number.",
+      call. = FALSE)
   }
   if (!identical(policy$process_backend, "sequential")) {
     stop("effectagram 0.1 supports only the sequential process backend.",
@@ -61,7 +65,7 @@ compute_policy <- function(workers = 1L, block_features = NULL,
       workers = 1L,
       block_features = if (is.null(policy$block_features)) NULL else
         as.integer(policy$block_features),
-      memory_bytes = policy$memory_bytes,
+      workspace_bytes = policy$workspace_bytes,
       process_backend = "sequential"
     ),
     class = "effect_compute_policy"

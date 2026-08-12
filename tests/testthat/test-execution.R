@@ -18,7 +18,7 @@ test_that("invalid worker policy fails before source inspection", {
     list(
       workers = 4,
       block_features = NULL,
-      memory_bytes = NULL,
+      workspace_bytes = NULL,
       process_backend = "sequential"
     ),
     class = "effect_compute_policy"
@@ -34,7 +34,7 @@ test_that("invalid worker policy fails before source inspection", {
 test_that("valid preflight is owned and sequential", {
   accessed <- 0L
   plan <- effectagram:::.execution_preflight(
-    compute_policy(block_features = 64, memory_bytes = 1e7),
+    compute_policy(block_features = 64, workspace_bytes = 1e7),
     function() {
       accessed <<- accessed + 1L
       list(reopenable = FALSE)
@@ -43,14 +43,14 @@ test_that("valid preflight is owned and sequential", {
 
   expect_identical(accessed, 1L)
   expect_identical(plan$compute$block_features, 64L)
-  expect_identical(plan$compute$memory_bytes, 1e7)
+  expect_identical(plan$compute$workspace_bytes, 1e7)
   expect_identical(plan$workers, 1L)
   expect_identical(plan$process_backend, "sequential")
   expect_false(plan$source_capabilities$reopenable)
 })
 
 test_that("compute policies are canonicalized and revalidated at preflight", {
-  policy <- compute_policy(block_features = 7, memory_bytes = 1024)
+  policy <- compute_policy(block_features = 7, workspace_bytes = 1024)
   expect_identical(policy$block_features, 7L)
 
   mutated <- policy

@@ -212,8 +212,64 @@ test_that("compile and budget failures occur before opaque source reads", {
     "packed-coordinate")
   expect_identical(reads, 0L)
   expect_error(geometry(rel, at, over,
-    compute = compute_policy(memory_bytes = 1)), "exceeding")
+    compute = compute_policy(workspace_bytes = 1)), "exceeding")
   expect_identical(reads, 0L)
+})
+
+test_that("a feasible workspace budget drives smaller legal tiles", {
+  set.seed(44)
+  p <- 64L
+  m <- 32L
+  domain <- abstract_domain(p)
+  matrices <- list(
+    run1 = matrix(rnorm(3 * p), 3, p),
+    run2 = matrix(rnorm(3 * p), 3, p)
+  )
+  rownames(matrices$run1) <- rownames(matrices$run2) <- c("a", "b", "c")
+  rel <- relation(matrices, domain = domain)
+  weights <- matrix(runif(m * p), m, p)
+  at <- additive_frame(weights, domain = domain)
+  over <- cross_partitions(rel)
+  query <- matrix(1, 6, 1)
+  requirements <- effectagram:::.component_requirements(query, "total")
+  unconstrained <- effectagram:::.compiler_memory_plan(
+    rel, at, compute_policy(), p, m, 1L, 1L, "memory", requirements
+  )
+  minimum <- effectagram:::.compiler_memory_plan(
+    rel, at, compute_policy(), 1L, 1L, 1L, 1L, "memory", requirements
+  )
+  budget <- floor((unconstrained$planned_workspace_bytes +
+    minimum$planned_workspace_bytes) / 2)
+
+  got <- evaluate_geometry(rel, at, over, query,
+    compute = compute_policy(workspace_bytes = budget))
+
+  expect_lte(got$receipt$memory$planned_workspace_bytes, budget)
+  expect_true(got$metadata$tiles$feature_block < p ||
+    got$metadata$tiles$row_tile < m)
+  expect_identical(got$receipt$memory$budget_bytes, budget)
+})
+
+test_that("memory plans account for actual dense and sparse frame storage", {
+  domain <- abstract_domain(20)
+  matrices <- list(run1 = matrix(1, 2, 20), run2 = matrix(2, 2, 20))
+  rel <- relation(matrices, effects = c("a", "b"), domain = domain)
+  dense <- additive_frame(matrix(1, 10, 20), domain = domain)
+  sparse <- additive_frame(Matrix::Matrix(diag(20)[1:10, ], sparse = TRUE),
+    domain = domain)
+  requirements <- effectagram:::.component_requirements(matrix(1, 3, 1),
+    "total")
+  dense_plan <- effectagram:::.compiler_memory_plan(rel, dense,
+    compute_policy(), 10, 10, 1, 1, "memory", requirements)
+  sparse_plan <- effectagram:::.compiler_memory_plan(rel, sparse,
+    compute_policy(), 10, 10, 1, 1, "memory", requirements)
+
+  expect_equal(dense_plan$categories[["frame"]],
+    as.double(utils::object.size(dense$weights)))
+  expect_equal(sparse_plan$categories[["frame"]],
+    as.double(utils::object.size(sparse$weights)))
+  expect_false(identical(dense_plan$categories[["frame"]],
+    sparse_plan$categories[["frame"]]))
 })
 
 test_that("exact domain mismatches fail before lazy source reads", {

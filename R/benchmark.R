@@ -147,12 +147,14 @@
     matrix(0, min(m, scenario$row_tile), min(h, scenario$coordinate_tile))
   ))
   plan <- memory_plan(
-    shared_source_bytes = as.numeric(utils::object.size(weights)) +
-      sum(vapply(relations, function(x) as.numeric(utils::object.size(x)), numeric(1))),
+    frame_bytes = as.numeric(utils::object.size(weights)),
+    resident_source_bytes = sum(vapply(relations,
+      function(x) as.numeric(utils::object.size(x)), numeric(1))),
     relation_block_bytes = total_diagnostics$max_relation_bytes,
     atom_block_bytes = total_diagnostics$max_atom_bytes +
       total_diagnostics$max_atom_work_bytes,
-    output_bytes = output_bytes,
+    local_state_bytes = total_diagnostics$durable_local_relation_bytes,
+    output_bytes = output_bytes - total_diagnostics$durable_local_relation_bytes,
     contraction_bytes = max(total_contraction, local_contraction,
       coherent_contraction),
     replacement_copy_bytes = max(
@@ -166,12 +168,16 @@
   )
 
   list(
-    schema_version = 2L,
+    schema_version = 3L,
     scenario = scenario,
     elapsed_seconds = elapsed,
     rss_before_bytes = rss_before,
     rss_after_bytes = rss_after,
-    sampled_rss_max_bytes = suppressWarnings(max(c(rss_before, rss_after), na.rm = TRUE)),
+    baseline_rss_bytes = rss_before,
+    sampled_absolute_peak_rss_bytes = suppressWarnings(max(c(rss_before, rss_after),
+      na.rm = TRUE)),
+    sampled_incremental_peak_rss_bytes = suppressWarnings(max(0,
+      rss_after - rss_before, na.rm = TRUE)),
     os_peak_rss_bytes = NA_real_,
     worker_peak_rss_bytes = 0,
     aggregate_peak_rss_bytes = NA_real_,

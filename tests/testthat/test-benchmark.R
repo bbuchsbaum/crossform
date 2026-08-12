@@ -13,7 +13,7 @@ test_that("allocation benchmark emits a complete evidence record", {
   scenario <- effectagram:::.memory_benchmark_scenarios()[1, ]
   result <- effectagram:::.run_memory_benchmark_case(scenario)
 
-  expect_identical(result$schema_version, 2L)
+  expect_identical(result$schema_version, 3L)
   expect_gt(result$allocation$allocation_count, 0)
   expect_gt(result$allocation$allocated_bytes, 0)
   expect_gt(result$allocation$largest_allocation_bytes, 0)
@@ -22,7 +22,10 @@ test_that("allocation benchmark emits a complete evidence record", {
   expect_gt(result$total$max_live_temporary_bytes, 0)
   expect_gt(result$total$durable_local_relation_bytes, 0)
   expect_gt(result$coherent$max_tile_bytes, 0)
-  expect_gt(result$plan$categories[["runtime_reserve"]], 0)
+  expect_gt(result$plan$categories[["frame"]], 0)
+  expect_gt(result$plan$categories[["resident_source"]], 0)
+  expect_true(is.finite(result$baseline_rss_bytes))
+  expect_true(is.finite(result$sampled_incremental_peak_rss_bytes))
   expect_equal(result$worker_peak_rss_bytes, 0)
   expect_identical(result$rss_evidence,
     "sampled_only_until_child_process_runner_attaches_os_peak")
