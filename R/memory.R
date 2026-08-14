@@ -1,5 +1,70 @@
 # Conservative owned-workspace planning -------------------------------------
 
+# Exact size of a base-R double matrix on the current R runtime.
+# Keeping this arithmetic here is deliberate: a memory preflight must not
+# allocate the buffer whose affordability it is deciding.  The fixed overhead
+# is measured once from a zero-payload skeleton rather than assumed.
+.dense_double_matrix_bytes <- function(rows, columns) {
+  dimensions <- c(rows = rows, columns = columns)
+  if (!is.numeric(dimensions) || length(dimensions) != 2L ||
+      anyNA(dimensions) || any(!is.finite(dimensions)) ||
+      any(dimensions < 0) || any(dimensions %% 1 != 0)) {
+    stop("Matrix dimensions must be finite nonnegative whole scalars.",
+      call. = FALSE)
+  }
+  max_exact <- 2^53
+  overhead <- as.double(utils::object.size(
+    structure(numeric(), dim = c(0L, 0L))
+  ))
+  if (rows != 0 && columns > floor((max_exact - overhead) / (8 * rows))) {
+    stop("Matrix byte accounting overflows exact representation.",
+      call. = FALSE)
+  }
+  8 * rows * columns + overhead
+}
+
+.dense_double_vector_bytes <- function(n) {
+  if (!is.numeric(n) || length(n) != 1L || is.na(n) ||
+      !is.finite(n) || n < 0 || n %% 1 != 0) {
+    stop("Vector length must be one finite nonnegative whole scalar.",
+      call. = FALSE)
+  }
+  max_exact <- 2^53
+  overhead <- as.double(utils::object.size(numeric()))
+  if (n > floor((max_exact - overhead) / 8)) {
+    stop("Vector byte accounting overflows exact representation.",
+      call. = FALSE)
+  }
+  8 * n + overhead
+}
+
+# An array's values may be enormous while its axis metadata is small.  Build
+# only a zero-payload skeleton so named-array accounting remains exact without
+# materializing the values being planned.
+.named_double_array_bytes <- function(dimensions, dimnames = NULL) {
+  if (!is.numeric(dimensions) || length(dimensions) < 1L ||
+      anyNA(dimensions) || any(!is.finite(dimensions)) ||
+      any(dimensions < 0) || any(dimensions %% 1 != 0)) {
+    stop("Array dimensions must be finite nonnegative whole scalars.",
+      call. = FALSE)
+  }
+  max_exact <- 2^53
+  elements <- prod(dimensions)
+  if (!is.finite(elements) || elements > floor(max_exact / 8)) {
+    stop("Array byte accounting overflows exact representation.",
+      call. = FALSE)
+  }
+  skeleton_dimensions <- dimensions
+  skeleton_dimensions[[1L]] <- 0
+  skeleton <- array(numeric(), skeleton_dimensions, dimnames = dimnames)
+  bytes <- as.double(utils::object.size(skeleton)) + 8 * elements
+  if (!is.finite(bytes) || bytes > max_exact) {
+    stop("Array byte accounting overflows exact representation.",
+      call. = FALSE)
+  }
+  bytes
+}
+
 #' Construct an effectagram-owned workspace plan
 #'
 #' The hard budget covers package-owned live objects and conservative temporary
@@ -140,4 +205,133 @@ memory_plan <- function(frame_bytes = 0,
     absolute_peak_rss_bytes = peak_rss_bytes,
     prediction_kind = "effectagram_owned_workspace_upper_bound"
   ), class = "effect_memory_plan")
+}
+
+# Conservative plan for the universal rectangular/packed streaming primitive.
+# Matrix object sizes, rather than payload-only byte counts, keep the plan
+# comparable to the kernel's named-live-object diagnostics.
+.effect_form_kernel_memory_plan <- function(
+    frame, left_effects, right_effects, left_partitions, right_partitions,
+    codec = c("rectangular", "symmetric_packed"), query = NULL,
+    same_relation = FALSE, feature_block = 1024L, row_tile = 1024L,
+    coordinate_tile = 256L, storage = c("memory", "block"),
+    retain_first_moments = FALSE, form_total = TRUE) {
+  .validate_frame_for_compile(frame)
+  codec <- match.arg(codec)
+  storage <- match.arg(storage)
+  feature_block <- .validate_tile_size(feature_block, "feature_block")
+  row_tile <- .validate_tile_size(row_tile, "row_tile")
+  coordinate_tile <- .validate_tile_size(
+    coordinate_tile, "coordinate_tile"
+  )
+  if (!is.logical(same_relation) || length(same_relation) != 1L ||
+      is.na(same_relation)) {
+    stop("`same_relation` must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (!is.logical(retain_first_moments) ||
+      length(retain_first_moments) != 1L || is.na(retain_first_moments) ||
+      !is.logical(form_total) || length(form_total) != 1L ||
+      is.na(form_total)) {
+    stop("First-moment and total planning flags must be TRUE or FALSE.",
+      call. = FALSE)
+  }
+  if (!retain_first_moments && !form_total) {
+    stop("A plan must retain first moments, form total output, or both.",
+      call. = FALSE)
+  }
+  .validate_effect_names(left_effects, length(left_effects))
+  .validate_effect_names(right_effects, length(right_effects))
+  if (!is.character(left_partitions) || length(left_partitions) < 1L ||
+      anyNA(left_partitions) || any(!nzchar(left_partitions)) ||
+      anyDuplicated(left_partitions) ||
+      !is.character(right_partitions) || length(right_partitions) < 1L ||
+      anyNA(right_partitions) || any(!nzchar(right_partitions)) ||
+      anyDuplicated(right_partitions)) {
+    stop("Effect-form partition axes must be unique nonempty identifiers.",
+      call. = FALSE)
+  }
+  if (same_relation && (!identical(left_partitions, right_partitions) ||
+      !identical(left_effects, right_effects))) {
+    stop("A shared relation plan requires identical partition and effect axes.",
+      call. = FALSE)
+  }
+
+  q_left <- length(left_effects)
+  q_right <- length(right_effects)
+  physical_width <- if (codec == "rectangular") {
+    q_left * q_right
+  } else {
+    if (!same_relation || !identical(left_effects, right_effects)) {
+      stop("Symmetric-packed planning requires a self-form.", call. = FALSE)
+    }
+    q_left * (q_left + 1L) / 2L
+  }
+  if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
+      nrow(query) != physical_width || ncol(query) < 1L ||
+      any(!is.finite(query)))) {
+    stop("`query` must match the finite physical form coordinates.",
+      call. = FALSE)
+  }
+
+  features <- ncol(frame$weights)
+  measurements <- nrow(frame$weights)
+  output_width <- if (is.null(query)) physical_width else ncol(query)
+  f <- min(feature_block, features)
+  rows <- min(row_tile, measurements)
+  coordinates <- min(coordinate_tile, output_width)
+  relation_block <- length(left_partitions) *
+    .dense_double_matrix_bytes(q_left, f) +
+    if (same_relation) 0 else
+      length(right_partitions) *
+        .dense_double_matrix_bytes(q_right, f)
+  atom_matrix <- if (form_total) {
+    .dense_double_matrix_bytes(f, output_width)
+  } else 0
+  atom_work <- max(
+    if (form_total) .dense_double_vector_bytes(f) else 0,
+    if (!form_total || is.null(query)) 0 else
+      .dense_double_matrix_bytes(q_left, q_right)
+  )
+  weight_slice <- .dense_double_matrix_bytes(rows, f)
+  atom_slice <- if (form_total) {
+    .dense_double_matrix_bytes(f, coordinates)
+  } else 0
+  product <- if (form_total) {
+    .dense_double_matrix_bytes(rows, coordinates)
+  } else 0
+  first_product <- if (retain_first_moments) {
+    max(.dense_double_matrix_bytes(rows, q_left),
+      .dense_double_matrix_bytes(rows, q_right))
+  } else {
+    0
+  }
+  first_state <- if (retain_first_moments) {
+    .named_double_array_bytes(
+      c(measurements, q_left, length(left_partitions)),
+      list(NULL, left_effects, left_partitions)
+    ) + if (same_relation) 0 else .named_double_array_bytes(
+      c(measurements, q_right, length(right_partitions)),
+      list(NULL, right_effects, right_partitions)
+    )
+  } else {
+    0
+  }
+  output <- if (form_total && storage == "memory") {
+    .dense_double_matrix_bytes(measurements, output_width)
+  } else {
+    0
+  }
+
+  memory_plan(
+    frame_bytes = as.double(utils::object.size(frame$weights)),
+    relation_block_bytes = relation_block,
+    atom_block_bytes = atom_matrix + atom_work,
+    local_state_bytes = first_state,
+    output_bytes = output,
+    contraction_bytes = weight_slice + atom_slice + product + first_product,
+    replacement_copy_bytes =
+      (if (form_total && storage == "memory") 2 * product else 0) +
+      (if (retain_first_moments) 2 * first_product else 0),
+    safety_factor = 1.25
+  )
 }

@@ -65,6 +65,12 @@
 #' Each source is read only by neural feature block. Extractors map its
 #' observation rows into one common named experimental space. Omitting
 #' `extract` declares that sources already contain effect-by-feature matrices.
+#' A relation made from precomputed effects supports point evidence but carries
+#' no residual error channel. Beta matrices alone cannot recover within-
+#' participant analytic uncertainty. If later work needs a learned neural
+#' metric or [rdm_sampling_covariance()], start from raw responses with
+#' [lm_relation_fit()]. Subject-level resampling answers a population question;
+#' it does not recreate discarded first-level residual information.
 #'
 #' @param sources A matrix, or a named list of matrix, function, or
 #'   `effect_source_descriptor` response sources.
@@ -112,7 +118,7 @@ relation <- function(sources, extract = NULL, effects = NULL,
       is.na(domain_id) || !nzchar(domain_id)) {
     stop("`domain_id` must be one nonempty identifier.", call. = FALSE)
   }
-  if (!is.list(provenance)) stop("`provenance` must be a list.", call. = FALSE)
+  .validate_effect_provenance(provenance, "relation provenance")
 
   if (is.null(source_dims)) source_dims <- vector("list", length(sources))
   if (!is.list(source_dims) || length(source_dims) != length(sources)) {
@@ -296,12 +302,17 @@ relation <- function(sources, extract = NULL, effects = NULL,
 #' @return A finite effect-by-feature matrix.
 #' @export
 relation_block <- function(x, partition, features) {
+  if (inherits(x, "effect_relation_fit")) {
+    .validate_relation_fit(x, deep = FALSE)
+    x <- x$relation
+  }
   .relation_block_with_reader(x, partition, features,
     function(partition, features) x$sources[[partition]]$read(features))
 }
 
-.relation_block_with_reader <- function(x, partition, features, read_response) {
-  .validate_relation(x)
+.relation_block_with_reader <- function(x, partition, features, read_response,
+                                        validate = TRUE) {
+  if (isTRUE(validate)) .validate_relation(x, deep = FALSE)
   if (!is.function(read_response)) {
     stop("Relation response reader must be a function.", call. = FALSE)
   }
@@ -336,7 +347,7 @@ relation_block <- function(x, partition, features) {
   value
 }
 
-.validate_relation <- function(x) {
+.validate_relation <- function(x, deep = TRUE) {
   expected <- c("sources", "extractors", "effect_space", "effects",
     "partitions", "n_features", "domain", "domain_id", "capabilities",
     "provenance")
@@ -348,7 +359,11 @@ relation_block <- function(x, partition, features) {
       !identical(names(x$extractors), x$partitions)) {
     stop("Relation fields are missing or noncanonical.", call. = FALSE)
   }
-  effect_space <- .validate_effect_space(x$effect_space)
+  effect_space <- if (isTRUE(deep)) {
+    .validate_effect_space(x$effect_space)
+  } else {
+    .validate_effect_space_shallow(x$effect_space)
+  }
   if (!identical(x$effects, effect_space$coordinates)) {
     stop("Relation coordinate labels are inconsistent with its effect space.",
       call. = FALSE)
@@ -358,7 +373,11 @@ relation_block <- function(x, partition, features) {
       x$n_features < 1L || x$n_features %% 1 != 0) {
     stop("Relation feature metadata is invalid.", call. = FALSE)
   }
-  domain <- .validate_domain_reference(x$domain)
+  domain <- if (isTRUE(deep)) {
+    .validate_domain_reference(x$domain)
+  } else {
+    .validate_domain_reference_shallow(x$domain)
+  }
   if (!identical(domain$n_features, as.integer(x$n_features)) ||
       !identical(domain$id, x$domain_id)) {
     stop("Relation metadata is inconsistent with its exact neural domain.",
@@ -374,15 +393,31 @@ relation_block <- function(x, partition, features) {
       stop("Relation response-source metadata is invalid.", call. = FALSE)
     }
     if (!is.null(source$descriptor)) {
-      descriptor <- .validate_source_descriptor(source$descriptor)
+      descriptor <- if (isTRUE(deep)) {
+        .validate_source_descriptor(source$descriptor)
+      } else {
+        source$descriptor
+      }
+      if (!inherits(descriptor, "effect_source_descriptor") ||
+          !is.list(descriptor) ||
+          !identical(names(descriptor),
+            c("kind", "dim", "access", "stable_revision", "spec"))) {
+        stop("Relation source descriptor metadata are invalid.",
+          call. = FALSE)
+      }
       if (!identical(descriptor$dim, source$dim)) {
         stop("Relation source descriptor dimensions are inconsistent.",
           call. = FALSE)
       }
     }
-    extractor <- .validate_effect_extractor(x$extractors[[partition]])
+    extractor <- if (isTRUE(deep)) {
+      .validate_effect_extractor(x$extractors[[partition]])
+    } else {
+      .validate_effect_extractor_shallow(x$extractors[[partition]])
+    }
     if (extractor$n_observations != source$dim[[1L]] ||
-        !.same_effect_space(extractor$effect_space, effect_space)) {
+        (!identical(extractor$effect_space$signature, effect_space$signature) ||
+         !identical(extractor$effect_space, effect_space))) {
       stop("Relation extractor metadata is inconsistent.", call. = FALSE)
     }
   }
@@ -392,9 +427,138 @@ relation_block <- function(x, partition, features) {
         !identical(names(x$capabilities), x$partitions)) {
       stop("Relation source capabilities are inconsistent.", call. = FALSE)
     }
-    lapply(x$capabilities, .validate_source_capabilities)
+    if (isTRUE(deep)) {
+      lapply(x$capabilities, .validate_source_capabilities)
+    } else if (!all(vapply(x$capabilities, function(value) {
+      inherits(value, "effect_source_capabilities") && is.list(value) &&
+        identical(names(value), c("block_read", "reopenable", "thread_safe",
+          "stable_revision")) && .strong_sha256(value$stable_revision)
+    }, logical(1)))) {
+      stop("Relation source capabilities are inconsistent.", call. = FALSE)
+    }
+  }
+  if (isTRUE(deep)) {
+    .validate_effect_provenance(x$provenance, "relation provenance")
+  } else if (!is.list(x$provenance)) {
+    stop("Relation provenance must be a list.", call. = FALSE)
   }
   invisible(x)
+}
+
+.validate_effect_space_shallow <- function(x) {
+  expected <- c("coordinates", "basis_id", "units", "scale", "provenance",
+    "signature")
+  if (!inherits(x, "effect_space") || !is.list(x) ||
+      !identical(names(x), expected) || !is.character(x$coordinates) ||
+      length(x$coordinates) < 1L || anyNA(x$coordinates) ||
+      any(!nzchar(x$coordinates)) || anyDuplicated(x$coordinates) ||
+      !.strong_sha256(x$signature)) {
+    stop("Effect-space fields are missing or noncanonical.", call. = FALSE)
+  }
+  x
+}
+
+.validate_domain_reference_shallow <- function(x) {
+  expected <- c("id", "n_features", "feature_ids", "coordinate_units",
+    "geometry_signature", "signature")
+  if (!inherits(x, "effect_domain_reference") || !is.list(x) ||
+      !identical(names(x), expected) || !is.character(x$id) ||
+      length(x$id) != 1L || is.na(x$id) || !nzchar(x$id) ||
+      !is.integer(x$n_features) || length(x$n_features) != 1L ||
+      x$n_features < 1L || length(x$feature_ids) != x$n_features ||
+      !.strong_sha256(x$signature)) {
+    stop("Domain-reference fields are missing or noncanonical.",
+      call. = FALSE)
+  }
+  x
+}
+
+.validate_effect_extractor_shallow <- function(x) {
+  expected <- c("map", "effect_space", "effects", "n_observations",
+    "estimator", "diagnostics")
+  if (!inherits(x, "effect_extractor") || !is.list(x) ||
+      !identical(names(x), expected) || !is.matrix(x$map) ||
+      !is.numeric(x$map) || any(dim(x$map) < 1L) ||
+      !is.integer(x$n_observations) || length(x$n_observations) != 1L ||
+      x$n_observations != ncol(x$map)) {
+    stop("Extractor fields are missing or noncanonical.", call. = FALSE)
+  }
+  effect_space <- .validate_effect_space_shallow(x$effect_space)
+  if (!identical(x$effects, effect_space$coordinates) ||
+      nrow(x$map) != length(effect_space$coordinates)) {
+    stop("Extractor coordinate metadata are inconsistent.", call. = FALSE)
+  }
+  x
+}
+
+.relation_family_identity <- function(x) {
+  .validate_relation(x)
+  capabilities <- .compiler_capabilities(x)
+  semantic <- list(
+    schema_version = 1L,
+    source_revisions = vapply(capabilities, `[[`, character(1),
+      "stable_revision"),
+    extractors = lapply(x$extractors, function(value) {
+      list(
+        map = value$map,
+        effect_space = value$effect_space,
+        estimator = value$estimator,
+        diagnostics = value$diagnostics
+      )
+    }),
+    effect_space = x$effect_space,
+    partitions = x$partitions,
+    n_features = x$n_features,
+    domain = x$domain,
+    provenance = x$provenance
+  )
+  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE))
+}
+
+.identity_measurement_bridge <- function(left, right) {
+  .validate_relation(left)
+  .validate_relation(right)
+  if (!.same_domain_reference(left$domain, right$domain) ||
+      !identical(as.integer(left$n_features), as.integer(right$n_features))) {
+    stop(paste0(
+      "Distinct neural spaces require an explicit compatible measurement ",
+      "bridge before source admission."
+    ), call. = FALSE)
+  }
+  semantic <- list(
+    schema_version = 1L,
+    kind = "identity",
+    left_domain = left$domain,
+    right_domain = right$domain,
+    common_space = left$domain,
+    n_features = as.integer(left$n_features),
+    provenance = list(rule = "exact_shared_neural_feature_identity")
+  )
+  signature <- paste0(
+    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE)
+  )
+  structure(
+    c(semantic[-1L], list(signature = signature)),
+    class = "effect_measurement_bridge"
+  )
+}
+
+.validate_identity_measurement_bridge <- function(bridge, left, right) {
+  expected <- c(
+    "kind", "left_domain", "right_domain", "common_space", "n_features",
+    "provenance", "signature"
+  )
+  if (!inherits(bridge, "effect_measurement_bridge") || !is.list(bridge) ||
+      !identical(names(bridge), expected) || !identical(bridge$kind, "identity")) {
+    stop("Identity measurement-bridge fields are missing or noncanonical.",
+      call. = FALSE)
+  }
+  rebuilt <- .identity_measurement_bridge(left, right)
+  if (!identical(bridge, rebuilt)) {
+    stop("Identity measurement bridge is inconsistent with its relation sides.",
+      call. = FALSE)
+  }
+  invisible(bridge)
 }
 
 .matrix_effect_names <- function(x, required = FALSE) {

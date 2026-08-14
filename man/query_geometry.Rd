@@ -7,10 +7,10 @@
 query_geometry(x, query, component = "total", row_block = 1024L)
 }
 \arguments{
-\item{x}{An `effect_geometry`.}
+\item{x}{A complete `effect_form` (including an `effect_geometry`).}
 
-\item{query}{A finite packed-coordinate-by-view numeric matrix, or a fixed
-symmetric `bilinear_query()` whose operator matches the effect space.}
+\item{query}{An axis-bound `pair_query()`, a compatible
+`bilinear_query()`, or a finite physical-coordinate-by-view matrix.}
 
 \item{component}{Geometry component to query.}
 

@@ -13,7 +13,8 @@ rsa(
 )
 }
 \arguments{
-\item{x}{A complete `effect_geometry`.}
+\item{x}{An `effect_geometry_plan` or a complete effect form carrying the
+symmetric self-form capability.}
 
 \item{models}{Named model RDMs, each matching the experimental dimension.}
 

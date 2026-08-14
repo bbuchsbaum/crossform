@@ -1,0 +1,443 @@
+# Relation-fit specialization of evidence-sampling-v1 ----------------------
+
+.sampling_distance_contrasts <- function(effects) {
+  if (!is.character(effects) || length(effects) < 2L || anyNA(effects) ||
+      any(!nzchar(effects)) || anyDuplicated(effects)) {
+    stop("Sampling distances require at least two identified effects.",
+      call. = FALSE)
+  }
+  pairs <- utils::combn(seq_along(effects), 2L)
+  value <- matrix(0, ncol(pairs), length(effects))
+  for (distance in seq_len(ncol(pairs))) {
+    value[distance, pairs[1L, distance]] <- 1
+    value[distance, pairs[2L, distance]] <- -1
+  }
+  labels <- paste(effects[pairs[1L, ]], effects[pairs[2L, ]], sep = " - ")
+  dimnames(value) <- list(labels, effects)
+  list(
+    matrix = value,
+    labels = labels,
+    pairs = data.frame(
+      left = effects[pairs[1L, ]],
+      right = effects[pairs[2L, ]],
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
+.sampling_common_effect_covariance <- function(fit) {
+  .validate_relation_fit(fit, deep = FALSE)
+  models <- fit$error_models
+  reference <- models[[1L]]$effect_covariance
+  if (!all(vapply(models, function(model) {
+    isTRUE(all.equal(model$effect_covariance, reference,
+      tolerance = 1e-12, check.attributes = TRUE))
+  }, logical(1)))) {
+    stop(paste0(
+      "The fixed-metric Eq. 13 specialization requires one equal ",
+      "effect-coordinate covariance across partitions."
+    ), call. = FALSE)
+  }
+  reference
+}
+
+.sampling_target_signal <- function(plan, node, metric) {
+  target <- plan$target
+  if (target$target == "null") {
+    return(matrix(0, length(plan$error_source$relation$effects),
+      nrow(metric$value), dimnames = list(
+        plan$error_source$relation$effects, node$support
+      )))
+  }
+  if (target$target != "point_estimate" ||
+      !identical(target$policy, "partition_mean_plugin")) {
+    stop(paste0(
+      "The fixed-metric Eq. 13 product path requires target `null` or ",
+      "point-estimate policy `partition_mean_plugin`; no target is chosen ",
+      "silently."
+    ), call. = FALSE)
+  }
+  relation <- plan$error_source$relation
+  estimates <- lapply(relation$partitions, function(partition) {
+    relation_block(relation, partition, node$support_positions)
+  })
+  Reduce(`+`, estimates) / length(estimates)
+}
+
+.sampling_local_metric <- function(evidence_plan, node) {
+  schedule <- evidence_plan$metric_schedule
+  if (identical(schedule$kind, "implicit_identity_before_frame")) {
+    base <- neural_metric(
+      diag(length(node$support)), evidence_plan$frame$domain,
+      support = node$support,
+      inverse = diag(length(node$support)),
+      provenance = list(construction = "implicit_identity_sampling_metric")
+    )
+    return(.compose_frame_metric(
+      evidence_plan$frame, base, node$position
+    )$metric)
+  }
+  metric <- .validate_neural_metric(schedule$metric, deep = FALSE)
+  positions <- match(node$support, metric$support)
+  if (anyNA(positions)) {
+    stop("A sampling frame support falls outside its fixed neural metric.",
+      call. = FALSE)
+  }
+  base <- neural_metric(
+    metric$value[positions, positions, drop = FALSE],
+    metric$domain, node$support,
+    inverse = NULL,
+    estimation = metric$estimation,
+    tolerance = metric$tolerance,
+    provenance = list(
+      construction = "fixed_metric_support_restriction",
+      parent_metric = metric$signature
+    )
+  )
+  .compose_frame_metric(evidence_plan$frame, base, node$position)$metric
+}
+
+.sampling_whitened_components <- function(signal, metric,
+                                          residual_covariance) {
+  metric <- .validate_neural_metric(metric, deep = FALSE)
+  if (!metric$capabilities$positive_definite) {
+    stop("Sampling covariance requires a positive-definite fixed metric.",
+      call. = FALSE)
+  }
+  factor <- chol(metric$value)
+  # chol() returns R with K = R'R. Row patterns transform by R' so their
+  # Euclidean inner product is exactly b K b'.
+  signal_whitened <- signal %*% t(factor)
+  residual_whitened <- factor %*% residual_covariance %*% t(factor)
+  list(signal = signal_whitened, residual = residual_whitened)
+}
+
+.compile_fixed_metric_rdm_sampling <- function(
+    evidence, error_channel,
+    target = .sampling_target(
+      "point_estimate", policy = "partition_mean_plugin"
+    ),
+    operation = .sampling_operation("diagonal"),
+    materialization = .sampling_materialization("query_only")) {
+  plan <- .compile_evidence_sampling_plan(
+    evidence, error_channel = error_channel,
+    partition_model = "equal", target = target,
+    spatial_scope = "local_marginals", operation = operation,
+    materialization = materialization
+  )
+  .require_sampling_covariance(plan)
+  plan
+}
+
+.fixed_metric_rdm_sampling_resources <- function(
+    plan, residual_workspace_bytes = 512 * 1024^2,
+    strategy = c("node_local", "shared_pair_statistics")) {
+  .validate_evidence_sampling_plan(plan, deep = FALSE)
+  .require_sampling_covariance(plan)
+  strategy <- match.arg(strategy)
+  evidence <- plan$evidence_plan
+  fit <- plan$error_source
+  if (!inherits(evidence, "effect_geometry_plan") ||
+      !inherits(fit, "effect_relation_fit")) {
+    stop("Sampling resources require one geometry plan and relation fit.",
+      call. = FALSE)
+  }
+  statistics <- if (identical(strategy, "shared_pair_statistics") &&
+      !is.null(evidence$frame$support_index)) {
+    residual_pair_statistics(
+      fit, evidence$frame, workspace_bytes = residual_workspace_bytes
+    )
+  } else if (identical(strategy, "shared_pair_statistics")) {
+    stop(paste0(
+      "Shared pair statistics require a frame with an explicit support ",
+      "index; use node-local resources for this frame."
+    ), call. = FALSE)
+  } else {
+    NULL
+  }
+  structure(list(
+    plan = plan$scientific_plan_id,
+    relation_fit = fit$signature,
+    frame = .additive_frame_signature(evidence$frame),
+    strategy = strategy,
+    residual_statistics = statistics,
+    signature = paste0("sha256:", digest::digest(list(
+      schema_version = 1L,
+      plan = plan$scientific_plan_id,
+      relation_fit = fit$signature,
+      frame = .additive_frame_signature(evidence$frame),
+      strategy = strategy,
+      residual_statistics = if (is.null(statistics)) NULL else
+        statistics$signature
+    ), algo = "sha256", serialize = TRUE))
+  ), class = "effect_sampling_resources")
+}
+
+.validate_fixed_metric_rdm_sampling_resources <- function(x, plan) {
+  expected <- c("plan", "relation_fit", "frame", "strategy",
+    "residual_statistics", "signature")
+  .validate_evidence_sampling_plan(plan, deep = FALSE)
+  if (!inherits(x, "effect_sampling_resources") || !is.list(x) ||
+      !identical(names(x), expected) ||
+      !identical(x$plan, plan$scientific_plan_id) ||
+      !identical(x$relation_fit, plan$error_source$signature) ||
+      !identical(x$frame,
+        .additive_frame_signature(plan$evidence_plan$frame)) ||
+      !x$strategy %in% c("node_local", "shared_pair_statistics") ||
+      !.strong_sha256(x$signature)) {
+    stop("Sampling-resource fields or plan identity are inconsistent.",
+      call. = FALSE)
+  }
+  if (!is.null(x$residual_statistics)) {
+    .validate_residual_pair_statistics(x$residual_statistics, deep = FALSE)
+  }
+  if (identical(x$strategy, "node_local") &&
+      !is.null(x$residual_statistics)) {
+    stop("Node-local sampling resources cannot contain frame-wide pair statistics.",
+      call. = FALSE)
+  }
+  if (identical(x$strategy, "shared_pair_statistics") &&
+      is.null(x$residual_statistics)) {
+    stop("Shared-pair sampling resources are missing their pair statistics.",
+      call. = FALSE)
+  }
+  expected_signature <- paste0("sha256:", digest::digest(list(
+    schema_version = 1L,
+    plan = x$plan,
+    relation_fit = x$relation_fit,
+    frame = x$frame,
+    strategy = x$strategy,
+    residual_statistics = if (is.null(x$residual_statistics)) NULL else
+      x$residual_statistics$signature
+  ), algo = "sha256", serialize = TRUE))
+  if (!identical(x$signature, expected_signature)) {
+    stop("Sampling-resource identity is inconsistent.", call. = FALSE)
+  }
+  x
+}
+
+.sampling_node_residual_covariance <- function(plan, node_value, resources) {
+  fit <- plan$error_source
+  if (!is.null(resources$residual_statistics)) {
+    statistics <- resources$residual_statistics
+    index <- plan$evidence_plan$frame$support_index
+    return(.local_residual_scope_covariance(
+      statistics, index, node_value$support_positions,
+      fit$relation$partitions
+    ))
+  }
+  residuals <- lapply(fit$relation$partitions, function(partition) {
+    crossprod(residual_block(fit, partition, node_value$support_positions))
+  })
+  total_df <- sum(vapply(fit$relation$partitions, function(partition) {
+    residual_df(fit, partition)
+  }, integer(1)))
+  Reduce(`+`, residuals) / total_df
+}
+
+.fixed_metric_rdm_sampling_covariance <- function(
+    plan, node = 1L, resources = NULL) {
+  .validate_evidence_sampling_plan(plan)
+  .require_sampling_covariance(plan)
+  evidence <- plan$evidence_plan
+  if (!inherits(evidence, "effect_geometry_plan") ||
+      plan$evidence$metric_status != "fixed") {
+    stop("This specialization requires a fixed-metric geometry plan.",
+      call. = FALSE)
+  }
+  .validate_geometry_plan(evidence, deep = FALSE)
+  read_node <- .frame_metric_node_accessor(evidence$frame)
+  node_value <- read_node(node)
+  if (is.null(resources)) {
+    resources <- .fixed_metric_rdm_sampling_resources(plan)
+  }
+  resources <- .validate_fixed_metric_rdm_sampling_resources(
+    resources, plan
+  )
+  metric <- .sampling_local_metric(evidence, node_value)
+  fit <- plan$error_source
+  effect_covariance <- .sampling_common_effect_covariance(fit)
+  residual_covariance <- .sampling_node_residual_covariance(
+    plan, node_value, resources
+  )
+  total_df <- sum(vapply(fit$relation$partitions, function(partition) {
+    residual_df(fit, partition)
+  }, integer(1)))
+  distances <- .sampling_distance_contrasts(fit$relation$effects)
+  signal <- .sampling_target_signal(plan, node_value, metric)
+  whitened <- .sampling_whitened_components(
+    signal, metric, residual_covariance
+  )
+  .sampling_covariance_from_components(
+    plan,
+    contrasts = distances$matrix,
+    signal_patterns = whitened$signal,
+    effect_covariance = effect_covariance,
+    residual_covariance = whitened$residual,
+    normalization = 1,
+    labels = distances$labels,
+    source = list(
+      specialization = "fixed_metric_equal_partition_rdm",
+      node = as.character(node_value$id),
+      support = node_value$support,
+      metric = metric$signature,
+      effect_covariance = fit$error_models[[1L]]$signature,
+      residual_df = as.integer(total_df),
+      target = plan$target$signature,
+      local_only = TRUE
+    )
+  )
+}
+
+.execute_fixed_metric_rdm_sampling <- function(plan, node = 1L,
+                                               max_bytes = 512 * 1024^2,
+                                               resources = NULL) {
+  covariance <- .fixed_metric_rdm_sampling_covariance(
+    plan, node, resources
+  )
+  .execute_evidence_sampling_plan(plan, covariance, max_bytes)
+}
+
+#' Construct exact analytic sampling covariance for crossvalidated distances
+#'
+#' Builds the local sampling-covariance form from Diedrichsen, Provost, and
+#' Zareamoghaddam (2016), Eq. 13, for an equal-weight all-partition-pairs RDM.
+#' The admitted specialization requires a geometry plan built from an
+#' `lm_relation_fit()` relation, equal partition error structures, independent
+#' partition endpoints, and one common fixed neural metric. The result remains
+#' factorized and queryable; it does not allocate the complete distance-by-
+#' distance covariance.
+#'
+#' @param x An `effect_geometry_plan` using `cross_partitions()` and a fixed
+#'   neural metric.
+#' @param fit The identity-bound `effect_relation_fit` that supplied
+#'   `x$task$left_relation`.
+#' @param target Whether the signal-dependent term is evaluated at the
+#'   partition-mean plug-in estimate or at the fixed zero null. These are
+#'   different calibration policies and are never chosen implicitly.
+#' @param at One measurement position or identifier in the compiled frame.
+#' @param residual_strategy `"node_local"` reads residual blocks only for the
+#'   requested measurement. `"shared_pair_statistics"` explicitly compiles
+#'   reusable residual pair sufficient statistics for a batch of overlapping
+#'   supports.
+#' @param residual_workspace_bytes Positive effectagram-owned workspace budget
+#'   for shared residual pair statistics.
+#' @return An `effect_rdm_sampling_covariance`, queryable by
+#'   [sampling_covariance()]. It contains within-measurement uncertainty only;
+#'   it does not imply covariance between spatial locations.
+#' @references Diedrichsen J, Provost S, Zareamoghaddam H (2016),
+#'   "On the distribution of cross-validated Mahalanobis distances",
+#'   especially Eqs. 10, 13, and 35 and Section 5.1.
+#'   \doi{10.48550/arXiv.1607.01371}
+#' @examples
+#' set.seed(23)
+#' design <- model.matrix(~ 0 + factor(rep(c("a", "b"), each = 4)))
+#' colnames(design) <- c("a", "b")
+#' effects <- diag(2)
+#' rownames(effects) <- colnames(design)
+#' truth <- rbind(a = c(0.4, 0.1, 0), b = c(0, 0.2, 0.5))
+#' responses <- setNames(lapply(seq_len(3), function(run) {
+#'   design %*% truth + matrix(rnorm(8 * 3, sd = 0.2), 8, 3)
+#' }), paste0("run", seq_len(3)))
+#' domain <- abstract_domain(3, id = "sampling-example")
+#' fit <- lm_relation_fit(
+#'   responses, design, effects, effect_names = rownames(truth),
+#'   sampling_unit = "trial", domain = domain
+#' )
+#' metric <- noise_precision(
+#'   diag(3), domain, covariance = diag(3),
+#'   provenance = list(source = "fixed-example-metric")
+#' )
+#' plan <- plan_geometry(
+#'   fit$relation, compile_frame(whole_brain(), domain),
+#'   cross_partitions(fit$relation), metric = metric
+#' )
+#' uncertainty <- rdm_sampling_covariance(plan, fit, target = "null")
+#' sqrt(sampling_covariance(uncertainty))
+#' @export
+rdm_sampling_covariance <- function(
+    x, fit,
+    target,
+    at = 1L,
+    residual_strategy = c("node_local", "shared_pair_statistics"),
+    residual_workspace_bytes = 512 * 1024^2) {
+  if (missing(target)) {
+    stop(paste0(
+      "Choose `target = \"plugin\"` for the partition-mean signal policy ",
+      "or `target = \"null\"` for the fixed-zero null; the ",
+      "signal-dependent covariance target is not inferred."
+    ), call. = FALSE)
+  }
+  if (inherits(x, "effect_crossnobis_plan")) {
+    stop(paste0(
+      "Analytic RDM sampling covariance is unavailable because this plan's ",
+      "neural metric was learned. Version 0.1 does not propagate metric-",
+      "estimation uncertainty; use a geometry plan with one common fixed ",
+      "metric or retain this result as a signed point estimate."
+    ), call. = FALSE)
+  }
+  target <- match.arg(target, c("plugin", "null"))
+  residual_strategy <- match.arg(residual_strategy)
+  target_record <- if (identical(target, "null")) {
+    .sampling_target("null")
+  } else {
+    .sampling_target("point_estimate", policy = "partition_mean_plugin")
+  }
+  plan <- .compile_fixed_metric_rdm_sampling(
+    x, fit, target = target_record
+  )
+  resources <- .fixed_metric_rdm_sampling_resources(
+    plan, residual_workspace_bytes = residual_workspace_bytes,
+    strategy = residual_strategy
+  )
+  value <- .fixed_metric_rdm_sampling_covariance(
+    plan, node = at, resources = resources
+  )
+  class(value) <- c("effect_rdm_sampling_covariance", class(value))
+  value
+}
+
+#' Query an exact factorized sampling-covariance form
+#'
+#' Applies exact linear covariance operations without materializing the full
+#' covariance unless `operation = "materialize"` is requested explicitly.
+#' A returned diagonal is a vector of variances, not standard errors or an
+#' automatic confidence interval.
+#'
+#' @param x An object from [rdm_sampling_covariance()].
+#' @param operation One exact covariance operation.
+#' @param query Operation-specific argument: a two-column integer matrix for
+#'   `selected_entries`, an evidence-coordinate vector for `apply` or
+#'   `quadratic_form`, or an output-by-evidence matrix for `transport`.
+#' @param max_bytes Positive payload/workspace budget used only for explicit
+#'   dense materialization.
+#' @return A named variance vector, selected covariance vector, covariance
+#'   action, scalar quadratic form, transported covariance, or explicitly
+#'   materialized covariance matrix.
+#' @seealso [rdm_sampling_covariance()]
+#' @export
+sampling_covariance <- function(
+    x,
+    operation = c("diagonal", "selected_entries", "apply",
+      "quadratic_form", "transport", "materialize"),
+    query = NULL,
+    max_bytes = 512 * 1024^2) {
+  if (!inherits(x, "effect_rdm_sampling_covariance")) {
+    stop("`x` must come from `rdm_sampling_covariance()`.", call. = FALSE)
+  }
+  .validate_sampling_covariance(x, deep = TRUE)
+  operation <- match.arg(operation)
+  materialization <- if (identical(operation, "materialize")) {
+    .sampling_materialization("dense_covariance")
+  } else {
+    .sampling_materialization("query_only")
+  }
+  operation_record <- .sampling_operation(operation, query)
+  plan <- .rebind_evidence_sampling_plan(
+    x$plan, operation_record, materialization
+  )
+  covariance <- x
+  covariance$plan <- plan
+  covariance$signature <- .sampling_covariance_signature(covariance)
+  .execute_evidence_sampling_plan(plan, covariance, max_bytes)
+}

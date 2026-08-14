@@ -7,7 +7,7 @@
 geometry_component(x, component = "total", rows = NULL)
 }
 \arguments{
-\item{x}{An `effect_geometry`.}
+\item{x}{A complete `effect_form` (including an `effect_geometry`).}
 
 \item{component}{One of `total`, `coherent`, or `configuration`.}
 

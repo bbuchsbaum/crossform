@@ -148,7 +148,7 @@ test_that("sparse streamed cross-Gram agrees with an independent relation oracle
   expect_equal(got$value, oracle, tolerance = 1e-12)
   expect_identical(got$diagnostics$atom_count, 9L)
   expect_identical(got$diagnostics$measurement_kind,
-    "named-live-R-object-size")
+    "static-owned-buffer-accounting")
 })
 
 test_that("sparse and dense frame representations are numerically equivalent", {
@@ -268,7 +268,7 @@ test_that("external tiled accumulation does not require an in-memory output", {
   expect_equal(accumulated, independent_crossgram_oracle(fixture), tolerance = 1e-12)
 })
 
-test_that("streaming diagnostics measure every named live temporary category", {
+test_that("streaming diagnostics statically bound every owned buffer category", {
   fixture <- crossgram_fixture()
   got <- run_streamed_fixture(fixture, feature_block = 3,
     row_tile = 2, coordinate_tile = 2)

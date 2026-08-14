@@ -7,7 +7,8 @@
 rdm(x, component = c("total", "coherent", "configuration"))
 }
 \arguments{
-\item{x}{A complete `effect_geometry`.}
+\item{x}{An `effect_geometry_plan` or a complete effect form carrying the
+symmetric self-form capability.}
 
 \item{component}{One of `total`, `coherent`, or `configuration`.}
 }
@@ -16,5 +17,10 @@ An `effect_rdm_view`; rows are spatial measurements and columns are
   unique experimental pairs. Cross-generalized distances may be negative.
 }
 \description{
-Read squared experimental distances from geometry
+The returned values are point estimates. For equal-weight all-partition-
+pairs geometry with a common fixed metric, [rdm_sampling_covariance()] can
+construct a separate analytic within-measurement covariance law when the
+plan was built from `lm_relation_fit()` and its residual error channel is
+still available. Pair rows that share a partition are not independent
+replicates for a spread-across-pairs standard error.
 }

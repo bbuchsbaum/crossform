@@ -56,3 +56,44 @@ cleanup, and at least 1.1x speedup on a cold end-to-end mode. The 2026-08-12 run
 passed parity and cleanup but failed runtime, so the adapter was not admitted.
 `shard-admission.rds` is the complete evidence record and
 `shard-admission-summary.csv` is its compact table.
+
+## Learned-metric policy validation
+
+Run the paired statistical validation in an installed package environment:
+
+```sh
+Rscript benchmarks/run-learned-metric-policy-validation.R 500 benchmark-results
+```
+
+The harness executes the public `lm_relation_fit() -> plan_crossnobis() ->
+crossnobis()` path under two residual-training policies. It reports evaluator
+error relative to each realized learned metric separately from error relative
+to the population Mahalanobis target. A Gaussian iid arm tests the declared
+GLM orthogonality condition; a stationary AR(1) arm deliberately fits the
+wrong observation metric. Policy comparison is an equivalence analysis with a
+predeclared 0.005 margin, not a failed difference test. The estimated
+shrinkage target is recorded, and no confidence interval for scientific data
+is implied because uncertainty in the learned metric is not calibrated.
+
+## Learned-crossnobis brain-scale gate
+
+Run the named 52,416-feature volume fixture in an isolated child process:
+
+```sh
+Rscript benchmarks/run-crossnobis-scale-gate.R . benchmark-results
+```
+
+The parent begins OS RSS polling only after the child has built its raw-data
+fixture, fitted relation envelope, and sparse searchlight frame. The gate then
+includes residual pair accumulation, an on-demand dense local shrinkage metric,
+one independent crossnobis contrast, and exact NeuroVol back-mapping. It records
+support and union-pair topology, local factorization work, residual and effect
+source reads, planned workspace, incremental peak RSS, stage timings, and
+whether any pair frame, pair atoms, or node-by-edge factor table was retained.
+The initial admission limits are 4 GiB incremental RSS and 30 minutes for the
+complete analysis.
+
+This fixture qualifies execution and storage only. Its training-only arm has
+30 residual degrees of freedom and support sizes up to 33, so the declared
+shrinkage estimator is load-bearing. Statistical recovery and residual-reuse
+policy claims belong to the separate 500-replication validation above.

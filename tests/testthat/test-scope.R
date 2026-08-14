@@ -16,6 +16,25 @@ test_that("bilinear queries can bind their experimental axes", {
   expect_error(bilinear_query(diag(3), effects = space), "dimension")
 })
 
+test_that("pair queries are bound but not lowered before two-sided tasks exist", {
+  left <- effect_space(c("l1", "l2"), basis_id = "left:v1")
+  right <- effect_space(c("r1", "r2", "r3"), basis_id = "right:v1")
+  query <- pair_query(matrix(1:6, 2, 3), left, right)
+  lowering <- compile_lowering(additive_frame(diag(2)), query)
+
+  expect_false(lowering$collapsed)
+  expect_identical(lowering$kind, "two_sided_pair_form")
+  expect_error(
+    pair_query(
+      matrix(1:6, 2, 3,
+        dimnames = list(c("wrong", "l2"), right$coordinates)),
+      left,
+      right
+    ),
+    "exactly match"
+  )
+})
+
 test_that("factor, local, adaptive, and nonlinear work have separate lowerings", {
   additive <- additive_frame(matrix(1, nrow = 1, ncol = 2))
   factor <- factor_frame(list(diag(2)))

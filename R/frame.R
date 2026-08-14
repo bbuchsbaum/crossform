@@ -69,6 +69,7 @@ compile_frame <- function(specification, domain) {
   .validate_domain(domain)
   specification <- .validate_frame_specification(specification)
   n <- domain$n_features
+  support_index <- NULL
   kind <- specification$kind
   if (kind == "voxels") {
     weights <- Matrix::Diagonal(n, x = 1)
@@ -93,28 +94,13 @@ compile_frame <- function(specification, domain) {
     )
     index <- data.frame(measurement = region_ids, stringsAsFactors = FALSE)
   } else if (kind == "searchlights") {
-    coordinates <- domain$coordinates
-    if (is.null(coordinates)) {
-      stop("Searchlights require domain coordinates.", call. = FALSE)
-    }
     radius <- specification$radius
     if (!is.numeric(radius) || length(radius) != 1L || is.na(radius) ||
         !is.finite(radius) || radius <= 0) {
       stop("Searchlight radius is invalid.", call. = FALSE)
     }
-    row_ids <- vector("list", n)
-    for (center in seq_len(n)) {
-      squared <- rowSums((coordinates - matrix(coordinates[center, ], n,
-        ncol(coordinates), byrow = TRUE))^2)
-      row_ids[[center]] <- which(squared <= radius^2 * (1 + 1e-12))
-    }
-    counts <- lengths(row_ids)
-    weights <- Matrix::sparseMatrix(
-      i = rep(seq_len(n), counts),
-      j = unlist(row_ids, use.names = FALSE),
-      x = 1,
-      dims = c(n, n)
-    )
+    support_index <- .euclidean_support_index(domain, radius)
+    weights <- .support_index_membership(support_index)
     index <- data.frame(measurement = domain$feature_ids,
       stringsAsFactors = FALSE)
   } else {
@@ -127,6 +113,9 @@ compile_frame <- function(specification, domain) {
   result$index <- index
   result$domain_kind <- domain$kind
   result$specification <- specification
+  if (!is.null(support_index)) {
+    result$support_index <- support_index
+  }
   result
 }
 

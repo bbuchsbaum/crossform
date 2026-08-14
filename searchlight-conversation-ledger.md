@@ -2418,6 +2418,293 @@ Bioconductor, and GitHub and found no obvious exact-name scientific-software
 collision. This establishes a practical working identity, not trademark
 clearance.
 
+### 2026-08-13 — Part 12: from evidence pairing to sampling-covariance transport
+
+#### The statistical completion
+
+The evidence-pairing theorem remains the irreducible point-evidence law:
+
+\[
+\mathscr E_{LR}(H,K)
+=
+\operatorname{tr}(H^\top B_LKB_R^\top).
+\]
+
+The new step is to distinguish an estimated pairing from its sampling law. For
+a family of evidence queries \(a=(H_a,K_a)\), define
+
+\[
+\boxed{
+\mathcal V_{ab}
+=
+\operatorname{Cov}
+\left[
+\widehat{\mathscr E}(H_a,K_a),
+\widehat{\mathscr E}(H_b,K_b)
+\right].
+}
+\]
+
+This does not replace or enlarge the irreducible observable. It is the second
+moment of the same observable under relation-estimation noise. The architecture
+therefore becomes
+
+\[
+\boxed{
+\text{relation fit}
+\to
+\text{evidence plan}
+\to
+\text{estimated evidence}
+\to
+\text{sampling-covariance plan}
+\to
+\text{calibrated view}.
+}
+\]
+
+Effect, generalization, and calibration remain distinct. An interval does not
+define an effect; a partition pairing does not define an interval.
+
+#### Published law recovered
+
+Diedrichsen, Provost, and Zareamoghaddam (2016), *On the distribution of
+cross-validated Mahalanobis distances* (arXiv:1607.01371), derive the complete
+covariance of the vector of crossvalidated distances. Their Eq. 13 is
+
+\[
+V
+=
+\left[
+4\frac{\Delta\circ\Xi}{M}
++
+2\frac{\Xi\circ\Xi}{M(M-1)}
+\right]
+\frac{\operatorname{tr}(\Sigma_R^2)}{P^2}.
+\]
+
+The diagonal gives the sampling variance of each distance; the off-diagonal
+gives covariance between distances. Section 3.4 explicitly treats averaging
+across cross-validation folds whose inner products reuse partitions. The first
+term is signal-dependent and the second is signal-independent.
+
+Their Eq. 10 estimator initially appeared different from effectagram's
+all-unordered-pairs average. Algebra and numerical checks showed exact
+equivalence:
+
+\[
+\frac1M\sum_m
+\widehat\delta_m^\top
+\left(\frac1{M-1}\sum_{n\ne m}\widehat\delta_n\right)
+=
+\frac1{\binom M2}\sum_{m<n}
+\widehat\delta_m^\top\widehat\delta_n.
+\]
+
+The maximum numerical discrepancy in the verification was
+\(2.3\times10^{-17}\). An independently derived diagonal formula agreed with
+Eq. 13 to \(1.1\times10^{-16}\) across 24 checked cells and with empirical
+simulation standard deviations to within 1.2 percent. This is a verification
+and rediscovery of published theory, not a novelty claim.
+
+#### The partition-edge correction
+
+The pairing contract already stated that a linear edge reducer does not imply
+independent edges. Part 12 supplies the sampling consequence:
+
+> Independent partition estimates can form unbiased cross-products, while the
+> cross-products themselves remain dependent because several edges reuse each
+> partition.
+
+Thus the rows returned by `cross_partitions()` are contributions to the
+generalization estimator, not replicates for
+`sd(edge_values) / sqrt(number_of_edges)`.
+
+One scaling statement required correction. Comparing the signal term to a
+known marginal edge variance divided by the nominal pair count yields the
+familiar asymptotic factor \(\sqrt{M-1}\). That is not the exact factor for the
+usual sample-SD-across-edges recipe. For pair fluctuations
+\(y_{ij}=a_i+a_j\),
+
+\[
+\operatorname{Var}(\bar y)=\frac{4\sigma_a^2}{M},
+\qquad
+\mathbb E\left[
+\frac{s_y^2}{\binom M2}
+\right]
+=
+\frac{4\sigma_a^2}{M(M+1)}.
+\]
+
+The true variance divided by the expected naive squared standard error is
+therefore \(M+1\), giving a standard-error factor \(\sqrt{M+1}\). Later prose
+must name the naive estimator before naming its factor.
+
+#### What the package already contains
+
+On the `lm_relation_fit()` path, public accessors expose the ingredients of the
+fixed-metric, equal-partition specialization:
+
+```text
+effect_covariance()        -> effect-coordinate covariance
+residual_block()           -> whitened residual information
+residual_df()              -> residual degrees of freedom
+residual_pair_statistics() -> support-local residual cross-products
+```
+
+A public-accessor calculation recovered mean analytic standard errors of
+0.00279, 0.02059, and 0.04094 for simulations whose empirical standard
+deviations were 0.00269, 0.01909, and 0.04153. The corresponding nominal 95
+percent coverages were 0.987, 0.967, and 0.940. These checks establish the
+special-case ingredients and recipe; they do not establish a general exported
+calibration API.
+
+A pure `relation()` made from precomputed betas correctly refuses all four
+error-model accessors. That path supports point evidence but cannot recreate
+effect covariance, residual covariance, or residual degrees of freedom that
+were discarded upstream. The prior error text made this look like a malformed
+object rather than a capability boundary. The design correction is to preserve
+`relation` as the pure algebraic object and make `relation_fit` or an explicit
+external error channel the source of sampling capabilities.
+
+Subject-level resampling may estimate population uncertainty when subjects are
+available. It does not recover missing within-participant uncertainty for a
+single precomputed-beta relation.
+
+#### Boundaries retained
+
+The verified four-line recipe is not universal. Its simple scalar form assumes
+a common fixed metric, equal partition covariance, the declared separable GLM
+construction, and its stated distance normalization. The complete theory
+retains the metric-transformed residual trace term and provides more general
+expressions for unequal partitions.
+
+Learned local metrics \(K_{x,e}\) are random and may vary by location and
+evaluation edge. Point evidence remains an evidence pairing with a
+provenance-frozen, on-demand operator recipe, but Eq. 13 cannot be transferred
+unchanged while claiming calibrated intervals. Metric-estimation uncertainty
+and dependence must be propagated or the limitation must be explicit. The
+existing certification report is therefore correct to export no interval or
+LD-t for learned metrics.
+
+Likewise, one local covariance \(V_x\) concerns distances or queries at a
+location. It does not provide covariance between overlapping searchlights and
+does not by itself solve spatial multiplicity.
+
+#### Execution consequence
+
+For \(D\) distances, a dense covariance has \(D^2\) entries. The same
+query-first principle now applies to uncertainty: preserve an exact sampling
+operator and compute `diagonal`, selected entries, `apply(a)`, or
+\(a^\top Va\) directly. Full materialization is explicit and size-preflighted.
+Structured Hadamard products, low-rank query transport, symmetry, sparsity, and
+matrix-free action are preferred exact lowerings. Approximation remains a
+separately named estimator with an error contract.
+
+#### Normative disposition
+
+Part 12 produced `evidence-sampling-v1`, a statistical contract adjacent to and
+dependent on `evidence-pairing-v1`. The evidence-pairing contract receives only
+the abstract boundary: it defines point evidence, while the statistical
+contract defines covariance among estimated evidence values. The pure
+effect-form laws remain free of Gaussian or residual-model assumptions.
+
+The first implementation milestone is fixed-metric, equal-partition analytic
+covariance with exact linear transport, explanatory refusal on a bare
+precomputed relation, independent product-oracle tests, generative coverage,
+and query-first scale gates. Heterogeneous partitions, learned-metric
+uncertainty, cross-location covariance, LD-t, and population inference remain
+separately gated extensions.
+
+#### Mote implementation program
+
+The statistical completion was converted into one dependency-ordered program
+epic and three phases:
+
+1. `bd-01KZYJH5MFBB2ZSM4TFCSF1SN8` — sampling-covariance transport and
+   calibrated evidence;
+2. `bd-01KZYJHYZKMPW86N8XTGW2KX97` — freeze sampling semantics and capability
+   gates;
+3. `bd-01KZYJHZP2JNDJXZ7JZ20G3SA2` — implement fixed-metric analytic
+   covariance transport; and
+4. `bd-01KZYJJ04RRCN63A7HE33DKKXV` — validate and teach calibrated evidence.
+
+The program depends on the completed statistical and brain-scale evidence
+pairing epic. The existing partition-dependence and precomputed-beta P1s are
+children of the validation phase rather than duplicated findings. Unequal
+partitions and learned-metric uncertainty are tracked as a non-blocking
+research branch so the fixed-metric slice can close on its own evidence.
+
+#### Part 12 implementation checkpoint: exact, calibrated, and scale-qualified
+
+The first statistical vertical slice is now implemented through one compiled
+sampling plan rather than a parallel RDM inference engine. The product path is
+
+```text
+lm_relation_fit
+  -> fixed-metric geometry plan
+  -> rdm point estimate
+  -> factorized RDM sampling covariance
+  -> exact covariance query
+```
+
+The public surface is deliberately two functions:
+
+- `rdm_sampling_covariance()` constructs the local sampling law and requires an
+  explicit `target = "plugin"` or `target = "null"`;
+- `sampling_covariance()` reads its diagonal, selected entries, action,
+  quadratic form, linear transport, or explicitly materialized dense form.
+
+The covariance object stores row factors for the signal and design terms, not
+the dense \(D\times D\) covariance and not one fourth-order tensor. Exact
+queries use the identity
+
+\[
+v^\top[(LL^\top)\circ(RR^\top)]v
+=
+\|L^\top\operatorname{diag}(v)R\|_F^2.
+\]
+
+The corresponding action and transport use the same compact weighted
+cross-product. This replaces a literal row-tensor rank-product loop with BLAS
+contractions while preserving the declared covariance exactly. Dense
+materialization is explicit and charges both output and working-row storage
+before allocation.
+
+The support-local residual path also changed during scale review. A one-node
+query now reads residual blocks only for that support. Frame-wide sparse pair
+statistics are an explicit batch strategy, not a hidden default. The same
+searchlight support graph remains available to share residual cross-products
+when many overlapping nodes are requested.
+
+The statistical gate used 10,000 independent repetitions under the declared
+fixed-metric, equal-partition matrix-normal model. Relative Frobenius error for
+the complete covariance was 1.16 percent under nonzero signal and 1.96 percent
+under the null. Coordinatewise analytic coverage ranged from 94.75 to 95.29
+percent; a declared linear transport had variance ratio 0.9952 and coverage
+95.06 percent. The partition-mean plug-in policy was mildly conservative at
+97.70 to 97.99 percent and is reported as such. Treating dependent partition
+edges as replicates reduced signal coverage to 72.84 to 73.97 percent.
+
+The scale gate used a 60,000-feature volumetric domain and 60,000 searchlights
+with mean support 112.3, together with \(q=120\) effects and \(D=7{,}140\)
+distance coordinates. The spatial frame compiled in 6.94 seconds and occupied
+193.2 MB. The exact factorized covariance occupied 16.6 MB; diagonal,
+100-entry, quadratic-form, and eight-output transport queries each completed
+in 0.18--0.30 seconds on the recorded machine. The corresponding dense
+covariance payload is 407.8 MB and was correctly refused under a 64 MiB
+budget. These measurements qualify the named fixtures and numerical contract;
+they are not universal runtime promises.
+
+This checkpoint realizes the mission's performance clause in its intended
+form: mathematical elimination, factorization, support locality, query fusion,
+and bounded action first; approximation only as a separately named future
+estimator. It also preserves the vision's boundary. Precomputed beta relations
+retain point evidence but refuse within-participant covariance because their
+error channel is absent. Learned metrics remain point-estimate capable but
+uncalibrated until metric uncertainty is propagated. Local covariance remains
+local and is not relabelled as a spatial random field.
+
 ## Living synthesis after Part 1 (historical snapshot)
 
 ### Essence in one paragraph

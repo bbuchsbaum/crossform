@@ -7,9 +7,10 @@
 lm_extractor(
   design,
   effects,
-  whiten = NULL,
+  observation_whitener = NULL,
   effect_names = rownames(effects),
-  tolerance = sqrt(.Machine$double.eps)
+  tolerance = sqrt(.Machine$double.eps),
+  whiten = NULL
 )
 }
 \arguments{
@@ -17,11 +18,14 @@ lm_extractor(
 
 \item{effects}{Finite effect-by-coefficient target matrix.}
 
-\item{whiten}{Optional finite square observation whitener `L`.}
+\item{observation_whitener}{Optional finite square observation whitener `L`.}
 
 \item{effect_names}{Optional names or an `effect_space()` for target effects.}
 
 \item{tolerance}{Positive rank and estimability tolerance.}
+
+\item{whiten}{Deprecated alias for `observation_whitener`. Supplying both is
+an error.}
 }
 \value{
 An `effect_extractor`.

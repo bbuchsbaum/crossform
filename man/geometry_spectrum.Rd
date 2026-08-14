@@ -11,7 +11,7 @@ geometry_spectrum(
 )
 }
 \arguments{
-\item{x}{A complete `effect_geometry`.}
+\item{x}{A complete effect form carrying the symmetric self-form capability.}
 
 \item{component}{Geometry component to decompose.}
 

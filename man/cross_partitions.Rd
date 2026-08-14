@@ -7,11 +7,25 @@
 cross_partitions(partitions)
 }
 \arguments{
-\item{partitions}{Partition identifiers or an `effect_relation`.}
+\item{partitions}{Partition identifiers or an `effect_relation`. Pass
+`fit$relation` when starting from `lm_relation_fit()`.}
 }
 \value{
-An undirected pairing containing one row per unordered pair.
+An undirected pairing containing one row per unordered pair, with
+  normalized estimator weights. Its rows are computational contributions,
+  not a declaration of edge-level sampling independence.
 }
 \description{
-Pair every distinct partition once
+Distinct partition estimates are declared independent endpoints for unbiased
+cross-products. The resulting pair rows are not independent sampling
+replicates: pairs that share a partition also share its estimation error.
+In particular, `sd(pair_values) / sqrt(number_of_pairs)` is not a valid
+standard error for their all-pairs mean. Under the fixed-metric,
+equal-partition separable model, use [rdm_sampling_covariance()] for the
+admitted analytic RDM covariance law.
+}
+\references{
+Diedrichsen J, Provost S, Zareamoghaddam H (2016),
+  "On the distribution of cross-validated Mahalanobis distances",
+  especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
 }

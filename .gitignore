@@ -6,6 +6,9 @@
 *.tar.gz
 Rplots.pdf
 
+# Profiling scratch output is transient.
+.tmp/
+
 # Benchmark summaries and compact data are evidence; console logs are transient.
 benchmark-results/*.stdout.txt
 benchmark-results/*.stderr.txt

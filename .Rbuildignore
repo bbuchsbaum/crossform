@@ -1,7 +1,13 @@
 ^\.mote$
+^\.claude$
+^\.tmp$
 ^effectagram-execution-design\.md$
 ^effectagram-package-design\.md$
 ^effectagram-package-review\.md$
+^effect-form-contract\.md$
+^evidence-pairing-contract\.md$
+^evidence-sampling-contract\.md$
+^certification-report\.md$
 ^mission\.md$
 ^searchlight-conversation-ledger\.md$
 ^vision\.md$

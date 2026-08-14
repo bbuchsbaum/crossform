@@ -20,16 +20,43 @@ test_that("full-rank lm extraction agrees with explicit OLS", {
     target %*% qr.coef(qr(design), response), tolerance = 1e-12)
 })
 
-test_that("whitened lm extraction agrees with transformed least squares", {
+test_that("observation-whitened extraction agrees with transformed least squares", {
   set.seed(52)
   design <- cbind(1, x = seq_len(10))
   target <- matrix(c(0, 1), 1, dimnames = list("slope", NULL))
   whiten <- diag(seq(0.5, 1.5, length.out = 10))
   response <- matrix(rnorm(30), 10, 3)
-  extractor <- lm_extractor(design, target, whiten = whiten)
+  extractor <- lm_extractor(
+    design, target, observation_whitener = whiten
+  )
 
   oracle <- target %*% qr.coef(qr(whiten %*% design), whiten %*% response)
   expect_equal(extractor$map %*% response, oracle, tolerance = 1e-12)
+})
+
+test_that("the deprecated whiten alias is deliberate and unambiguous", {
+  design <- cbind(1, x = seq_len(8))
+  target <- matrix(c(0, 1), 1, dimnames = list("slope", NULL))
+  whitener <- diag(seq(0.8, 1.2, length.out = 8))
+  current <- lm_extractor(
+    design, target, observation_whitener = whitener
+  )
+  legacy <- NULL
+  expect_warning(
+    legacy <- lm_extractor(design, target, whiten = whitener),
+    "deprecated"
+  )
+
+  expect_equal(legacy$map, current$map, tolerance = 0)
+  expect_error(
+    lm_extractor(design, target,
+      observation_whitener = whitener, whiten = whitener),
+    "Supply only"
+  )
+  expect_silent(lm_extractor(design, target, whiten = NULL))
+  expect_silent(lm_extractor(
+    design, target, observation_whitener = whitener, whiten = NULL
+  ))
 })
 
 test_that("rank-deficient extraction admits only estimable targets", {

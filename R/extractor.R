@@ -50,14 +50,79 @@ effect_extractor <- function(map, effects = rownames(map),
 #'
 #' @param design Finite observation-by-coefficient design matrix.
 #' @param effects Finite effect-by-coefficient target matrix.
-#' @param whiten Optional finite square observation whitener `L`.
+#' @param observation_whitener Optional finite square observation whitener `L`.
 #' @param effect_names Optional names or an `effect_space()` for target effects.
 #' @param tolerance Positive rank and estimability tolerance.
+#' @param whiten Deprecated alias for `observation_whitener`. Supplying both is
+#'   an error.
 #' @return An `effect_extractor`.
 #' @export
-lm_extractor <- function(design, effects, whiten = NULL,
+lm_extractor <- function(design, effects, observation_whitener = NULL,
                          effect_names = rownames(effects),
-                         tolerance = sqrt(.Machine$double.eps)) {
+                         tolerance = sqrt(.Machine$double.eps),
+                         whiten = NULL) {
+  resolved <- .resolve_observation_whitener(
+    observation_whitener, whiten, nrow(design),
+    legacy_supplied = !missing(whiten) && !is.null(whiten)
+  )
+  .compile_lm_estimator(
+    design, effects, resolved, effect_names, tolerance
+  )$extractor
+}
+
+.resolve_observation_whitener <- function(observation_whitener, whiten,
+                                          observations, legacy_supplied) {
+  if (isTRUE(legacy_supplied)) {
+    if (!is.null(observation_whitener)) {
+      stop("Supply only `observation_whitener`; `whiten` is its deprecated alias.",
+        call. = FALSE)
+    }
+    warning("`whiten` is deprecated; use `observation_whitener`.",
+      call. = FALSE)
+    observation_whitener <- whiten
+  }
+  if (!is.numeric(observations) || length(observations) != 1L ||
+      is.na(observations) || observations < 1L || observations %% 1 != 0) {
+    stop("The observation count must be one positive integer.", call. = FALSE)
+  }
+  observations <- as.integer(observations)
+  if (is.null(observation_whitener)) {
+    semantic <- list(kind = "identity", dim = c(observations, observations))
+    return(structure(list(
+      matrix = NULL,
+      identity = TRUE,
+      descriptor = c(semantic, list(signature = paste0(
+        "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE)
+      )))
+    ), class = "effect_observation_whitener"))
+  }
+  if (!is.matrix(observation_whitener) ||
+      !is.numeric(observation_whitener) ||
+      !identical(dim(observation_whitener), c(observations, observations)) ||
+      any(!is.finite(observation_whitener))) {
+    stop(paste0(
+      "`observation_whitener` must be NULL or a finite square observation ",
+      "matrix."
+    ), call. = FALSE)
+  }
+  semantic <- list(
+    kind = "explicit",
+    dim = as.integer(dim(observation_whitener)),
+    matrix_revision = paste0("sha256:", digest::digest(
+      observation_whitener, algo = "sha256", serialize = TRUE
+    ))
+  )
+  structure(list(
+    matrix = observation_whitener,
+    identity = FALSE,
+    descriptor = c(semantic, list(signature = paste0(
+      "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE)
+    )))
+  ), class = "effect_observation_whitener")
+}
+
+.compile_lm_estimator <- function(design, effects, observation_whitener,
+                                  effect_names, tolerance) {
   if (!is.matrix(design) || !is.numeric(design) || any(dim(design) < 1L) ||
       any(!is.finite(design))) {
     stop("`design` must be a finite nonempty observation-by-coefficient matrix.",
@@ -73,21 +138,32 @@ lm_extractor <- function(design, effects, whiten = NULL,
     stop("`tolerance` must be one positive finite number.", call. = FALSE)
   }
   n <- nrow(design)
-  if (is.null(whiten)) whiten <- diag(n)
-  if (!is.matrix(whiten) || !is.numeric(whiten) ||
-      !identical(dim(whiten), c(n, n)) || any(!is.finite(whiten))) {
-    stop("`whiten` must be NULL or a finite square observation matrix.",
+  if (!inherits(observation_whitener, "effect_observation_whitener") ||
+      !is.list(observation_whitener) ||
+      !identical(names(observation_whitener),
+        c("matrix", "identity", "descriptor"))) {
+    stop("Observation-whitener compilation metadata are invalid.",
       call. = FALSE)
   }
   effect_names <- .as_effect_space(effect_names, nrow(effects))
   coordinate_names <- effect_names$coordinates
-  whitened_design <- whiten %*% design
+  whitener <- observation_whitener$matrix
+  whitened_design <- if (isTRUE(observation_whitener$identity)) {
+    design
+  } else {
+    whitener %*% design
+  }
   decomposition <- qr(whitened_design, tol = tolerance, LAPACK = FALSE)
   rank <- decomposition$rank
   coefficients <- ncol(design)
 
   if (rank == coefficients) {
-    coefficient_map <- qr.solve(whitened_design, whiten, tol = tolerance)
+    residual_basis <- qr.Q(decomposition, complete = FALSE)[,
+      seq_len(rank), drop = FALSE]
+    triangular <- qr.R(decomposition)[seq_len(rank), seq_len(rank), drop = FALSE]
+    pivoted_map <- backsolve(triangular, t(residual_basis))
+    coefficient_whitened_map <- matrix(0, coefficients, n)
+    coefficient_whitened_map[decomposition$pivot, ] <- pivoted_map
     solver <- "pivoted_qr"
     estimability_error <- rep(0, nrow(effects))
   } else {
@@ -110,11 +186,21 @@ lm_extractor <- function(design, effects, whiten = NULL,
     }
     inverse <- singular$v[, keep, drop = FALSE] %*%
       (t(singular$u[, keep, drop = FALSE]) / singular$d[keep])
-    coefficient_map <- inverse %*% whiten
+    coefficient_whitened_map <- inverse
+    residual_basis <- singular$u[, keep, drop = FALSE]
     solver <- "svd_estimable_fallback"
   }
 
-  effect_extractor(
+  coefficient_map <- if (isTRUE(observation_whitener$identity)) {
+    coefficient_whitened_map
+  } else {
+    coefficient_whitened_map %*% whitener
+  }
+  effect_whitened_map <- effects %*% coefficient_whitened_map
+  effect_covariance <- tcrossprod(effect_whitened_map)
+  dimnames(effect_covariance) <- list(coordinate_names, coordinate_names)
+  residual_df <- as.integer(n - rank)
+  extractor <- effect_extractor(
     effects %*% coefficient_map,
     effects = effect_names,
     estimator = "linear_model",
@@ -125,8 +211,48 @@ lm_extractor <- function(design, effects, whiten = NULL,
       rank = as.integer(rank),
       rank_deficient = rank < coefficients,
       estimability_error = stats::setNames(estimability_error, coordinate_names),
-      tolerance = tolerance
+      tolerance = tolerance,
+      observation_whitener = observation_whitener$descriptor
     )
+  )
+  residualize <- function(response) {
+    if (!is.matrix(response) || !is.numeric(response) ||
+        nrow(response) != n || any(!is.finite(response))) {
+      stop("Residualization requires a finite observation-by-feature block.",
+        call. = FALSE)
+    }
+    transformed <- if (isTRUE(observation_whitener$identity)) {
+      response
+    } else {
+      whitener %*% response
+    }
+    transformed - residual_basis %*% crossprod(residual_basis, transformed)
+  }
+  semantic <- list(
+    schema_version = 1L,
+    design_revision = paste0("sha256:", digest::digest(
+      design, algo = "sha256", serialize = TRUE
+    )),
+    target_revision = paste0("sha256:", digest::digest(
+      effects, algo = "sha256", serialize = TRUE
+    )),
+    observation_whitener = observation_whitener$descriptor,
+    effect_space = effect_names,
+    solver = solver,
+    rank = as.integer(rank),
+    tolerance = tolerance
+  )
+  list(
+    extractor = extractor,
+    effect_covariance = effect_covariance,
+    effect_covariance_convention =
+      "neural_covariance_factor_excluded",
+    residual_df = residual_df,
+    residualize = residualize,
+    observation_whitener = observation_whitener$descriptor,
+    estimator_provenance = c(semantic, list(signature = paste0(
+      "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE)
+    )))
   )
 }
 

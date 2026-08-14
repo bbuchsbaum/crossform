@@ -1,6 +1,7 @@
 # File-backed packed geometry storage ---------------------------------------
 
-.file_geometry_store <- function(path, dim, create = FALSE) {
+.file_geometry_store <- function(path, dim, create = FALSE,
+                                 codec = "symmetric_packed") {
   if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
     stop("`path` must be one nonempty file path.", call. = FALSE)
   }
@@ -9,6 +10,7 @@
     stop("`dim` must contain two positive integers.", call. = FALSE)
   }
   dim <- as.integer(dim)
+  format <- .effect_form_codec_format(codec)
   expected_bytes <- prod(as.double(dim)) * 8
   if (create) {
     if (file.exists(path)) stop("Refusing to overwrite an existing geometry store.", call. = FALSE)
@@ -56,7 +58,7 @@
       dim = dim,
       representation = "block_backed",
       manifest = list(schema_version = 1L, complete = TRUE, dim = dim,
-        format = "packed-double-v1", expected_bytes = expected_bytes),
+        format = format, expected_bytes = expected_bytes),
       path = normalizePath(path, mustWork = TRUE),
       read = read_rows
     ),

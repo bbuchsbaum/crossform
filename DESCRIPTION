@@ -3,10 +3,12 @@ Title: Cross-Generalized Effect Geometry
 Version: 0.0.0.9000
 Authors@R: person("Bradley", "Buchsbaum", role = c("aut", "cre"),
     email = "bradley.buchsbaum@gmail.com")
-Description: Compiles fixed experimental-neural relations, additive spatial
-    frames, and partition pairings into cross-generalized geometry. The initial
-    implementation establishes the semantic contracts for additive-frame
-    collapse, pairing marginals, and deterministic sequential execution.
+Description: Compiles fixed experimental-neural relations, identified neural
+    measurements, and partition pairings into cross-generalized effect and
+    measurement forms. Spatial node effects and cross-node coupling are the
+    diagonal and off-diagonal blocks of one evidence operator. The package
+    preserves explicit axes, capability-gated covariance interpretations,
+    ordered normalization stages, and deterministic sequential execution.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports:

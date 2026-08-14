@@ -12,14 +12,20 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 library(effectagram)
 ```
 
-`effectagram` computes one durable object: experimental geometry that
-reproduces across declared partitions under a declared spatial measurement.
+`effectagram` asks whether experimental effects reproduce across declared
+partitions under a declared spatial measurement. In the common case, the same
+effect coordinates appear on both sides and the durable result is a symmetric
+geometry. More generally, an effect form can place different named coordinates
+on its left and right axes, as in encoding-retrieval analyses.
+
 Changing a searchlight to an ROI changes the measurement frame. Changing a
 contrast to RSA changes the view. Neither choice introduces another fitting
-engine.
+engine. This vignette starts with the public self-geometry workflow, then shows
+how unequal-axis pair hypotheses and cross-space bridges fit the same algebra.
 
-This vignette starts from precomputed run effects. The final section shows where
-a linear extractor enters when responses have not yet been reduced to effects.
+This vignette starts from precomputed run effects. The final section uses a
+small raw-response fit to show where residual uncertainty enters when responses
+have not yet been reduced to effects.
 
 ## Declare the native relation
 
@@ -60,16 +66,32 @@ partition identity, exact ordered neural domain, and source revisions. It does
 not concatenate runs or resample features. A matching name and dimension alone
 cannot substitute for either identity.
 
+## What is an effect form?
+
+An effect form is a matrix whose rows belong to one named experimental space
+and whose columns belong to another. A geometry is the self-form specialization:
+its two spaces are identical and the estimator is explicitly symmetric. That
+specialization permits packed storage and the familiar RDM, RSA, and spectrum
+views.
+
+These are declared capabilities, not properties guessed from rounded output.
+A rectangular form is not symmetric. A symmetric cross-generalized estimate is
+not automatically positive semidefinite, so negative energies, distances, and
+spectrum roots remain meaningful estimates rather than values to truncate.
+
 ## Measure locally and require cross-run agreement
 
 ```{r geometry}
 at <- compile_frame(searchlights(radius = 1.01, normalization = "local"), domain)
 over <- cross_partitions(rel)
-g <- geometry(rel, at = at, over = over)
+plan <- plan_geometry(rel, at = at, over = over)
+g <- geometry(plan)
 ```
 
 The searchlights are rows of one sparse additive frame. `over` is an undirected
-edge table containing each run pair once. The geometry engine reads each
+edge table containing each run pair once. `plan` validates this scientific
+request without reading relation blocks. This section materializes it because
+several later views need the complete form; the geometry engine then reads each
 feature block once per partition, forms cross-run feature atoms, and contracts
 the whole frame.
 
@@ -86,6 +108,9 @@ round(cbind(
   configuration = face_house$configuration,
   total = face_house$total
 ), 3)
+```
+
+```{r contrast-check, include=FALSE}
 stopifnot(isTRUE(all.equal(
   face_house$total,
   face_house$coherent + face_house$configuration,
@@ -142,6 +167,120 @@ Negative roots are retained. A later positive-semidefinite latent model may be
 useful for description, but truncating the unbiased estimate would change its
 inferential meaning.
 
+## Ask a question across unequal axes
+
+Encoding-retrieval analyses have different row and column meanings. Here three
+encoding conditions are compared with four retrieval conditions, including a
+lure with no matched encoding item.
+
+```{r unequal-axis-spaces}
+encoding_space <- effect_space(
+  c("word", "face", "place"), basis_id = "encoding:v1"
+)
+retrieval_space <- effect_space(
+  c("word_old", "face_old", "place_old", "lure"),
+  basis_id = "retrieval:v1"
+)
+```
+
+The small matrices below stand in for two effect families measured in one
+common five-feature space. Their ordered cross-form has shape `3 x 4`.
+
+```{r unequal-axis-form}
+encoding_profiles <- matrix(c(
+  2, 1, 0, -1, 1,  0, 2, 1, 0, -1,  1, 0, 2, 1, 0
+), 3, byrow = TRUE)
+retrieval_profiles <- matrix(c(
+  1.8, 1.1, 0.2, -0.8, 0.9,  0.1, 1.9, 1.2, 0.1, -0.8,
+  0.9, 0.2, 2.1, 0.8, 0.1,  -0.5, 0.4, 0.2, 1.2, 1.1
+), 4, byrow = TRUE)
+cross_form <- encoding_profiles %*% t(retrieval_profiles)
+```
+
+`match_control()` compiles a matched-versus-control coefficient as one
+axis-bound query matrix. Encoding-item and retrieval-item nuisance effects are
+ordinary columns in that pair-space linear model.
+
+```{r unequal-axis-query}
+matches <- match_coupling(
+  c("word", "face", "place"),
+  c("word_old", "face_old", "place_old"),
+  encoding_space, retrieval_space
+)
+er_query <- match_control(matches)
+er_score <- sum(cross_form * as.matrix(er_query$operator))
+round(er_score, 3)
+```
+
+```{r unequal-axis-check, include=FALSE}
+balance <- er_query$metadata$diagnostics$balance
+stopifnot(
+  is.finite(er_score),
+  balance$zero_row_marginals,
+  balance$zero_column_marginals,
+  isTRUE(all.equal(er_score, 4.3, tolerance = 1e-12))
+)
+```
+
+Zero row and column marginals make this final query invariant to arbitrary
+additive encoding and retrieval baselines. That guarantee belongs to the final
+operator. Later unequal weighting can destroy the balance, so the constructor
+reports observed diagnostics rather than promising downstream invariance.
+
+## Keep operation order explicit
+
+The contraction plan records the scientific order:
+
+```text
+ordered partition-pair product
+  -> spatial normalization
+  -> edge transform
+  -> partition reduction
+  -> pair query
+```
+
+Version 0.1 executes fixed inner-product forms and exposes reduction choices
+only where a public workflow can consume them. `reduce_partitions()` and
+`aggregate_first()` name different estimands; neither is selected as a hidden
+optimization for the other. Generic correlation, ranking, and Fisher edge
+pipelines are intentionally not exported until an executable,
+scale-qualified path exists.
+
+## Require a bridge between neural spaces
+
+Relations with different neural feature identities cannot be multiplied just
+because their dimensions happen to agree. A fixed factorized bridge maps both
+sides into one named measurement space and records the exact source domains,
+legs, and portable provenance.
+
+```{r bridge}
+left_neural <- abstract_domain(5, id = "subject-A:native")
+right_neural <- abstract_domain(6, id = "subject-B:native")
+common_measurement <- measurement_space(3, "atlas-measurement:v1")
+bridge <- measurement_bridge(
+  left_leg = matrix(seq_len(15) / 15, 3, 5),
+  right_leg = matrix(seq_len(18) / 18, 3, 6),
+  left_domain = left_neural,
+  right_domain = right_neural,
+  common_space = common_measurement,
+  provenance = list(method = "fixed-external-map", revision = "v1")
+)
+```
+
+```{r bridge-check, include=FALSE}
+stopifnot(
+  identical(dim(bridge$left_leg), c(3L, 5L)),
+  identical(dim(bridge$right_leg), c(3L, 6L)),
+  identical(reverse_bridge(reverse_bridge(bridge)), bridge)
+)
+```
+
+The induced operator is the factorization
+`t(left_leg) %*% right_leg`; an arbitrary dense operator is not a public
+substitute. No explicit bridge is needed only when both relations carry the
+same exact neural-domain identity. Bridges are fixed inputs here: learning an
+alignment, hyperalignment, and group inference remain outside this package.
+
 ## Choose the frame interpretation explicitly
 
 ```{r frames}
@@ -155,25 +294,50 @@ global_frame <- compile_frame(whole_brain(), domain)
 ```
 
 These values all enter the same `geometry()` call. With `normalization =
-"local"`, each row is an average. With `normalization = "conservative"`, each
-feature distributes unit mass across overlapping rows and local total geometry
-sums to global geometry.
+"local"`, each row is an average. On the feature-additive metric path, including
+the current Euclidean default `K = I`, `normalization = "conservative"` makes
+each feature distribute unit mass across overlapping rows and local total
+geometry sums to global geometry. That conservation is a capability of the
+composed frame and metric; it is not claimed for arbitrary non-diagonal local
+metrics.
+
+The exact composition is
+
+\[
+K_{x,\mathrm{effective}}
+=
+D(\sqrt{w_x})K_xD(\sqrt{w_x}).
+\]
+
+It recovers the additive frame exactly at `K_x = I` and preserves positive
+semidefiniteness. A native-diagonal metric can therefore use the shared sparse
+additive contraction. A non-diagonal metric remains part of the same evidence
+pairing, but executes as a support-streamed pair contraction with an explicitly
+larger cost.
 
 ## Avoid materializing unused geometry
 
-If only one fixed bilinear question is needed, compile it before execution:
+Compile the reusable scientific plan before choosing whether to query or
+materialize it. Plan construction validates sources, axes, the frame, pairing,
+and compute policy without reading a neural block:
 
 ```{r direct}
+plan <- plan_geometry(rel, at, over)
 query <- bilinear_query(tcrossprod(c(1, -1, 0)), effects = effects)
-direct <- evaluate_geometry(rel, at, over, query, component = "total")
+direct <- evaluate_geometry(plan, query = query, component = "total")
 late <- query_geometry(g, query, component = "total")
-stopifnot(isTRUE(all.equal(direct$values, late$values, tolerance = 1e-12)))
 direct$completeness
 ```
 
-`evaluate_geometry()` returns a query-only `effect_view`. `geometry()` always
-returns complete geometry. Storage or workspace policy never changes that
-semantic distinction.
+```{r direct-check, include=FALSE}
+stopifnot(isTRUE(all.equal(direct$values, late$values, tolerance = 1e-12)))
+```
+
+`evaluate_geometry()` fuses the fixed query before spatial contraction and
+returns a query-only `effect_view`. `geometry(plan)` explicitly materializes
+complete geometry. The compatibility call `geometry(rel, at, over)` compiles
+the same plan; storage or workspace policy never changes the semantic
+distinction.
 
 ## Supply an extractor when effects are still implicit
 
@@ -185,10 +349,101 @@ or an estimability-checked SVD when the design is rank deficient.
 extractor <- lm_extractor(
   design = X,
   effects = C,
-  whiten = L
+  observation_whitener = L
 )
 rel <- relation(response_runs, extract = extractor, domain = domain)
 ```
+
+If a later query will estimate a neural precision metric or calibrate
+within-participant uncertainty, use `lm_relation_fit()` instead. It preserves
+the same pure relation while attaching a distinct, capability-bearing error
+channel with lazy whitened residual blocks, residual degrees of freedom, and
+an unscaled effect-coordinate covariance. A relation built only from
+precomputed effects remains valid but cannot recreate information discarded
+upstream.
+
+That distinction matters as soon as you ask for an error bar. The unordered
+rows made by `cross_partitions()` are contributions to one crossvalidated
+estimator, not independent replicates: pairs sharing a run share estimation
+noise. Their empirical spread divided by the square root of the number of pairs
+is therefore not a valid standard error.
+
+For a plan using one common fixed neural metric, equal partition error
+structures, and an `lm_relation_fit()` error channel, construct the exact local
+RDM sampling covariance separately from the point estimate:
+
+```{r uncertainty-setup, include=FALSE}
+set.seed(19)
+uncertainty_domain <- abstract_domain(
+  6, coordinates = cbind(x = 0:5, y = 0), id = "uncertainty:demo"
+)
+uncertainty_design <- model.matrix(
+  ~ 0 + factor(rep(c("face", "house", "object"), each = 8))
+)
+colnames(uncertainty_design) <- c("face", "house", "object")
+uncertainty_effects <- diag(3)
+rownames(uncertainty_effects) <- colnames(uncertainty_design)
+true_patterns <- rbind(
+  face = c(0.6, 0.3, 0.1, -0.1, 0.0, 0.2),
+  house = c(0.0, 0.2, 0.6, 0.3, 0.1, 0.0),
+  object = c(0.1, 0.1, 0.3, 0.5, 0.3, 0.1)
+)
+response_runs <- setNames(lapply(seq_len(4), function(run) {
+  uncertainty_design %*% true_patterns +
+    matrix(rnorm(24 * 6, sd = 0.25), 24, 6)
+}), paste0("run", seq_len(4)))
+fit <- lm_relation_fit(
+  response_runs, uncertainty_design, uncertainty_effects,
+  effect_names = rownames(true_patterns), sampling_unit = "trial",
+  domain = uncertainty_domain
+)
+known_precision <- noise_precision(
+  diag(6), uncertainty_domain, covariance = diag(6),
+  provenance = list(source = "fixed-demo-metric")
+)
+```
+
+```{r fixed-metric-sampling-covariance}
+fixed_plan <- plan_geometry(
+  fit$relation,
+  at = compile_frame(whole_brain(), uncertainty_domain),
+  over = cross_partitions(fit$relation),
+  metric = known_precision
+)
+
+distance_estimate <- rdm(fixed_plan)
+distance_covariance <- rdm_sampling_covariance(
+  fixed_plan, fit, target = "plugin"
+)
+distance_se <- sqrt(sampling_covariance(distance_covariance))
+round(distance_se, 4)
+```
+
+```{r fixed-metric-sampling-covariance-check, include=FALSE}
+stopifnot(
+  inherits(distance_covariance, "effect_rdm_sampling_covariance"),
+  length(distance_se) == 3L,
+  all(is.finite(distance_se)),
+  all(distance_se > 0),
+  identical(names(distance_se), colnames(distance_estimate$values))
+)
+```
+
+`target = "plugin"` evaluates the signal-dependent term using the partition-
+mean pattern estimate. `target = "null"` evaluates it at the fixed zero null.
+Neither is selected silently. The covariance object is exact and factorized;
+`sampling_covariance()` can read its diagonal, selected entries, actions,
+quadratic forms, or linear transports without materializing the complete
+distance-by-distance matrix.
+
+This is a within-measurement covariance law under the fixed-metric,
+equal-partition separable model. It is not a cross-location random-field model,
+and it is not automatically a confidence interval or test. Learned local
+precision metrics also remain outside this calibration claim because their
+estimation uncertainty has not yet been propagated. These boundaries are why
+the precomputed-effect example at the start of this vignette supports point
+geometry but cannot be upgraded to analytic first-level uncertainty after the
+residual channel has been discarded.
 
 The package does not construct event designs, HRFs, nuisance models, temporal
 whitening, or registration. Those choices remain upstream and explicit.
@@ -206,7 +461,10 @@ full-volume feature indices and spacing. This optional adapter compiles geometry
 only; neuroim2 ROI iteration, data extraction, results, and parallel state do
 not enter effectagram.
 
-Version 0.1 executes sequentially. The current claim is local and precise:
-additive-frame searchlights are sparse contraction rows rather than independent
-worker jobs. Locally learned covariance, adaptive feature selection, nonlinear
-normalization, and classifier accuracy remain outside this bilinear core.
+Version 0.1 executes sequentially. The current performance claim is local and
+precise: compiler-proven feature-additive searchlights are sparse contraction
+rows rather than independent worker jobs. Non-diagonal local metrics require a
+support-streamed lowering and do not receive that claim. Locally learned
+covariance, adaptive feature selection, nonlinear normalization, classifier
+accuracy, automatic pair-edge independence, and group-level inference remain
+outside this bilinear core.

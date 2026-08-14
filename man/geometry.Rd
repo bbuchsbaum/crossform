@@ -2,30 +2,32 @@
 % Please edit documentation in R/compiler.R
 \name{geometry}
 \alias{geometry}
-\title{Compile a complete cross-generalized geometry}
+\title{Materialize a complete cross-generalized geometry}
 \usage{
 geometry(
   x,
-  at,
-  over,
+  at = NULL,
+  over = NULL,
   storage = c("memory", "block"),
   storage_path = NULL,
-  compute = compute_policy(),
+  compute = NULL,
   reporter = NULL
 )
 }
 \arguments{
-\item{x}{An `effect_relation`.}
+\item{x}{An `effect_geometry_plan` or, for compatibility, an
+`effect_relation`.}
 
-\item{at}{A compiled additive `effect_frame`.}
+\item{at}{A compiled additive `effect_frame`, required only with a relation.}
 
-\item{over}{An `effect_pairing`.}
+\item{over}{An `effect_pairing`, required only with a relation.}
 
 \item{storage}{Either `"memory"` or `"block"`.}
 
 \item{storage_path}{Durable directory for block-backed geometry.}
 
-\item{compute}{A sequential `compute_policy()`.}
+\item{compute}{A sequential `compute_policy()` when `x` is a relation. A
+compiled plan already owns this choice.}
 
 \item{reporter}{Optional nonsemantic coordinator-side event reporter.}
 }
@@ -33,7 +35,8 @@ geometry(
 A complete `effect_geometry`.
 }
 \description{
-`geometry()` always materializes complete total and coherent packed geometry.
-Use [evaluate_geometry()] when only one or a few fixed linear queries are
-required.
+`geometry()` explicitly materializes complete total and coherent packed
+geometry. Prefer [plan_geometry()] followed by [evaluate_geometry()] when a
+fixed query is sufficient. The relation compatibility form compiles that
+same plan first; it does not use a second execution path.
 }

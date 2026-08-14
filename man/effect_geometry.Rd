@@ -32,12 +32,11 @@ shorthand for an unspecified-basis space.}
 \item{metadata}{Optional compact semantic metadata.}
 }
 \value{
-A complete `effect_geometry`.
+A complete `effect_geometry` and `effect_form`.
 }
 \description{
-An `effect_geometry` contains complete packed total and coherent geometry.
-Its storage may be in memory or block-backed, but storage never changes the
-result's completeness. Configuration geometry is derived exactly as total
-minus coherent.
+An `effect_geometry` is the symmetric packed self-form specialization of a
+complete `effect_form`. Its storage may be in memory or block-backed, while
+configuration remains exactly total minus coherent.
 }
 \keyword{internal}

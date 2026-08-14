@@ -61,6 +61,28 @@ test_that("adapter rejects incompatible domains and unrestricted members", {
     nonzero = FALSE), "require.*TRUE")
 })
 
+test_that("compact result values map to exact NeuroVol indices", {
+  mask <- make_neuroim2_mask(active = c(1L, 2L, 6L, 55L))
+  domain <- neuroim2_volume_domain(mask, id = "result-mask")
+  values <- c(-1.5, 0, 2.25, 7)
+  result <- as_neurovol(values, mask, domain, fill = NA_real_,
+    label = "signed crossnobis")
+  array_value <- as.array(result)
+
+  expect_s4_class(result, "NeuroVol")
+  expect_identical(dim(result), dim(mask))
+  expect_identical(neuroim2::space(result), neuroim2::space(mask))
+  expect_equal(array_value[domain$feature_ids], values, tolerance = 0)
+  expect_true(all(is.na(array_value[-domain$feature_ids])))
+
+  expect_error(as_neurovol(values[-1L], mask, domain),
+    "one finite number per compact domain feature")
+  changed <- make_neuroim2_mask(spacing = c(2, 2, 4),
+    active = c(1L, 2L, 6L, 55L))
+  expect_error(as_neurovol(values, changed, domain),
+    "incompatible exact volume")
+})
+
 test_that("missing upstream index API fails with an actionable message", {
   testthat::local_mocked_bindings(
     .require_neuroim2_searchlight_indices = function() {

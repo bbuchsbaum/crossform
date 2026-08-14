@@ -280,8 +280,9 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 
 .open_relation_source_session <- function(relation,
                                           open_descriptor = .open_source_descriptor,
-                                          shared_opener = NULL) {
-  .validate_relation(relation)
+                                          shared_opener = NULL,
+                                          validate = TRUE) {
+  if (isTRUE(validate)) .validate_relation(relation)
   if (!is.function(open_descriptor)) {
     stop("`open_descriptor` must be a function.", call. = FALSE)
   }
@@ -387,4 +388,65 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
     stop("`session` must be an effectagram source session.", call. = FALSE)
   }
   session$close()
+}
+
+.open_effect_task_source_session <- function(task,
+                                             open_descriptor = .open_source_descriptor,
+                                             shared_opener = NULL,
+                                             validate = TRUE) {
+  if (isTRUE(validate)) .validate_compiled_effect_task(task)
+  if (isTRUE(task$same_relation)) {
+    session <- .open_relation_source_session(
+      task$left_relation,
+      open_descriptor = open_descriptor,
+      shared_opener = shared_opener,
+      validate = validate
+    )
+    return(structure(
+      list(
+        read = function(side, partition, features) {
+          if (!side %in% c("left", "right")) {
+            stop("Task source side must be `left` or `right`.", call. = FALSE)
+          }
+          session$read(partition, features)
+        },
+        close = session$close,
+        summary = session$summary
+      ),
+      class = "effect_task_source_session"
+    ))
+  }
+  left <- .open_relation_source_session(task$left_relation,
+    open_descriptor = open_descriptor, shared_opener = shared_opener,
+    validate = validate)
+  right <- tryCatch(
+    .open_relation_source_session(task$right_relation,
+      open_descriptor = open_descriptor, shared_opener = shared_opener,
+      validate = validate),
+    error = function(error) {
+      left$close()
+      stop(error)
+    }
+  )
+  closed <- FALSE
+  close_both <- function() {
+    if (!closed) {
+      on.exit(right$close(), add = TRUE)
+      left$close()
+      closed <<- TRUE
+    }
+    invisible(NULL)
+  }
+  structure(
+    list(
+      read = function(side, partition, features) {
+        if (identical(side, "left")) left$read(partition, features) else if (
+          identical(side, "right")) right$read(partition, features) else
+          stop("Task source side must be `left` or `right`.", call. = FALSE)
+      },
+      close = close_both,
+      summary = function() list(left = left$summary(), right = right$summary())
+    ),
+    class = "effect_task_source_session"
+  )
 }

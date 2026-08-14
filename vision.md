@@ -1,7 +1,7 @@
 # Vision for `effectagram`
 
 Status: working vision
-Date: 2026-08-12
+Date: 2026-08-13
 
 The name is pronounced “effect-a-gram.” An effectagram is the
 cross-generalized geometry of experimental effects across a declared spatial
@@ -12,6 +12,15 @@ class name; durable objects therefore retain precise names such as
 `effectagram` will become the foundation for task-fMRI effect analysis in R and the eventual successor to `rMVPA`. It will replace the scientific role of `rMVPA`, not reproduce its source code, public classes, or every historical feature. Researchers should be able to perform the important analyses for which they now turn to `rMVPA`, while gaining a clearer account of what was estimated, where it was measured, across which partitions it generalized, and how the reported number was derived.
 
 The project will achieve this through unification rather than a smaller catalogue of methods. Voxelwise, searchlight, regional, surface, and whole-brain analyses will use common relations, spatial measurements, generalization declarations, and result geometry. Contrasts, representational dissimilarities, RSA, predictive summaries, and later population models will be interpretations or extensions of those shared objects. The system can grow broad without making every new analysis another engine, registry entry, result class, and combining path.
+
+A beautiful abstraction should produce a beautiful execution plan. Conceptual
+unity, statistical validity, and computational efficiency are coequal design
+requirements: the package is not successful if its cleanest estimand is too
+slow or too large to use on a brain.
+
+Unification must improve execution as well as explanation. Common algebra exposes work that can be shared, moved, factorized, or avoided: sufficient statistics can be reused across locations, low-rank queries can be contracted before large forms are built, sparse supports can replace dense operators, and adjoint identities can select the cheaper of equivalent contraction orders. The project will pursue such exact reductions aggressively. It will not accept inherited method boundaries as computational necessities when a new factorization, sparse representation, matrix-free action, or streaming algorithm can remove the repeated work.
+
+Speed never licenses a change in the estimand. Every optimized lowering must agree with an independent reference implementation under a declared numerical contract. An approximation, reduced-precision calculation, or altered estimator must be named and validated as a different scientific option; it may not silently replace the exact path. Performance claims must report their dimensional regime, runtime, peak memory, and materialization costs on realistic workloads. The aim is to make the principled analysis the practical analysis: fast, memory-efficient, and exactly faithful to the question the user declared.
 
 The long-term goal is therefore larger than a compact version 0.1 package:
 
@@ -106,7 +115,16 @@ The unification is valuable because it changes what the software lets researcher
 
 Generalization will be part of the estimand rather than an execution detail. Explicit pairings will state whether an effect must reproduce across runs, sessions, tasks, stimulus sets, or experimental domains. Cross-validation will no longer be identified merely by a fold count.
 
-Geometry will be retained before scalarization. A contrast energy, RDM coefficient, eigenvalue, classifier summary, and map may discard different information from the same underlying relation. Preserving geometry makes those losses visible and allows several views without refitting the analysis.
+Every estimated effect has a sampling law that is conceptually distinct from
+its value. The system will state whether that law is available. Generalization
+edges state where an effect must reproduce; they are not automatically
+independent observations for calibration. When a fitted relation carries an
+identified error channel, uncertainty can be transported over the same
+evidence queries without changing their estimands. When only precomputed
+effects are supplied, unavailable within-participant uncertainty will be stated
+as a capability boundary rather than guessed from edge spread.
+
+Geometry will remain queryable before scalarization. A contrast energy, RDM coefficient, eigenvalue, classifier summary, and map may discard different information from the same underlying relation. Preserving the parent geometry as a compiled operator makes those losses visible and allows several views without refitting, while dense packed storage remains an explicit materialization rather than a prerequisite.
 
 Finite-sample cross-product estimates will remain signed and may be indefinite. Negative dissimilarities and eigenvalues will not be silently repaired. Information, effective-rank, and manifold summaries will require a model that supplies the positive-semidefinite object and units they assume.
 
@@ -146,8 +164,9 @@ The following rules apply to the whole system, not only version 0.1:
 - Scalarization occurs as late as practical. A scalar result must retain a route back to the relation, geometry, assumptions, and units that produced it.
 - Learned operations separate training, freezing, and held-out evaluation. Training data identities and fitted transformations are part of provenance.
 - Calibration remains distinct from effect estimation. A p-value or interval does not define the effect, and cross-validation does not by itself provide inference.
+- Sampling covariance is itself a queryable operator. It should be transported directly to the requested contrast, RDM model, or other view and materialized only when the complete covariance is scientifically required.
 - Extensions may not use an unrestricted per-location callback as their principal integration mechanism. They must state their inputs, outputs, invariants, and failure conditions.
-- Optimized kernels require an independent reference implementation and equivalence tests. Performance does not justify a second scientific semantics.
+- Optimization must remove work rather than alter the scientific question. Every optimized lowering requires an independent reference implementation, equivalence tests, and realistic runtime and memory gates. Approximate or randomized algorithms require an explicit error contract and a distinct estimator identity; performance never justifies silent semantic drift.
 - Compatibility adapters may read common artifacts and help users migrate, but the project will not reproduce `rMVPA`'s class hierarchy or dispatch behavior inside the core.
 - A feature that cannot reuse the common contracts belongs in an adjacent module, requires a deliberate extension of the algebra, or should not be added.
 
@@ -157,7 +176,7 @@ The first release should remain narrow, but its contracts must anticipate the la
 
 Development should proceed along six tracks:
 
-1. **Prove the core.** Build an independent dense oracle, executable algebraic laws, sparse streaming, and explicit resource preflight before optimizing for broad workflows.
+1. **Prove and accelerate the core.** Build an independent dense oracle and executable algebraic laws, then derive exact sparse, streamed, query-fused, and matrix-free lowerings from them. Set realistic brain-scale runtime and memory gates before broad workflows. Prefer eliminating algebraic work to distributing avoidable work.
 2. **Maintain a replacement map.** Track important `rMVPA` user journeys and classify each as core geometry, disciplined extension, adjacent system, or deliberate retirement. Record current support and the evidence needed to certify a replacement.
 3. **Build comparative exemplars.** Reproduce selected regional, searchlight, RSA, and cross-domain analyses on synthetic and public datasets. Compare matched estimands, scaling, and sampling rules—not merely similar-looking outputs or runtime.
 4. **Design migration without inheritance.** Provide adapters and guides for common matrices, `neuroim2` domains, effect images, masks, atlases, and design outputs. Explain conceptual translations from `rMVPA`; do not emulate its model specifications and result classes.
@@ -174,7 +193,7 @@ Version 0.1 will not attempt to reproduce the full `rMVPA` experience. It will o
 
 ## Definition of success
 
-The core succeeds when its optimized results reproduce an independent brute-force calculation, its units and generalization semantics are explicit, and voxel/searchlight/region/global computations differ only through declared measurement frames.
+The core succeeds when its optimized results reproduce an independent brute-force calculation, its units and generalization semantics are explicit, voxel/searchlight/region/global computations differ only through declared measurement frames, and its fast paths meet stated runtime and memory gates at realistic scale without changing the estimand.
 
 The broader system succeeds when:
 
@@ -183,6 +202,7 @@ The broader system succeeds when:
 - researchers can inspect coherent effect, spatial configuration, generalization structure, geometry, and scalar summaries without rerunning unrelated pipelines;
 - predictive and adaptive methods expose how they were trained and how held-out evidence was evaluated;
 - public-data exemplars and matched-estimand tests substantiate scientific and numerical claims;
+- realistic benchmarks show that shared algebra, sparse representations, query fusion, and streaming eliminate avoidable work without sacrificing exactness;
 - practical adapters and documentation make the improved semantics usable rather than merely theoretically attractive; and
 - new analyses no longer need `rMVPA` as their default implementation substrate.
 

@@ -6,11 +6,11 @@
 \usage{
 evaluate_geometry(
   x,
-  at,
-  over,
-  query,
+  at = NULL,
+  over = NULL,
+  query = NULL,
   component = c("total", "coherent", "configuration"),
-  compute = compute_policy(),
+  compute = NULL,
   reporter = NULL
 )
 }

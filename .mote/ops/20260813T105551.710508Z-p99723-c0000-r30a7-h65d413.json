@@ -1,0 +1,1 @@
+{"actor":"codex-effectgeom","entity":"bd-01KZXA5YPH5X54NS3XZ9B5P0F8","kind":"reserve_open","mode":"exclusive","op":"20260813T105551.710508Z-p99723-c0000-r30a7-h65d413","paths":["R/support-index.R","tests/testthat/test-support-index.R","benchmarks/run-support-index-benchmark.R"],"reservation_id":"rv-01KZXC77CYVWG4NJ0367MBMCR3","ts":"2026-08-13T10:55:51.710508Z","ttl_s":3600,"v":1}

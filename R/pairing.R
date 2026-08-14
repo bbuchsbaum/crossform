@@ -92,8 +92,22 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 
 #' Pair every distinct partition once
 #'
-#' @param partitions Partition identifiers or an `effect_relation`.
-#' @return An undirected pairing containing one row per unordered pair.
+#' Distinct partition estimates are declared independent endpoints for unbiased
+#' cross-products. The resulting pair rows are not independent sampling
+#' replicates: pairs that share a partition also share its estimation error.
+#' In particular, `sd(pair_values) / sqrt(number_of_pairs)` is not a valid
+#' standard error for their all-pairs mean. Under the fixed-metric,
+#' equal-partition separable model, use [rdm_sampling_covariance()] for the
+#' admitted analytic RDM covariance law.
+#'
+#' @param partitions Partition identifiers or an `effect_relation`. Pass
+#'   `fit$relation` when starting from `lm_relation_fit()`.
+#' @return An undirected pairing containing one row per unordered pair, with
+#'   normalized estimator weights. Its rows are computational contributions,
+#'   not a declaration of edge-level sampling independence.
+#' @references Diedrichsen J, Provost S, Zareamoghaddam H (2016),
+#'   "On the distribution of cross-validated Mahalanobis distances",
+#'   especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
 #' @export
 cross_partitions <- function(partitions) {
   if (inherits(partitions, "effect_relation")) {
@@ -106,6 +120,133 @@ cross_partitions <- function(partitions) {
   }
   edges <- utils::combn(partitions, 2L)
   pairing(edges[1L, ], edges[2L, ], directed = FALSE)
+}
+
+.partition_reducer <- function(kind = "weighted_sum") {
+  if (!is.character(kind) || length(kind) != 1L || is.na(kind) ||
+      !identical(kind, "weighted_sum")) {
+    stop("The supported partition reducer is `weighted_sum`.", call. = FALSE)
+  }
+  .new_partition_reducer("edge_first")
+}
+
+.validate_partition_reducer <- function(reducer) {
+  expected <- c("kind", "weight_convention", "order")
+  if (!inherits(reducer, "effect_partition_reducer") || !is.list(reducer) ||
+      !identical(names(reducer), expected) ||
+      !identical(reducer$kind, "weighted_sum") ||
+      !identical(reducer$weight_convention, "normalized_unit_mass") ||
+      !reducer$order %in% c("edge_first", "aggregate_first")) {
+    stop("Partition reducer fields are missing or noncanonical.", call. = FALSE)
+  }
+  invisible(reducer)
+}
+
+.ordered_partition_edges <- function(over, left_partitions, right_partitions,
+                                     same_relation = FALSE) {
+  .validate_pairing(over)
+  if (!is.character(left_partitions) || !is.character(right_partitions) ||
+      anyNA(left_partitions) || anyNA(right_partitions) ||
+      any(!nzchar(left_partitions)) || any(!nzchar(right_partitions)) ||
+      anyDuplicated(left_partitions) || anyDuplicated(right_partitions)) {
+    stop("Task partition families must have unique nonempty names.",
+      call. = FALSE)
+  }
+  if (!is.logical(same_relation) || length(same_relation) != 1L ||
+      is.na(same_relation)) {
+    stop("`same_relation` must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (any(!over$left %in% left_partitions) ||
+      any(!over$right %in% right_partitions)) {
+    stop("Ordered edge endpoints must identify their declared relation side.",
+      call. = FALSE)
+  }
+  undirected <- !isTRUE(attr(over, "directed"))
+  if (undirected && !same_relation) {
+    stop(paste0(
+      "An undirected compatibility pairing can only be expanded within one ",
+      "relation; cross-relation tasks require ordered endpoints."
+    ), call. = FALSE)
+  }
+
+  if (undirected) {
+    edge <- rep(seq_len(nrow(over)), each = 2L)
+    orientation <- rep(c("forward", "reverse"), nrow(over))
+    canonical_left <- pmin(over$left, over$right)
+    canonical_right <- pmax(over$left, over$right)
+    left <- as.vector(rbind(canonical_left, canonical_right))
+    right <- as.vector(rbind(canonical_right, canonical_left))
+    weight <- rep(over$weight / 2, each = 2L)
+  } else {
+    edge <- seq_len(nrow(over))
+    orientation <- rep("declared", nrow(over))
+    left <- over$left
+    right <- over$right
+    weight <- over$weight
+  }
+  value <- structure(
+    data.frame(
+      left = left,
+      right = right,
+      weight = weight,
+      input_edge = as.integer(edge),
+      orientation = orientation,
+      stringsAsFactors = FALSE
+    ),
+    source_estimate = attr(over, "estimate"),
+    expansion = if (undirected) "self_adjoint_half_edges" else "declared_order",
+    class = c("effect_ordered_edges", "data.frame")
+  )
+  .validate_ordered_partition_edges(
+    value, left_partitions, right_partitions, same_relation
+  )
+  value
+}
+
+.validate_ordered_partition_edges <- function(edges, left_partitions,
+                                              right_partitions,
+                                              same_relation) {
+  expected <- c("left", "right", "weight", "input_edge", "orientation")
+  if (!inherits(edges, "effect_ordered_edges") || !is.data.frame(edges) ||
+      !identical(names(edges), expected) || nrow(edges) < 1L ||
+      !is.character(edges$left) || !is.character(edges$right) ||
+      anyNA(edges$left) || anyNA(edges$right) ||
+      any(!edges$left %in% left_partitions) ||
+      any(!edges$right %in% right_partitions) ||
+      !is.numeric(edges$weight) || anyNA(edges$weight) ||
+      any(!is.finite(edges$weight)) || any(edges$weight < 0) ||
+      abs(sum(edges$weight) - 1) > 1e-12 ||
+      !is.integer(edges$input_edge) || any(edges$input_edge < 1L) ||
+      !is.character(edges$orientation)) {
+    stop("Ordered partition edges are missing or noncanonical.", call. = FALSE)
+  }
+  expansion <- attr(edges, "expansion", exact = TRUE)
+  if (!expansion %in% c("self_adjoint_half_edges", "declared_order")) {
+    stop("Ordered partition-edge expansion is missing or invalid.",
+      call. = FALSE)
+  }
+  if (identical(expansion, "self_adjoint_half_edges")) {
+    if (!isTRUE(same_relation) || nrow(edges) %% 2L != 0L ||
+        !identical(edges$orientation, rep(c("forward", "reverse"),
+          nrow(edges) / 2L))) {
+      stop("Self-adjoint ordered-edge expansion is inconsistent.",
+        call. = FALSE)
+    }
+    for (position in seq(1L, nrow(edges), by = 2L)) {
+      reverse <- position + 1L
+      if (!identical(edges$left[[position]], edges$right[[reverse]]) ||
+          !identical(edges$right[[position]], edges$left[[reverse]]) ||
+          !identical(edges$weight[[position]], edges$weight[[reverse]]) ||
+          !identical(edges$input_edge[[position]], edges$input_edge[[reverse]])) {
+        stop("Self-adjoint half edges do not form exact reverse pairs.",
+          call. = FALSE)
+      }
+    }
+  } else if (any(edges$orientation != "declared")) {
+    stop("Declared ordered edges have invalid orientation metadata.",
+      call. = FALSE)
+  }
+  invisible(edges)
 }
 
 #' Compute pairing-appropriate signed relation marginals

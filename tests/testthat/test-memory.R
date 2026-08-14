@@ -76,3 +76,40 @@ test_that("default plans contain no invented runtime RSS reserve", {
   expect_null(plan$baseline_rss_bytes)
   expect_null(plan$absolute_peak_rss_bytes)
 })
+
+test_that("dense matrix byte planning is exact and allocation-free in size", {
+  shapes <- list(c(0, 0), c(1, 1), c(4, 2), c(317, 41))
+  for (shape in shapes) {
+    expected <- as.double(utils::object.size(
+      matrix(0, shape[[1L]], shape[[2L]])
+    ))
+    expect_identical(
+      effectagram:::.dense_double_matrix_bytes(shape[[1L]], shape[[2L]]),
+      expected
+    )
+  }
+
+  # This represents a 20 GB matrix.  The assertion is safe precisely because
+  # the planner performs arithmetic and never constructs the matrix.
+  expect_identical(
+    effectagram:::.dense_double_matrix_bytes(50000, 50000),
+    20000000216
+  )
+  expect_error(
+    effectagram:::.dense_double_matrix_bytes(2^52, 2^52),
+    "overflows"
+  )
+})
+
+test_that("named array byte planning preserves metadata without values", {
+  dimensions <- c(31, 4, 3)
+  names <- list(NULL, paste0("effect_", seq_len(4)), paste0("run_", seq_len(3)))
+  expected <- as.double(utils::object.size(array(
+    0, dimensions, dimnames = names
+  )))
+
+  expect_identical(
+    effectagram:::.named_double_array_bytes(dimensions, names),
+    expected
+  )
+})

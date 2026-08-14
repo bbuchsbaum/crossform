@@ -92,9 +92,56 @@ factor_frame <- function(factors, locally_estimated = FALSE,
   )
 }
 
+#' Describe an axis-bound pair query
+#'
+#' A pair query is the universal rectangular readout. Its rows are bound to one
+#' ordered left effect space and its columns to one ordered right effect space;
+#' equal dimensions or labels do not substitute for identity.
+#'
+#' @param H A finite nonempty left-by-right numeric base or `Matrix` matrix.
+#' @param left_space,right_space The ordered `effect_space()` identities bound
+#'   to the rows and columns of `H`. Unique character coordinates are accepted
+#'   as shorthand for an unspecified-basis space.
+#' @param metadata Optional compact semantic metadata, used by higher-level
+#'   pair-design constructors for balance and design diagnostics.
+#' @return A fixed axis-bound pair query.
+#' @export
+pair_query <- function(H, left_space, right_space, metadata = list()) {
+  matrix_like <- (is.matrix(H) && is.numeric(H)) || inherits(H, "Matrix")
+  if (!matrix_like || any(dim(H) < 1L) || any(!is.finite(H))) {
+    stop("`H` must be a finite, nonempty numeric matrix.", call. = FALSE)
+  }
+  left_space <- .as_effect_space(left_space, nrow(H))
+  right_space <- .as_effect_space(right_space, ncol(H))
+  if ((!is.null(rownames(H)) &&
+      !identical(rownames(H), left_space$coordinates)) ||
+      (!is.null(colnames(H)) &&
+      !identical(colnames(H), right_space$coordinates))) {
+    stop("Named `H` axes must exactly match their ordered effect spaces.",
+      call. = FALSE)
+  }
+  if (!is.list(metadata)) {
+    stop("Pair-query `metadata` must be a list.", call. = FALSE)
+  }
+  structure(
+    list(
+      kind = "pair",
+      fixed = TRUE,
+      operator = H,
+      left_space = left_space,
+      right_space = right_space,
+      metadata = metadata
+    ),
+    class = c("effect_pair_query", "effect_query")
+  )
+}
+
 #' Describe a bilinear geometry query
 #'
-#' @param operator A finite square numeric matrix.
+#' This compatibility constructor describes a symmetric query on one effect
+#' space. Use `pair_query()` for distinct or unequal axes.
+#'
+#' @param operator A finite square symmetric numeric matrix.
 #' @param fixed Whether the query is fixed before local data are inspected.
 #' @param effects Optional `effect_space()` binding for the operator axes.
 #' @return A declarative query value.
@@ -104,6 +151,9 @@ bilinear_query <- function(operator, fixed = TRUE, effects = NULL) {
       nrow(operator) != ncol(operator) || nrow(operator) < 1L ||
       any(!is.finite(operator))) {
     stop("`operator` must be a finite, nonempty square numeric matrix.", call. = FALSE)
+  }
+  if (max(abs(operator - t(operator))) > 1e-12) {
+    stop("`operator` must be symmetric.", call. = FALSE)
   }
   if (!is.logical(fixed) || length(fixed) != 1L || is.na(fixed)) {
     stop("`fixed` must be TRUE or FALSE.", call. = FALSE)
@@ -160,6 +210,10 @@ compile_lowering <- function(frame, query) {
     return(.new_lowering("adaptive_query", FALSE,
       "the query depends on local data"))
   }
+  if (identical(query$kind, "pair")) {
+    return(.new_lowering("two_sided_pair_form", FALSE,
+      "ordered two-sided relation tasks are not compiled by this lowering yet"))
+  }
   if (!identical(query$kind, "bilinear")) {
     return(.new_lowering("nonlinear_readout", FALSE,
       "the readout is not bilinear in the local geometry"))
@@ -205,12 +259,14 @@ compile_lowering <- function(frame, query) {
   } else {
     stop("Unknown frame representation.", call. = FALSE)
   }
-  optional_names <- c("index", "domain_kind", "specification")
+  optional_names <- c("index", "domain_kind", "specification", "support_index")
   trailing_names <- names(frame)[length(expected_names) +
     seq_len(max(0L, length(frame) - length(expected_names)))]
+  valid_trailing <- identical(trailing_names, character()) ||
+    identical(trailing_names, utils::head(optional_names,
+      length(trailing_names)))
   if (!identical(names(frame)[seq_along(expected_names)], expected_names) ||
-      !(identical(trailing_names, character()) ||
-        identical(trailing_names, optional_names)) || anyDuplicated(names(frame))) {
+      !valid_trailing || anyDuplicated(names(frame))) {
     stop("Frame fields are missing or noncanonical.", call. = FALSE)
   }
   .validate_domain_id(frame$domain_id)
@@ -234,6 +290,16 @@ compile_lowering <- function(frame, query) {
     if (!identical(as.integer(ncol(weights)), domain$n_features)) {
       stop("Frame width is inconsistent with its exact neural domain.",
         call. = FALSE)
+    }
+    if (!is.null(frame$support_index)) {
+      support_index <- .validate_support_index(frame$support_index)
+      if (!.same_domain_reference(support_index$domain, domain) ||
+          length(support_index$node_ids) != nrow(weights) ||
+          (!is.null(frame$index) &&
+           !identical(support_index$node_ids, frame$index$measurement))) {
+        stop("Frame support topology is inconsistent with its spatial frame.",
+          call. = FALSE)
+      }
     }
     normalization <- frame$normalization
     if (!is.character(normalization) || length(normalization) != 1L ||
@@ -280,6 +346,35 @@ compile_lowering <- function(frame, query) {
   if (!inherits(query, "effect_query") || !is.list(query) ||
       !is.character(query$kind) || length(query$kind) != 1L || is.na(query$kind)) {
     stop("Query fields are missing or noncanonical.", call. = FALSE)
+  }
+  if (identical(query$kind, "pair")) {
+    expected <- c("kind", "fixed", "operator", "left_space", "right_space",
+      "metadata")
+    if (!inherits(query, "effect_pair_query") ||
+        !identical(names(query), expected) || !identical(query$fixed, TRUE)) {
+      stop("Pair-query fields are missing or noncanonical.", call. = FALSE)
+    }
+    operator <- query$operator
+    matrix_like <- (is.matrix(operator) && is.numeric(operator)) ||
+      inherits(operator, "Matrix")
+    if (!matrix_like || any(dim(operator) < 1L) || any(!is.finite(operator))) {
+      stop("Pair-query operators must be finite nonempty matrices.", call. = FALSE)
+    }
+    left_space <- .validate_effect_space(query$left_space)
+    right_space <- .validate_effect_space(query$right_space)
+    if (length(left_space$coordinates) != nrow(operator) ||
+        length(right_space$coordinates) != ncol(operator)) {
+      stop("Pair-query dimensions must match their bound effect spaces.",
+        call. = FALSE)
+    }
+    if (!is.list(query$metadata)) {
+      stop("Pair-query metadata must be a list.", call. = FALSE)
+    }
+    rebuilt <- pair_query(operator, left_space, right_space, query$metadata)
+    if (!identical(query, rebuilt)) {
+      stop("Pair-query fields are missing or noncanonical.", call. = FALSE)
+    }
+    return(invisible(rebuilt))
   }
   if (!identical(query$kind, "bilinear")) {
     if (!identical(query$kind, "nonlinear") ||

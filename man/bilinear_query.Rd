@@ -7,7 +7,7 @@
 bilinear_query(operator, fixed = TRUE, effects = NULL)
 }
 \arguments{
-\item{operator}{A finite square numeric matrix.}
+\item{operator}{A finite square symmetric numeric matrix.}
 
 \item{fixed}{Whether the query is fixed before local data are inspected.}
 
@@ -17,5 +17,6 @@ bilinear_query(operator, fixed = TRUE, effects = NULL)
 A declarative query value.
 }
 \description{
-Describe a bilinear geometry query
+This compatibility constructor describes a symmetric query on one effect
+space. Use `pair_query()` for distinct or unequal axes.
 }

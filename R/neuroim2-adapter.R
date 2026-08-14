@@ -107,12 +107,17 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
     stop("Every neuroim2 searchlight must contain at least one domain feature.",
       call. = FALSE)
   }
-  weights <- Matrix::sparseMatrix(
-    i = rep(seq_along(members), counts),
-    j = unlist(members, use.names = FALSE),
-    x = 1,
-    dims = c(length(members), domain$n_features)
+  support_index <- .support_index_from_members(
+    members, domain, centers,
+    construction = list(
+      kind = "euclidean_ball",
+      provider = "neuroim2_searchlight_indices",
+      radius = as.numeric(radius),
+      coordinate_units = domain$coordinate_units,
+      upstream_commit = "77b1ddb"
+    )
   )
+  weights <- .support_index_membership(support_index)
   weights <- .normalize_frame(weights, normalization)
   result <- additive_frame(weights, normalization = normalization,
     domain = domain)
@@ -121,5 +126,51 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
   result$specification <- list(kind = "neuroim2_searchlights",
     radius = as.numeric(radius), units = "mm", nonzero = TRUE,
     upstream_commit = "77b1ddb")
+  result$support_index <- support_index
   result
+}
+
+#' Map a compact result vector back to a neuroim2 volume
+#'
+#' The compact values are inserted at the exact full-volume indices carried by
+#' an effectagram volume domain. Features outside the domain receive `fill`.
+#' This is an output adapter only; it performs no interpolation, smoothing, or
+#' coordinate reinterpretation.
+#'
+#' @param values One finite numeric value per compact domain feature.
+#' @param mask The three-dimensional neuroim2 `NeuroVol` whose geometry defined
+#'   `domain`.
+#' @param domain The exact domain from [neuroim2_volume_domain()].
+#' @param fill Finite value written outside the compact domain.
+#' @param label Optional result-volume label.
+#' @return A neuroim2 `NeuroVol` with values at `domain$feature_ids`.
+#' @export
+as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
+                        label = "effectagram result") {
+  .require_neuroim2_searchlight_indices()
+  if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
+  .validate_domain(domain)
+  if (!identical(domain$kind, "volume")) {
+    stop("`domain` must be a volume domain.", call. = FALSE)
+  }
+  mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
+  if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
+    stop("`mask` and `domain` have incompatible exact volume geometry.",
+      call. = FALSE)
+  }
+  if (!is.numeric(values) || is.matrix(values) ||
+      length(values) != domain$n_features || any(!is.finite(values))) {
+    stop("`values` must provide one finite number per compact domain feature.",
+      call. = FALSE)
+  }
+  if (!is.numeric(fill) || length(fill) != 1L || is.nan(fill) ||
+      is.infinite(fill)) {
+    stop("`fill` must be one finite or missing numeric value.", call. = FALSE)
+  }
+  if (!is.character(label) || length(label) != 1L || is.na(label)) {
+    stop("`label` must be one character string.", call. = FALSE)
+  }
+  payload <- array(as.double(fill), dim = dim(mask))
+  payload[domain$feature_ids] <- as.double(values)
+  neuroim2::NeuroVol(payload, neuroim2::space(mask), label = label)
 }

@@ -1,0 +1,612 @@
+# Statistical envelopes for effect relations -------------------------------
+
+.residual_source <- function(dim, read, read_padded, stable_revision) {
+  if (!is.numeric(dim) || length(dim) != 2L || anyNA(dim) ||
+      any(!is.finite(dim)) || any(dim < 1L) || any(dim %% 1 != 0) ||
+      !is.function(read) || !is.function(read_padded) ||
+      !.strong_sha256(stable_revision)) {
+    stop("Residual-source metadata are invalid.", call. = FALSE)
+  }
+  structure(list(
+    dim = as.integer(dim),
+    read = read,
+    read_padded = read_padded,
+    stable_revision = stable_revision
+  ), class = "effect_residual_source")
+}
+
+.validate_whitener_descriptor <- function(x, deep = TRUE) {
+  if (!is.list(x) || !identical(names(x), if (identical(x$kind, "identity")) {
+    c("kind", "dim", "signature")
+  } else {
+    c("kind", "dim", "matrix_revision", "signature")
+  }) || !x$kind %in% c("identity", "explicit") ||
+      !is.integer(x$dim) || length(x$dim) != 2L || x$dim[[1L]] < 1L ||
+      x$dim[[1L]] != x$dim[[2L]] || !.strong_sha256(x$signature) ||
+      (identical(x$kind, "explicit") &&
+       !.strong_sha256(x$matrix_revision))) {
+    stop("Observation-whitener identity is invalid.", call. = FALSE)
+  }
+  if (isTRUE(deep)) {
+    semantic <- x[names(x) != "signature"]
+    expected <- paste0("sha256:", digest::digest(
+      semantic, algo = "sha256", serialize = TRUE
+    ))
+    if (!identical(x$signature, expected)) {
+      stop("Observation-whitener identity is inconsistent.", call. = FALSE)
+    }
+  }
+  x
+}
+
+.error_model_signature <- function(model) {
+  semantic <- list(
+    schema_version = 1L,
+    kind = model$kind,
+    assumptions = model$assumptions,
+    scale_convention = model$scale_convention,
+    effect_covariance = model$effect_covariance,
+    residual_df = model$residual_df,
+    sampling_unit = model$sampling_unit,
+    observation_whitener = model$observation_whitener,
+    source_revision = model$source_revision,
+    residual_revision = model$residual_source$stable_revision,
+    residual_dim = model$residual_source$dim,
+    estimator_provenance = model$estimator_provenance,
+    provenance = model$provenance
+  )
+  paste0("sha256:", digest::digest(
+    semantic, algo = "sha256", serialize = TRUE
+  ))
+}
+
+.separable_glm_error_model <- function(effect_covariance, residual_df,
+                                       sampling_unit,
+                                       observation_whitener,
+                                       source_revision, residual_source,
+                                       estimator_provenance,
+                                       provenance = list()) {
+  model <- structure(list(
+    kind = "separable_glm",
+    assumptions = c(
+      "matrix_normal_separable",
+      "shared_observation_covariance_across_neural_features",
+      "observation_whitener_treated_as_fixed"
+    ),
+    scale_convention = "neural_covariance_factor_excluded",
+    effect_covariance = effect_covariance,
+    residual_df = as.integer(residual_df),
+    sampling_unit = sampling_unit,
+    observation_whitener = observation_whitener,
+    source_revision = source_revision,
+    residual_source = residual_source,
+    estimator_provenance = estimator_provenance,
+    provenance = provenance,
+    signature = NA_character_
+  ), class = "effect_error_model")
+  model$signature <- .error_model_signature(model)
+  .validate_error_model(model, deep = TRUE)
+}
+
+.validate_error_model <- function(model, deep = TRUE) {
+  expected <- c("kind", "assumptions", "scale_convention",
+    "effect_covariance", "residual_df", "sampling_unit",
+    "observation_whitener", "source_revision", "residual_source",
+    "estimator_provenance", "provenance", "signature")
+  if (!inherits(model, "effect_error_model") || !is.list(model) ||
+      !identical(names(model), expected) ||
+      !identical(model$kind, "separable_glm") ||
+      !identical(model$assumptions, c(
+        "matrix_normal_separable",
+        "shared_observation_covariance_across_neural_features",
+        "observation_whitener_treated_as_fixed"
+      )) ||
+      !identical(model$scale_convention,
+        "neural_covariance_factor_excluded") ||
+      !is.matrix(model$effect_covariance) ||
+      !is.numeric(model$effect_covariance) ||
+      nrow(model$effect_covariance) < 1L ||
+      nrow(model$effect_covariance) != ncol(model$effect_covariance) ||
+      any(!is.finite(model$effect_covariance)) ||
+      max(abs(model$effect_covariance - t(model$effect_covariance))) > 1e-10 ||
+      !is.integer(model$residual_df) || length(model$residual_df) != 1L ||
+      is.na(model$residual_df) || model$residual_df < 1L ||
+      !is.character(model$sampling_unit) ||
+      length(model$sampling_unit) != 1L || is.na(model$sampling_unit) ||
+      !nzchar(model$sampling_unit) || !.strong_sha256(model$source_revision) ||
+      !is.list(model$estimator_provenance) || !is.list(model$provenance) ||
+      !.strong_sha256(model$signature)) {
+    stop("Error-model fields are missing or noncanonical.", call. = FALSE)
+  }
+  if (isTRUE(deep)) {
+    eigenvalues <- eigen(model$effect_covariance,
+      symmetric = TRUE, only.values = TRUE)$values
+    covariance_scale <- max(1, max(abs(diag(model$effect_covariance))))
+    if (min(eigenvalues) < -1e-10 * covariance_scale) {
+      stop("Effect-coordinate covariance must be positive semidefinite.",
+        call. = FALSE)
+    }
+  }
+  whitener <- .validate_whitener_descriptor(
+    model$observation_whitener, deep = deep
+  )
+  residual <- model$residual_source
+  if (!inherits(residual, "effect_residual_source") || !is.list(residual) ||
+      !identical(names(residual),
+        c("dim", "read", "read_padded", "stable_revision")) ||
+      !is.integer(residual$dim) || length(residual$dim) != 2L ||
+      residual$dim[[1L]] != whitener$dim[[1L]] ||
+      residual$dim[[2L]] < 1L || !is.function(residual$read) ||
+      !is.function(residual$read_padded) ||
+      !.strong_sha256(residual$stable_revision)) {
+    stop("Error-model residual source is invalid.", call. = FALSE)
+  }
+  if (isTRUE(deep) && !identical(model$signature,
+      .error_model_signature(model))) {
+    stop("Error-model identity is inconsistent.", call. = FALSE)
+  }
+  model
+}
+
+.error_capabilities <- function(model) {
+  present <- !is.null(model)
+  structure(list(
+    error_model = present,
+    residual_blocks = present,
+    effect_covariance = present,
+    residual_df = present,
+    separable_error = present,
+    learned_metric_input = present,
+    within_participant_calibration = present
+  ), class = "effect_error_capabilities")
+}
+
+.relation_fit_signature <- function(relation, error_models, provenance) {
+  semantic <- list(
+    schema_version = 1L,
+    relation = .relation_family_identity(relation),
+    errors = vapply(error_models, function(model) {
+      if (is.null(model)) NA_character_ else model$signature
+    }, character(1)),
+    provenance = provenance
+  )
+  paste0("sha256:", digest::digest(
+    semantic, algo = "sha256", serialize = TRUE
+  ))
+}
+
+#' Attach statistical error information to a relation
+#'
+#' `relation_fit()` keeps the mathematical `effect_relation` intact and adds a
+#' separate, capability-bearing error channel. A relation can remain valid
+#' without this envelope; operations that learn a neural metric or calibrate
+#' within-participant uncertainty must require the corresponding capability.
+#'
+#' @param relation A validated `effect_relation`.
+#' @param error_models Optional named list of internal error-model values, one
+#'   per relation partition. Omitting it records an explicitly absent channel.
+#' @param provenance Compact fit-level provenance.
+#' @return An `effect_relation_fit`.
+#' @export
+relation_fit <- function(relation, error_models = NULL, provenance = list()) {
+  .validate_relation(relation)
+  .compiler_capabilities(relation)
+  if (is.null(error_models)) {
+    error_models <- stats::setNames(
+      rep(list(NULL), length(relation$partitions)), relation$partitions
+    )
+  }
+  if (!is.list(error_models) ||
+      !identical(names(error_models), relation$partitions)) {
+    stop("`error_models` must provide one named value per relation partition.",
+      call. = FALSE)
+  }
+  error_models <- lapply(error_models, function(model) {
+    if (is.null(model)) NULL else .validate_error_model(model, deep = TRUE)
+  })
+  names(error_models) <- relation$partitions
+  .validate_effect_provenance(provenance, "relation-fit provenance")
+  capabilities <- lapply(error_models, .error_capabilities)
+  names(capabilities) <- relation$partitions
+  value <- structure(list(
+    relation = relation,
+    error_models = error_models,
+    capabilities = capabilities,
+    provenance = provenance,
+    signature = .relation_fit_signature(relation, error_models, provenance)
+  ), class = "effect_relation_fit")
+  .validate_relation_fit(value, deep = TRUE)
+}
+
+.validate_relation_fit <- function(x, deep = TRUE) {
+  expected <- c("relation", "error_models", "capabilities", "provenance",
+    "signature")
+  if (!inherits(x, "effect_relation_fit") || !is.list(x) ||
+      !identical(names(x), expected)) {
+    stop("Relation-fit fields are missing or noncanonical.", call. = FALSE)
+  }
+  .validate_relation(x$relation, deep = deep)
+  partitions <- x$relation$partitions
+  if (!is.list(x$error_models) ||
+      !identical(names(x$error_models), partitions) ||
+      !is.list(x$capabilities) ||
+      !identical(names(x$capabilities), partitions) ||
+      !is.list(x$provenance) || !.strong_sha256(x$signature)) {
+    stop("Relation-fit metadata are inconsistent.", call. = FALSE)
+  }
+  source_capabilities <- x$relation$capabilities
+  q <- length(x$relation$effects)
+  for (partition in partitions) {
+    model <- x$error_models[[partition]]
+    expected_capability <- .error_capabilities(model)
+    if (!identical(x$capabilities[[partition]], expected_capability)) {
+      stop("Relation-fit error capabilities are inconsistent.",
+        call. = FALSE)
+    }
+    if (is.null(model)) next
+    model <- .validate_error_model(model, deep = deep)
+    if (!identical(dim(model$effect_covariance), c(q, q)) ||
+        !identical(rownames(model$effect_covariance), x$relation$effects) ||
+        !identical(colnames(model$effect_covariance), x$relation$effects) ||
+        model$residual_source$dim[[2L]] != x$relation$n_features ||
+        is.null(source_capabilities) ||
+        !identical(tolower(model$source_revision),
+          tolower(source_capabilities[[partition]]$stable_revision))) {
+      stop("Relation-fit error model is incompatible with its relation.",
+        call. = FALSE)
+    }
+  }
+  if (isTRUE(deep)) {
+    .validate_effect_provenance(x$provenance, "relation-fit provenance")
+    expected_signature <- .relation_fit_signature(
+      x$relation, x$error_models, x$provenance
+    )
+    if (!identical(x$signature, expected_signature)) {
+      stop("Relation-fit identity is inconsistent.", call. = FALSE)
+    }
+  }
+  invisible(x)
+}
+
+.partition_values <- function(value, partitions, what, allow_null = FALSE) {
+  if (is.null(value)) {
+    if (!allow_null) stop(sprintf("`%s` cannot be NULL.", what), call. = FALSE)
+    return(stats::setNames(rep(list(NULL), length(partitions)), partitions))
+  }
+  if (!is.list(value) || is.data.frame(value) ||
+      inherits(value, "effect_space")) {
+    return(stats::setNames(rep(list(value), length(partitions)), partitions))
+  }
+  if (length(value) != length(partitions)) {
+    stop(sprintf("`%s` must supply one value per partition.", what),
+      call. = FALSE)
+  }
+  if (!is.null(names(value))) {
+    if (!setequal(names(value), partitions) || anyDuplicated(names(value))) {
+      stop(sprintf("Named `%s` values must exactly match partitions.", what),
+        call. = FALSE)
+    }
+    value <- value[partitions]
+  }
+  names(value) <- partitions
+  value
+}
+
+#' Fit a partitioned linear-model relation with a residual error channel
+#'
+#' The adapter compiles each supplied design once. Its pure effect map forms the
+#' underlying relation; its orthogonal residual projection, unscaled
+#' effect-coordinate covariance, residual degrees of freedom, and source
+#' revision form a separate separable-GLM error capability. Residual blocks are
+#' produced lazily without constructing a dense observation residualizer.
+#' This error channel is required by the admitted fixed-metric analytic RDM
+#' covariance in [rdm_sampling_covariance()]. The separable GLM is a declared
+#' capability: it assumes the supplied observation model yields a common
+#' effect-coordinate covariance structure across neural features and, for the
+#' equal-partition specialization, across partitions.
+#'
+#' @param sources Raw observation-by-feature sources accepted by `relation()`.
+#' @param design One design matrix, or one per partition.
+#' @param effects One effect target matrix, or one per partition.
+#' @param observation_whitener NULL, one observation whitener, or one per
+#'   partition.
+#' @param effect_names One common effect space/name vector, or one per partition.
+#' @param tolerance Positive rank and estimability tolerance.
+#' @param source_dims,partitions,domain,domain_id,capabilities Passed to
+#'   `relation()`.
+#' @param sampling_unit One nonempty sampling-unit label, or one per partition.
+#' @param provenance Compact estimator provenance.
+#' @param whiten Deprecated alias for `observation_whitener`.
+#' @return An `effect_relation_fit`.
+#' @export
+lm_relation_fit <- function(sources, design, effects,
+                            observation_whitener = NULL,
+                            effect_names = if (is.matrix(effects)) {
+                              rownames(effects)
+                            } else {
+                              NULL
+                            },
+                            tolerance = sqrt(.Machine$double.eps),
+                            source_dims = NULL, partitions = NULL,
+                            domain = NULL, domain_id = "abstract",
+                            capabilities = NULL,
+                            sampling_unit = "observation",
+                            provenance = list(), whiten = NULL) {
+  if (is.matrix(sources)) sources <- list(sources)
+  if (!is.list(sources) || length(sources) < 1L) {
+    stop("`sources` must be a matrix or nonempty list.", call. = FALSE)
+  }
+  if (is.null(partitions)) partitions <- names(sources)
+  if (is.null(partitions) || any(!nzchar(partitions))) {
+    partitions <- paste0("partition", seq_along(sources))
+  }
+  if (!is.character(partitions) || length(partitions) != length(sources) ||
+      anyNA(partitions) || any(!nzchar(partitions)) || anyDuplicated(partitions)) {
+    stop("Partitions must have unique nonempty names.", call. = FALSE)
+  }
+  names(sources) <- partitions
+  if (!missing(whiten) && !is.null(whiten)) {
+    if (!is.null(observation_whitener)) {
+      stop("Supply only `observation_whitener`; `whiten` is its deprecated alias.",
+        call. = FALSE)
+    }
+    warning("`whiten` is deprecated; use `observation_whitener`.",
+      call. = FALSE)
+    observation_whitener <- whiten
+  }
+  designs <- .partition_values(design, partitions, "design")
+  targets <- .partition_values(effects, partitions, "effects")
+  whiteners <- .partition_values(
+    observation_whitener, partitions, "observation_whitener",
+    allow_null = TRUE
+  )
+  names_by_partition <- .partition_values(
+    effect_names, partitions, "effect_names", allow_null = TRUE
+  )
+  if (!is.character(sampling_unit) || anyNA(sampling_unit) ||
+      any(!nzchar(sampling_unit)) ||
+      !length(sampling_unit) %in% c(1L, length(partitions))) {
+    stop("`sampling_unit` must provide one nonempty label per partition.",
+      call. = FALSE)
+  }
+  if (length(sampling_unit) == 1L) {
+    sampling_unit <- rep(sampling_unit, length(partitions))
+  }
+  names(sampling_unit) <- partitions
+  compiled <- lapply(partitions, function(partition) {
+    design_value <- designs[[partition]]
+    name_value <- names_by_partition[[partition]]
+    if (is.null(name_value)) {
+      name_value <- rownames(targets[[partition]])
+    }
+    resolved <- .resolve_observation_whitener(
+      whiteners[[partition]], NULL, nrow(design_value),
+      legacy_supplied = FALSE
+    )
+    .compile_lm_estimator(
+      design_value, targets[[partition]], resolved,
+      name_value, tolerance
+    )
+  })
+  names(compiled) <- partitions
+  if (any(vapply(compiled, function(value) value$residual_df < 1L,
+    logical(1)))) {
+    stop("Every fitted partition requires at least one residual degree of freedom.",
+      call. = FALSE)
+  }
+  relation_value <- relation(
+    sources, extract = lapply(compiled, `[[`, "extractor"),
+    source_dims = source_dims, partitions = partitions,
+    domain = domain, domain_id = domain_id, capabilities = capabilities,
+    provenance = c(provenance, list(adapter = "lm_relation_fit"))
+  )
+  source_capabilities <- .compiler_capabilities(relation_value)
+  error_models <- lapply(partitions, function(partition) {
+    source <- relation_value$sources[[partition]]
+    estimate <- compiled[[partition]]
+    source_revision <- source_capabilities[[partition]]$stable_revision
+    residual_semantic <- list(
+      source_revision = source_revision,
+      estimator = estimate$estimator_provenance$signature,
+      kind = "whitened_orthogonal_residuals"
+    )
+    residual_revision <- paste0("sha256:", digest::digest(
+      residual_semantic, algo = "sha256", serialize = TRUE
+    ))
+    residual_source <- .residual_source(
+      source$dim,
+      read = function(features) {
+        estimate$residualize(source$read(features))
+      },
+      read_padded = function(features, width) {
+        features <- .validate_source_features(features, source$dim[[2L]])
+        if (!is.numeric(width) || length(width) != 1L || is.na(width) ||
+            !is.finite(width) || width %% 1 != 0 ||
+            width < length(features)) {
+          stop("A padded residual width must be an integer at least as large as the feature block.",
+            call. = FALSE)
+        }
+        raw <- source$read(features)
+        if (!is.matrix(raw) || !is.numeric(raw) ||
+            !identical(dim(raw), c(source$dim[[1L]], length(features))) ||
+            any(!is.finite(raw))) {
+          stop("Response source returned an invalid observation-by-feature block.",
+            call. = FALSE)
+        }
+        padded <- matrix(0, source$dim[[1L]], as.integer(width))
+        padded[, seq_along(features)] <- raw
+        estimate$residualize(padded)
+      },
+      stable_revision = residual_revision
+    )
+    .separable_glm_error_model(
+      effect_covariance = estimate$effect_covariance,
+      residual_df = estimate$residual_df,
+      sampling_unit = sampling_unit[[partition]],
+      observation_whitener = estimate$observation_whitener,
+      source_revision = source_revision,
+      residual_source = residual_source,
+      estimator_provenance = estimate$estimator_provenance,
+      provenance = list(partition = partition)
+    )
+  })
+  names(error_models) <- partitions
+  relation_fit(
+    relation_value, error_models,
+    provenance = c(provenance, list(adapter = "lm_relation_fit"))
+  )
+}
+
+#' Inspect statistical capabilities of a relation or relation fit
+#'
+#' @param x An `effect_relation` or `effect_relation_fit`.
+#' @return A data frame with one row per partition and explicit capability flags.
+#' @export
+relation_fit_capabilities <- function(x) {
+  if (inherits(x, "effect_relation")) {
+    .validate_relation(x, deep = FALSE)
+    capabilities <- lapply(x$partitions, function(partition) {
+      .error_capabilities(NULL)
+    })
+    partitions <- x$partitions
+  } else {
+    .validate_relation_fit(x, deep = FALSE)
+    capabilities <- x$capabilities
+    partitions <- x$relation$partitions
+  }
+  values <- do.call(rbind, lapply(capabilities, function(value) {
+    as.data.frame(unclass(value), stringsAsFactors = FALSE)
+  }))
+  rownames(values) <- NULL
+  data.frame(partition = partitions, values, check.names = FALSE,
+    stringsAsFactors = FALSE)
+}
+
+.require_relation_fit_capability <- function(x, capability,
+                                             partitions = NULL) {
+  if (!is.character(capability) || length(capability) != 1L ||
+      is.na(capability) || !nzchar(capability)) {
+    stop("A capability requirement must be one nonempty identifier.",
+      call. = FALSE)
+  }
+  table <- relation_fit_capabilities(x)
+  if (!capability %in% names(table)) {
+    stop(sprintf("Unknown relation-fit capability `%s`.", capability),
+      call. = FALSE)
+  }
+  if (is.null(partitions)) partitions <- table$partition
+  if (!is.character(partitions) || any(!partitions %in% table$partition)) {
+    stop("Capability partitions must identify fitted relation partitions.",
+      call. = FALSE)
+  }
+  selected <- match(partitions, table$partition)
+  if (!all(table[[capability]][selected])) {
+    if (inherits(x, "effect_relation") ||
+        (inherits(x, "effect_relation_fit") &&
+         all(vapply(x$error_models, is.null, logical(1))))) {
+      stop(paste0(
+        "This relation was built from precomputed effects and has no ",
+        "residual error channel. `", capability, "` cannot be recovered ",
+        "from beta matrices alone. Start from raw responses with ",
+        "`lm_relation_fit()` when this capability is required."
+      ), call. = FALSE)
+    }
+    stop(sprintf(
+      "This operation requires relation-fit capability `%s` for every partition.",
+      capability
+    ), call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+.fit_partition <- function(x, partition) {
+  partitions <- x$relation$partitions
+  if (is.numeric(partition) && length(partition) == 1L && !is.na(partition) &&
+      partition %% 1 == 0 && partition >= 1L && partition <= length(partitions)) {
+    partition <- partitions[[as.integer(partition)]]
+  }
+  if (!is.character(partition) || length(partition) != 1L ||
+      is.na(partition) || !partition %in% partitions) {
+    stop("`partition` must identify one fitted relation partition.",
+      call. = FALSE)
+  }
+  partition
+}
+
+#' Read fitted residuals for a neural feature block
+#'
+#' @param x An `effect_relation_fit` with residual-block capability.
+#' @param partition One partition name or index.
+#' @param features Unique neural feature indices.
+#' @return A whitened residual-observation-by-feature matrix.
+#' @export
+residual_block <- function(x, partition, features) {
+  if (inherits(x, "effect_relation")) {
+    .require_relation_fit_capability(x, "residual_blocks")
+  }
+  .validate_relation_fit(x, deep = FALSE)
+  partition <- .fit_partition(x, partition)
+  .require_relation_fit_capability(x, "residual_blocks", partition)
+  features <- .validate_source_features(features, x$relation$n_features)
+  source <- x$error_models[[partition]]$residual_source
+  value <- source$read(features)
+  if (!is.matrix(value) || !is.numeric(value) ||
+      !identical(dim(value), c(source$dim[[1L]], length(features))) ||
+      any(!is.finite(value))) {
+    stop("Residual source returned an invalid observation-by-feature block.",
+      call. = FALSE)
+  }
+  value
+}
+
+.residual_padded_block <- function(x, partition, features, width) {
+  .validate_relation_fit(x, deep = FALSE)
+  partition <- .fit_partition(x, partition)
+  .require_relation_fit_capability(x, "residual_blocks", partition)
+  features <- .validate_source_features(features, x$relation$n_features)
+  if (!is.numeric(width) || length(width) != 1L || is.na(width) ||
+      !is.finite(width) || width %% 1 != 0 || width < length(features)) {
+    stop("`width` must be an integer at least as large as `features`.",
+      call. = FALSE)
+  }
+  source <- x$error_models[[partition]]$residual_source
+  value <- source$read_padded(features, as.integer(width))
+  if (!is.matrix(value) || !is.numeric(value) ||
+      !identical(dim(value), c(source$dim[[1L]], as.integer(width))) ||
+      any(!is.finite(value))) {
+    stop("Residual source returned an invalid fixed-width residual block.",
+      call. = FALSE)
+  }
+  value
+}
+
+#' Read the unscaled effect-coordinate covariance of a fitted partition
+#'
+#' @inheritParams residual_block
+#' @return A symmetric effect-by-effect covariance factor excluding neural
+#'   residual covariance.
+#' @export
+effect_covariance <- function(x, partition) {
+  if (inherits(x, "effect_relation")) {
+    .require_relation_fit_capability(x, "effect_covariance")
+  }
+  .validate_relation_fit(x, deep = FALSE)
+  partition <- .fit_partition(x, partition)
+  .require_relation_fit_capability(x, "effect_covariance", partition)
+  x$error_models[[partition]]$effect_covariance
+}
+
+#' Read residual degrees of freedom from a fitted partition
+#'
+#' @inheritParams residual_block
+#' @return One positive integer.
+#' @export
+residual_df <- function(x, partition) {
+  if (inherits(x, "effect_relation")) {
+    .require_relation_fit_capability(x, "residual_df")
+  }
+  .validate_relation_fit(x, deep = FALSE)
+  partition <- .fit_partition(x, partition)
+  .require_relation_fit_capability(x, "residual_df", partition)
+  x$error_models[[partition]]$residual_df
+}

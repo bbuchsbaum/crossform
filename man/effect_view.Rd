@@ -11,7 +11,9 @@ effect_view(
   receipt,
   index = NULL,
   metadata = list(),
-  effects = NULL
+  effects = NULL,
+  left_space = NULL,
+  right_space = NULL
 )
 }
 \arguments{
@@ -27,7 +29,10 @@ effect_view(
 
 \item{metadata}{Optional compact semantic metadata.}
 
-\item{effects}{The `effect_space()` to which the view coordinates refer.}
+\item{effects}{Compatibility self-space binding. Prefer `left_space` and
+`right_space` for rectangular views.}
+
+\item{left_space, right_space}{Optional ordered effect-space bindings.}
 }
 \value{
 A query-only `effect_view`.

@@ -7,7 +7,7 @@
 contrast(x, weights)
 }
 \arguments{
-\item{x}{A complete `effect_geometry`.}
+\item{x}{An `effect_geometry_plan` or complete `effect_geometry`.}
 
 \item{weights}{One finite contrast weight per named experimental effect.}
 }

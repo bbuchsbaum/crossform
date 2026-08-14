@@ -46,4 +46,10 @@ An `effect_relation`.
 Each source is read only by neural feature block. Extractors map its
 observation rows into one common named experimental space. Omitting
 `extract` declares that sources already contain effect-by-feature matrices.
+A relation made from precomputed effects supports point evidence but carries
+no residual error channel. Beta matrices alone cannot recover within-
+participant analytic uncertainty. If later work needs a learned neural
+metric or [rdm_sampling_covariance()], start from raw responses with
+[lm_relation_fit()]. Subject-level resampling answers a population question;
+it does not recreate discarded first-level residual information.
 }
