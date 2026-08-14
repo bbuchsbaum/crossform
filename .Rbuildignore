@@ -13,3 +13,5 @@
 ^vision\.md$
 ^benchmarks$
 ^benchmark-results$
+^doc$
+^Meta$
