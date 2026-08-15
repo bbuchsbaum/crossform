@@ -9,7 +9,9 @@
 #' @param self_pairs Whether diagonal self-products are forbidden or explicitly
 #'   admitted as noise-biased estimates.
 #' @param independence Whether distinct endpoint estimates are declared
-#'   independent. Self-products can only be marked `not_independent`.
+#'   independent. It must be stated explicitly for an independence-based
+#'   interpretation. `NULL` records `"undeclared"`; self-products must be
+#'   marked `"not_independent"`.
 #' @param generalizes_over Optional name of the sampling axis this pairing
 #'   generalizes across, such as `"run"`, `"session"`, or `"task"`. The axis
 #'   is part of the scientific estimand: cross-run and cross-session
@@ -20,10 +22,14 @@
 #' @export
 pairing <- function(left, right, weight = NULL, directed = FALSE,
                     self_pairs = c("forbid", "allow_biased"),
-                    independence = c("independent", "not_independent"),
+                    independence = NULL,
                     generalizes_over = NULL) {
   self_pairs <- match.arg(self_pairs)
-  independence <- match.arg(independence)
+  independence <- if (is.null(independence)) {
+    "undeclared"
+  } else {
+    match.arg(independence, c("independent", "not_independent"))
+  }
   if (!is.null(generalizes_over) &&
       (!is.character(generalizes_over) || length(generalizes_over) != 1L ||
        is.na(generalizes_over) || !nzchar(generalizes_over))) {
@@ -94,8 +100,10 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
   attr(ans, "generalizes_over") <- generalizes_over
   attr(ans, "estimate") <- if (any(is_self)) {
     "self_product_biased"
-  } else if (independence == "independent") {
+  } else if (identical(independence, "independent")) {
     "cross_generalized"
+  } else if (identical(independence, "undeclared")) {
+    "independence_undeclared"
   } else {
     "nonindependent_cross_product"
   }
@@ -116,6 +124,9 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 #'
 #' @param partitions Partition identifiers or an `effect_relation`. Pass
 #'   `fit$relation` when starting from `lm_relation_fit()`.
+#' @param independence Explicit endpoint-independence declaration. Leaving it
+#'   `NULL` preserves a point estimand but does not earn cross-generalized or
+#'   analytic sampling-law capabilities.
 #' @param generalizes_over Optional name of the sampling axis the partitions
 #'   represent, such as `"run"` or `"session"`; see [pairing()]. The declared
 #'   axis is bound into every plan identity built from this pairing.
@@ -126,7 +137,8 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 #'   "On the distribution of cross-validated Mahalanobis distances",
 #'   especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
 #' @export
-cross_partitions <- function(partitions, generalizes_over = NULL) {
+cross_partitions <- function(partitions, independence = NULL,
+                             generalizes_over = NULL) {
   if (inherits(partitions, "effect_relation")) {
     .validate_relation(partitions)
     partitions <- partitions$partitions
@@ -137,6 +149,7 @@ cross_partitions <- function(partitions, generalizes_over = NULL) {
   }
   edges <- utils::combn(partitions, 2L)
   pairing(edges[1L, ], edges[2L, ], directed = FALSE,
+    independence = independence,
     generalizes_over = generalizes_over)
 }
 
@@ -365,7 +378,7 @@ pairing_marginals <- function(local, over, mass = 1) {
     stop("Pairing self-product policy is missing or invalid.", call. = FALSE)
   }
   if (!is.character(independence) || length(independence) != 1L ||
-      !independence %in% c("independent", "not_independent")) {
+      !independence %in% c("independent", "not_independent", "undeclared")) {
     stop("Pairing independence semantics are missing or invalid.", call. = FALSE)
   }
   generalizes_over <- attr(over, "generalizes_over", exact = TRUE)
@@ -400,8 +413,10 @@ pairing_marginals <- function(local, over, mass = 1) {
   }
   expected_estimate <- if (any(is_self)) {
     "self_product_biased"
-  } else if (independence == "independent") {
+  } else if (identical(independence, "independent")) {
     "cross_generalized"
+  } else if (identical(independence, "undeclared")) {
+    "independence_undeclared"
   } else {
     "nonindependent_cross_product"
   }

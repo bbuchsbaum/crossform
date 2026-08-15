@@ -11,7 +11,7 @@ sampling_kernel_fixture <- function(dimension = 7L) {
   )
   evidence <- plan_geometry(
     fit$relation, compile_frame(whole_brain(), domain),
-    cross_partitions(fit$relation)
+    cross_partitions(fit$relation, independence = "independent")
   )
   base <- list(fit = fit, evidence = evidence)
   set.seed(81321)
@@ -71,7 +71,7 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
   five_plan <- effectagram:::.compile_evidence_sampling_plan(
     plan_geometry(
       five_fit$relation, compile_frame(whole_brain(), domain),
-      cross_partitions(five_fit$relation)
+      cross_partitions(five_fit$relation, independence = "independent")
     ),
     five_fit
   )

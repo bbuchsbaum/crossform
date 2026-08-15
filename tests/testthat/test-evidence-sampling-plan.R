@@ -12,7 +12,8 @@ sampling_plan_fixture <- function(partitions = 3L,
   )
   frame <- compile_frame(whole_brain(), domain)
   evidence <- plan_geometry(
-    fit$relation, frame, cross_partitions(fit$relation)
+    fit$relation, frame,
+    cross_partitions(fit$relation, independence = "independent")
   )
   list(fit = fit, evidence = evidence)
 }

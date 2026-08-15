@@ -515,7 +515,7 @@ print.effect_crossnobis_plan <- function(x, ...) {
 #' plan <- plan_geometry(
 #'   relation,
 #'   compile_frame(whole_brain(), domain),
-#'   cross_partitions(relation),
+#'   cross_partitions(relation, independence = "independent"),
 #'   metric = noise_precision(diag(3), domain)
 #' )
 #' result <- crossnobis(plan, c(a = 1, b = -1))

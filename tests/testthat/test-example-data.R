@@ -24,7 +24,7 @@ test_that("the generated fixture supports the complete newcomer workflow", {
 
   plan <- plan_geometry(
     example$fit$relation, example$frame,
-    cross_partitions(example$fit$relation)
+    cross_partitions(example$fit$relation, independence = "independent")
   )
   effect <- contrast(plan, example$contrast)
   distances <- rdm(plan)

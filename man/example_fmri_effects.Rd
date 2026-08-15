@@ -50,7 +50,7 @@ under `exemplars/haxby2001` for the public-data parity workflow.
 example <- example_fmri_effects()
 plan <- plan_geometry(
   example$fit$relation, example$frame,
-  cross_partitions(example$fit$relation)
+  cross_partitions(example$fit$relation, independence = "independent")
 )
 distances <- rdm(plan)
 dim(distances$values)

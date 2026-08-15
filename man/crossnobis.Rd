@@ -43,7 +43,7 @@ relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
 plan <- plan_geometry(
   relation,
   compile_frame(whole_brain(), domain),
-  cross_partitions(relation),
+  cross_partitions(relation, independence = "independent"),
   metric = noise_precision(diag(3), domain)
 )
 result <- crossnobis(plan, c(a = 1, b = -1))

@@ -27,7 +27,7 @@ every unmet requirement with its remedy, without computing anything.
 example <- example_fmri_effects()
 plan <- plan_geometry(
   example$fit$relation, example$frame,
-  cross_partitions(example$fit$relation)
+  cross_partitions(example$fit$relation, independence = "independent")
 )
 sampling_capabilities(plan, example$fit)$available
 sampling_capabilities(plan)$reasons$reason

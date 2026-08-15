@@ -244,7 +244,7 @@
 #' plan <- plan_geometry(
 #'   relation,
 #'   compile_frame(voxels(), domain),
-#'   cross_partitions(relation)
+#'   cross_partitions(relation, independence = "independent")
 #' )
 #' result <- evaluate_geometry(plan, query = bilinear_query(diag(2)))
 #' result

@@ -8,7 +8,9 @@ compiler_fixture <- function() {
   ), ncol = 2, byrow = TRUE), id = "line:v1")
   rel <- relation(list(run1 = run1, run2 = run2), domain = domain)
   at <- compile_frame(searchlights(radius = 1.01, normalization = "local"), domain)
-  list(relation = rel, at = at, over = cross_partitions(rel$partitions),
+  list(relation = rel, at = at, over = cross_partitions(
+    rel$partitions, independence = "independent"
+  ),
     matrices = list(run1 = run1, run2 = run2), domain = domain)
 }
 
@@ -169,7 +171,8 @@ test_that("compiler reuses one admitted file handle across feature blocks", {
   domain <- abstract_domain(8)
   rel <- relation(list(run1 = descriptor, run2 = descriptor),
     effects = c("a", "b"), domain = domain)
-  got <- geometry(rel, compile_frame(whole_brain(), domain), cross_partitions(rel),
+  got <- geometry(rel, compile_frame(whole_brain(), domain),
+    cross_partitions(rel, independence = "independent"),
     compute = compute_policy(block_features = 2))
 
   expect_identical(got$metadata$source_session$distinct_owned_handles, 1L)
@@ -199,7 +202,8 @@ test_that("compiler hashes a file source once at session admission", {
   rel <- relation(list(run1 = descriptor, run2 = descriptor),
     effects = c("a", "b"), domain = domain)
 
-  geometry(rel, compile_frame(whole_brain(), domain), cross_partitions(rel),
+  geometry(rel, compile_frame(whole_brain(), domain),
+    cross_partitions(rel, independence = "independent"),
     compute = compute_policy(block_features = 1))
 
   expect_identical(hashes, 1L)
@@ -216,7 +220,7 @@ test_that("compile and budget failures occur before opaque source reads", {
     source_dims = list(c(2, 4), c(2, 4)), effects = c("a", "b"),
     capabilities = source_capabilities(TRUE, stable_revision = revision))
   at <- compile_frame(voxels(), abstract_domain(4))
-  over <- cross_partitions(rel$partitions)
+  over <- cross_partitions(rel$partitions, independence = "independent")
 
   expect_error(evaluate_geometry(rel, at, over, matrix(1, 2, 1)),
     "packed-coordinate")
@@ -239,7 +243,7 @@ test_that("a feasible workspace budget drives smaller legal tiles", {
   rel <- relation(matrices, domain = domain)
   weights <- matrix(runif(m * p), m, p)
   at <- additive_frame(weights, domain = domain)
-  over <- cross_partitions(rel)
+  over <- cross_partitions(rel, independence = "independent")
   query <- matrix(1, 6, 1)
   requirements <- effectagram:::.component_requirements(query, "total")
   unconstrained <- effectagram:::.compiler_memory_plan(
@@ -299,7 +303,9 @@ test_that("exact domain mismatches fail before lazy source reads", {
     capabilities = source_capabilities(TRUE, stable_revision = revision))
   at <- additive_frame(diag(4), domain = reversed_domain)
 
-  expect_error(geometry(rel, at, cross_partitions(rel)), "exact neural-domain")
+  expect_error(geometry(rel, at,
+    cross_partitions(rel, independence = "independent")),
+  "exact neural-domain")
   expect_identical(reads, 0L)
 })
 
@@ -310,7 +316,8 @@ test_that("volume spacing participates in compiler domain identity", {
   matrices <- list(run1 = matrix(1, 2, 4), run2 = matrix(2, 2, 4))
   rel <- relation(matrices, effects = c("a", "b"), domain = first)
 
-  expect_error(geometry(rel, compile_frame(voxels(), changed), cross_partitions(rel)),
+  expect_error(geometry(rel, compile_frame(voxels(), changed),
+    cross_partitions(rel, independence = "independent")),
     "exact neural-domain")
 })
 
@@ -324,7 +331,8 @@ test_that("opaque sources without revisions fail before reading", {
     source_dims = list(c(2, 3), c(2, 3)), effects = c("a", "b"))
   at <- compile_frame(voxels(), abstract_domain(3))
 
-  expect_error(geometry(rel, at, cross_partitions(rel$partitions)),
+  expect_error(geometry(rel, at,
+    cross_partitions(rel$partitions, independence = "independent")),
     "explicit `source_capabilities")
   expect_identical(reads, 0L)
 })
@@ -343,7 +351,8 @@ test_that("kernel failure removes only newly created block stores", {
   path <- tempfile("failed-geometry-")
   condition <- tryCatch(
     geometry(rel, compile_frame(voxels(), abstract_domain(4)),
-      cross_partitions(rel$partitions), storage = "block", storage_path = path,
+      cross_partitions(rel$partitions, independence = "independent"),
+      storage = "block", storage_path = path,
       compute = compute_policy(block_features = 2)),
     effect_execution_error = identity
   )

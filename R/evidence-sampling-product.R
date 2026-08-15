@@ -358,7 +358,8 @@
 #' )
 #' plan <- plan_geometry(
 #'   fit$relation, compile_frame(whole_brain(), domain),
-#'   cross_partitions(fit$relation), metric = metric
+#'   cross_partitions(fit$relation, independence = "independent"),
+#'   metric = metric
 #' )
 #' uncertainty <- rdm_sampling_covariance(plan, fit, target = "null")
 #' sqrt(sampling_covariance(uncertainty))
@@ -451,7 +452,7 @@ rdm_sampling_covariance <- function(
 #' example <- example_fmri_effects()
 #' plan <- plan_geometry(
 #'   example$fit$relation, example$frame,
-#'   cross_partitions(example$fit$relation)
+#'   cross_partitions(example$fit$relation, independence = "independent")
 #' )
 #' sampling_capabilities(plan, example$fit)$available
 #' sampling_capabilities(plan)$reasons$reason

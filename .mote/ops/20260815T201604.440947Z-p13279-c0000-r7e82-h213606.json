@@ -1,0 +1,1 @@
+{"actor":"codex-effectgeom","entity":"bd-01M03BNDXGEBXN0TFP5F3MV1CN","kind":"reserve_open","mode":"exclusive","op":"20260815T201604.440947Z-p13279-c0000-r7e82-h213606","paths":["[\"tests/testthat/test-compiler.R\",\"tests/testthat/test-crossnobis-known.R\"]"],"reservation_id":"rv-01M03H2EAR1KNF1W0MDK404W77","ts":"2026-08-15T20:16:04.440947Z","ttl_s":3600,"v":1}

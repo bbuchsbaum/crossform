@@ -18,7 +18,7 @@ test_that("capability refusals are classed conditions with structured fields", {
   fixture <- refusal_fixture()
   plan <- plan_geometry(
     fixture$fit$relation, fixture$frame,
-    cross_partitions(fixture$fit$relation)
+    cross_partitions(fixture$fit$relation, independence = "independent")
   )
   refusal <- catch_refusal(
     rdm_sampling_covariance(plan, fixture$fit$relation, target = "null")
@@ -94,7 +94,7 @@ test_that("a learned-frozen metric is refused by admission, not by accident", {
   )
   plan <- plan_geometry(
     fixture$fit$relation, fixture$frame,
-    cross_partitions(fixture$fit$relation),
+    cross_partitions(fixture$fit$relation, independence = "independent"),
     metric = learned_metric
   )
   descriptor <- effectagram:::.sampling_evidence_descriptor(plan)
@@ -114,7 +114,7 @@ test_that("an omitted calibration target refuses as a classed condition", {
   fixture <- refusal_fixture(domain_id = "refusal-target-domain")
   plan <- plan_geometry(
     fixture$fit$relation, fixture$frame,
-    cross_partitions(fixture$fit$relation)
+    cross_partitions(fixture$fit$relation, independence = "independent")
   )
   refusal <- catch_refusal(rdm_sampling_covariance(plan, fixture$fit))
   expect_identical(refusal$capability, "calibration_target_declared")
@@ -174,7 +174,7 @@ test_that("sampling capabilities can be asked for instead of provoked", {
   fixture <- refusal_fixture(domain_id = "refusal-introspection-domain")
   plan <- plan_geometry(
     fixture$fit$relation, fixture$frame,
-    cross_partitions(fixture$fit$relation)
+    cross_partitions(fixture$fit$relation, independence = "independent")
   )
   granted <- sampling_capabilities(plan, fixture$fit)
   expect_s3_class(granted, "effect_sampling_capabilities")
@@ -195,7 +195,11 @@ test_that("the plan print surfaces metric status and generalization", {
   fixture <- refusal_fixture(domain_id = "refusal-print-domain")
   plan <- plan_geometry(
     fixture$fit$relation, fixture$frame,
-    cross_partitions(fixture$fit$relation, generalizes_over = "run")
+    cross_partitions(
+      fixture$fit$relation,
+      independence = "independent",
+      generalizes_over = "run"
+    )
   )
   printed <- paste(utils::capture.output(print(plan)), collapse = "\n")
   expect_match(printed, "metric:")

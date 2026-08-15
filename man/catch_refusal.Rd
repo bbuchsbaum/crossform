@@ -29,7 +29,7 @@ relation <- relation(
 refusal <- catch_refusal(
   rdm_sampling_covariance(
     plan_geometry(relation, compile_frame(whole_brain(), domain),
-      cross_partitions(relation)),
+      cross_partitions(relation, independence = "independent")),
     relation, target = "null"
   )
 )

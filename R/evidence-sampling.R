@@ -645,7 +645,10 @@
         "the partition pairing is not the complete, equally weighted set of ",
         "unordered partition pairs that the analytic law covers"
       ),
-      remedy = "Pair with `cross_partitions()` over all partitions."
+      remedy = paste0(
+        "Pair with `cross_partitions(..., independence = \"independent\")` ",
+        "over all partitions when that assumption is justified."
+      )
     ),
     endpoint_independence_not_declared = list(
       why = paste0(
@@ -653,8 +656,9 @@
         "independent"
       ),
       remedy = paste0(
-        "Declare `pairing(..., independence = \"independent\")` only when ",
-        "the partitions are truly independent."
+        "Declare `cross_partitions(..., independence = \"independent\")` or ",
+        "`pairing(..., independence = \"independent\")` only when the ",
+        "partition endpoints are truly independent."
       )
     ),
     sampling_axis_missing_or_inconsistent = list(

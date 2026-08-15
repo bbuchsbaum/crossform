@@ -72,7 +72,7 @@
   relations <- stats::setNames(lapply(partitions, function(partition) {
     matrix(stats::rnorm(q * p), q, p)
   }), partitions)
-  over <- cross_partitions(partitions)
+  over <- cross_partitions(partitions, independence = "independent")
   reader <- function(partition, features) {
     relations[[partition]][, features, drop = FALSE]
   }

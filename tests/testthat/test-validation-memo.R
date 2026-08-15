@@ -31,7 +31,8 @@ memo_sweep_fixture <- function() {
     provenance = list(source = "memo-sweep-fixed-metric")
   )
   plan <- plan_geometry(
-    fit$relation, at = frame, over = cross_partitions(fit$relation),
+    fit$relation, at = frame,
+    over = cross_partitions(fit$relation, independence = "independent"),
     metric = metric
   )
   list(plan = plan, fit = fit, nodes = nrow(frame$weights))
@@ -105,7 +106,9 @@ test_that("a fixed-metric geometry view matches the pre-optimization path", {
   fixture <- memo_sweep_fixture()
   bare <- plan_geometry(
     fixture$fit$relation, at = fixture$plan$frame,
-    over = cross_partitions(fixture$fit$relation)
+    over = cross_partitions(
+      fixture$fit$relation, independence = "independent"
+    )
   )
   view <- function(plan) {
     value <- rdm(plan)

@@ -28,7 +28,7 @@ test_that("the README fixed-metric uncertainty journey runs end to end", {
   fixed_plan <- plan_geometry(
     fit$relation,
     at = compile_frame(whole_brain(), domain),
-    over = cross_partitions(fit$relation),
+    over = cross_partitions(fit$relation, independence = "independent"),
     metric = known_precision
   )
   distance_estimate <- rdm(fixed_plan)

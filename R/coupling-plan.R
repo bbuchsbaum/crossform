@@ -38,7 +38,7 @@
 #' )
 #' plan <- plan_geometry(
 #'   relation, compile_frame(regions(c("r1", "r1", "r2", "r2")), domain),
-#'   cross_partitions(relation)
+#'   cross_partitions(relation, independence = "independent")
 #' )
 #' form <- coupling(
 #'   plan, cbind("r1", "r2"),

@@ -9,6 +9,23 @@ local_fixture <- function() {
   )
 }
 
+test_that("cross-partition independence is never silently granted", {
+  undeclared <- cross_partitions(c("run-1", "run-2", "run-3"))
+  declared <- cross_partitions(
+    c("run-1", "run-2", "run-3"), independence = "independent"
+  )
+
+  expect_identical(attr(undeclared, "independence"), "undeclared")
+  expect_identical(attr(undeclared, "estimate"),
+    "independence_undeclared")
+  expect_identical(attr(declared, "independence"), "independent")
+  expect_identical(attr(declared, "estimate"), "cross_generalized")
+  expect_false(identical(
+    effectagram:::.metric_pairing_identity(undeclared),
+    effectagram:::.metric_pairing_identity(declared)
+  ))
+})
+
 test_that("undirected marginals are invariant to every stored edge orientation", {
   local <- local_fixture()
   p1 <- pairing(

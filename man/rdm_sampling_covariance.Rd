@@ -69,7 +69,8 @@ metric <- noise_precision(
 )
 plan <- plan_geometry(
   fit$relation, compile_frame(whole_brain(), domain),
-  cross_partitions(fit$relation), metric = metric
+  cross_partitions(fit$relation, independence = "independent"),
+  metric = metric
 )
 uncertainty <- rdm_sampling_covariance(plan, fit, target = "null")
 sqrt(sampling_covariance(uncertainty))

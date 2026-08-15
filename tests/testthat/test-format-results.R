@@ -64,7 +64,7 @@ test_that("crossnobis views print and coerce without losing signs", {
   plan <- plan_geometry(
     relation,
     compile_frame(voxels(), domain),
-    cross_partitions(relation),
+    cross_partitions(relation, independence = "independent"),
     metric = noise_precision(diag(3), domain)
   )
   view <- crossnobis(plan, c(a = 1, b = -1))

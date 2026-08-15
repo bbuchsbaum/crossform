@@ -25,7 +25,7 @@ sampling_product_fixture <- function(conditions = 4L, features = 6L,
   )
   evidence <- plan_geometry(
     fit$relation, compile_frame(whole_brain(), domain),
-    cross_partitions(fit$relation),
+    cross_partitions(fit$relation, independence = "independent"),
     metric = noise_precision(
       solve(covariance), domain, covariance = covariance,
       provenance = list(source = "simulation_truth")
@@ -127,7 +127,8 @@ test_that("overlapping supports reuse one exact sparse residual statistic", {
   fixture <- sampling_product_fixture(features = 9L)
   frame <- compile_frame(searchlights(2.01), fixture$domain)
   evidence <- plan_geometry(
-    fixture$fit$relation, frame, cross_partitions(fixture$fit$relation),
+    fixture$fit$relation, frame,
+    cross_partitions(fixture$fit$relation, independence = "independent"),
     metric = noise_precision(
       solve(fixture$covariance), fixture$domain,
       covariance = fixture$covariance,
@@ -171,7 +172,8 @@ test_that("one-node sampling queries do not compile whole-frame residual state",
   fixture <- sampling_product_fixture(features = 9L)
   frame <- compile_frame(searchlights(2.01), fixture$domain)
   evidence <- plan_geometry(
-    fixture$fit$relation, frame, cross_partitions(fixture$fit$relation),
+    fixture$fit$relation, frame,
+    cross_partitions(fixture$fit$relation, independence = "independent"),
     metric = noise_precision(
       solve(fixture$covariance), fixture$domain,
       covariance = fixture$covariance,

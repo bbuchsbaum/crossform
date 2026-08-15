@@ -4,11 +4,15 @@
 \alias{cross_partitions}
 \title{Pair every distinct partition once}
 \usage{
-cross_partitions(partitions, generalizes_over = NULL)
+cross_partitions(partitions, independence = NULL, generalizes_over = NULL)
 }
 \arguments{
 \item{partitions}{Partition identifiers or an `effect_relation`. Pass
 `fit$relation` when starting from `lm_relation_fit()`.}
+
+\item{independence}{Explicit endpoint-independence declaration. Leaving it
+`NULL` preserves a point estimand but does not earn cross-generalized or
+analytic sampling-law capabilities.}
 
 \item{generalizes_over}{Optional name of the sampling axis the partitions
 represent, such as `"run"` or `"session"`; see [pairing()]. The declared

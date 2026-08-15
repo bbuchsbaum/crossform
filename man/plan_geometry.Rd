@@ -55,7 +55,7 @@ relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
 plan <- plan_geometry(
   relation,
   compile_frame(voxels(), domain),
-  cross_partitions(relation)
+  cross_partitions(relation, independence = "independent")
 )
 result <- evaluate_geometry(plan, query = bilinear_query(diag(2)))
 result

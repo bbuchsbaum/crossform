@@ -51,7 +51,7 @@ crossnobis_signal_fixture <- function(seed = 8401, signal = 0.7,
     observation_whitener = observation_whitener
   )
   relation <- fit$relation
-  over <- cross_partitions(relation)
+  over <- cross_partitions(relation, independence = "independent")
   metric <- noise_precision(
     solve(covariance), domain, covariance = covariance,
     provenance = list(source = "simulation_truth")
@@ -170,7 +170,8 @@ test_that("crossnobis retains signed negative finite estimates", {
   relation <- relation(list(run1 = first, run2 = second), domain = domain)
   frame <- compile_frame(whole_brain(), domain)
   plan <- plan_geometry(
-    relation, frame, cross_partitions(relation),
+    relation, frame,
+    cross_partitions(relation, independence = "independent"),
     metric = noise_precision(diag(3), domain)
   )
   value <- crossnobis(plan, c(baseline = 0, condition = 1))$values
@@ -203,13 +204,13 @@ test_that("known-metric evidence is invariant to consistent neural scaling", {
   transformed <- relation(transformed_values, domain = transformed_domain)
   original_plan <- plan_geometry(
     original, compile_frame(whole_brain(), domain),
-    cross_partitions(original),
+    cross_partitions(original, independence = "independent"),
     metric = noise_precision(K, domain, covariance = covariance)
   )
   transformed_covariance <- T %*% covariance %*% T
   transformed_plan <- plan_geometry(
     transformed, compile_frame(whole_brain(), transformed_domain),
-    cross_partitions(transformed),
+    cross_partitions(transformed, independence = "independent"),
     metric = noise_precision(
       solve(transformed_covariance), transformed_domain,
       covariance = transformed_covariance
@@ -246,13 +247,13 @@ test_that("known-metric evidence is invariant to an identified permutation", {
   changed <- relation(permuted_values, domain = permuted_domain)
   original_plan <- plan_geometry(
     original, compile_frame(whole_brain(), domain),
-    cross_partitions(original),
+    cross_partitions(original, independence = "independent"),
     metric = noise_precision(K, domain, covariance = covariance)
   )
   permuted_covariance <- covariance[permutation, permutation, drop = FALSE]
   changed_plan <- plan_geometry(
     changed, compile_frame(whole_brain(), permuted_domain),
-    cross_partitions(changed),
+    cross_partitions(changed, independence = "independent"),
     metric = noise_precision(
       K[permutation, permutation, drop = FALSE], permuted_domain,
       covariance = permuted_covariance
@@ -380,7 +381,9 @@ test_that("known-metric Monte Carlo recovers null and planted targets", {
     })
     fit <- lm_relation_fit(raw, design, effects, domain = domain)
     plan <- plan_geometry(
-      fit$relation, frame, cross_partitions(fit$relation), metric = metric
+      fit$relation, frame,
+      cross_partitions(fit$relation, independence = "independent"),
+      metric = metric
     )
     estimates[replication, ] <- vapply(contrasts, function(contrast) {
       unname(crossnobis(plan, contrast)$values)
@@ -413,7 +416,7 @@ test_that("crossnobis is the named total of the metric-carrying contrast", {
   precision <- diag(c(1, 2, 0.5, 1.5))
   plan <- plan_geometry(
     relation, compile_frame(whole_brain(), domain),
-    cross_partitions(relation),
+    cross_partitions(relation, independence = "independent"),
     metric = noise_precision(precision, domain, covariance = solve(precision))
   )
   weights <- c(a = 1, b = -1, c = 0)

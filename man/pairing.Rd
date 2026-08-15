@@ -10,7 +10,7 @@ pairing(
   weight = NULL,
   directed = FALSE,
   self_pairs = c("forbid", "allow_biased"),
-  independence = c("independent", "not_independent"),
+  independence = NULL,
   generalizes_over = NULL
 )
 }
@@ -26,7 +26,9 @@ to sum to one.}
 admitted as noise-biased estimates.}
 
 \item{independence}{Whether distinct endpoint estimates are declared
-independent. Self-products can only be marked `not_independent`.}
+independent. It must be stated explicitly for an independence-based
+interpretation. `NULL` records `"undeclared"`; self-products must be
+marked `"not_independent"`.}
 
 \item{generalizes_over}{Optional name of the sampling axis this pairing
 generalizes across, such as `"run"`, `"session"`, or `"task"`. The axis

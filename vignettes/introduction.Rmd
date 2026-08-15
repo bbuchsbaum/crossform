@@ -47,7 +47,7 @@ identity, not mutable spatial construction data.
 plan <- plan_geometry(
   example$fit$relation,
   at = example$frame,
-  over = cross_partitions(example$fit$relation)
+  over = cross_partitions(example$fit$relation, independence = "independent")
 )
 plan
 ```
@@ -233,7 +233,9 @@ rel <- relation(
   domain = native_domain
 )
 frame <- compile_frame(searchlights(radius = 6), native_domain)
-plan <- plan_geometry(rel, frame, cross_partitions(rel))
+plan <- plan_geometry(
+  rel, frame, cross_partitions(rel, independence = "independent")
+)
 ```
 
 This is enough for `contrast()`, `rdm()`, and `rsa()`. Beta matrices do not

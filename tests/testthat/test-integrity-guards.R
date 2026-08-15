@@ -14,7 +14,7 @@ integrity_fixture <- function(domain = NULL,
   )
   plan <- plan_geometry(
     fit$relation, compile_frame(frame_spec, domain),
-    cross_partitions(fit$relation)
+    cross_partitions(fit$relation, independence = "independent")
   )
   list(fit = fit, plan = plan, domain = domain)
 }
@@ -77,7 +77,9 @@ test_that("conservative frames conserve total evidence; local frames do not", {
   global_plan <- plan_geometry(
     conservative$fit$relation,
     compile_frame(whole_brain("none"), domain),
-    cross_partitions(conservative$fit$relation)
+    cross_partitions(
+      conservative$fit$relation, independence = "independent"
+    )
   )
   global_view <- contrast(global_plan, weights)
   expect_equal(sum(local_view$total), global_view$total, tolerance = 1e-10)
