@@ -221,8 +221,9 @@ measurements, subjects, and conditions changes the scientific claim. The
 distinctive formalization here is narrower: \(\Gamma\) participates in the
 identity of **every** effect-form estimand, not only the final inferential
 procedure. The axis is typed, not inferred from labels:
-`cross_partitions(relation, generalizes_over = "run")` and the same call with
-`"session"` produce distinct plan identities even under identical generic
+`cross_partitions(relation, independence = "independent",
+generalizes_over = "run")` and the same call with `"session"` produce distinct
+plan identities even under identical generic
 partition names and identical fold counts, and identity tests enforce it.
 Runs, sessions, tasks, item sets, sites, and ordered cross-domains can all be
 represented by named pairing relations.
@@ -251,7 +252,7 @@ reverse-engineered from the spread of their edges. Refusals are classed
 conditions: `catch_refusal()` returns the missing capability, every unmet
 reason, and remedies as data, and `sampling_capabilities()` answers the
 admission question before it is provoked. The executable
-[failure gallery](failure-gallery.md) shows five realistic errors that the
+[failure gallery](failure-gallery.md) shows six realistic errors that the
 package guards against. Callable unsupported interpretations return classed
 refusals; clipping is absent rather than offered as a biased option; and
 changes in generalization produce distinct estimand identities.
@@ -268,6 +269,7 @@ be audited rather than believed.
 
 | Claim | Status | Evidence artifact and boundary |
 |---|---|---|
+| Raw observations to identified relation | **Demonstrated** | A versioned four-run fixture binds unequal observation axes, timed events, scan-level confounds, censoring, semantic effects, and fixed or learned observation models; it agrees with direct extractor/relation oracles, the legacy `lm_relation_fit()` route, and the installed `fmrireg` adapter before proceeding through geometry, RDM, RSA, and admitted covariance: [`test-first-moment-vertical-slice.R`](tests/testthat/test-first-moment-vertical-slice.R), [`run-first-moment-vertical-slice.R`](benchmarks/run-first-moment-vertical-slice.R), and the [from-observations vignette](vignettes/from-observations.Rmd). This proves one serious linear vertical slice, not general BIDS or GLM coverage. |
 | Two-sided evidence-pairing laws | **Established algebraically** | Forward, adjoint, scalar, rectangular, reversal, decomposition, and tomography identities against independent bounded oracles: [`helper-evidence-pairing-laws.R`](tests/testthat/helper-evidence-pairing-laws.R), [`helper-effect-form-laws.R`](tests/testthat/helper-effect-form-laws.R), [`test-tomography.R`](tests/testthat/test-tomography.R). Algebraic and software evidence, not a scientific benchmark. |
 | Crossnobis point parity | **Demonstrated** | The Haxby 2001 exemplar agrees with an independent loop to `1.33e-15` and rMVPA to `8.88e-16` over 577 VT searchlights: [`exemplars/haxby2001`](exemplars/haxby2001/). Matched crossvalidated squared-Euclidean/crossnobis estimand, not correlation distance. |
 | Error-bearing refit and linear uncertainty transport | **Demonstrated under an admitted model** | Refit reproduces the point RDM to `4.44e-16`; a fixed linear RSA coefficient consumes factorized analytic covariance: [`exemplars/haxby2001`](exemplars/haxby2001/), [`test-evidence-sampling-kernel.R`](tests/testthat/test-evidence-sampling-kernel.R), [`test-evidence-sampling-generative.R`](tests/testthat/test-evidence-sampling-generative.R). Boundary: the declared equal-partition, fixed-metric, separable plug-in model. |
@@ -310,7 +312,8 @@ sections are promoted only as these gates land:
    recorded result artifact.
 6. **Failure gallery:** executable safeguards for correlation-distance
    normalization, negative clipping, destructive demeaning claims,
-   generalization identity changes, and learned-metric leakage. **Landed:**
+   generalization identity changes, undeclared independence, and
+   learned-metric leakage. **Landed:**
    see the [failure gallery](failure-gallery.md). Callable unsupported
    interpretations use classed refusals; the gallery also documents absent
    transformations and estimand-identity guards.

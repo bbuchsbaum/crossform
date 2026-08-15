@@ -1,0 +1,319 @@
+---
+title: "How do observations become a representational analysis?"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{How do observations become a representational analysis?}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(effectagram)
+```
+
+This guide starts before the beta matrices. Its question is: **how can raw
+observation-by-feature responses become a cross-run geometry without letting
+design coding, censoring, or solver choices silently redefine the requested
+effects?**
+
+The answer uses two plans. `plan_relation()` identifies the first-moment
+request; `plan_geometry()` identifies the second-moment request. Between them,
+portable receipts record what actually happened.
+
+## Build a small study from facts
+
+The example has three runs, three named conditions, twelve neural features,
+and two censored scans per run. The event rows, observation clocks, confounds,
+and partition hierarchy are facts. They do not decide which terms are nuisance,
+which sampling unit matters, or what must generalize.
+
+```{r facts}
+set.seed(20260815)
+partitions <- paste0("run-", 1:3)
+n_scan <- 18L
+conditions <- c("face", "body", "tool")
+domain <- abstract_domain(12L, id = "from-observations:v1")
+
+condition <- factor(
+  rep(conditions, length.out = n_scan),
+  levels = conditions
+)
+indicator <- stats::model.matrix(~ condition - 1)
+colnames(indicator) <- conditions
+motion <- sin(seq(0, 2 * pi, length.out = n_scan))
+drift <- seq(-1, 1, length.out = n_scan)
+design <- cbind(indicator, drift = drift, motion = motion)
+rownames(design) <- as.character(seq_len(n_scan))
+
+truth <- matrix(
+  rnorm(length(conditions) * domain$n_features, sd = 0.35),
+  nrow = length(conditions),
+  dimnames = list(conditions, domain$feature_ids)
+)
+nuisance_truth <- matrix(
+  rnorm(2L * domain$n_features, sd = 0.08),
+  nrow = 2L
+)
+response_runs <- stats::setNames(lapply(partitions, function(partition) {
+  design[, conditions, drop = FALSE] %*% truth +
+    design[, c("drift", "motion"), drop = FALSE] %*% nuisance_truth +
+    matrix(rnorm(n_scan * domain$n_features, sd = 0.4),
+      nrow = n_scan)
+}), partitions)
+
+scan_indexes <- stats::setNames(lapply(partitions, function(partition) {
+  observation_index(
+    seq_len(n_scan), partition,
+    time = seq(0, by = 2, length.out = n_scan), units = "seconds"
+  )
+}), partitions)
+
+event_table <- do.call(rbind, lapply(partitions, function(partition) {
+  data.frame(
+    partition = partition,
+    event_id = paste0(partition, "-", seq_len(n_scan)),
+    onset = seq(0, by = 2, length.out = n_scan),
+    duration = 0,
+    condition = as.character(condition)
+  )
+}))
+confound_table <- do.call(rbind, lapply(partitions, function(partition) {
+  data.frame(
+    partition = partition,
+    observation_id = seq_len(n_scan),
+    motion = motion,
+    retained = seq_len(n_scan) <= 16L
+  )
+}))
+
+facts <- study(
+  observations(response_runs, scan_indexes, domain),
+  events(event_table),
+  observation_confounds(confound_table, censor = "retained"),
+  partition_hierarchy(data.frame(
+    partition = partitions,
+    run = partitions,
+    session = "session-1",
+    subject = "subject-1"
+  ))
+)
+facts
+study_capabilities(facts)
+```
+
+`study()` joins by declared partition and observation identifiers, never by
+positional luck. It also checks that event intervals and scan clocks use the
+same units and coverage. The condition and motion columns still have no model
+role.
+
+## Declare effects before choosing coefficient coding
+
+The scientific coordinates are the three condition amplitudes. The identity
+effect map requests all three so the downstream relation has a named condition
+axis. A contrast such as face minus body will be asked later without refitting.
+
+```{r semantic-effects}
+condition_coordinates <- condition_space(
+  conditions,
+  basis_id = "scan-level-condition-mean:v1",
+  units = "arbitrary-BOLD"
+)
+effect_weights <- diag(length(conditions))
+dimnames(effect_weights) <- list(conditions, conditions)
+named_effects <- effect_map(effect_weights, condition_coordinates)
+```
+
+The compiled design uses cell means plus drift and motion. Its parameterization
+declares how coefficient coordinates reconstruct the semantic condition means:
+
+```{r design-model}
+condition_from_coefficients <- cbind(
+  diag(length(conditions)), drift = 0, motion = 0
+)
+dimnames(condition_from_coefficients) <- list(
+  conditions, colnames(design)
+)
+parameterization <- coefficient_parameterization(
+  condition_from_coefficients,
+  condition_coordinates,
+  coding_id = "cell-means-plus-nuisance"
+)
+
+designs <- stats::setNames(
+  rep(list(design), length(partitions)), partitions
+)
+parameterizations <- stats::setNames(
+  rep(list(parameterization), length(partitions)), partitions
+)
+declared_design <- design_model(
+  specification = list(
+    target = "scan-level condition means",
+    nuisance = c("linear drift", "declared motion covariate"),
+    censor_policy = "use the bound retained column"
+  ),
+  conditions = condition_coordinates,
+  designs = designs,
+  parameterizations = parameterizations,
+  row_ids = lapply(scan_indexes, `[[`, "observation_id"),
+  solver = "qr",
+  protocol = "from-observations-example",
+  protocol_version = "1",
+  package_version = "1"
+)
+```
+
+This explicit design constructor is the small self-contained route. A
+conforming external compiler can own the event grammar and HRF construction;
+effectagram requires it to emit the same semantic identity and portable
+receipt fields.
+
+## Compose the first-moment estimand
+
+The observation model is an assumption declaration. Here OLS is fixed, scans
+are the sampling unit, and run independence is asserted explicitly. None of
+those claims is inferred from the event table or run labels.
+
+```{r relation-plan}
+noise_model <- observation_model(
+  "ols",
+  sampling_unit = "scan",
+  independence = "runs independently acquired conditional on the model"
+)
+relation_request <- plan_relation(
+  facts,
+  declared_design,
+  named_effects,
+  noise_model
+)
+relation_request
+compiler_conformance(relation_request)
+```
+
+`plan_relation()` compiles and validates design metadata without reading the
+neural values. Non-estimable effects refuse here with the partition, rank,
+aliased regressors, cause, and remedies.
+
+The identity ladder separates the scientific request from its realized route:
+
+```{r identity-ladder}
+receipts <- relation_plan_receipts(relation_request)
+fit <- estimate(relation_request)
+data.frame(
+  object = c("relation plan", "run-1 design receipt", "fitted relation"),
+  identity = substr(c(
+    relation_request$relation_plan_id,
+    receipts$`run-1`$design_receipt_id,
+    fit$signature
+  ), 1, 32)
+)
+```
+
+Changing QR to SVD or using a supported treatment coding changes the receipt,
+not the condition-space request. Changing the named functional, units,
+observation law, or independence declaration changes the plan. `fit$signature`
+then binds that plan provenance, realized receipts, and observation revisions.
+
+## Continue into geometry without an ingestion-specific analysis engine
+
+`estimate()` emits the same `effect_relation_fit` consumed everywhere else in
+the package. The second-moment API does not branch on how the relation was
+obtained.
+
+```{r geometry}
+frame <- compile_frame(
+  regions(rep(paste0("roi-", 1:3), each = 4L), normalization = "local"),
+  domain
+)
+generalization <- cross_partitions(
+  fit$relation,
+  independence = "independent",
+  generalizes_over = "run"
+)
+geometry_plan <- plan_geometry(fit$relation, frame, generalization)
+
+face_minus_body <- c(face = 1, body = -1, tool = 0)
+effect <- contrast(geometry_plan, face_minus_body)
+distances <- rdm(geometry_plan)
+
+tool_category <- outer(
+  c(face = 0, body = 0, tool = 1),
+  c(face = 0, body = 0, tool = 1),
+  function(left, right) as.numeric(left != right)
+)
+model_fit <- rsa(geometry_plan, models = list(tool = tool_category))
+
+round(cbind(
+  signed = effect$signed,
+  coherent = effect$coherent,
+  configuration = effect$configuration,
+  total = effect$total
+), 3)
+round(distances$values, 3)
+round(model_fit$coefficients, 3)
+```
+
+The point outputs inherit one exact spatial accounting:
+
+```{r downstream-checks, include=FALSE}
+stopifnot(
+  isTRUE(all.equal(
+    effect$total,
+    effect$coherent + effect$configuration,
+    tolerance = 1e-12
+  )),
+  identical(dim(distances$values), c(3L, 3L)),
+  identical(dim(model_fit$coefficients), c(3L, 2L)),
+  all(as.matrix(compiler_conformance(relation_request)[-1L]))
+)
+```
+
+Because the fit retained residuals and the plan declared a fixed observation
+model and endpoint independence, the admitted analytic RDM variance is also
+available:
+
+```{r uncertainty}
+distance_covariance <- rdm_sampling_covariance(
+  geometry_plan, fit, target = "plugin", at = 1L
+)
+round(sqrt(sampling_covariance(distance_covariance)), 3)
+```
+
+That is within-participant uncertainty under the stated separable fixed-model
+law. It is not population inference, and a learned frozen whitener would keep
+the point relation while withholding this analytic channel.
+
+## Use adapters without making the core BIDS-shaped
+
+`bids_events()` maps one task `events.tsv` per declared partition into
+`events()`. `bids_confounds()` maps row-aligned confound tables into
+`observation_confounds()` and requires an explicit censor column if censoring
+is intended. `bids_study()` returns the same generic `study()` used above.
+Arbitrary event and confound columns are preserved; model roles are still
+assigned by the design compiler.
+
+```{r bids-adapter, eval=FALSE}
+facts <- bids_study(
+  declared_observations,
+  event_files = named_event_tsvs,
+  confound_files = named_confound_tsvs,
+  partitions = names(named_event_tsvs),
+  censor = "retained"
+)
+```
+
+`fmridesign_design_model()` adapts the certified `fmridesign` version into a
+semantic design model. `fmrireg_relation()` independently executes an OLS
+relation plan for point-estimate parity; it deliberately withholds an analytic
+error channel rather than translating unsupported standard errors.
+
+If only already compiled matrices are available, use `raw_design_model()` with
+`raw_effect_map()`. That path remains valid, but the concrete `(X, T)` values
+become identity-bearing and the fit cannot claim symbolic coding invariance.
+If only beta matrices remain, `relation()` supports point geometry while
+honestly lacking a residual channel.
+
+The distinction is the whole discipline: facts describe what was observed;
+`plan_relation()` composes the scientific request and assumptions; receipts
+record the realized compiler route; `estimate()` reads the data; and
+`plan_geometry()` asks what must reproduce.

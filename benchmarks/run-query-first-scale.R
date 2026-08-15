@@ -77,7 +77,10 @@ run_query_first_worker <- function(repo, result_path, ready_path,
   frame <- compile_frame(
     searchlights(radius = 4, normalization = "local"), domain
   )
-  plan <- plan_geometry(relation, frame, cross_partitions(relation))
+  plan <- plan_geometry(
+    relation, frame,
+    cross_partitions(relation, independence = "independent")
+  )
 
   # Selected edges: one hundred pairs spread across pair space.
   all_pairs <- t(utils::combn(seq_len(q), 2L))

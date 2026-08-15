@@ -21,12 +21,42 @@ articles:
 - title: Start here
   navbar: ~
   contents:
+  - from-observations
   - introduction
 - title: Advanced evidence forms
   contents:
   - evidence-pairing
 
 reference:
+- title: From observations to a fitted relation
+  desc: Typed facts, condition-space effects, relation plans, design receipts, and optional compiler adapters.
+  contents:
+  - observation_index
+  - observations
+  - events
+  - observation_confounds
+  - partition_hierarchy
+  - study
+  - study_axis
+  - study_capabilities
+  - condition_space
+  - effect_map
+  - coefficient_parameterization
+  - lower_effect_map
+  - design_model
+  - raw_design_model
+  - raw_effect_map
+  - observation_model
+  - plan_relation
+  - relation_plan_receipts
+  - compiler_conformance
+  - estimate
+  - bids_events
+  - bids_confounds
+  - bids_study
+  - fmridesign_design_model
+  - fmrireg_relation
+
 - title: Start a representational analysis
   desc: The small public surface for relations, spatial measurements, generalization, and scientific views.
   contents:

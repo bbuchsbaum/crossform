@@ -44,7 +44,7 @@ extractors <- lapply(seq_len(r), function(index) {
   design <- matrix(rnorm(n * q), nrow = n, ncol = q)
   qr.solve(crossprod(design), t(design))
 })
-over <- cross_partitions(partitions)
+over <- cross_partitions(partitions, independence = "independent")
 
 rows <- rep(seq_len(m), each = scenario$support)
 columns <- as.integer(unlist(lapply(seq_len(m), function(row) {

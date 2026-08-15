@@ -68,7 +68,7 @@ fit <- lm_relation_fit(
 )
 evidence <- plan_geometry(
   fit$relation, compile_frame(whole_brain(), fixture_domain),
-  cross_partitions(fit$relation)
+  cross_partitions(fit$relation, independence = "independent")
 )
 plan <- effectagram:::.compile_evidence_sampling_plan(
   evidence, fit,

@@ -223,6 +223,12 @@ the full distance-by-distance matrix.
 
 ## Use your own data
 
+The full raw-observation route is executable in
+`vignette("from-observations", package = "effectagram")`. It binds observation
+clocks, event and confound facts, a semantic condition-space effect map, an
+observation model, portable design receipts, and the resulting fit before
+entering the geometry layer.
+
 If independent runs already contain condition-by-feature estimates, construct a
 point relation directly:
 
@@ -242,8 +248,8 @@ This is enough for `contrast()`, `rdm()`, and `rsa()`. Beta matrices do not
 contain the residual information needed for within-participant analytic
 uncertainty.
 
-When raw observation-by-feature responses and a design are available, preserve
-that capability from the start:
+When raw observation-by-feature responses and an already compiled design are
+available, the older direct fit remains the compact degenerate route:
 
 ```{r own-raw, eval=FALSE}
 fit <- lm_relation_fit(
@@ -256,9 +262,11 @@ fit <- lm_relation_fit(
 )
 ```
 
-`effectagram` does not construct event designs, HRFs, nuisance regressors,
-temporal whitening, masks, or registrations. Those upstream choices remain
-explicit.
+The typed `plan_relation()` route can instead consume a semantic
+`design_model()` or the exact-version `fmridesign_design_model()` adapter.
+`effectagram` owns the identities, receipts, capabilities, and refusals; it
+does not replace HRF grammars, general GLM engines, preprocessing, masks, or
+registration. Those upstream choices remain explicit and identity-bearing.
 
 ## Why correlation distance is not an option to `rdm()`
 
@@ -284,7 +292,7 @@ repository's `correlation-distance-policy.md`.
 - `?rdm_sampling_covariance` states the admitted analytic covariance
   contract, and `?sampling_capabilities` answers the admission question
   before it is provoked.
-- The repository's `failure-gallery.md` shows five realistic errors the
+- The repository's `failure-gallery.md` shows six realistic errors the
   package guards against through classed refusals, deliberately absent
   transformations, or distinct estimand identities.
 - The Haxby 2001 exemplar supplies public-data parity and refusal evidence.

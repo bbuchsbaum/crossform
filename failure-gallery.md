@@ -17,7 +17,7 @@ library(effectagram)
 example <- example_fmri_effects()
 plan <- plan_geometry(
   example$fit$relation, example$frame,
-  cross_partitions(example$fit$relation)
+  cross_partitions(example$fit$relation, independence = "independent")
 )
 ```
 
@@ -86,11 +86,19 @@ an estimator knob:
 ```r
 run_plan <- plan_geometry(
   example$fit$relation, example$frame,
-  cross_partitions(example$fit$relation, generalizes_over = "run")
+  cross_partitions(
+    example$fit$relation,
+    independence = "independent",
+    generalizes_over = "run"
+  )
 )
 session_plan <- plan_geometry(
   example$fit$relation, example$frame,
-  cross_partitions(example$fit$relation, generalizes_over = "session")
+  cross_partitions(
+    example$fit$relation,
+    independence = "independent",
+    generalizes_over = "session"
+  )
 )
 identical(run_plan$scientific_plan_id, session_plan$scientific_plan_id)
 #> FALSE
@@ -100,7 +108,30 @@ The two plans compute identical numbers from these inputs and still carry
 distinct identities, because they estimate different things. An executor
 cannot silently substitute one for the other.
 
-## 5. Uncertainty that was never earned
+## 5. Independence that was never declared
+
+Different run labels and off-diagonal pairing do not prove statistical
+independence. Point geometry remains available, but an analytic covariance law
+that consumes endpoint independence refuses if the declaration is absent:
+
+```r
+undeclared_plan <- plan_geometry(
+  example$fit$relation, example$frame,
+  cross_partitions(example$fit$relation)
+)
+rdm_sampling_covariance(
+  undeclared_plan, example$fit, target = "null"
+)
+```
+
+> Sampling covariance is unavailable because the pairing does not declare its
+> partition endpoints statistically independent.
+
+Refusal capability: `sampling_covariance`. The remedy is to declare
+`independence = "independent"` only when the acquisition and observation model
+justify it; changing that declaration changes the estimand identity.
+
+## 6. Uncertainty that was never earned
 
 Two ways pipelines manufacture error bars, both refused.
 

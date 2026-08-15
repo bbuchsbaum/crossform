@@ -454,10 +454,10 @@ The implementation must satisfy all laws below.
 16. Semantic and conformance failures that can be known from metadata occur
     before the first neural source read.
 
-The initial independent fixture file certifies Laws 1--7 at the algebra and
-identity-model level. Production tests must replace fixture-only evidence as
-each public type lands; the independent oracle remains to prevent production
-code from becoming its own judge.
+Independent fixtures certify the algebra and identity model, while the public
+vertical-slice court exercises every production type through the downstream
+geometry and covariance APIs. The independent oracle remains separate so the
+production implementation never becomes its own judge.
 
 ## 12. External compiler adapters
 
@@ -488,11 +488,9 @@ or change their numerical estimand.
 `ingested_geometry`, `first_level_rsa`, or parallel downstream engine is
 introduced.
 
-The current pairing default that silently treats partitions as independent is
-outside this first-moment implementation's authority to reinterpret. Before a
-public path consumes ingestion-derived independence, that path must require an
-explicit declaration or an earned guarantee and must record the choice in its
-estimand identity.
+The pairing default records independence as undeclared. A public path that
+needs cross-partition independence must require an explicit declaration or an
+earned guarantee, and the choice remains part of estimand identity.
 
 ## 14. Explicit non-goals for version 0.2
 

@@ -1,0 +1,15 @@
+test_that("the first-moment guide preserves the public identity ladder", {
+  path <- testthat::test_path("..", "..", "vignettes", "from-observations.Rmd")
+  if (!file.exists(path)) skip("Source vignette is not installed")
+  text <- paste(readLines(path, warn = FALSE), collapse = "\n")
+
+  expect_match(text, "plan_relation\\(", fixed = FALSE)
+  expect_match(text, "relation_plan_receipts\\(", fixed = FALSE)
+  expect_match(text, "fit\\$signature", fixed = FALSE)
+  expect_match(text, "estimate\\(relation_request\\)", fixed = FALSE)
+  expect_match(text, "plan_geometry\\(", fixed = FALSE)
+  expect_match(text, 'independence = "independent"', fixed = TRUE)
+  expect_match(text, 'generalizes_over = "run"', fixed = TRUE)
+  expect_match(text, "raw_design_model\\(\\)", fixed = FALSE)
+  expect_match(text, "BIDS-shaped", fixed = TRUE)
+})

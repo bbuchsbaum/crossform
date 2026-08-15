@@ -68,7 +68,7 @@ run_public_map_worker <- function(repo, result_path, ready_path, repetitions) {
   frame <- compile_frame(
     searchlights(radius = 4, normalization = "local"), domain
   )
-  over <- cross_partitions(relation)
+  over <- cross_partitions(relation, independence = "independent")
   implicit_plan <- plan_geometry(relation, frame, over)
 
   metric_elapsed <- system.time({
@@ -108,7 +108,7 @@ run_public_map_worker <- function(repo, result_path, ready_path, repetitions) {
   )
   sampling_plan <- plan_geometry(
     sampling_fit$relation, sampling_frame,
-    cross_partitions(sampling_fit$relation)
+    cross_partitions(sampling_fit$relation, independence = "independent")
   )
 
   selected_nodes <- unique(as.integer(round(seq.int(

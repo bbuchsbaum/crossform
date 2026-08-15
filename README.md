@@ -27,7 +27,11 @@ example <- example_fmri_effects()
 plan <- plan_geometry(
   example$fit$relation,
   at = example$frame,
-  over = cross_partitions(example$fit$relation)
+  over = cross_partitions(
+    example$fit$relation,
+    independence = "independent",
+    generalizes_over = "run"
+  )
 )
 ```
 
@@ -81,6 +85,45 @@ Euclidean distance; a fixed neural metric makes it squared Mahalanobis. It is
 not `1 - Pearson correlation`. The deliberate boundary is documented in the
 [correlation-distance policy](correlation-distance-policy.md).
 
+## Start before the beta matrices
+
+When raw observation-by-feature responses are available, the fitted relation
+can be planned without hiding the first-level model in an analysis script:
+
+```r
+facts <- study(
+  observations(response_runs, scan_indexes, native_domain),
+  events(event_table),
+  observation_confounds(confound_table, censor = "retained"),
+  partition_hierarchy(run_table)
+)
+
+relation_request <- plan_relation(
+  facts,
+  model = declared_design,
+  effects = named_condition_effects,
+  observation_model = observation_model(
+    "ols",
+    sampling_unit = "scan",
+    independence = "runs independently acquired conditional on the model"
+  )
+)
+fit <- estimate(relation_request)
+```
+
+`plan_relation()` is the estimand-bearing request. A concrete design matrix,
+coding, censor realization, rank, aliases, and solver live in portable design
+receipts; the resulting fit binds those receipts and the exact observation
+source revisions. Effects are declared against named condition coordinates,
+so supported cell-means and treatment codings retain one plan identity while
+their execution receipts remain distinct.
+
+The complete executable journey—including timed events, scan-level confounds,
+censoring, relation estimation, geometry, RDM, RSA, and admitted uncertainty—is
+in `vignette("from-observations", package = "effectagram")`. BIDS,
+`fmridesign`, and `fmrireg` are optional adapters into this typed core; they do
+not define the core object model.
+
 ## Add an error bar only when it is earned
 
 The fixture was built with `lm_relation_fit()`, so its residual channel is
@@ -109,7 +152,7 @@ provoking: `sampling_capabilities(plan, example$fit)` reports whether the
 analytic law is admitted and, if not, every unmet requirement with its
 remedy. Refusals themselves are classed conditions — `catch_refusal(expr)`
 returns the missing capability and remedies as data. The
-[failure gallery](failure-gallery.md) shows five realistic errors the package
+[failure gallery](failure-gallery.md) shows six realistic errors the package
 guards against. Unsupported callable interpretations return classed refusals;
 other errors are prevented by the absence of a misleading API or by distinct
 estimand identities.
@@ -120,7 +163,9 @@ Start with these functions:
 
 | Task | Functions |
 |---|---|
-| Prepare effects with or without residuals | `relation()`, `lm_relation_fit()` |
+| Bind raw facts | `observations()`, `events()`, `observation_confounds()`, `study()` |
+| Plan and estimate a relation | `condition_space()`, `effect_map()`, `design_model()`, `observation_model()`, `plan_relation()`, `estimate()` |
+| Use precomputed effects or a raw `(X, T)` | `relation()`, `lm_relation_fit()`, `raw_design_model()`, `raw_effect_map()` |
 | Define the spatial measurement | `volume_domain()`, `compile_frame()`, `searchlights()` or `regions()` |
 | Declare generalization and compile | `cross_partitions()`, `plan_geometry()` |
 | Read scientific results | `contrast()`, `rdm()`, `rsa()` |
@@ -131,7 +176,8 @@ closures of the calculus: `plan_geometry(x, at, over, right = )` compiles a
 rectangular cross-axis plan read with `pair_query()`s (encoding-retrieval
 similarity is the canonical use), `coupling(plan, between, by)` takes the
 adjoint neural-side closure between named frame measurements, and
-`cross_partitions(relation, generalizes_over = "run")` binds the declared
+`cross_partitions(relation, independence = "independent",
+generalizes_over = "run")` binds the declared
 generalization axis into the estimand's identity. Metric learning, bridges,
 source adapters, and execution controls are advanced surfaces. The generated
 reference site groups all exported functions by these roles in
@@ -157,11 +203,12 @@ identity from execution receipts, keeps the point relation connected to its
 error channel, and uses capabilities and refusals to prevent silent changes of
 interpretation.
 
-The strongest scientific claims are deliberately gated, and two gates have
-landed: the large-condition query-first benchmark (at 100 conditions over
-1,080 searchlights, one hundred selected pairs run in 0.23 s and the fused
-full RDM beats materialize-then-project fourfold, with a `4.4e-16` oracle)
-and the executable [failure gallery](failure-gallery.md). `rsatoolbox`
+The strongest scientific claims are deliberately gated, and three gates have
+landed: the one-plan coherent/configuration family, the large-condition
+query-first benchmark (at 100 conditions over 1,080 searchlights, one hundred
+selected pairs run in 0.23 s and the fused full RDM beats
+materialize-then-project fourfold, with a `4.4e-16` oracle), and the executable
+[failure gallery](failure-gallery.md). `rsatoolbox`
 parity, a real rectangular exemplar, and an operational conservation example
 remain work to be earned. The full claim ledger—established precedents,
 current evidence with its machine-checkable artifacts, and promotion gates—is
@@ -193,6 +240,8 @@ install.packages(".", repos = NULL, type = "source")
 
 Then read:
 
+- `vignette("from-observations", package = "effectagram")` for the complete
+  facts-to-fit-to-geometry journey;
 - `vignette("introduction", package = "effectagram")` for the continuous
   question-first workflow;
 - `vignette("evidence-pairing", package = "effectagram")` for measurement

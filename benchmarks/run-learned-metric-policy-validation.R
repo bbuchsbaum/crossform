@@ -62,7 +62,7 @@ frame <- compile_frame(
   searchlights(radius = 1.01, normalization = "local"),
   domain
 )
-over <- cross_partitions(partitions)
+over <- cross_partitions(partitions, independence = "independent")
 condition <- rep(c(-0.5, 0.5), each = observations / 2L)
 null_regressor <- rep(c(-0.5, 0.5), times = observations / 2L)
 design <- cbind(
