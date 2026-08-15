@@ -208,11 +208,12 @@ without requiring the complete RDM as the public intermediate: every RDM edge
 is the rank-one operator \((e_i-e_j)(e_i-e_j)^\top\), and the kernels evaluate
 it as two row differences and a Hadamard product instead of materializing a
 dense packed query. The recorded large-\(q\) gate measures the consequence at
-100 conditions over 1,080 searchlights: one hundred selected pairs in 0.23 s,
-the full fused 4,950-coordinate RDM in 4.6 s against 18.3 s for
-materialize-then-project, with a direct-oracle error of `4.4e-16`. Incremental
-peak RSS was 361 MB (345 MiB), below the 512 MiB gate, while structured
-execution avoided a separate ~200 MB (191 MiB) dense query allocation.
+100 conditions over 1,080 searchlights: one hundred selected pairs in 0.18 s,
+the full fused 4,950-coordinate RDM in 8.10 s against 15.67 s for
+materialize-then-project, with a direct-oracle error of `4.4e-16`. In a fresh
+child that measured only the public query-first paths after all-route warm-up,
+incremental peak RSS was 434 MB (414 MiB), below the 512 MiB gate; structured
+execution also avoided a separate ~200 MB (191 MiB) dense query allocation.
 
 ### 6. Generalization bound to estimand identity
 
@@ -273,7 +274,7 @@ be audited rather than believed.
 | Two-sided evidence-pairing laws | **Established algebraically** | Forward, adjoint, scalar, rectangular, reversal, decomposition, and tomography identities against independent bounded oracles: [`helper-evidence-pairing-laws.R`](tests/testthat/helper-evidence-pairing-laws.R), [`helper-effect-form-laws.R`](tests/testthat/helper-effect-form-laws.R), [`test-tomography.R`](tests/testthat/test-tomography.R). Algebraic and software evidence, not a scientific benchmark. |
 | Crossnobis point parity | **Demonstrated** | The Haxby 2001 exemplar agrees with an independent loop to `1.33e-15` and rMVPA to `8.88e-16` over 577 VT searchlights: [`exemplars/haxby2001`](exemplars/haxby2001/). Matched crossvalidated squared-Euclidean/crossnobis estimand, not correlation distance. |
 | Error-bearing refit and linear uncertainty transport | **Demonstrated under an admitted model** | Refit reproduces the point RDM to `4.44e-16`; a fixed linear RSA coefficient consumes factorized analytic covariance: [`exemplars/haxby2001`](exemplars/haxby2001/), [`test-evidence-sampling-kernel.R`](tests/testthat/test-evidence-sampling-kernel.R), [`test-evidence-sampling-generative.R`](tests/testthat/test-evidence-sampling-generative.R). Boundary: the declared equal-partition, fixed-metric, separable plug-in model. |
-| Query-first execution at scale | **Demonstrated** | Recorded gate artifact at q = 100 over 1,080 searchlights: selected 100 pairs 0.23 s, full fused RDM 4.6 s vs 18.3 s materialize-then-project, oracle error `4.4e-16`, incremental peak RSS 361 MB (345 MiB): [`benchmarks/run-query-first-scale.R`](benchmarks/run-query-first-scale.R), [`benchmark-results/query-first-scale-gate.rds`](benchmark-results/), [`test-query-first-scale.R`](tests/testthat/test-query-first-scale.R). |
+| Query-first execution at scale | **Demonstrated** | Recorded gate artifact at q = 100 over 1,080 searchlights: selected 100 pairs 0.18 s, full fused RDM 8.10 s vs 15.67 s materialize-then-project, oracle error `4.4e-16`, and query-first-only incremental peak RSS 434 MB (414 MiB): [`benchmarks/run-query-first-scale.R`](benchmarks/run-query-first-scale.R), [`benchmark-results/query-first-scale-gate.rds`](benchmark-results/), [`test-query-first-scale.R`](tests/testthat/test-query-first-scale.R). The materialized comparator remains in the timing court but outside the query-first memory claim. |
 | Coherent/configuration family | **Demonstrated** | One plan yields the signed contrast, the three energies with exact recomposition, the RDM, the RSA coefficient, and the admitted analytic SE, with planted-effect recovery (signal carried by configuration; null regions centred on zero): the [introduction vignette](vignettes/introduction.Rmd) with executable checks, plus [`test-integrity-guards.R`](tests/testthat/test-integrity-guards.R) and [`test-measurement-decomposition.R`](tests/testthat/test-measurement-decomposition.R). A real-data decomposition narrative on Haxby remains desirable but is no longer the gate. |
 | Rectangular cross-domain analysis | **Implemented** | Public constructor, query-first pair queries, oracle parity, and materialized recomposition: [`test-rectangular-plan.R`](tests/testthat/test-rectangular-plan.R). A real match/control, pair-covariate analysis is Gate 3. |
 | Adjoint coupling from the plan vocabulary | **Implemented** | `coupling(plan, between, by)` compiles the adjoint closure against the plan's own frame and pairing, small-node contract enforced: [`test-coupling-views.R`](tests/testthat/test-coupling-views.R). |

@@ -11,6 +11,10 @@ test_that("recorded query-first scale evidence passes its gates", {
   expect_true(artifact$gate$identity_pass)
   expect_true(artifact$gate$fused_not_slower_pass)
   expect_true(artifact$gate$selected_cheaper_pass)
+  expect_identical(
+    artifact$memory$scope,
+    "query_first_paths_only_after_all_route_warmup"
+  )
   expect_true(artifact$gate$memory_pass)
   expect_true(artifact$gate$passed)
 })
@@ -42,6 +46,10 @@ test_that("the query-first scale benchmark passes its declared gate", {
   expect_true(artifact$gate$fused_not_slower_pass)
   expect_true(artifact$gate$selected_cheaper_pass)
   expect_true(artifact$gate$runtime_pass)
+  expect_identical(
+    artifact$memory$scope,
+    "query_first_paths_only_after_all_route_warmup"
+  )
   expect_true(artifact$gate$memory_pass)
   expect_true(artifact$gate$passed)
 })

@@ -206,8 +206,8 @@ interpretation.
 The strongest scientific claims are deliberately gated, and three gates have
 landed: the one-plan coherent/configuration family, the large-condition
 query-first benchmark (at 100 conditions over 1,080 searchlights, one hundred
-selected pairs run in 0.23 s and the fused full RDM beats
-materialize-then-project fourfold, with a `4.4e-16` oracle), and the executable
+selected pairs run in 0.18 s and the fused full RDM is about twice as fast as
+materialize-then-project, with a `4.4e-16` oracle), and the executable
 [failure gallery](failure-gallery.md). `rsatoolbox`
 parity, a real rectangular exemplar, and an operational conservation example
 remain work to be earned. The full claim ledger—established precedents,

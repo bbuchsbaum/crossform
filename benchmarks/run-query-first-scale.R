@@ -38,7 +38,7 @@ ready_path <- file.path(output_dir, "query-first-scale-gate.ready")
 unlink(c(result_path, ready_path))
 
 run_query_first_worker <- function(repo, result_path, ready_path,
-                                   repetitions) {
+                                   repetitions, benchmark_paths) {
   suppressPackageStartupMessages(devtools::load_all(repo, quiet = TRUE))
   set.seed(2026081501L)
   dimensions <- c(12L, 10L, 9L)
@@ -164,17 +164,21 @@ run_query_first_worker <- function(repo, result_path, ready_path,
     ps::ps_handle(Sys.getpid())
   )[["rss"]])
   file.create(ready_path)
-  paths <- c("selected_100", "full_fused", "rsa_fused", "materialized")
   runners <- list(
     selected_100 = run_selected,
     full_fused = run_full_fused,
     rsa_fused = run_rsa,
     materialized = run_materialized
   )
-  timings <- vector("list", length(paths) * repetitions)
+  if (!is.character(benchmark_paths) || !length(benchmark_paths) ||
+      any(!benchmark_paths %in% names(runners)) ||
+      anyDuplicated(benchmark_paths)) {
+    stop("The query-first worker received invalid benchmark paths.")
+  }
+  timings <- vector("list", length(benchmark_paths) * repetitions)
   cursor <- 0L
   for (iteration in seq_len(repetitions)) {
-    order <- if (iteration %% 2L) paths else rev(paths)
+    order <- if (iteration %% 2L) benchmark_paths else rev(benchmark_paths)
     for (path in order) {
       cursor <- cursor + 1L
       elapsed <- system.time(value <- runners[[path]]())[["elapsed"]]
@@ -233,43 +237,82 @@ run_query_first_worker <- function(repo, result_path, ready_path,
   TRUE
 }
 
-job <- parallel::mcparallel(
-  run_query_first_worker(repo, result_path, ready_path, repetitions),
-  silent = TRUE
-)
-handle <- ps::ps_handle(job$pid)
-measurement_started <- FALSE
-peak_rss <- 0
-collected <- NULL
-repeat {
-  alive <- tryCatch(ps::ps_is_running(handle), error = function(error) FALSE)
-  if (!measurement_started && file.exists(ready_path)) {
-    measurement_started <- TRUE
-    peak_rss <- 0
+monitor_worker <- function(job, result_path, ready_path) {
+  handle <- ps::ps_handle(job$pid)
+  measurement_started <- FALSE
+  peak_rss <- 0
+  collected <- NULL
+  repeat {
+    alive <- tryCatch(ps::ps_is_running(handle), error = function(error) FALSE)
+    if (!measurement_started && file.exists(ready_path)) {
+      measurement_started <- TRUE
+      peak_rss <- 0
+    }
+    if (measurement_started && alive) {
+      rss <- tryCatch(
+        unname(ps::ps_memory_info(handle)[["rss"]]),
+        error = function(error) NA_real_
+      )
+      if (is.finite(rss)) peak_rss <- max(peak_rss, rss)
+    }
+    collected <- parallel::mccollect(job, wait = FALSE)
+    if (!is.null(collected) || !alive) break
+    Sys.sleep(0.01)
   }
-  if (measurement_started && alive) {
-    rss <- tryCatch(
-      unname(ps::ps_memory_info(handle)[["rss"]]),
-      error = function(error) NA_real_
-    )
-    if (is.finite(rss)) peak_rss <- max(peak_rss, rss)
+  if (is.null(collected)) collected <- parallel::mccollect(job)
+  if (is.null(collected) || inherits(collected[[1L]], "try-error") ||
+      !measurement_started || !file.exists(result_path)) {
+    stop("The isolated query-first scale worker failed.")
   }
-  collected <- parallel::mccollect(job, wait = FALSE)
-  if (!is.null(collected) || !alive) break
-  Sys.sleep(0.01)
-}
-if (is.null(collected)) collected <- parallel::mccollect(job)
-if (is.null(collected) || inherits(collected[[1L]], "try-error") ||
-    !measurement_started || !file.exists(result_path)) {
-  stop("The isolated query-first scale worker failed.")
+  result <- readRDS(result_path)
+  peak_rss <- max(peak_rss, result$memory$baseline_rss_bytes, na.rm = TRUE)
+  list(result = result, peak_rss = peak_rss)
 }
 
-result <- readRDS(result_path)
-peak_rss <- max(peak_rss, result$memory$baseline_rss_bytes, na.rm = TRUE)
-result$memory$os_peak_rss_bytes <- peak_rss
-result$memory$incremental_peak_rss_bytes <- max(
-  0, peak_rss - result$memory$baseline_rss_bytes
+all_paths <- c("selected_100", "full_fused", "rsa_fused", "materialized")
+job <- parallel::mcparallel(
+  run_query_first_worker(
+    repo, result_path, ready_path, repetitions, all_paths
+  ),
+  silent = TRUE
 )
+comparison <- monitor_worker(job, result_path, ready_path)
+result <- comparison$result
+
+# Process-level RSS is allocator-sensitive when the materialized comparator
+# runs in the same timing pool. Certify the public query-first paths in a
+# second fresh child after all routes have been warmed, and retain the mixed
+# process only as a diagnostic. This makes the memory claim match its subject.
+memory_result_path <- file.path(output_dir, "query-first-scale-memory.rds")
+memory_ready_path <- file.path(output_dir, "query-first-scale-memory.ready")
+unlink(c(memory_result_path, memory_ready_path))
+query_first_paths <- c("selected_100", "full_fused", "rsa_fused")
+memory_job <- parallel::mcparallel(
+  run_query_first_worker(
+    repo, memory_result_path, memory_ready_path, repetitions,
+    query_first_paths
+  ),
+  silent = TRUE
+)
+query_first_memory <- monitor_worker(
+  memory_job, memory_result_path, memory_ready_path
+)
+comparison_baseline <- result$memory$baseline_rss_bytes
+query_first_baseline <- query_first_memory$result$memory$baseline_rss_bytes
+result$memory <- list(
+  scope = "query_first_paths_only_after_all_route_warmup",
+  baseline_rss_bytes = query_first_baseline,
+  os_peak_rss_bytes = query_first_memory$peak_rss,
+  incremental_peak_rss_bytes = max(
+    0, query_first_memory$peak_rss - query_first_baseline
+  ),
+  comparison_process_baseline_rss_bytes = comparison_baseline,
+  comparison_process_peak_rss_bytes = comparison$peak_rss,
+  comparison_process_incremental_rss_bytes = max(
+    0, comparison$peak_rss - comparison_baseline
+  )
+)
+unlink(c(memory_result_path, memory_ready_path))
 medians <- stats::aggregate(
   elapsed_seconds ~ path, result$timings, stats::median
 )
@@ -286,11 +329,10 @@ result$gate <- list(
   maximum_fused_to_materialized_ratio = 1.2,
   maximum_selected_to_full_ratio = 1.0,
   maximum_path_seconds = 120,
-  # The dense packed query alone would be ~196 MiB and the materialized
-  # two-component geometry field ~83 MiB more. The full measurement pool
-  # (including the materialized comparison arm) must stay under the dense
-  # query's own footprint, which certifies neither is allocated on the
-  # fused path.
+  # The dense packed query alone would be ~191 MiB and the materialized
+  # two-component geometry field ~83 MiB more. The separately isolated
+  # query-first pool must remain within this absolute map-scale budget; the
+  # materialized timing comparator is intentionally outside this memory claim.
   maximum_incremental_rss_bytes = 512 * 1024^2,
   numerical_pass =
     result$numerical$independent_oracle_max_abs_error <= 1e-10 &&

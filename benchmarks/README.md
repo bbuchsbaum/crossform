@@ -148,13 +148,15 @@ raw-beta cross-partition oracle over probe nodes and selected pairs, exact
 agreement between `rdm(plan, pairs = )` columns and the corresponding full-RDM
 columns, and route-stable scientific identity between the fused and
 materialize-then-project executions. The gate then requires the fused full
-RDM to be at least as fast as materialize-then-project, selected pairs to be
-no slower than the full fused sweep, and the whole measurement pool
-(including the materialized comparison arm) to stay under 512 MiB incremental
-RSS. The receipt separately records the allocations avoided by structured
+RDM to be at least as fast as materialize-then-project and selected pairs to be
+no slower than the full fused sweep. A second fresh child warms every route
+but measures only selected-RDM, full-fused-RDM, and RSA execution against the
+512 MiB incremental RSS ceiling. The materialized comparator remains in the
+timing court and is excluded from the query-first memory claim so allocator
+residue from a different path cannot decide that gate. The receipt separately
+records the allocations avoided by structured
 execution: a ~200 MB (191 MiB) dense packed query matrix and an ~87 MB
 (83 MiB) two-component geometry field. The recorded artifact reports 100
-selected pairs in 0.23 s, the full fused RDM in 4.6 s, and the materialized
-route in 18.3 s
-(fused/materialized ratio 0.25), 361 MB (345 MiB) incremental peak RSS, and
-oracle error 4.4e-16.
+selected pairs in 0.18 s, the full fused RDM in 8.10 s, and the materialized
+route in 15.67 s (fused/materialized ratio 0.52), 434 MB (414 MiB)
+query-first-only incremental peak RSS, and oracle error 4.4e-16.
