@@ -1,5 +1,40 @@
 # Memory benchmark harness
 
+## Public geometry map gate
+
+Run the matched implicit-identity and explicit fixed-diagonal map paths with:
+
+```sh
+Rscript benchmarks/run-public-map-scale-gate.R . benchmark-results
+```
+
+The isolated 576-feature, 576-centre fixture uses 12 conditions, eight
+partitions, and 66 RDM coordinates. Both public plans are warmed once and then
+timed three times in alternating order. Sixteen spatial nodes are also checked
+against a direct loop over condition contrasts, partition pairs, and
+searchlight weights. The gate requires `1e-12` oracle parity, `1e-12` matched-
+path parity, at most 60 seconds per complete map, an explicit-to-implicit
+median runtime ratio no greater than five, and no more than 1 GiB incremental
+peak RSS in the isolated measured phase.
+
+The same isolated worker also fits an error-bearing 12-condition relation and
+evaluates the factorized RDM-variance diagonal over a 576-centre frame with a
+mean support of about 42 features. Twenty-five evenly spaced nodes are warmed
+and repeated three times before one complete sweep. The sampling arm must be
+bit-identical across those reads, finite and nonnegative, no slower than one
+second per probe node, and complete within ten minutes. The broad budget is a
+cliff detector; the recorded runtime is the evidence.
+
+The intentionally generous absolute thresholds are regression shields, not
+marketing claims. The relative threshold specifically prevents a validated
+domain-wide diagonal metric from falling back to the historical minutes-long
+path while the matched implicit metric remains subsecond. Metric construction
+is recorded separately from repeated map execution.
+
+`tests/testthat/test-public-map-scale.R` invokes the same runner when
+`EFFECTAGRAM_RUN_SCALE_TESTS=true`. The scheduled and manually dispatchable
+scale workflow sets that flag, which also activates the two 50k topology tests.
+
 Run from the repository root:
 
 ```sh
@@ -97,3 +132,29 @@ This fixture qualifies execution and storage only. Its training-only arm has
 30 residual degrees of freedom and support sizes up to 33, so the declared
 shrinkage estimator is load-bearing. Statistical recovery and residual-reuse
 policy claims belong to the separate 500-replication validation above.
+
+## Query-first scale gate (Gate 5)
+
+Certify that selected RDM edges, the full RDM, and fixed linear RSA
+coefficients execute at q = 100 conditions over 1,080 searchlights without
+materializing the packed geometry field or any dense pair-query matrix:
+
+```sh
+Rscript benchmarks/run-query-first-scale.R . benchmark-results
+```
+
+The worker validates three things before timing begins: an independent
+raw-beta cross-partition oracle over probe nodes and selected pairs, exact
+agreement between `rdm(plan, pairs = )` columns and the corresponding full-RDM
+columns, and route-stable scientific identity between the fused and
+materialize-then-project executions. The gate then requires the fused full
+RDM to be at least as fast as materialize-then-project, selected pairs to be
+no slower than the full fused sweep, and the whole measurement pool
+(including the materialized comparison arm) to stay under 512 MiB incremental
+RSS. The receipt separately records the allocations avoided by structured
+execution: a ~200 MB (191 MiB) dense packed query matrix and an ~87 MB
+(83 MiB) two-component geometry field. The recorded artifact reports 100
+selected pairs in 0.23 s, the full fused RDM in 4.6 s, and the materialized
+route in 18.3 s
+(fused/materialized ratio 0.25), 361 MB (345 MiB) incremental peak RSS, and
+oracle error 4.4e-16.

@@ -179,6 +179,34 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   .validate_execution_receipt(receipt)
 }
 
+# Derive the receipt for a view projected from a materialized geometry. The
+# projection inherits the parent execution's observed facts and marks itself
+# in the task-partition identity; only the scientific id changes, to the
+# route-stable view identity shared with fused query-first execution.
+.projection_receipt <- function(receipt, scientific_plan_id) {
+  .validate_execution_receipt(receipt)
+  execution_receipt(
+    scientific_plan_id = scientific_plan_id,
+    compute = receipt$compute,
+    sources = receipt$sources,
+    memory = receipt$memory,
+    kernel_version = receipt$kernel_version,
+    task_partition_id = paste0(
+      receipt$task_partition_id, "+projected_view"
+    ),
+    reduction_plan_id = receipt$reduction_plan_id,
+    precision = receipt$precision,
+    numeric_contract = receipt$numeric_contract,
+    completion_status = receipt$completion_status,
+    task_count = receipt$task_count,
+    completed_task_count = receipt$completed_task_count,
+    elapsed_seconds = receipt$elapsed_seconds,
+    blas = receipt$blas,
+    domain_signature = receipt$domain_signature,
+    observed = receipt$observed
+  )
+}
+
 .empty_execution_observations <- function() {
   list(
     task_counts = c(planned = 0, started = 0, completed = 0, failed = 0,

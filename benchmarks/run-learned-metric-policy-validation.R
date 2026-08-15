@@ -192,7 +192,7 @@ run_replication <- function(regime, replication) {
         numeric(length(support))
       }
       sum(vapply(seq_len(nrow(over)), function(edge) {
-        metric <- materialize_metric(
+        metric <- effectagram:::materialize_metric(
           plan$metric_schedule, selected_node, edge
         )
         over$weight[[edge]] * drop(delta %*% metric$value %*% delta)

@@ -592,19 +592,68 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
   component <- validated$component
   row_block <- validated$row_block
 
-  values <- matrix(0, x$total$dim[[1L]], ncol(query))
-  colnames(values) <- colnames(query)
+  structured <- .is_pair_difference_query(query)
+  output_width <- if (structured) .query_output_width(query) else ncol(query)
+  values <- matrix(0, x$total$dim[[1L]], output_width)
+  colnames(values) <- .query_output_labels(query)
+  packed_positions <- if (structured && identical(x$codec, "symmetric_packed")) {
+    # Packed svec layout: columns of the lower triangle in order, diagonal
+    # entries unscaled and off-diagonal entries carrying sqrt(2).
+    q <- x$logical_shape[[1L]]
+    offset <- function(column) (column - 1) * (2 * q - column + 2) / 2
+    list(
+      ii = offset(query$pair_left) + 1,
+      jj = offset(query$pair_right) + 1,
+      ij = offset(query$pair_left) + (query$pair_right - query$pair_left + 1),
+      cross_scale = sqrt(2)
+    )
+  } else if (structured) {
+    # Rectangular column-major layout of a symmetric self form.
+    q <- x$logical_shape[[1L]]
+    list(
+      ii = (query$pair_left - 1) * q + query$pair_left,
+      jj = (query$pair_right - 1) * q + query$pair_right,
+      ij = (query$pair_left - 1) * q + query$pair_right,
+      cross_scale = 2
+    )
+  } else {
+    NULL
+  }
   for (start in .tile_starts(x$total$dim[[1L]], row_block)) {
     rows <- start:min(start + row_block - 1L, x$total$dim[[1L]])
-    values[rows, ] <- .geometry_component_validated(x, component, rows) %*% query
+    packed <- .geometry_component_validated(x, component, rows)
+    values[rows, ] <- if (structured) {
+      distances <- packed[, packed_positions$ii, drop = FALSE] +
+        packed[, packed_positions$jj, drop = FALSE] -
+        packed_positions$cross_scale *
+          packed[, packed_positions$ij, drop = FALSE]
+      if (is.null(query$coefficients)) {
+        distances
+      } else {
+        distances %*% t(query$coefficients)
+      }
+    } else {
+      packed %*% query
+    }
   }
+  # Projection executes a view of the parent estimand; its identity must be
+  # route-stable with the fused query-first execution of the same view.
+  view_receipt <- .projection_receipt(
+    x$receipt,
+    .geometry_view_scientific_id(
+      x$receipt$scientific_plan_id, component, query
+    )
+  )
+  metadata <- x$metadata
+  metadata$scientific_plan_id <- NULL
+  metadata$projected_from <- x$receipt$scientific_plan_id
   effect_view(
     values = values,
     query = if (is.null(semantic_query)) query else semantic_query,
     component = component,
-    receipt = x$receipt,
+    receipt = view_receipt,
     index = x$index,
-    metadata = x$metadata,
+    metadata = metadata,
     left_space = x$left_space,
     right_space = x$right_space
   )
@@ -623,6 +672,20 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
   .require_effect_form_component(x, component)
 
   semantic_query <- NULL
+  if (.is_pair_difference_query(query)) {
+    if (!isTRUE(x$capabilities$self_form) ||
+        !isTRUE(x$capabilities$symmetric)) {
+      stop("A pair-difference query requires a symmetric self form.",
+        call. = FALSE)
+    }
+    if (!identical(query$effects, x$effects)) {
+      stop("The query and geometry effect spaces are incompatible.",
+        call. = FALSE)
+    }
+    .validate_effect_form(x)
+    return(list(query = query, semantic_query = query,
+      component = component, row_block = row_block))
+  }
   if (inherits(query, "effect_query")) {
     .validate_query_for_compile(query)
     semantic_query <- query

@@ -10,13 +10,26 @@
 #'   admitted as noise-biased estimates.
 #' @param independence Whether distinct endpoint estimates are declared
 #'   independent. Self-products can only be marked `not_independent`.
+#' @param generalizes_over Optional name of the sampling axis this pairing
+#'   generalizes across, such as `"run"`, `"session"`, or `"task"`. The axis
+#'   is part of the scientific estimand: cross-run and cross-session
+#'   reproduction are different quantities even at identical fold counts, so
+#'   the declared axis is bound into every plan identity built from this
+#'   pairing. Leaving it `NULL` records the axis as undeclared.
 #' @return An edge table with explicit endpoint semantics.
 #' @export
 pairing <- function(left, right, weight = NULL, directed = FALSE,
                     self_pairs = c("forbid", "allow_biased"),
-                    independence = c("independent", "not_independent")) {
+                    independence = c("independent", "not_independent"),
+                    generalizes_over = NULL) {
   self_pairs <- match.arg(self_pairs)
   independence <- match.arg(independence)
+  if (!is.null(generalizes_over) &&
+      (!is.character(generalizes_over) || length(generalizes_over) != 1L ||
+       is.na(generalizes_over) || !nzchar(generalizes_over))) {
+    stop("`generalizes_over` must be NULL or one nonempty axis name.",
+      call. = FALSE)
+  }
   if (length(left) != length(right) || length(left) < 1L) {
     stop("`left` and `right` must have the same positive length.", call. = FALSE)
   }
@@ -78,6 +91,7 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
   attr(ans, "directed") <- directed
   attr(ans, "self_pairs") <- self_pairs
   attr(ans, "independence") <- independence
+  attr(ans, "generalizes_over") <- generalizes_over
   attr(ans, "estimate") <- if (any(is_self)) {
     "self_product_biased"
   } else if (independence == "independent") {
@@ -102,6 +116,9 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 #'
 #' @param partitions Partition identifiers or an `effect_relation`. Pass
 #'   `fit$relation` when starting from `lm_relation_fit()`.
+#' @param generalizes_over Optional name of the sampling axis the partitions
+#'   represent, such as `"run"` or `"session"`; see [pairing()]. The declared
+#'   axis is bound into every plan identity built from this pairing.
 #' @return An undirected pairing containing one row per unordered pair, with
 #'   normalized estimator weights. Its rows are computational contributions,
 #'   not a declaration of edge-level sampling independence.
@@ -109,7 +126,7 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 #'   "On the distribution of cross-validated Mahalanobis distances",
 #'   especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
 #' @export
-cross_partitions <- function(partitions) {
+cross_partitions <- function(partitions, generalizes_over = NULL) {
   if (inherits(partitions, "effect_relation")) {
     .validate_relation(partitions)
     partitions <- partitions$partitions
@@ -119,7 +136,8 @@ cross_partitions <- function(partitions) {
     stop("At least two distinct, non-missing partitions are required.", call. = FALSE)
   }
   edges <- utils::combn(partitions, 2L)
-  pairing(edges[1L, ], edges[2L, ], directed = FALSE)
+  pairing(edges[1L, ], edges[2L, ], directed = FALSE,
+    generalizes_over = generalizes_over)
 }
 
 .partition_reducer <- function(kind = "weighted_sum") {
@@ -194,6 +212,10 @@ cross_partitions <- function(partitions) {
       stringsAsFactors = FALSE
     ),
     source_estimate = attr(over, "estimate"),
+    # The generalization axis is part of the estimand: it must reach the task
+    # digest so cross-run and cross-session plans get distinct identities
+    # even when their partition labels coincide.
+    generalizes_over = attr(over, "generalizes_over", exact = TRUE),
     expansion = if (undirected) "self_adjoint_half_edges" else "declared_order",
     class = c("effect_ordered_edges", "data.frame")
   )
@@ -257,7 +279,7 @@ cross_partitions <- function(partitions) {
 #' @param mass Positive frame mass for each measurement.
 #' @return For undirected pairings, a list containing only `endpoint`; for
 #'   directed pairings, a list containing `left` and `right`.
-#' @export
+#' @keywords internal
 pairing_marginals <- function(local, over, mass = 1) {
   if (!is.array(local) || length(dim(local)) != 3L || !is.numeric(local) ||
       any(!is.finite(local))) {
@@ -345,6 +367,13 @@ pairing_marginals <- function(local, over, mass = 1) {
   if (!is.character(independence) || length(independence) != 1L ||
       !independence %in% c("independent", "not_independent")) {
     stop("Pairing independence semantics are missing or invalid.", call. = FALSE)
+  }
+  generalizes_over <- attr(over, "generalizes_over", exact = TRUE)
+  if (!is.null(generalizes_over) &&
+      (!is.character(generalizes_over) || length(generalizes_over) != 1L ||
+       is.na(generalizes_over) || !nzchar(generalizes_over))) {
+    stop("Pairing generalization axis must be NULL or one nonempty name.",
+      call. = FALSE)
   }
   if (!is.character(over$left) || !is.character(over$right) ||
       anyNA(over$left) || anyNA(over$right) ||

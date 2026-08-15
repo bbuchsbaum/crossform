@@ -124,8 +124,11 @@ test_that("query-first execution fuses the query before spatial contraction", {
 
 test_that("RDM and RSA views execute only their compiled query coordinates", {
   fixture <- geometry_plan_fixture(effects = 5L, features = 18L)
+  # The full feature block makes the per-block accounting comparison
+  # asymptotically honest: the structured query's durable payload is a small
+  # constant, while its per-block saving scales with the feature block.
   plan <- plan_geometry(fixture$relation, fixture$frame, fixture$pairing,
-    compute = compute_policy(block_features = 3))
+    compute = compute_policy(block_features = 18))
   complete <- geometry(plan)
   model <- as.matrix(stats::dist(seq_len(5)))
   effect_names <- fixture$relation$effect_space$coordinates

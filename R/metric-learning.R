@@ -236,13 +236,19 @@ metric_training_policy <- function(
 
 .metric_pairing_identity <- function(over) {
   .validate_pairing(over)
-  list(
+  identity <- list(
     edges = unclass(as.data.frame(over)),
     directed = attr(over, "directed", exact = TRUE),
     self_pairs = attr(over, "self_pairs", exact = TRUE),
     independence = attr(over, "independence", exact = TRUE),
     estimate = attr(over, "estimate", exact = TRUE)
   )
+  # Included only when declared so undeclared-axis pairings keep their
+  # pre-existing identities; a declared axis is estimand-bearing and must
+  # move the digest.
+  axis <- attr(over, "generalizes_over", exact = TRUE)
+  if (!is.null(axis)) identity$generalizes_over <- axis
+  identity
 }
 
 .metric_training_record <- function(edge, over, recipe, statistics, policy) {
@@ -377,7 +383,7 @@ metric_training_policy <- function(
 #' @param over An evaluation `pairing()`.
 #' @param training A `metric_training_policy()`.
 #' @return An `effect_frozen_metric_schedule`.
-#' @export
+#' @keywords internal
 compile_metric_schedule <- function(
     recipe, statistics, at, over,
     training = metric_training_policy("exclude_evaluation")) {
@@ -814,7 +820,7 @@ compile_metric_schedule <- function(
 #' @param node One support position or node identifier.
 #' @param edge One evaluation-edge position or name.
 #' @return A support-local `neural_metric()`.
-#' @export
+#' @keywords internal
 materialize_metric <- function(schedule, node, edge = 1L) {
   provider <- .metric_schedule_provider(schedule, edge)
   provider$at(node)$materialize()

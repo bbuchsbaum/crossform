@@ -83,16 +83,24 @@
     stop("A sampling frame support falls outside its fixed neural metric.",
       call. = FALSE)
   }
+  restriction_provenance <- list(
+    construction = "fixed_metric_support_restriction",
+    parent_metric = metric$signature
+  )
+  # A learned-frozen parent keeps its frozen training provenance through the
+  # support restriction; dropping it here would make `neural_metric()` refuse
+  # with a provenance message that contradicts what the user supplied.
+  inherited <- intersect(
+    c("frozen", "training_signature"), names(metric$provenance)
+  )
+  restriction_provenance[inherited] <- metric$provenance[inherited]
   base <- neural_metric(
     metric$value[positions, positions, drop = FALSE],
     metric$domain, node$support,
     inverse = NULL,
     estimation = metric$estimation,
     tolerance = metric$tolerance,
-    provenance = list(
-      construction = "fixed_metric_support_restriction",
-      parent_metric = metric$signature
-    )
+    provenance = restriction_provenance
   )
   .compose_frame_metric(evidence_plan$frame, base, node$position)$metric
 }
@@ -362,19 +370,48 @@ rdm_sampling_covariance <- function(
     residual_strategy = c("node_local", "shared_pair_statistics"),
     residual_workspace_bytes = 512 * 1024^2) {
   if (missing(target)) {
-    stop(paste0(
+    .capability_refusal(paste0(
       "Choose `target = \"plugin\"` for the partition-mean signal policy ",
       "or `target = \"null\"` for the fixed-zero null; the ",
       "signal-dependent covariance target is not inferred."
-    ), call. = FALSE)
+    ),
+      capability = "calibration_target_declared",
+      namespace = "evidence_sampling",
+      reasons = "calibration_target_not_declared",
+      remedies = "Pass `target = \"plugin\"` or `target = \"null\"`."
+    )
   }
-  if (inherits(x, "effect_crossnobis_plan")) {
-    stop(paste0(
+  descriptor <- .sampling_evidence_descriptor(x)
+  if (identical(descriptor$record$metric_status, "learned")) {
+    .capability_refusal(paste0(
       "Analytic RDM sampling covariance is unavailable because this plan's ",
       "neural metric was learned. Version 0.1 does not propagate metric-",
       "estimation uncertainty; use a geometry plan with one common fixed ",
       "metric or retain this result as a signed point estimate."
-    ), call. = FALSE)
+    ),
+      capability = "fixed_metric_sampling_law",
+      namespace = "evidence_sampling",
+      reasons = "learned_metric_law_not_admitted",
+      remedies = paste0(
+        "Use one common fixed metric, or keep the signed point estimate ",
+        "without an analytic law."
+      )
+    )
+  }
+  if (inherits(x, "effect_crossnobis_plan")) {
+    .capability_refusal(paste0(
+      "Analytic RDM sampling covariance is not routed for crossnobis plans; ",
+      "compile the same fixed metric into `plan_geometry(metric = )` to use ",
+      "the admitted fixed-metric law."
+    ),
+      capability = "fixed_metric_sampling_law",
+      namespace = "evidence_sampling",
+      reasons = "crossnobis_plan_not_routed",
+      remedies = paste0(
+        "Build a geometry plan with `plan_geometry(metric = )` carrying the ",
+        "same fixed metric."
+      )
+    )
   }
   target <- match.arg(target, c("plugin", "null"))
   residual_strategy <- match.arg(residual_strategy)
@@ -395,6 +432,68 @@ rdm_sampling_covariance <- function(
   )
   class(value) <- c("effect_rdm_sampling_covariance", class(value))
   value
+}
+
+#' Ask whether the analytic sampling law is available before provoking it
+#'
+#' A scientist should be able to ask what the uncertainty channel will grant
+#' instead of discovering refusals one at a time. This inspection compiles
+#' the evidence-sampling admission for a plan and error source and reports
+#' every unmet requirement with its remedy, without computing anything.
+#'
+#' @param x A compiled `effect_geometry_plan` (or crossnobis plan).
+#' @param fit Optional `effect_relation_fit` supplying the error channel;
+#'   omitting it probes the plan's bare relation, which has no channel.
+#' @return An `effect_sampling_capabilities` list: `available`, the full
+#'   `capabilities` record, and a `reasons` data frame with one row per
+#'   unmet requirement (`reason`, `why`, `remedy`).
+#' @examples
+#' example <- example_fmri_effects()
+#' plan <- plan_geometry(
+#'   example$fit$relation, example$frame,
+#'   cross_partitions(example$fit$relation)
+#' )
+#' sampling_capabilities(plan, example$fit)$available
+#' sampling_capabilities(plan)$reasons$reason
+#' @export
+sampling_capabilities <- function(x, fit = NULL) {
+  plan <- .compile_evidence_sampling_plan(x, error_channel = fit)
+  reasons <- plan$unavailable_reasons
+  details <- lapply(reasons, .sampling_refusal_details)
+  structure(list(
+    available = identical(
+      plan$capabilities$sampling_covariance, "available"
+    ),
+    capabilities = plan$capabilities,
+    reasons = data.frame(
+      reason = as.character(reasons),
+      why = vapply(details, function(detail) detail$why, character(1)),
+      remedy = vapply(details, function(detail) {
+        if (length(detail$remedy)) detail$remedy else NA_character_
+      }, character(1)),
+      stringsAsFactors = FALSE
+    )
+  ), class = "effect_sampling_capabilities")
+}
+
+#' @export
+print.effect_sampling_capabilities <- function(x, ...) {
+  cat("<effect_sampling_capabilities>\n")
+  cat("  analytic sampling law:",
+    if (x$available) "available" else "unavailable", "\n")
+  cat("  metric:", x$capabilities$metric_status,
+    "| partitions:", x$capabilities$partition_model,
+    "| error channel:", x$capabilities$error_channel, "\n")
+  if (nrow(x$reasons)) {
+    cat("  unmet requirements:\n")
+    for (row in seq_len(nrow(x$reasons))) {
+      cat("  *", x$reasons$reason[[row]], "-", x$reasons$why[[row]], "\n")
+      if (!is.na(x$reasons$remedy[[row]])) {
+        cat("      remedy:", x$reasons$remedy[[row]], "\n")
+      }
+    }
+  }
+  invisible(x)
 }
 
 #' Query an exact factorized sampling-covariance form

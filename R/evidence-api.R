@@ -487,8 +487,10 @@ measurement_components <- function(x, edge) {
 #' @param tolerance Positive relative singular-value and certification
 #'   tolerance.
 #' @param max_condition Maximum accepted retained condition number.
-#' @param allow_projection Whether rank-deficient projected reconstruction is
-#'   admitted.
+#' @param allow_projection Whether rank-deficient projected (lossy)
+#'   reconstruction is admitted. It defaults to `FALSE` so a projection is an
+#'   explicit choice, never a silent fallback: rank-deficient frames refuse
+#'   until projection is explicitly admitted.
 #' @param workspace_bytes Positive dense-workspace budget. The default is a
 #'   hard 512 MiB ceiling for this explicitly small-node reconstruction path.
 #' @param reference_operator Optional finite reference used only to certify the
@@ -501,7 +503,7 @@ reconstruct_evidence <- function(
     method = c("auto", "parseval", "canonical_dual",
                "projected_pseudoinverse"),
     tolerance = 1e-10, max_condition = 1e8,
-    allow_projection = TRUE, workspace_bytes = 512 * 1024^2,
+    allow_projection = FALSE, workspace_bytes = 512 * 1024^2,
     reference_operator = NULL) {
   between <- .validate_edge_frame(between)
   .reconstruct_neural_evidence(

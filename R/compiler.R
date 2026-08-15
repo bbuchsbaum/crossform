@@ -71,6 +71,30 @@
   )
 }
 
+# The identity the task would have carried without an embedded query. This is
+# the estimand-bearing task id: a fused query is an execution strategy, so a
+# queried task must still be verifiable against the complete-form identity of
+# its parent plan.
+.effect_task_base_id <- function(task) {
+  if (identical(task$materialization$completeness, "complete_form")) {
+    return(task$task_id)
+  }
+  semantic <- .effect_task_semantic(
+    task$left_relation_id, task$right_relation_id,
+    task$spaces$experimental_left, task$spaces$experimental_right,
+    task$ordered_partition_products,
+    task$neural_boundary$bridge,
+    structure(task$stages$normalization$operation,
+      class = "effect_edge_normalizer"),
+    structure(task$stages$transform$operation,
+      class = "effect_edge_transform"),
+    structure(task$stages$reduction$operation,
+      class = "effect_partition_reducer"),
+    list(kind = "complete_form", query = NULL)
+  )
+  .effect_task_id(semantic)
+}
+
 .compile_effect_evidence_task <- function(
     left, over, right = NULL, query = NULL,
     normalizer = inner_product(), transform = NULL,
@@ -99,6 +123,12 @@
 
   query_identity <- if (is.null(query)) {
     list(kind = "complete_form", query = NULL)
+  } else if (.is_pair_difference_query(query)) {
+    .validate_pair_difference_for_task(
+      query, left$effect_space$coordinates, right$effect_space$coordinates,
+      same_relation
+    )
+    list(kind = "pair_difference_self_query", query = query)
   } else if (inherits(query, "effect_pair_query")) {
     .validate_query_for_compile(query)
     if (!.same_effect_space(query$left_space, left$effect_space) ||
@@ -222,10 +252,39 @@
   invisible(task)
 }
 
-.compiler_query <- function(query, effect_space) {
+.compiler_query <- function(query, effect_space, right_space = NULL,
+                            codec = "symmetric_packed") {
   effect_space <- .validate_effect_space(effect_space)
   q <- length(effect_space$coordinates)
+  if (identical(codec, "rectangular")) {
+    right_space <- .validate_effect_space(right_space)
+    q_right <- length(right_space$coordinates)
+    rectangular_width <- q * q_right
+    if (inherits(query, "effect_pair_query")) {
+      .validate_query_for_compile(query)
+      if (!.same_effect_space(query$left_space, effect_space) ||
+          !.same_effect_space(query$right_space, right_space)) {
+        stop("Pair-query axes must match the ordered relation effect spaces.",
+          call. = FALSE)
+      }
+      value <- matrix(as.vector(as.matrix(query$operator)), ncol = 1L)
+      colnames(value) <- "view1"
+      return(value)
+    }
+    stop(paste0(
+      "Rectangular plans execute axis-bound `pair_query()` operators; ",
+      "materialize with `geometry()` and use `query_geometry()` for raw ",
+      "physical view matrices."
+    ), call. = FALSE)
+  }
   packed_width <- q * (q + 1L) / 2L
+  if (.is_pair_difference_query(query)) {
+    if (!identical(query$effects, effect_space$coordinates)) {
+      stop("The query and relation effect spaces are incompatible.",
+        call. = FALSE)
+    }
+    return(query)
+  }
   if (inherits(query, "effect_query")) {
     .validate_query_for_compile(query)
     if (!identical(query$kind, "bilinear") || !isTRUE(query$fixed)) {
@@ -267,22 +326,27 @@
   )
 }
 
-.validate_compiler_inputs <- function(x, at, over) {
+.validate_compiler_inputs <- function(x, at, over, right = NULL) {
   .validate_relation(x)
+  if (!is.null(right)) .validate_relation(right)
   .validate_frame_for_compile(at)
   .validate_pairing(over)
   if (!identical(at$representation, "additive_diagonal")) {
     stop("effectagram 0.1 executes only additive diagonal frames.", call. = FALSE)
   }
-  if (!.same_domain_reference(at$domain, x$domain)) {
+  if (!.same_domain_reference(at$domain, x$domain) ||
+      (!is.null(right) && !.same_domain_reference(at$domain, right$domain))) {
     stop("Relation and frame exact neural-domain identities must agree.",
       call. = FALSE)
   }
-  if (ncol(at$weights) != x$n_features) {
+  if (ncol(at$weights) != x$n_features ||
+      (!is.null(right) && ncol(at$weights) != right$n_features)) {
     stop("The frame feature dimension must equal the relation feature dimension.",
       call. = FALSE)
   }
-  if (any(!c(over$left, over$right) %in% x$partitions)) {
+  right_partitions <- if (is.null(right)) x$partitions else right$partitions
+  if (any(!over$left %in% x$partitions) ||
+      any(!over$right %in% right_partitions)) {
     stop("Every pairing endpoint must identify a relation partition.",
       call. = FALSE)
   }
@@ -291,7 +355,8 @@
 
 .compiler_memory_plan <- function(x, at, compute, feature_block, row_tile,
                                   coordinate_tile, output_width, storage,
-                                  requirements) {
+                                  requirements, query = NULL,
+                                  right_relation = NULL) {
   q <- length(x$effects)
   h <- q * (q + 1L) / 2L
   p <- x$n_features
@@ -319,7 +384,10 @@
   }, character(1)))
   distinct_handles <- sum(!is.na(distinct_handles))
   source_block <- max_observations * f * 8
-  relation_block <- r * q * f * 8
+  relation_block <- r * q * f * 8 +
+    if (is.null(right_relation)) 0 else
+      length(right_relation$partitions) *
+        length(right_relation$effects) * f * 8
   atom_coordinates <- if (identical(
       requirements$materialization, "full_geometry")) {
     h
@@ -327,11 +395,17 @@
     output_width
   }
   # Query-fused execution forms only the requested per-feature coordinates.
-  # One q-by-q operator is reconstructed at a time; no full h-coordinate atom
-  # block or list of all query operators is live.
+  # The live query representation is accounted explicitly: a structured
+  # pair-difference query stores index vectors plus its coefficient map and
+  # a pair-by-feature-block workspace; a dense physical query stores its
+  # full matrix plus one reconstructed q-by-q operator at a time.
   query_operator <- if (requirements$total &&
       !identical(requirements$materialization, "full_geometry")) {
-    q * q * 8
+    if (!is.null(query) && .is_pair_difference_query(query)) {
+      .query_payload_bytes(query) + 8 * length(query$pair_left) * f
+    } else {
+      .query_payload_bytes(query) + q * q * 8
+    }
   } else {
     0
   }
@@ -392,7 +466,8 @@
 }
 
 .select_compiler_memory_plan <- function(x, at, compute, output_width, storage,
-                                         requirements) {
+                                         requirements, query = NULL,
+                                         right_relation = NULL) {
   if (is.null(compute$workspace_bytes)) {
     feature <- min(if (is.null(compute$block_features)) 1024L else
       compute$block_features, x$n_features)
@@ -401,7 +476,8 @@
     return(list(feature_block = feature, row_tile = rows,
       coordinate_tile = coordinates,
       memory = .compiler_memory_plan(x, at, compute, feature, rows,
-        coordinates, output_width, storage, requirements)))
+        coordinates, output_width, storage, requirements, query = query,
+        right_relation = right_relation)))
   }
   feature_candidates <- if (is.null(compute$block_features)) {
     .descending_tiles(x$n_features)
@@ -415,7 +491,8 @@
     for (rows in row_candidates) {
       for (coordinates in coordinate_candidates) {
         memory <- .compiler_memory_plan(x, at, compute, feature, rows,
-          coordinates, output_width, storage, requirements)
+          coordinates, output_width, storage, requirements, query = query,
+          right_relation = right_relation)
         smallest <- list(feature_block = feature, row_tile = rows,
           coordinate_tile = coordinates, memory = memory)
         if (isTRUE(memory$fits_budget)) return(smallest)
@@ -519,6 +596,9 @@
   if (isTRUE(validate)) .validate_geometry_execution_plan(plan)
   task <- plan$task
   sources <- task$left_relation$capabilities
+  if (!isTRUE(task$same_relation)) {
+    sources <- c(sources, task$right_relation$capabilities)
+  }
   execution_receipt(
     scientific_plan_id = plan$scientific_plan_id,
     compute = plan$compute,
@@ -704,10 +784,39 @@
     compute = function() {
       admission_started <- proc.time()[["elapsed"]]
       source_session <- .open_effect_task_source_session(task, validate = FALSE)
-      on.exit(source_session$close(), add = TRUE)
+      session_closed <- FALSE
+      close_session <- function() {
+        if (!session_closed) {
+          session_closed <<- TRUE
+          source_session$close()
+        }
+      }
+      on.exit(close_session(), add = TRUE)
+      # Two-sided sessions report per-side summaries; flatten them with
+      # side-qualified names so receipt observations keep one canonical
+      # shape on both self-form and rectangular executions.
+      session_summary <- function() {
+        value <- source_session$summary()
+        if (!is.null(value$access_mode)) return(value)
+        side_named <- function(side, field) {
+          entries <- value[[side]][[field]]
+          stats::setNames(entries, paste0(side, ":", names(entries)))
+        }
+        list(
+          access_mode = c(
+            side_named("left", "access_mode"),
+            side_named("right", "access_mode")
+          ),
+          bytes_read = c(
+            side_named("left", "bytes_read"),
+            side_named("right", "bytes_read")
+          ),
+          sides = value
+        )
+      }
       observed_state$value$stage_seconds[["source_admission"]] <-
         max(0, proc.time()[["elapsed"]] - admission_started)
-      observed_state$value$source_access <- source_session$summary()$access_mode
+      observed_state$value$source_access <- session_summary()$access_mode
       total_accumulator <- NULL
       if (storage == "block") {
         total_accumulator <- function(rows, coordinates, increment) {
@@ -717,6 +826,8 @@
         }
       }
       kernel_started <- proc.time()[["elapsed"]]
+      same_relation <- isTRUE(task$same_relation)
+      codec <- if (same_relation) "symmetric_packed" else "rectangular"
       read_relation <- function(partition, features) {
           value <- .relation_block_with_reader(
             task$left_relation, partition, features,
@@ -726,9 +837,22 @@
             validate = FALSE
           )
           observed_state$value$bytes_read <-
-            sum(source_session$summary()$bytes_read)
+            sum(session_summary()$bytes_read)
           value
       }
+      read_right_relation <- if (same_relation) read_relation else
+        function(partition, features) {
+          value <- .relation_block_with_reader(
+            task$right_relation, partition, features,
+            function(partition, features) {
+              source_session$read("right", partition, features)
+            },
+            validate = FALSE
+          )
+          observed_state$value$bytes_read <-
+            sum(session_summary()$bytes_read)
+          value
+        }
       streamed <- if (support_streamed) {
         .support_streamed_metric_contraction(
           frame = at,
@@ -752,13 +876,14 @@
         .streamed_effect_form_contraction(
           frame = kernel_frame,
           read_left = read_relation,
+          read_right = read_right_relation,
           left_partitions = task$left_relation$partitions,
           right_partitions = task$right_relation$partitions,
           left_effects = task$left_space$coordinates,
           right_effects = task$right_space$coordinates,
           ordered_edges = task$ordered_edges,
-          codec = "symmetric_packed",
-          same_relation = TRUE,
+          codec = codec,
+          same_relation = same_relation,
           feature_block = plan$feature_block,
           row_tile = plan$row_tile,
           coordinate_tile = plan$coordinate_tile,
@@ -791,8 +916,8 @@
           streamed$first_moments$right,
           task$ordered_edges,
           streamed$mass,
-          codec = "symmetric_packed",
-          same_relation = TRUE,
+          codec = codec,
+          same_relation = same_relation,
           row_tile = plan$row_tile,
           write_tile = coherent_writer,
           query = query
@@ -883,11 +1008,26 @@
         ),
         scientific_plan_id = plan$scientific_plan_id
       )
-      source_session$close()
-      source_summary <- source_session$summary()
+      close_session()
+      source_summary <- session_summary()
       metadata$source_session <- source_summary
       observed_state$value$bytes_read <- sum(source_summary$bytes_read)
-      result <- if (is.null(query)) {
+      result <- if (is.null(query) && !same_relation) {
+        rectangular_form <- effect_form(
+          total = total_value,
+          coherent = coherent_value,
+          marginals = NULL,
+          left_space = task$left_space,
+          right_space = task$right_space,
+          receipt = planned_receipt,
+          index = .compiler_index(at),
+          metadata = metadata,
+          codec = "rectangular",
+          symmetric = FALSE,
+          guaranteed_psd = FALSE
+        )
+        rectangular_form
+      } else if (is.null(query)) {
         effect_geometry(total_value, coherent_value, marginals,
           effects = task$left_space, receipt = planned_receipt,
           index = .compiler_index(at), metadata = metadata)
@@ -904,9 +1044,11 @@
           coherent = coherent_matrix,
           configuration = total_matrix - coherent_matrix
         )
-        colnames(values) <- colnames(query)
+        colnames(values) <- .query_output_labels(query)
         effect_view(values, query, component, planned_receipt,
-          effects = task$left_space,
+          effects = if (same_relation) task$left_space else NULL,
+          left_space = if (same_relation) NULL else task$left_space,
+          right_space = if (same_relation) NULL else task$right_space,
           index = .compiler_index(at), metadata = metadata)
       }
       completed$value <- TRUE

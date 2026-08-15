@@ -261,6 +261,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
 }
 
 .validate_neural_metric <- function(x, deep = TRUE) {
+  if (.validated_before(x, "neural_metric", deep)) return(x)
   expected <- c("role", "domain", "support", "positions", "value",
     "estimation", "tolerance", "provenance", "inverse_representation",
     "capabilities", "signature")
@@ -299,6 +300,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
       stop("Neural-metric identity is inconsistent.", call. = FALSE)
     }
   }
+  .record_validated(x, "neural_metric", deep)
   x
 }
 
@@ -531,7 +533,7 @@ metric_capabilities <- function(x) {
 #' @param label Nonempty scientific identity for the functional.
 #' @param provenance Compact provenance.
 #' @return An immutable `effect_coherent_functional`.
-#' @export
+#' @keywords internal
 coherent_functional <- function(value, domain, support = NULL,
                                 label = "raw_weighted_mean",
                                 provenance = list()) {
@@ -791,10 +793,10 @@ coherent_functional <- function(value, domain, support = NULL,
 #' @examples
 #' domain <- abstract_domain(3, id = "component-example")
 #' metric <- neural_metric(diag(c(1, 2, 3)), domain)
-#' mean_functional <- coherent_functional(rep(1 / 3, 3), domain)
-#' components <- metric_components(metric, mean_functional)
+#' mean_functional <- effectagram:::coherent_functional(rep(1 / 3, 3), domain)
+#' components <- effectagram:::metric_components(metric, mean_functional)
 #' all.equal(components$coherent + components$configuration, metric$value)
-#' @export
+#' @keywords internal
 metric_components <- function(metric, coherent = NULL) {
   if (inherits(metric, "effect_measurement_bridge")) {
     stop("Cross-space bridges do not admit same-space metric components.",

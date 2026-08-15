@@ -21,7 +21,7 @@ result_fixture <- function() {
     dim = c(2, 2, 2),
     dimnames = list(c("m1", "m2"), c("a", "b"), c("r1", "r2"))
   )
-  marginals <- pairing_marginals(
+  marginals <- effectagram:::pairing_marginals(
     local,
     pairing("r1", "r2", directed = FALSE),
     mass = c(1, 2)

@@ -266,7 +266,9 @@ memory_plan <- function(frame_bytes = 0,
     }
     q_left * (q_left + 1L) / 2L
   }
-  if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
+  structured_query <- !is.null(query) && .is_pair_difference_query(query)
+  if (!is.null(query) && !structured_query &&
+      (!is.matrix(query) || !is.numeric(query) ||
       nrow(query) != physical_width || ncol(query) < 1L ||
       any(!is.finite(query)))) {
     stop("`query` must match the finite physical form coordinates.",
@@ -275,7 +277,11 @@ memory_plan <- function(frame_bytes = 0,
 
   features <- ncol(frame$weights)
   measurements <- nrow(frame$weights)
-  output_width <- if (is.null(query)) physical_width else ncol(query)
+  output_width <- if (is.null(query)) {
+    physical_width
+  } else {
+    .query_output_width(query)
+  }
   f <- min(feature_block, features)
   rows <- min(row_tile, measurements)
   coordinates <- min(coordinate_tile, output_width)
@@ -289,8 +295,15 @@ memory_plan <- function(frame_bytes = 0,
   } else 0
   atom_work <- max(
     if (form_total) .dense_double_vector_bytes(f) else 0,
-    if (!form_total || is.null(query)) 0 else
-      .dense_double_matrix_bytes(q_left, q_right)
+    if (!form_total || is.null(query)) 0 else if (structured_query) {
+      # The live pair-difference workspace is one pair-by-feature-block
+      # product per edge, plus the query's own payload.
+      .dense_double_matrix_bytes(length(query$pair_left), f) +
+        .query_payload_bytes(query)
+    } else {
+      .dense_double_matrix_bytes(q_left, q_right) +
+        .query_payload_bytes(query)
+    }
   )
   weight_slice <- .dense_double_matrix_bytes(rows, f)
   atom_slice <- if (form_total) {

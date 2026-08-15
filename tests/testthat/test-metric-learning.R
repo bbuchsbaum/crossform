@@ -40,7 +40,7 @@ test_that("evaluation-residual reuse requires an explicit policy contract", {
 test_that("metric compilation freezes provenance but retains no factor table", {
   setup <- metric_learning_setup()
   recipe <- shrinkage_precision(0.2)
-  schedule <- compile_metric_schedule(
+  schedule <- effectagram:::compile_metric_schedule(
     recipe, setup$statistics, setup$fixture$frame, setup$over
   )
   record <- schedule$records$edge_1
@@ -68,7 +68,7 @@ test_that("metric compilation freezes provenance but retains no factor table", {
 
 test_that("on-demand shrinkage precision agrees with an independent oracle", {
   setup <- metric_learning_setup()
-  schedule <- compile_metric_schedule(
+  schedule <- effectagram:::compile_metric_schedule(
     shrinkage_precision(
       shrinkage = 0.2,
       relative_variance_floor = 1e-7,
@@ -111,7 +111,7 @@ test_that("on-demand shrinkage precision agrees with an independent oracle", {
 
 test_that("providers reduce only local pairs in the canonical global order", {
   setup <- metric_learning_setup()
-  schedule <- compile_metric_schedule(
+  schedule <- effectagram:::compile_metric_schedule(
     shrinkage_precision(0.2),
     setup$statistics, setup$fixture$frame, setup$over,
     metric_training_policy(
@@ -145,10 +145,10 @@ test_that("providers reduce only local pairs in the canonical global order", {
 
 test_that("identity and diagonal schedules use their exact fast actions", {
   setup <- metric_learning_setup()
-  identity_schedule <- compile_metric_schedule(
+  identity_schedule <- effectagram:::compile_metric_schedule(
     identity_metric(), setup$statistics, setup$fixture$frame, setup$over
   )
-  diagonal_schedule <- compile_metric_schedule(
+  diagonal_schedule <- effectagram:::compile_metric_schedule(
     diagonal_precision(relative_variance_floor = 1e-7),
     setup$statistics, setup$fixture$frame, setup$over
   )
@@ -181,11 +181,11 @@ test_that("identity and diagonal schedules use their exact fast actions", {
 test_that("all-partitions and disjoint training are distinct estimators", {
   setup <- metric_learning_setup()
   recipe <- shrinkage_precision(0.15)
-  disjoint <- compile_metric_schedule(
+  disjoint <- effectagram:::compile_metric_schedule(
     recipe, setup$statistics, setup$fixture$frame, setup$over,
     metric_training_policy("exclude_evaluation")
   )
-  all_runs <- compile_metric_schedule(
+  all_runs <- effectagram:::compile_metric_schedule(
     recipe, setup$statistics, setup$fixture$frame, setup$over,
     metric_training_policy(
       "all_partitions_residual_orthogonality",
@@ -201,8 +201,8 @@ test_that("all-partitions and disjoint training are distinct estimators", {
     c("run1", "run2", "run3"))
   expect_false(identical(disjoint$signature, all_runs$signature))
   expect_false(identical(
-    materialize_metric(disjoint, 10L)$signature,
-    materialize_metric(all_runs, 10L)$signature
+    effectagram:::materialize_metric(disjoint, 10L)$signature,
+    effectagram:::materialize_metric(all_runs, 10L)$signature
   ))
 })
 
@@ -213,16 +213,16 @@ test_that("workspace-invariant statistics yield identical metric schedules", {
     workspace_bytes = narrow_setup$budgets$wider
   )
   recipe <- shrinkage_precision(0.3)
-  narrow <- compile_metric_schedule(
+  narrow <- effectagram:::compile_metric_schedule(
     recipe, narrow_setup$statistics, narrow_setup$fixture$frame,
     narrow_setup$over
   )
-  wide <- compile_metric_schedule(
+  wide <- effectagram:::compile_metric_schedule(
     recipe, wide_statistics, narrow_setup$fixture$frame,
     narrow_setup$over
   )
-  narrow_metric <- materialize_metric(narrow, 10L)
-  wide_metric <- materialize_metric(wide, 10L)
+  narrow_metric <- effectagram:::materialize_metric(narrow, 10L)
+  wide_metric <- effectagram:::materialize_metric(wide, 10L)
 
   expect_identical(narrow$signature, wide$signature)
   expect_identical(narrow_metric$value, wide_metric$value)
@@ -238,12 +238,12 @@ test_that("metric schedules refuse leakage and identity mutations", {
     workspace_bytes = setup$budgets$wider
   )
   expect_error(
-    compile_metric_schedule(
+    effectagram:::compile_metric_schedule(
       shrinkage_precision(), only_two, setup$fixture$frame, setup$over
     ),
     "leaves no residual partition"
   )
-  schedule <- compile_metric_schedule(
+  schedule <- effectagram:::compile_metric_schedule(
     shrinkage_precision(), setup$statistics, setup$fixture$frame, setup$over
   )
   mutated <- schedule

@@ -22,5 +22,8 @@ An `effect_spectrum_view`. Eigenvalues are ordered from largest to
   smallest and are never truncated at zero.
 }
 \description{
-Read the signed eigenvalue spectrum of cross-generalized geometry
+Unlike the linear views, eigenvalues are not additive across components:
+the spectra of the `coherent` and `configuration` components do not sum
+to the spectrum of `total`, even though the underlying matrices do.
+Compare spectra across components only as separate decompositions.
 }

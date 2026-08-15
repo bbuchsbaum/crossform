@@ -21,3 +21,4 @@ This is an inspection operation. Execution kernels should request one
 edge-scoped provider and reuse its combined sufficient statistics while
 deriving local solve handles support by support.
 }
+\keyword{internal}

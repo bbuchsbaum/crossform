@@ -149,15 +149,27 @@
 }
 
 .error_capabilities <- function(model) {
+  # Each capability is earned by the field that actually supplies it, so a
+  # future error-model variant cannot inherit a capability it lacks. Under
+  # the current separable-GLM model every field is mandatory and the bits
+  # coincide; the derivations keep that an invariant, not an assumption.
   present <- !is.null(model)
+  separable <- present && identical(model$kind, "separable_glm")
+  residuals <- present &&
+    inherits(model$residual_source, "effect_residual_source")
+  covariance <- present && is.matrix(model$effect_covariance)
+  degrees <- present && is.integer(model$residual_df) &&
+    length(model$residual_df) == 1L && !is.na(model$residual_df) &&
+    model$residual_df >= 1L
   structure(list(
     error_model = present,
-    residual_blocks = present,
-    effect_covariance = present,
-    residual_df = present,
-    separable_error = present,
-    learned_metric_input = present,
-    within_participant_calibration = present
+    residual_blocks = residuals,
+    effect_covariance = covariance,
+    residual_df = degrees,
+    separable_error = separable,
+    learned_metric_input = residuals,
+    within_participant_calibration = separable && residuals &&
+      covariance && degrees
   ), class = "effect_error_capabilities")
 }
 
@@ -219,6 +231,7 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
 }
 
 .validate_relation_fit <- function(x, deep = TRUE) {
+  if (.validated_before(x, "relation_fit", deep)) return(invisible(x))
   expected <- c("relation", "error_models", "capabilities", "provenance",
     "signature")
   if (!inherits(x, "effect_relation_fit") || !is.list(x) ||
@@ -265,6 +278,7 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
       stop("Relation-fit identity is inconsistent.", call. = FALSE)
     }
   }
+  .record_validated(x, "relation_fit", deep)
   invisible(x)
 }
 
@@ -373,6 +387,19 @@ lm_relation_fit <- function(sources, design, effects,
     sampling_unit <- rep(sampling_unit, length(partitions))
   }
   names(sampling_unit) <- partitions
+  for (partition in partitions) {
+    source_value <- sources[[partition]]
+    design_value <- designs[[partition]]
+    if (is.matrix(source_value) && is.matrix(design_value) &&
+        nrow(source_value) != nrow(design_value)) {
+      stop(sprintf(paste0(
+        "Partition `%s` supplies %d observations but its design has %d ",
+        "rows. Runs of unequal length are supported: pass `design` (and ",
+        "any `observation_whitener`) as a named list with one entry per ",
+        "partition."
+      ), partition, nrow(source_value), nrow(design_value)), call. = FALSE)
+    }
+  }
   compiled <- lapply(partitions, function(partition) {
     design_value <- designs[[partition]]
     name_value <- names_by_partition[[partition]]
@@ -385,7 +412,7 @@ lm_relation_fit <- function(sources, design, effects,
     )
     .compile_lm_estimator(
       design_value, targets[[partition]], resolved,
-      name_value, tolerance
+      name_value, tolerance, partition = partition
     )
   })
   names(compiled) <- partitions
@@ -504,17 +531,34 @@ relation_fit_capabilities <- function(x) {
     if (inherits(x, "effect_relation") ||
         (inherits(x, "effect_relation_fit") &&
          all(vapply(x$error_models, is.null, logical(1))))) {
-      stop(paste0(
+      .capability_refusal(paste0(
         "This relation was built from precomputed effects and has no ",
         "residual error channel. `", capability, "` cannot be recovered ",
         "from beta matrices alone. Start from raw responses with ",
         "`lm_relation_fit()` when this capability is required."
-      ), call. = FALSE)
+      ),
+        capability = capability,
+        namespace = "relation_fit",
+        reasons = "missing_error_channel",
+        remedies = "Refit raw observations with `lm_relation_fit()`."
+      )
     }
-    stop(sprintf(
-      "This operation requires relation-fit capability `%s` for every partition.",
-      capability
-    ), call. = FALSE)
+    missing_partitions <- partitions[!table[[capability]][selected]]
+    .capability_refusal(sprintf(
+      paste0(
+        "This operation requires relation-fit capability `%s` for every ",
+        "partition; it is absent for: %s."
+      ),
+      capability, paste(missing_partitions, collapse = ", ")
+    ),
+      capability = capability,
+      namespace = "relation_fit",
+      reasons = paste0("missing_in_partition:", missing_partitions),
+      remedies = paste0(
+        "Refit the listed partitions with `lm_relation_fit()` so every ",
+        "partition carries the capability."
+      )
+    )
   }
   invisible(TRUE)
 }

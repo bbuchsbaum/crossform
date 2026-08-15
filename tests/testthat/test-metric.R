@@ -51,7 +51,7 @@ test_that("metric and bridge roles cannot be confused", {
   )
 
   expect_error(metric_capabilities(bridge), "bridge.*not.*metric")
-  expect_error(metric_components(bridge, c(0.5, 0.5)),
+  expect_error(effectagram:::metric_components(bridge, c(0.5, 0.5)),
     "bridges do not admit")
 })
 
@@ -131,8 +131,8 @@ test_that("rank-one coherent and PSD configuration laws hold", {
   K <- crossprod(raw) + diag(0.75, 8)
   a <- seq_len(8) / sum(seq_len(8))
   metric <- neural_metric(K, domain)
-  functional <- coherent_functional(a, domain, label = "weighted_mean")
-  got <- metric_components(metric, functional)
+  functional <- effectagram:::coherent_functional(a, domain, label = "weighted_mean")
+  got <- effectagram:::metric_components(metric, functional)
   expected <- oracle_metric_components(K, a)
 
   expect_identical(got$coherent_rank, 1L)
@@ -150,8 +150,8 @@ test_that("the metric split reproduces signed cross-partition components", {
   mass <- sum(weight)
   domain <- abstract_domain(4, id = "signed-component-law")
   metric <- neural_metric(diag(weight), domain)
-  functional <- coherent_functional(weight / mass, domain)
-  components <- metric_components(metric, functional)
+  functional <- effectagram:::coherent_functional(weight / mass, domain)
+  components <- effectagram:::metric_components(metric, functional)
   left <- matrix(c(
     1, -2, 0.5, 3,
     -1, 0.5, 2, -0.25
@@ -184,8 +184,8 @@ test_that("precision metrics keep the raw mean and reuse retained covariance", {
     provenance = list(kind = "precision_family"))
   solved <- neural_metric(K, domain,
     provenance = list(kind = "precision_family"))
-  retained_components <- metric_components(retained, a)
-  solved_components <- metric_components(solved, a)
+  retained_components <- effectagram:::metric_components(retained, a)
+  solved_components <- effectagram:::metric_components(solved, a)
   amplitude <- drop(relation %*% a)
   expected <- tcrossprod(amplitude) /
     drop(crossprod(a, Sigma %*% a))
@@ -221,8 +221,8 @@ test_that("metric-aware components are covariant under neural reparameterization
   transformed_a <- solve(t(transform), a)
   relation <- matrix(rnorm(4 * dimension), 4, dimension)
   transformed_relation <- relation %*% t(transform)
-  original <- metric_components(neural_metric(K, domain), a)
-  changed <- metric_components(
+  original <- effectagram:::metric_components(neural_metric(K, domain), a)
+  changed <- effectagram:::metric_components(
     neural_metric(transformed_K, domain), transformed_a
   )
 
@@ -251,9 +251,9 @@ test_that("singular and unfrozen metrics refuse coherent decomposition", {
   )
 
   expect_false(metric_capabilities(singular)$positive_definite)
-  expect_error(metric_components(singular, rep(1 / 3, 3)),
+  expect_error(effectagram:::metric_components(singular, rep(1 / 3, 3)),
     "requires an SPD metric")
-  expect_error(metric_components(recipe, rep(1 / 3, 3)),
+  expect_error(effectagram:::metric_components(recipe, rep(1 / 3, 3)),
     "derived and frozen")
 })
 
@@ -261,17 +261,17 @@ test_that("component identity binds both metric and coherent functional", {
   domain <- abstract_domain(3, id = "component-identity")
   first_metric <- neural_metric(diag(c(1, 2, 3)), domain)
   second_metric <- neural_metric(diag(c(1, 2, 4)), domain)
-  first_functional <- coherent_functional(c(0.2, 0.3, 0.5), domain)
-  second_functional <- coherent_functional(c(0.3, 0.2, 0.5), domain)
-  baseline <- metric_components(first_metric, first_functional)
+  first_functional <- effectagram:::coherent_functional(c(0.2, 0.3, 0.5), domain)
+  second_functional <- effectagram:::coherent_functional(c(0.3, 0.2, 0.5), domain)
+  baseline <- effectagram:::metric_components(first_metric, first_functional)
 
   expect_false(identical(
     baseline$signature,
-    metric_components(second_metric, first_functional)$signature
+    effectagram:::metric_components(second_metric, first_functional)$signature
   ))
   expect_false(identical(
     baseline$signature,
-    metric_components(first_metric, second_functional)$signature
+    effectagram:::metric_components(first_metric, second_functional)$signature
   ))
 })
 

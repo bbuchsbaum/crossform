@@ -4,12 +4,17 @@
 \alias{contrast}
 \title{Read a contrast as signed, coherent, configuration, and total evidence}
 \usage{
-contrast(x, weights)
+contrast(x, weights, remove_univariate = FALSE)
 }
 \arguments{
 \item{x}{An `effect_geometry_plan` or complete `effect_geometry`.}
 
 \item{weights}{One finite contrast weight per named experimental effect.}
+
+\item{remove_univariate}{Must be omitted or `FALSE`. Destructive demeaning
+is refused: the coherent/configuration/total decomposition already
+reports the common spatial mode and its orthogonal remainder as an
+exact, non-destructive partition.}
 }
 \value{
 An `effect_contrast_view` containing signed marginals and the three

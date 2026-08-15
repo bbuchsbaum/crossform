@@ -249,3 +249,28 @@ test_that("rank-deficient estimable fits residualize against the estimable span"
     "svd_estimable_fallback"
   )
 })
+
+test_that("non-estimable partition effects report rank, aliases, and remedies", {
+  conditions <- rep(c("face", "house", "object", "body"), each = 3L)
+  indicators <- stats::model.matrix(~ 0 + factor(conditions,
+    levels = c("face", "house", "object", "body")))
+  colnames(indicators) <- c("face", "house", "object", "body")
+  design <- cbind(`(Intercept)` = 1, indicators)
+  effects <- cbind(`(Intercept)` = 0, diag(4))
+  rownames(effects) <- colnames(indicators)
+  response <- matrix(seq_len(nrow(design) * 3L), nrow(design), 3L)
+
+  refusal <- catch_refusal(lm_relation_fit(
+    list(session1_run2 = response), design, effects
+  ))
+
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "estimable_effects")
+  expect_match(conditionMessage(refusal), "Partition `session1_run2`")
+  expect_match(conditionMessage(refusal), "rank 4 for 5 regressors")
+  expect_match(conditionMessage(refusal), "\\(Intercept\\).+face.+house.+object.+body")
+  expect_match(conditionMessage(refusal), "drop the intercept")
+  expect_match(conditionMessage(refusal), "differences between conditions")
+  expect_length(refusal$reasons, 3L)
+  expect_length(refusal$remedies, 2L)
+})

@@ -56,12 +56,17 @@
   } else {
     length(left_effects) * (length(left_effects) + 1L) / 2L
   }
-  if (!is.null(query) &&
-      (!is.matrix(query) || !is.numeric(query) ||
-       nrow(query) != physical_width || ncol(query) < 1L ||
-       any(!is.finite(query)))) {
-    stop("`query` must match the finite physical form coordinates.",
-      call. = FALSE)
+  if (!is.null(query)) {
+    if (.is_pair_difference_query(query)) {
+      .validate_pair_difference_for_task(
+        query, left_effects, right_effects, same_relation
+      )
+    } else if (!is.matrix(query) || !is.numeric(query) ||
+        nrow(query) != physical_width || ncol(query) < 1L ||
+        any(!is.finite(query))) {
+      stop("`query` must match the finite physical form coordinates.",
+        call. = FALSE)
+    }
   }
   list(
     feature_ids = feature_ids,
@@ -106,18 +111,44 @@
   right_index <- match(ordered_edges$right, right_partitions)
   q_left <- length(left_effects)
   q_right <- length(right_effects)
-  output_width <- if (is.null(query)) validated$physical_width else ncol(query)
+  structured_query <- !is.null(query) && .is_pair_difference_query(query)
+  output_width <- if (is.null(query)) {
+    validated$physical_width
+  } else {
+    .query_output_width(query)
+  }
   atoms <- if (form_atoms) matrix(0, length(feature_ids), output_width) else NULL
   feature_count <- length(feature_ids)
   max_atom_work_bytes <- if (!form_atoms) {
     0
   } else if (is.null(query)) {
     8 * feature_count
+  } else if (structured_query) {
+    8 * (length(query$pair_left) * feature_count)
   } else {
     8 * (feature_count + q_left * q_right)
   }
 
-  if (form_atoms && is.null(query)) {
+  if (form_atoms && structured_query) {
+    pair_work <- matrix(0, length(query$pair_left), feature_count)
+    for (edge in seq_len(nrow(ordered_edges))) {
+      pair_work <- pair_work + ordered_edges$weight[[edge]] *
+        .pair_difference_edge_products(
+          query,
+          left_relations[[left_index[[edge]]]],
+          right_relations[[right_index[[edge]]]]
+        )
+    }
+    if (any(!is.finite(pair_work))) {
+      stop("Direct effect-form querying produced non-finite values.",
+        call. = FALSE)
+    }
+    atoms[, ] <- if (is.null(query$coefficients)) {
+      t(pair_work)
+    } else {
+      t(query$coefficients %*% pair_work)
+    }
+  } else if (form_atoms && is.null(query)) {
     coordinate <- 0L
     for (column in seq_len(q_right)) {
       rows <- if (identical(validated$codec, "symmetric_packed")) {

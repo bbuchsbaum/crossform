@@ -6,15 +6,19 @@ Contract version: `evidence-pairing-v1`
 
 Date: 2026-08-13
 
-This document freezes the semantic foundation for
-`bd-01KZWD1P7Y7DA5HY779MXGQ731`. It is normative for the evidence-pairing,
-measurement-form, coupling, and tomography epics. The independent numerical
-oracles in `tests/testthat/test-evidence-pairing-contract.R` certify the laws
-stated here without calling production effectagram functions.
+This document froze the semantic foundation for
+`bd-01KZWD1P7Y7DA5HY779MXGQ731` and now governs the implemented
+evidence-pairing, measurement-form, coupling, and tomography surfaces. The
+independent numerical oracles in
+`tests/testthat/test-evidence-pairing-contract.R` certify the laws stated here
+without calling production effectagram functions.
 
-The contract extends, and does not replace, `effect-form-v1`. No production API
-is introduced by this document. In particular, connectivity materialization is
-deferred until its capability gates exist.
+The contract extends, and does not replace, `effect-form-v1`. Public
+`measurement_form()`, `effect_coupling()`, capability-gated `connectivity()`,
+and `reconstruct_evidence()` APIs now implement parts of it. Their existence
+does not authorize an interpretation from matrix shape: normalized coupling
+still requires the declared repeated-variation and covariance capabilities,
+and unsupported semantic materializations must refuse.
 
 `evidence-pairing-v1` defines an estimand, not its sampling distribution. When
 relations are estimated from data, covariance among repeated evidence
@@ -612,10 +616,11 @@ crossvalidated-distance covariance in Diedrichsen et al. (2016), with exact
 query-first actions. Learned metrics, heterogeneous partitions, and spatial
 cross-location covariance require later sampling laws.
 
-This contract authorizes the later epics to build one private contraction-plan
-IR and distinct semantic materializations. It does not itself authorize:
+This contract governs one private contraction-plan IR and its distinct
+implemented or future semantic materializations. It does not authorize:
 
-- a public `connectivity()` API;
+- a connectivity interpretation outside the explicit capability-gated public
+  views;
 - automatic all-pairs searchlight materialization;
 - dense default Kronecker construction;
 - inferred sampling semantics from matrix shape;

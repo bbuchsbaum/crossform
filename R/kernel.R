@@ -137,12 +137,17 @@
     }
     q_left * (q_left + 1L) / 2L
   }
-  if (!is.null(query) &&
-      (!is.matrix(query) || !is.numeric(query) ||
-       nrow(query) != physical_width || ncol(query) < 1L ||
-       any(!is.finite(query)))) {
-    stop("`query` must match the finite physical form coordinates.",
-      call. = FALSE)
+  if (!is.null(query)) {
+    if (.is_pair_difference_query(query)) {
+      .validate_pair_difference_for_task(
+        query, left_effects, right_effects, same_relation
+      )
+    } else if (!is.matrix(query) || !is.numeric(query) ||
+        nrow(query) != physical_width || ncol(query) < 1L ||
+        any(!is.finite(query))) {
+      stop("`query` must match the finite physical form coordinates.",
+        call. = FALSE)
+    }
   }
   feature_block <- .validate_tile_size(feature_block, "feature_block")
   row_tile <- .validate_tile_size(row_tile, "row_tile")
@@ -159,7 +164,11 @@
 
   features <- ncol(frame$weights)
   measurements <- nrow(frame$weights)
-  output_width <- if (is.null(query)) physical_width else ncol(query)
+  output_width <- if (is.null(query)) {
+    physical_width
+  } else {
+    .query_output_width(query)
+  }
   output <- if (form_total && is.null(accumulate_tile)) {
     matrix(0, measurements, output_width)
   } else {
@@ -404,19 +413,26 @@
   }
   q <- length(effects)
   packed_width <- q * (q + 1L) / 2L
-  if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
+  structured_query <- !is.null(query) && .is_pair_difference_query(query)
+  if (structured_query) {
+    .validate_pair_difference_for_task(query, effects, effects, TRUE)
+  } else if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
       nrow(query) != packed_width || ncol(query) < 1L ||
       any(!is.finite(query)))) {
     stop("`query` must match the finite packed effect coordinates.",
       call. = FALSE)
   }
-  operators <- if (is.null(query)) NULL else lapply(
+  operators <- if (is.null(query) || structured_query) NULL else lapply(
     seq_len(ncol(query)), function(view) {
       .unsvec_symmetric(query[, view], q)
     }
   )
   measurements <- nrow(frame$weights)
-  output_width <- if (is.null(query)) packed_width else ncol(query)
+  output_width <- if (is.null(query)) {
+    packed_width
+  } else {
+    .query_output_width(query)
+  }
   total <- if (form_total) matrix(0, measurements, output_width) else NULL
   coherent <- if (form_coherent) {
     matrix(0, measurements, output_width)
@@ -452,7 +468,18 @@
     measurement_kind = "static-owned-buffer-accounting"
   )
 
+  project_pairs <- function(values) {
+    if (is.null(query$coefficients)) values else
+      drop(query$coefficients %*% values)
+  }
   contract_metric <- function(left, right, K) {
+    if (structured_query) {
+      dl <- left[query$pair_left, , drop = FALSE] -
+        left[query$pair_right, , drop = FALSE]
+      dr <- right[query$pair_left, , drop = FALSE] -
+        right[query$pair_right, , drop = FALSE]
+      return(project_pairs(rowSums((dl %*% K) * dr)))
+    }
     if (is.null(operators)) {
       return(left %*% K %*% t(right))
     }
@@ -461,7 +488,7 @@
     }, numeric(1))
   }
   encode <- function(value) {
-    if (is.null(operators)) .svec_symmetric(value) else value
+    if (is.null(query)) .svec_symmetric(value) else value
   }
 
   for (node_index in seq_len(measurements)) {
@@ -507,8 +534,8 @@
         }
       }
       if (form_total) {
-        value <- if (is.null(operators)) matrix(0, q, q) else
-          numeric(length(operators))
+        value <- if (is.null(query)) matrix(0, q, q) else
+          numeric(output_width)
         for (edge in seq_len(nrow(ordered_edges))) {
           value <- value + ordered_edges$weight[[edge]] * contract_metric(
             relations[[left_index[[edge]]]],
@@ -536,12 +563,18 @@
           stop("The coherent inverse-metric norm is not positive and finite.",
             call. = FALSE)
         }
-        value <- if (is.null(operators)) matrix(0, q, q) else
-          numeric(length(operators))
+        value <- if (is.null(query)) matrix(0, q, q) else
+          numeric(output_width)
         for (edge in seq_len(nrow(ordered_edges))) {
           left_amplitude <- amplitudes[[left_index[[edge]]]]
           right_amplitude <- amplitudes[[right_index[[edge]]]]
-          edge_value <- if (is.null(operators)) {
+          edge_value <- if (structured_query) {
+            dl <- left_amplitude[query$pair_left] -
+              left_amplitude[query$pair_right]
+            dr <- right_amplitude[query$pair_left] -
+              right_amplitude[query$pair_right]
+            project_pairs(dl * dr / denominator)
+          } else if (is.null(operators)) {
             tcrossprod(left_amplitude, right_amplitude) / denominator
           } else {
             vapply(operators, function(H) {
@@ -926,13 +959,22 @@
   } else {
     q_left * (q_left + 1L) / 2L
   }
-  if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
+  structured_query <- !is.null(query) && .is_pair_difference_query(query)
+  if (structured_query) {
+    .validate_pair_difference_for_task(
+      query, left_axis$effects, right_axis$effects, same_relation
+    )
+  } else if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
       nrow(query) != physical_width || ncol(query) < 1L ||
       any(!is.finite(query)))) {
     stop("`query` must match the finite physical form coordinates.",
       call. = FALSE)
   }
-  output_width <- if (is.null(query)) physical_width else ncol(query)
+  output_width <- if (is.null(query)) {
+    physical_width
+  } else {
+    .query_output_width(query)
+  }
   output <- if (is.null(write_tile)) {
     matrix(0, measurements, output_width)
   } else {
@@ -944,6 +986,8 @@
   max_work_bytes <- 8 * max_rows
   max_operand_bytes <- if (is.null(query)) {
     0
+  } else if (structured_query) {
+    8 * (2 * max_rows * length(query$pair_left))
   } else {
     8 * (max_rows * q_left + max_rows * q_right + q_left * q_right)
   }
@@ -971,6 +1015,28 @@
           }
           tile[, coordinate] <- work
         }
+      }
+    } else if (structured_query) {
+      pair_tile <- matrix(0, length(rows), length(query$pair_left))
+      for (edge in seq_len(nrow(ordered_edges))) {
+        left <- matrix(
+          left_first[rows, , left_index[[edge]], drop = FALSE],
+          nrow = length(rows), ncol = q_left
+        )
+        right <- matrix(
+          right_first[rows, , right_index[[edge]], drop = FALSE],
+          nrow = length(rows), ncol = q_right
+        )
+        dl <- left[, query$pair_left, drop = FALSE] -
+          left[, query$pair_right, drop = FALSE]
+        dr <- right[, query$pair_left, drop = FALSE] -
+          right[, query$pair_right, drop = FALSE]
+        pair_tile <- pair_tile + ordered_edges$weight[[edge]] * (dl * dr)
+      }
+      tile[, ] <- if (is.null(query$coefficients)) {
+        pair_tile / mass[rows]
+      } else {
+        (pair_tile %*% t(query$coefficients)) / mass[rows]
       }
     } else {
       for (view in seq_len(ncol(query))) {

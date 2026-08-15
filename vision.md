@@ -1,7 +1,15 @@
 # Vision for `effectagram`
 
 Status: working vision
-Date: 2026-08-13
+Date: 2026-08-13 (calculus framing noted 2026-08-15)
+
+> Framing update, 2026-08-15: the public claim has since been sharpened into
+> the **evidence-pairing calculus** recorded in `novelty.md` — self- and
+> cross-experimental axes, self- and cross-neural measurements, and spatial
+> frames as boundary closures of one typed second-order pairing, with the
+> executable estimand contract as the mechanism that keeps those closures
+> intact through execution. This document's rMVPA-successor mission is
+> unchanged; the calculus is its organizing mathematics.
 
 The name is pronounced “effect-a-gram.” An effectagram is the
 cross-generalized geometry of experimental effects across a declared spatial

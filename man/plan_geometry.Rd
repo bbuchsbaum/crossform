@@ -4,21 +4,38 @@
 \alias{plan_geometry}
 \title{Compile a reusable query-first geometry plan}
 \usage{
-plan_geometry(x, at, over, compute = compute_policy(), metric = NULL)
+plan_geometry(
+  x,
+  at,
+  over,
+  compute = compute_policy(),
+  metric = NULL,
+  right = NULL
+)
 }
 \arguments{
-\item{x}{An `effect_relation`.}
+\item{x}{An `effect_relation` supplying the left experimental axis.}
 
 \item{at}{A compiled additive `effect_frame`.}
 
-\item{over}{An `effect_pairing`.}
+\item{over}{An `effect_pairing`. Rectangular plans require directed
+pairings whose left endpoints identify partitions of `x` and right
+endpoints identify partitions of `right`.}
 
 \item{compute}{A sequential `compute_policy()`.}
 
 \item{metric}{Optional fixed `neural_metric()`. A domain-wide metric is
 restricted to each frame support on demand; a support-local metric is
 accepted only for a matching one-node frame. Learned metric recipes are
-added by the statistical fitting layer rather than stored per node.}
+added by the statistical fitting layer rather than stored per node.
+Fixed metrics are not yet admitted on rectangular plans.}
+
+\item{right}{Optional second `effect_relation` supplying a distinct right
+experimental axis. Supplying it compiles a rectangular cross-axis plan:
+the resulting form has one row axis per left effect and one column axis
+per right effect, is read with axis-bound [pair_query()]s through
+[evaluate_geometry()], and materializes to a rectangular effect form.
+Encoding-retrieval similarity is the canonical use.}
 }
 \value{
 An immutable-by-convention `effect_geometry_plan`.

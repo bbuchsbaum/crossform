@@ -10,7 +10,8 @@ pairing(
   weight = NULL,
   directed = FALSE,
   self_pairs = c("forbid", "allow_biased"),
-  independence = c("independent", "not_independent")
+  independence = c("independent", "not_independent"),
+  generalizes_over = NULL
 )
 }
 \arguments{
@@ -26,6 +27,13 @@ admitted as noise-biased estimates.}
 
 \item{independence}{Whether distinct endpoint estimates are declared
 independent. Self-products can only be marked `not_independent`.}
+
+\item{generalizes_over}{Optional name of the sampling axis this pairing
+generalizes across, such as `"run"`, `"session"`, or `"task"`. The axis
+is part of the scientific estimand: cross-run and cross-session
+reproduction are different quantities even at identical fold counts, so
+the declared axis is bound into every plan identity built from this
+pairing. Leaving it `NULL` records the axis as undeclared.}
 }
 \value{
 An edge table with explicit endpoint semantics.

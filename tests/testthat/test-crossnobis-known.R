@@ -399,3 +399,29 @@ test_that("known-metric Monte Carlo recovers null and planted targets", {
     1.5 * expected_standard_errors[["signal"]])
   expect_true(any(estimates[, "null"] < 0))
 })
+
+test_that("crossnobis is the named total of the metric-carrying contrast", {
+  set.seed(72901)
+  domain <- abstract_domain(4L, id = "crossnobis-alias-domain")
+  sources <- list(
+    run1 = matrix(rnorm(12), 3, 4, dimnames = list(c("a", "b", "c"), NULL)),
+    run2 = matrix(rnorm(12), 3, 4, dimnames = list(c("a", "b", "c"), NULL))
+  )
+  relation <- relation(
+    sources, effects = effect_space(c("a", "b", "c")), domain = domain
+  )
+  precision <- diag(c(1, 2, 0.5, 1.5))
+  plan <- plan_geometry(
+    relation, compile_frame(whole_brain(), domain),
+    cross_partitions(relation),
+    metric = noise_precision(precision, domain, covariance = solve(precision))
+  )
+  weights <- c(a = 1, b = -1, c = 0)
+  named <- crossnobis(plan, weights)
+  family <- contrast(plan, weights)
+  expect_equal(unname(named$values), unname(family$total),
+    tolerance = 1e-12)
+  # The decomposition of the same estimand is available from contrast().
+  expect_equal(family$total, family$coherent + family$configuration,
+    tolerance = 1e-12)
+})

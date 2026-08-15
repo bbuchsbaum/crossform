@@ -53,6 +53,28 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
   set.seed(81323)
   conditions <- 5L
   features <- 11L
+  # The component constructor now binds the contrasts to the plan's effect
+  # space, so the oracle needs a plan whose experimental dimension is the
+  # oracle's own five conditions.
+  labels <- paste0("condition", seq_len(conditions))
+  design <- kronecker(rep(1, 4L), diag(conditions))
+  colnames(design) <- labels
+  effect_map <- diag(conditions)
+  dimnames(effect_map) <- list(labels, labels)
+  domain <- abstract_domain(3L, id = "sampling-kernel-five-domain")
+  sources <- stats::setNames(lapply(seq_len(4L), function(index) {
+    matrix(rnorm(4L * conditions * 3L), 4L * conditions, 3L)
+  }), paste0("run", seq_len(4L)))
+  five_fit <- lm_relation_fit(
+    sources, design, effect_map, sampling_unit = "trial", domain = domain
+  )
+  five_plan <- effectagram:::.compile_evidence_sampling_plan(
+    plan_geometry(
+      five_fit$relation, compile_frame(whole_brain(), domain),
+      cross_partitions(five_fit$relation)
+    ),
+    five_fit
+  )
   contrasts <- sampling_oracle_condition_contrasts(conditions)
   patterns <- matrix(rnorm(conditions * features), conditions, features)
   effect_raw <- matrix(rnorm(conditions^2), conditions, conditions)
@@ -64,10 +86,10 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
   )
   expected <- sampling_oracle_eq13(
     components$delta, components$xi, residual_covariance,
-    fixture$plan$partition$count
+    five_plan$partition$count
   )$covariance
   observed <- effectagram:::.sampling_covariance_from_components(
-    fixture$plan, contrasts, patterns, effect_covariance,
+    five_plan, contrasts, patterns, effect_covariance,
     residual_covariance, labels = rownames(contrasts)
   )
 

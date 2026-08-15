@@ -30,3 +30,4 @@ An immutable `effect_coherent_functional`.
 The vector `a` defines the scientifically oriented amplitude `B a`. It is
 separate from the metric that normalizes the energy of that amplitude.
 }
+\keyword{internal}

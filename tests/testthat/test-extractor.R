@@ -67,11 +67,16 @@ test_that("rank-deficient extraction admits only estimable targets", {
 
   expect_true(extractor$diagnostics$rank_deficient)
   expect_identical(extractor$diagnostics$solver, "svd_estimable_fallback")
-  expect_error(
+  refusal <- catch_refusal(
     lm_extractor(design, matrix(c(1, 0), 1,
-      dimnames = list("first_only", NULL))),
-    "not estimable"
+      dimnames = list("first_only", NULL)))
   )
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "estimable_effects")
+  expect_identical(refusal$namespace, "relation_fit")
+  expect_match(conditionMessage(refusal), "rank 1 for 2 regressors")
+  expect_match(conditionMessage(refusal), "x, duplicate")
+  expect_match(conditionMessage(refusal), "estimable contrasts")
 })
 
 test_that("mutated extractor contracts fail closed", {

@@ -122,7 +122,7 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
 }
 
 .compile_lm_estimator <- function(design, effects, observation_whitener,
-                                  effect_names, tolerance) {
+                                  effect_names, tolerance, partition = NULL) {
   if (!is.matrix(design) || !is.numeric(design) || any(dim(design) < 1L) ||
       any(!is.finite(design))) {
     stop("`design` must be a finite nonempty observation-by-coefficient matrix.",
@@ -181,8 +181,56 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     estimability_error <- sqrt(rowSums((effects - projected)^2)) / scale
     if (any(estimability_error > tolerance * 10)) {
       bad <- coordinate_names[estimability_error > tolerance * 10]
-      stop(sprintf("Requested effects are not estimable: %s.",
-        paste(bad, collapse = ", ")), call. = FALSE)
+      null_basis <- singular$v[, !keep, drop = FALSE]
+      coefficient_names <- colnames(design)
+      if (is.null(coefficient_names)) {
+        coefficient_names <- paste0("coefficient", seq_len(coefficients))
+      }
+      alias_groups <- unique(vapply(seq_len(ncol(null_basis)), function(index) {
+        values <- null_basis[, index]
+        active <- abs(values) > tolerance * 10 * max(1, max(abs(values)))
+        paste(coefficient_names[active], collapse = ", ")
+      }, character(1)))
+      alias_groups <- alias_groups[nzchar(alias_groups)]
+      location <- if (is.null(partition)) {
+        "The design"
+      } else {
+        sprintf("Partition `%s`", partition)
+      }
+      reasons <- c(
+        sprintf("%s has rank %d for %d regressors.",
+          location, rank, coefficients),
+        if (length(alias_groups)) {
+          sprintf("Aliased regressor set%s: %s.",
+            if (length(alias_groups) == 1L) "" else "s",
+            paste(alias_groups, collapse = "; "))
+        },
+        sprintf("Requested effect%s outside the estimable row space: %s.",
+          if (length(bad) == 1L) "" else "s",
+          paste(bad, collapse = ", "))
+      )
+      remedies <- c(
+        paste0(
+          "Remove a redundant design column. For a complete set of condition ",
+          "indicators, drop the intercept or one condition indicator."
+        ),
+        paste0(
+          "Request estimable contrasts, such as differences between ",
+          "conditions, instead of unidentified individual coefficients."
+        )
+      )
+      message <- paste0(
+        "Requested effects are not estimable: ", paste(bad, collapse = ", "),
+        ". ", paste(reasons, collapse = " "), " ",
+        paste(remedies, collapse = " ")
+      )
+      .capability_refusal(
+        message,
+        capability = "estimable_effects",
+        namespace = "relation_fit",
+        reasons = reasons,
+        remedies = remedies
+      )
     }
     inverse <- singular$v[, keep, drop = FALSE] %*%
       (t(singular$u[, keep, drop = FALSE]) / singular$d[keep])

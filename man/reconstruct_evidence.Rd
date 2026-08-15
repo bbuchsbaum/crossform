@@ -10,7 +10,7 @@ reconstruct_evidence(
   method = c("auto", "parseval", "canonical_dual", "projected_pseudoinverse"),
   tolerance = 1e-10,
   max_condition = 1e+08,
-  allow_projection = TRUE,
+  allow_projection = FALSE,
   workspace_bytes = 512 * 1024^2,
   reference_operator = NULL
 )
@@ -28,8 +28,10 @@ tolerance.}
 
 \item{max_condition}{Maximum accepted retained condition number.}
 
-\item{allow_projection}{Whether rank-deficient projected reconstruction is
-admitted.}
+\item{allow_projection}{Whether rank-deficient projected (lossy)
+reconstruction is admitted. It defaults to `FALSE` so a projection is an
+explicit choice, never a silent fallback: rank-deficient frames refuse
+until projection is explicitly admitted.}
 
 \item{workspace_bytes}{Positive dense-workspace budget. The default is a
 hard 512 MiB ceiling for this explicitly small-node reconstruction path.}

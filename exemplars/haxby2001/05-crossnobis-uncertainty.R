@@ -41,10 +41,11 @@ if (is.null(prep$response_runs)) {
 }
 
 # How many frame nodes get an analytic covariance, spread evenly over the VT
-# centres. Bounded by default only because the cost is real:
-# `rdm_sampling_covariance()` evaluates one node per call at roughly 9 s here,
-# so all 577 centres is about 90 minutes. It is not a correctness limit --
-# `UNCERTAINTY_NODES=all` runs every centre.
+# centres. Bounded by default because the cost remains material. A 2026-08-14
+# 25-node run on the validation-memo path measured 0.65 s/node; the script
+# records every node rather than treating that machine-specific rate as a
+# permanent guarantee. It is not a correctness limit -- `UNCERTAINTY_NODES=all`
+# runs every centre.
 node_arg <- Sys.getenv("UNCERTAINTY_NODES", "120")
 
 ## ---- Domain, frame ------------------------------------------------------
@@ -105,7 +106,7 @@ nodes <- if (identical(node_arg, "all")) {
   unique(round(seq(1, n_centers, length.out = min(k, n_centers))))
 }
 message("Analytic sampling covariance for ", length(nodes), " of ",
-        n_centers, " frame nodes (a few seconds each) ...")
+        n_centers, " frame nodes (timed individually) ...")
 
 n_pairs <- ncol(D_fixed)
 se <- matrix(NA_real_, length(nodes), n_pairs)

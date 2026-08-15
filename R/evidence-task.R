@@ -622,7 +622,8 @@
       )
     ))
   }
-  if (x$kind %in% c("bilinear_compatibility", "physical_self_query")) {
+  if (x$kind %in% c("bilinear_compatibility", "physical_self_query",
+      "pair_difference_self_query")) {
     return(x)
   }
   stop("Unknown effect-form projection identity.", call. = FALSE)

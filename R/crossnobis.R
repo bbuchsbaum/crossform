@@ -224,6 +224,11 @@ plan_crossnobis <- function(
     } else {
       compute$workspace_bytes
     }) {
+  # Diagnose a missing residual channel before shape validation or any
+  # metric-training preflight: a bare relation or a channel-free fit must get
+  # the capability refusal, not a field-shape error or a training-partition
+  # shortage that misstates the real problem.
+  .require_relation_fit_capability(x, "learned_metric_input")
   .validate_relation_fit(x, deep = FALSE)
   compute <- .validate_compute_policy(compute)
   .require_crossnobis_pairing(over)
@@ -493,6 +498,15 @@ print.effect_crossnobis_plan <- function(x, ...) {
 #' @param weights One finite contrast weight per experimental effect.
 #' @return An `effect_crossnobis_view` with one signed value per spatial
 #'   measurement and the executed plan receipt.
+#'
+#' @section One estimand, two views:
+#' On a fixed-metric geometry plan, `crossnobis(x, weights)` is the named
+#' Mahalanobis reading of exactly `contrast(x, weights)$total`: the same
+#' compiled estimand, exposed as a single signed value. When the analysis
+#' also needs the signed endpoint marginals or the exact
+#' coherent/configuration decomposition of the same quantity, call
+#' [contrast()] on the same plan; every component it returns inherits the
+#' plan's fixed metric.
 #' @examples
 #' domain <- abstract_domain(3, id = "crossnobis-example")
 #' run1 <- rbind(a = c(1, 0, 0), b = c(0, 1, 0))

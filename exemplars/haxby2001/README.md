@@ -186,10 +186,18 @@ the latter the way the Estimand section describes.
 
 The parity tier (scripts 02–04) is genuinely cheap: about 20 s total, of which
 effectagram's `rdm()` over 577 centres is 0.48 s and rMVPA's crossnobis RDM is
-0.40 s. The error-channel arm (05) is much heavier —
-`rdm_sampling_covariance()` evaluates one frame node per call at ~9 s, so it
-defaults to 120 nodes (~22 min) and `UNCERTAINTY_NODES=all` takes ~90 min.
-Only 02–04 should be treated as the commit gate.
+0.40 s. The error-channel arm (05) is heavier, but the old estimate in this
+section was stale. A 2026-08-14 rerun of 25 evenly spaced nodes on the current
+tree took 16.2 s total (0.65 s/node). A linear projection is therefore about
+78 s for the 120-node default and 6.3 min for `UNCERTAINTY_NODES=all`; those two
+numbers are projections, not measured full-sweep gates. The separately
+versioned public map gate measures a complete 576-node, 66-distance covariance
+sweep at 183.3 s on its synthetic scale fixture. Scripts 02–04 remain the
+quick parity tier; script 05 is an explicitly timed extended gate.
+
+The committed `smoke-uncertainty.rds` predates the validation-memo optimization
+and still records 9.03 s/node. Keep it as historical result evidence, not a
+current runtime claim; rerunning script 05 writes the current per-node timings.
 
 ### Error-channel arm: ran end to end
 

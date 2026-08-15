@@ -19,6 +19,13 @@ voxels <- function(normalization = "conservative") {
 
 #' Specify Euclidean searchlights
 #'
+#' The default `"local"` normalization matches the conventional
+#' center-assigned searchlight map, in which overlapping neighborhoods
+#' repeatedly count shared features. Local values under this default cannot
+#' be summed into a whole-brain quantity. Request
+#' `normalization = "conservative"` for exact local-to-global accounting of
+#' the `total` component, and check any frame with [frame_conservation()].
+#'
 #' @param radius Positive radius in domain coordinate units.
 #' @param normalization Explicit frame normalization.
 #' @return An additive frame specification.
@@ -150,6 +157,48 @@ compile_frame <- function(specification, domain) {
     stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
   }
   rebuilt
+}
+
+#' Diagnose local-to-global conservation of a compiled frame
+#'
+#' Under a conservative frame every domain feature carries total weight mass
+#' one, so local `total` geometries sum exactly to the global geometry:
+#' \deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}
+#' Overlapping neighborhoods under `normalization = "local"` double-count
+#' shared features, so their local values are not contributions to a
+#' whole-brain quantity. Two preconditions matter when checking the law:
+#' the global comparator must be the unnormalized operator
+#' (`whole_brain("none")`), because default local normalization divides by
+#' the feature count; and the law covers the `total` component only —
+#' `coherent` is defined by each measurement's own weighted common mode, and
+#' local coherent values do not sum to the global coherent component.
+#'
+#' @param x A compiled `effect_frame`.
+#' @param tolerance Nonnegative absolute per-feature mass tolerance.
+#' @return An `effect_frame_conservation` list reporting `conserved`, the
+#'   covered `component` (`"total"`), the frame `normalization`, the maximum
+#'   per-feature mass deviation from one, and the per-feature mass vector.
+#' @examples
+#' domain <- abstract_domain(4, id = "conservation-example")
+#' conservative <- compile_frame(voxels(), domain)
+#' frame_conservation(conservative)$conserved
+#' @export
+frame_conservation <- function(x, tolerance = 1e-10) {
+  .validate_frame_for_compile(x)
+  if (!is.numeric(tolerance) || length(tolerance) != 1L ||
+      is.na(tolerance) || !is.finite(tolerance) || tolerance < 0) {
+    stop("`tolerance` must be one nonnegative finite number.", call. = FALSE)
+  }
+  mass <- as.numeric(Matrix::colSums(x$weights))
+  max_deviation <- max(abs(mass - 1))
+  structure(list(
+    conserved = max_deviation <= tolerance,
+    component = "total",
+    normalization = x$normalization,
+    max_deviation = max_deviation,
+    feature_mass = mass,
+    tolerance = tolerance
+  ), class = "effect_frame_conservation")
 }
 
 .normalize_frame <- function(weights, normalization) {

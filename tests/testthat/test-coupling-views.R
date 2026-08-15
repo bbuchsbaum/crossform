@@ -325,3 +325,52 @@ test_that("connectivity convenience validates view-specific declarations", {
   expect_false(exists("informational_connectivity",
     envir = asNamespace("effectagram"), inherits = FALSE))
 })
+
+test_that("coupling() takes the adjoint closure from the plan vocabulary", {
+  set.seed(41219)
+  domain <- abstract_domain(4L, id = "coupling-plan-domain")
+  relation <- relation(
+    list(
+      run1 = matrix(rnorm(8), 2, 4, dimnames = list(c("a", "b"), NULL)),
+      run2 = matrix(rnorm(8), 2, 4, dimnames = list(c("a", "b"), NULL))
+    ),
+    effects = effect_space(c("a", "b")), domain = domain
+  )
+  plan <- plan_geometry(
+    relation, compile_frame(regions(c("r1", "r1", "r2", "r2")), domain),
+    cross_partitions(relation)
+  )
+  h <- diag(2) - 0.5
+  query <- variation_query(
+    h, relation$effect_space, "trial", "psd_variation"
+  )
+  form <- coupling(plan, cbind("r1", "r2"), by = query)
+  effect <- effect_coupling(form)
+  expect_s3_class(effect, "effect_coupling_result")
+
+  # The adapter is one vocabulary, not a new estimator: the same edges
+  # declared through the measurement pipeline agree exactly.
+  frame <- measurement_frame(plan$frame)
+  manual <- measurement_form(
+    relation, edge_frame("r1", "r2", frame), query, plan$pairing
+  )
+  expect_equal(
+    effect$values[[1L]], effect_coupling(manual)$values[[1L]],
+    tolerance = 1e-12
+  )
+
+  expect_error(coupling(plan, cbind("r1", "nowhere"), by = query),
+    "identify measurements")
+  other <- relation(
+    list(other1 = matrix(rnorm(4), 1, 4, dimnames = list("z", NULL))),
+    effects = effect_space("z"), domain = domain
+  )
+  rectangular <- plan_geometry(
+    relation, compile_frame(voxels(), domain),
+    pairing(c("run1", "run2"), c("other1", "other1"), directed = TRUE,
+      independence = "independent"),
+    right = other
+  )
+  expect_error(coupling(rectangular, cbind(1, 2), by = query),
+    "self-form plan")
+})

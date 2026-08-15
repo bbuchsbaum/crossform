@@ -131,7 +131,7 @@ test_that("learned metric uncertainty and spatial scope are explicit gates", {
   expect_identical(spatial$capabilities$spatial_covariance, "unavailable")
   expect_error(
     effectagram:::.require_sampling_covariance(spatial),
-    "Cross-location sampling covariance"
+    "cross-location sampling covariance requires an explicit spatial model"
   )
 })
 

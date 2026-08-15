@@ -4,11 +4,15 @@
 \alias{cross_partitions}
 \title{Pair every distinct partition once}
 \usage{
-cross_partitions(partitions)
+cross_partitions(partitions, generalizes_over = NULL)
 }
 \arguments{
 \item{partitions}{Partition identifiers or an `effect_relation`. Pass
 `fit$relation` when starting from `lm_relation_fit()`.}
+
+\item{generalizes_over}{Optional name of the sampling axis the partitions
+represent, such as `"run"` or `"session"`; see [pairing()]. The declared
+axis is bound into every plan identity built from this pairing.}
 }
 \value{
 An undirected pairing containing one row per unordered pair, with

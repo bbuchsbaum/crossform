@@ -64,7 +64,7 @@
   )), class = "effect_metric_schedule")
 }
 
-.validate_geometry_metric_schedule <- function(x) {
+.validate_geometry_metric_schedule <- function(x, deep = TRUE) {
   expected <- c("role", "kind", "frame_composition", "feature_additive",
     "support_dense", "materialization", "scope", "lowering",
     "metric_signature", "metric", "signature")
@@ -98,7 +98,11 @@
         call. = FALSE)
     }
   } else {
-    metric <- .validate_neural_metric(x$metric)
+    # The `metric_signature` comparison below binds the metric to the schedule
+    # identity at either depth; only the metric-internal rebuild is gated. That
+    # rebuild is O(p^3) in a domain-wide metric, and every plan has already
+    # passed it at its compile boundary.
+    metric <- .validate_neural_metric(x$metric, deep = deep)
     if (!identical(x$materialization, "fixed_metric") ||
         !identical(x$metric_signature, metric$signature) ||
         !identical(x$feature_additive,
@@ -158,6 +162,27 @@
   ), algo = "sha256", serialize = TRUE))
 }
 
+# A view's scientific identity is the parent geometry estimand plus the
+# view's semantic descriptor. It must not depend on how the view was
+# executed: the fused query-first route and projection from a materialized
+# geometry are two executions of one estimand and must hash identically.
+.geometry_view_scientific_id <- function(estimand_id, component, query,
+                                         signed_query = NULL) {
+  if (!is.character(estimand_id) || length(estimand_id) != 1L ||
+      is.na(estimand_id) || !nzchar(estimand_id)) {
+    stop("A view identity requires its parent geometry estimand id.",
+      call. = FALSE)
+  }
+  paste0("geometry-sha256:", digest::digest(list(
+    schema_version = 1L,
+    role = "geometry_view",
+    parent = estimand_id,
+    component = component,
+    query = .query_identity_semantic(query),
+    signed_query = if (is.null(signed_query)) NULL else unname(signed_query)
+  ), algo = "sha256", serialize = TRUE))
+}
+
 .geometry_dense_payload_bytes <- function(measurements, packed_width,
                                           effects, partitions) {
   values <- c(measurements, packed_width, effects, partitions)
@@ -193,14 +218,23 @@
 #' materialized with [geometry()]. Complete packed geometry is therefore an
 #' optional materialization, not the object that every analysis must allocate.
 #'
-#' @param x An `effect_relation`.
+#' @param x An `effect_relation` supplying the left experimental axis.
 #' @param at A compiled additive `effect_frame`.
-#' @param over An `effect_pairing`.
+#' @param over An `effect_pairing`. Rectangular plans require directed
+#'   pairings whose left endpoints identify partitions of `x` and right
+#'   endpoints identify partitions of `right`.
 #' @param compute A sequential `compute_policy()`.
 #' @param metric Optional fixed `neural_metric()`. A domain-wide metric is
 #'   restricted to each frame support on demand; a support-local metric is
 #'   accepted only for a matching one-node frame. Learned metric recipes are
 #'   added by the statistical fitting layer rather than stored per node.
+#'   Fixed metrics are not yet admitted on rectangular plans.
+#' @param right Optional second `effect_relation` supplying a distinct right
+#'   experimental axis. Supplying it compiles a rectangular cross-axis plan:
+#'   the resulting form has one row axis per left effect and one column axis
+#'   per right effect, is read with axis-bound [pair_query()]s through
+#'   [evaluate_geometry()], and materializes to a rectangular effect form.
+#'   Encoding-retrieval similarity is the canonical use.
 #' @return An immutable-by-convention `effect_geometry_plan`.
 #' @examples
 #' domain <- abstract_domain(3, id = "plan-example")
@@ -217,20 +251,51 @@
 #' as.data.frame(result)
 #' @export
 plan_geometry <- function(x, at, over, compute = compute_policy(),
-                          metric = NULL) {
+                          metric = NULL, right = NULL) {
   compute <- .validate_compute_policy(compute)
-  .validate_compiler_inputs(x, at, over)
+  .validate_compiler_inputs(x, at, over, right = right)
+  if (!is.null(right) && !is.null(metric)) {
+    .capability_refusal(paste0(
+      "Fixed neural metrics are not yet admitted on rectangular ",
+      "cross-axis plans; effectagram 0.1 compiles rectangular forms on ",
+      "the implicit identity metric only."
+    ),
+      capability = "rectangular_fixed_metric",
+      namespace = "geometry_plans",
+      reasons = "rectangular_metric_law_not_compiled",
+      remedies = paste0(
+        "Omit `metric` for the rectangular plan, or use a self-form plan ",
+        "for fixed-metric geometry."
+      )
+    )
+  }
   capabilities <- .execution_preflight(compute, function() {
     .compiler_capabilities(x)
   })$source_capabilities
   x$capabilities <- capabilities
-  task <- .compile_effect_evidence_task(x, over)
+  if (!is.null(right)) {
+    right$capabilities <- .compiler_capabilities(right)
+  }
+  task <- .compile_effect_evidence_task(x, over, right = right)
   metric_schedule <- .geometry_metric_schedule(at, metric)
-  q <- length(x$effect_space$coordinates)
-  packed_width <- q * (q + 1L) / 2L
+  q_left <- length(x$effect_space$coordinates)
+  q_right <- if (is.null(right)) {
+    q_left
+  } else {
+    length(right$effect_space$coordinates)
+  }
+  codec <- if (is.null(right)) "symmetric_packed" else "rectangular"
+  packed_width <- if (is.null(right)) {
+    q_left * (q_left + 1L) / 2L
+  } else {
+    q_left * q_right
+  }
   measurements <- nrow(at$weights)
   dense_payload_bytes <- .geometry_dense_payload_bytes(
-    measurements, packed_width, q, length(x$partitions)
+    measurements, packed_width,
+    if (is.null(right)) q_left else q_left + q_right,
+    length(unique(c(x$partitions, if (is.null(right)) NULL else
+      right$partitions)))
   )
   scientific_plan_id <- .geometry_plan_scientific_id(
     task, at, metric_schedule, "full", validate = FALSE
@@ -244,7 +309,8 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     pairing = over,
     metric_schedule = metric_schedule,
     compute = compute,
-    logical_shape = as.integer(c(q, q)),
+    codec = codec,
+    logical_shape = as.integer(c(q_left, q_right)),
     packed_width = as.integer(packed_width),
     measurements = as.integer(measurements),
     dense_payload_bytes = dense_payload_bytes,
@@ -257,8 +323,9 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
 }
 
 .validate_geometry_plan <- function(x, deep = TRUE) {
+  if (.validated_before(x, "geometry_plan", deep)) return(invisible(x))
   expected <- c("task", "frame", "pairing", "metric_schedule", "compute",
-    "logical_shape", "packed_width", "measurements",
+    "codec", "logical_shape", "packed_width", "measurements",
     "dense_payload_bytes", "lowering", "scientific_plan_id", "signature")
   valid_lowering <- c(
     "additive_contraction",
@@ -268,6 +335,8 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       !identical(names(x), expected) ||
       !is.character(x$lowering) || length(x$lowering) != 1L ||
       is.na(x$lowering) || !x$lowering %in% valid_lowering ||
+      !is.character(x$codec) || length(x$codec) != 1L ||
+      !x$codec %in% c("symmetric_packed", "rectangular") ||
       !is.integer(x$logical_shape) || length(x$logical_shape) != 2L ||
       !is.integer(x$packed_width) || length(x$packed_width) != 1L ||
       !is.integer(x$measurements) || length(x$measurements) != 1L ||
@@ -281,25 +350,40 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   .validate_evidence_task(x$task)
   .validate_frame_for_compile(x$frame)
   .validate_pairing(x$pairing)
-  metric_schedule <- .validate_geometry_metric_schedule(x$metric_schedule)
+  metric_schedule <- .validate_geometry_metric_schedule(
+    x$metric_schedule, deep = deep
+  )
   compute <- .validate_compute_policy(x$compute)
   relation <- x$task$left_relation
-  q <- length(relation$effect_space$coordinates)
-  packed_width <- q * (q + 1L) / 2L
+  right_relation <- x$task$right_relation
+  same <- isTRUE(x$task$same_relation)
+  q_left <- length(relation$effect_space$coordinates)
+  q_right <- length(right_relation$effect_space$coordinates)
+  packed_width <- if (same) {
+    q_left * (q_left + 1L) / 2L
+  } else {
+    q_left * q_right
+  }
   measurements <- nrow(x$frame$weights)
-  if (!isTRUE(x$task$same_relation) ||
+  if (!identical(x$codec,
+        if (same) "symmetric_packed" else "rectangular") ||
+      (!same && !is.null(metric_schedule$metric)) ||
       x$task$materialization$kind != "effect_form" ||
       x$task$materialization$completeness != "complete_form" ||
       x$task$experimental_boundary$state != "open" ||
       x$task$neural_boundary$state != "closed" ||
       x$task$neural_boundary$closure_kind != "bridge" ||
-      !identical(x$logical_shape, as.integer(c(q, q))) ||
+      !identical(x$logical_shape, as.integer(c(q_left, q_right))) ||
       !identical(x$packed_width, as.integer(packed_width)) ||
       !identical(x$measurements, as.integer(measurements)) ||
       !.same_domain_reference(x$frame$domain, relation$domain) ||
+      !.same_domain_reference(x$frame$domain, right_relation$domain) ||
       !identical(x$lowering, metric_schedule$lowering) ||
       !identical(x$dense_payload_bytes, .geometry_dense_payload_bytes(
-        measurements, packed_width, q, length(relation$partitions)
+        measurements, packed_width,
+        if (same) q_left else q_left + q_right,
+        length(unique(c(relation$partitions, if (same) NULL else
+          right_relation$partitions)))
       ))) {
     stop("Geometry-plan axes, frame, or materialization are inconsistent.",
       call. = FALSE)
@@ -326,6 +410,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       stop("Geometry-plan identity is inconsistent.", call. = FALSE)
     }
   }
+  .record_validated(x, "geometry_plan", deep)
   invisible(x)
 }
 
@@ -333,11 +418,25 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
 print.effect_geometry_plan <- function(x, ...) {
   .validate_geometry_plan(x, deep = FALSE)
   payload <- structure(x$dense_payload_bytes, class = "object_size")
+  metric <- x$metric_schedule$metric
+  metric_status <- if (is.null(metric)) {
+    "implicit identity"
+  } else if (isTRUE(metric$capabilities$learned_frozen)) {
+    "fixed (learned, frozen before evaluation)"
+  } else {
+    "fixed"
+  }
+  axis <- attr(x$pairing, "generalizes_over", exact = TRUE)
+  independence <- attr(x$pairing, "independence", exact = TRUE)
   cat("<effect_geometry_plan>\n", sep = "")
   cat("  effects:      ", x$logical_shape[[1L]], " x ",
     x$logical_shape[[2L]], "\n", sep = "")
   cat("  measurements: ", x$measurements, "\n", sep = "")
   cat("  features:     ", x$task$left_relation$n_features, "\n", sep = "")
+  cat("  metric:       ", metric_status, "\n", sep = "")
+  cat("  generalizes:  ", nrow(x$pairing), " partition pairs",
+    if (is.null(axis)) " (axis undeclared)" else paste0(" over ", axis),
+    ", endpoints ", independence, "\n", sep = "")
   cat("  lowering:     ", x$lowering, "\n", sep = "")
   cat("  dense payload:", format(payload, units = "auto"), "\n")
   cat("  state:        query-first; call geometry(plan) to materialize\n")
@@ -371,12 +470,19 @@ print.effect_geometry_plan <- function(x, ...) {
     signed_query = NULL) {
   .validate_geometry_plan(plan)
   storage <- match.arg(storage)
+  rectangular <- identical(plan$codec, "rectangular")
   if (!is.null(query)) {
     physical_query <- .compiler_query(
-      query, plan$task$left_relation$effect_space
+      query, plan$task$left_relation$effect_space,
+      right_space = plan$task$right_relation$effect_space,
+      codec = plan$codec
     )
     component <- match.arg(component,
       c("total", "coherent", "configuration", "contrast"))
+    if (rectangular && identical(component, "contrast")) {
+      stop("Signed contrast execution requires a self-form plan.",
+        call. = FALSE)
+    }
     if (storage != "memory" || !is.null(storage_path)) {
       stop(paste0(
         "Query-first execution returns an in-memory view and does not create ",
@@ -384,7 +490,9 @@ print.effect_geometry_plan <- function(x, ...) {
       ), call. = FALSE)
     }
     task <- .compile_effect_evidence_task(
-      plan$task$left_relation, plan$pairing, query = query
+      plan$task$left_relation, plan$pairing,
+      right = if (rectangular) plan$task$right_relation else NULL,
+      query = query
     )
   } else {
     if (!is.null(signed_query)) {
@@ -420,12 +528,17 @@ print.effect_geometry_plan <- function(x, ...) {
         call. = FALSE)
     }
     requirements <- .component_requirements(physical_query, component)
+    if (rectangular) {
+      # Signed endpoint marginals are a self-form concept; a rectangular
+      # materialization carries total and coherent components only.
+      requirements$marginals <- FALSE
+    }
   }
   q <- plan$logical_shape[[1L]]
   output_width <- if (is.null(physical_query)) {
     plan$packed_width
   } else {
-    ncol(physical_query)
+    .query_output_width(physical_query)
   }
   explicit_metric <- identical(
     plan$metric_schedule$kind, "fixed_metric_before_frame"
@@ -448,7 +561,8 @@ print.effect_geometry_plan <- function(x, ...) {
   } else {
     .select_compiler_memory_plan(
       plan$task$left_relation, plan$frame, plan$compute, output_width,
-      storage, requirements
+      storage, requirements, query = physical_query,
+      right_relation = if (rectangular) plan$task$right_relation else NULL
     )
   }
   if (identical(selected$memory$fits_budget, FALSE)) {
@@ -482,12 +596,20 @@ print.effect_geometry_plan <- function(x, ...) {
   } else {
     "additive-effect-form-v2"
   }
-  scientific_plan_id <- .geometry_plan_scientific_id(
-    task, plan$frame, plan$metric_schedule, component, signed_query,
-    validate = FALSE
-  )
+  scientific_plan_id <- if (is.null(physical_query)) {
+    # Full materialization executes the plan's own estimand.
+    plan$scientific_plan_id
+  } else {
+    # A fused query is an execution strategy for a view of the parent
+    # estimand; its identity derives from the parent id plus the view
+    # semantics, exactly as the projected route derives it.
+    .geometry_view_scientific_id(
+      plan$scientific_plan_id, component, physical_query, signed_query
+    )
+  }
   fields <- list(
     parent_signature = plan$signature,
+    estimand_id = plan$scientific_plan_id,
     task = task,
     frame = plan$frame,
     metric_schedule = plan$metric_schedule,
@@ -519,13 +641,15 @@ print.effect_geometry_plan <- function(x, ...) {
 }
 
 .validate_geometry_execution_plan <- function(x) {
-  expected <- c("parent_signature", "task", "frame", "metric_schedule",
+  expected <- c("parent_signature", "estimand_id", "task", "frame",
+    "metric_schedule",
     "compute", "storage", "storage_path", "query", "component",
     "signed_query", "requirements", "output_width", "feature_block", "row_tile",
     "coordinate_tile", "memory", "task_count", "lowering", "query_fused",
     "kernel_version", "scientific_plan_id", "signature")
   if (!inherits(x, "effect_geometry_execution_plan") || !is.list(x) ||
       !identical(names(x), expected) || !.strong_sha256(x$parent_signature) ||
+      !.strong_sha256(sub("^geometry-", "", x$estimand_id)) ||
       !x$storage %in% c("memory", "block") ||
       !x$component %in% c(
         "full", "total", "coherent", "configuration", "contrast"
@@ -562,6 +686,9 @@ print.effect_geometry_plan <- function(x, ...) {
     )
   } else {
     .component_requirements(x$query, x$component)
+  }
+  if (!isTRUE(x$task$same_relation)) {
+    expected_requirements$marginals <- FALSE
   }
   if (identical(x$component, "contrast")) {
     expected_query <- matrix(
@@ -602,12 +729,43 @@ print.effect_geometry_plan <- function(x, ...) {
   } else {
     "additive-effect-form-v2"
   }
-  expected_id <- .geometry_plan_scientific_id(
-    x$task, x$frame, x$metric_schedule, x$component, x$signed_query,
-    validate = FALSE
+  expected_id <- if (is.null(x$query)) {
+    x$estimand_id
+  } else {
+    .geometry_view_scientific_id(
+      x$estimand_id, x$component, x$query, x$signed_query
+    )
+  }
+  # The claimed estimand id is bound two ways: to the stored task through the
+  # query-stripped base task id, and to the parent plan through the parent
+  # signature, which digests exactly (estimand id, compute, payload bytes).
+  expected_estimand_id <- paste0("geometry-sha256:", digest::digest(list(
+    schema_version = 1L,
+    evidence_task = .effect_task_base_id(x$task),
+    frame = .additive_frame_signature(x$frame),
+    metric_schedule = x$metric_schedule$signature,
+    component = "full",
+    signed_query = NULL
+  ), algo = "sha256", serialize = TRUE))
+  relation <- x$task$left_relation
+  right_relation <- x$task$right_relation
+  same <- isTRUE(x$task$same_relation)
+  q <- length(relation$effect_space$coordinates)
+  q_right <- length(right_relation$effect_space$coordinates)
+  expected_parent_signature <- .geometry_plan_signature(
+    x$estimand_id, x$compute,
+    .geometry_dense_payload_bytes(
+      nrow(x$frame$weights),
+      if (same) q * (q + 1L) / 2L else q * q_right,
+      if (same) q else q + q_right,
+      length(unique(c(relation$partitions, if (same) NULL else
+        right_relation$partitions)))
+    )
   )
   fields <- x[names(x) != "signature"]
   if (!identical(x$requirements, expected_requirements) ||
+      !identical(x$estimand_id, expected_estimand_id) ||
+      !identical(x$parent_signature, expected_parent_signature) ||
       !identical(x$query_fused, !is.null(x$query)) ||
       !identical(x$lowering, expected_lowering) ||
       !identical(x$kernel_version, expected_kernel) ||

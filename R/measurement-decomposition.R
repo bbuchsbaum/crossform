@@ -299,9 +299,14 @@
     ) %*% cross %*% .decomposition_inverse_sqrt(
       right_self, tolerance, ridge
     )
-    canonical_values <- pmin(1, pmax(0,
-      svd(normalized, nu = 0L, nv = 0L)$d
-    ))
+    raw_canonical <- svd(normalized, nu = 0L, nv = 0L)$d
+    if (any(raw_canonical > 1 + 10 * tolerance)) {
+      stop(paste0(
+        "Canonical values exceed one beyond tolerance; the self-blocks are ",
+        "inconsistent with the cross block and will not be silently clipped."
+      ), call. = FALSE)
+    }
+    canonical_values <- pmin(1, pmax(0, raw_canonical))
     subspace_angles <- acos(canonical_values)
     denominator <- sqrt(sum(left_self^2) * sum(right_self^2))
     geometry_alignment <- if (denominator == 0) NA_real_ else

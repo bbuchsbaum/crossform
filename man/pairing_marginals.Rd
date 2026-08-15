@@ -21,3 +21,4 @@ For undirected pairings, a list containing only `endpoint`; for
 \description{
 Compute pairing-appropriate signed relation marginals
 }
+\keyword{internal}

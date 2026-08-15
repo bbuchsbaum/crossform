@@ -76,6 +76,23 @@
     labels = NULL, source = list()) {
   .validate_evidence_sampling_plan(plan, deep = FALSE)
   .require_sampling_covariance(plan)
+  plan_coordinates <-
+    plan$evidence_plan$task$left_relation$effect_space$coordinates
+  plan_effects <- length(plan_coordinates)
+  if (is.matrix(contrasts) && ncol(contrasts) != plan_effects) {
+    stop(sprintf(paste0(
+      "Sampling contrasts declare %d experimental effects but the bound ",
+      "evidence plan has %d; a covariance artifact must carry the identity ",
+      "of the plan it claims."
+    ), ncol(contrasts), plan_effects), call. = FALSE)
+  }
+  if (is.matrix(contrasts) && !is.null(colnames(contrasts)) &&
+      !identical(colnames(contrasts), plan_coordinates)) {
+    stop(paste0(
+      "Sampling contrast effect names do not match the bound evidence ",
+      "plan's effect space."
+    ), call. = FALSE)
+  }
   if (!is.matrix(contrasts) || !is.numeric(contrasts) ||
       nrow(contrasts) < 1L || ncol(contrasts) < 2L ||
       any(!is.finite(contrasts)) ||
@@ -139,6 +156,7 @@
 }
 
 .validate_sampling_covariance <- function(x, deep = TRUE) {
+  if (.validated_before(x, "sampling_covariance", deep)) return(invisible(x))
   expected <- c("plan", "signal_factor", "xi_factor", "noise_trace", "partitions",
     "labels", "dimension", "source", "signature")
   if (!inherits(x, "effect_sampling_covariance") || !is.list(x) ||
@@ -170,6 +188,7 @@
       .sampling_covariance_signature(x))) {
     stop("Sampling-covariance identity is inconsistent.", call. = FALSE)
   }
+  .record_validated(x, "sampling_covariance", deep)
   invisible(x)
 }
 

@@ -130,6 +130,47 @@ test_that("execution changes preserve the scientific identity promised", {
     tolerance = 0)
 })
 
+test_that("tiling changes stay identity-stable within a declared tolerance", {
+  # The integer fixture above is exact under summation reordering; real data
+  # is not. Feature-block changes reassociate the accumulation, so numerical
+  # results may move at machine precision while the scientific identity and
+  # the declared tolerance must both hold — on the full-form path and on the
+  # query-fused path.
+  set.seed(41519)
+  domain <- abstract_domain(37L, id = "cert:float-tiling")
+  effects <- effect_space(c("a", "b", "c"), basis_id = "cert:float-effects")
+  rel <- relation(list(
+    run1 = matrix(rnorm(3L * 37L), 3L, 37L),
+    run2 = matrix(rnorm(3L * 37L), 3L, 37L),
+    run3 = matrix(rnorm(3L * 37L), 3L, 37L)
+  ), effects = effects, domain = domain)
+  frame <- additive_frame(
+    matrix(runif(5L * 37L), 5L, 37L), domain = domain
+  )
+  over <- cross_partitions(rel)
+
+  fine <- geometry(rel, frame, over,
+    compute = compute_policy(block_features = 1L))
+  coarse <- geometry(rel, frame, over,
+    compute = compute_policy(block_features = 37L))
+  expect_identical(fine$receipt$scientific_plan_id,
+    coarse$receipt$scientific_plan_id)
+  expect_false(identical(fine$receipt$task_partition_id,
+    coarse$receipt$task_partition_id))
+  expect_equal(geometry_component(fine), geometry_component(coarse),
+    tolerance = 1e-12)
+
+  plan_fine <- plan_geometry(rel, frame, over,
+    compute = compute_policy(block_features = 1L))
+  plan_coarse <- plan_geometry(rel, frame, over,
+    compute = compute_policy(block_features = 37L))
+  fused_fine <- rdm(plan_fine)
+  fused_coarse <- rdm(plan_coarse)
+  expect_identical(fused_fine$receipt$scientific_plan_id,
+    fused_coarse$receipt$scientific_plan_id)
+  expect_equal(fused_fine$values, fused_coarse$values, tolerance = 1e-12)
+})
+
 test_that("the installed namespace exposes the universal public vocabulary", {
   expected <- c(
     "pair_query", "match_coupling", "control_coupling", "pair_contrast",

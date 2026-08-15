@@ -110,7 +110,12 @@
     .validate_geometry_plan(x, deep = FALSE)
     relation <- x$task$left_relation
     metric_schedule <- x$metric_schedule
-    metric_status <- "fixed"
+    metric_status <- if (!is.null(metric_schedule$metric) &&
+        isTRUE(metric_schedule$metric$capabilities$learned_frozen)) {
+      "learned"
+    } else {
+      "fixed"
+    }
     metric_identity <- metric_schedule$signature
     evidence_kind <- "geometry_plan"
     plan_id <- x$scientific_plan_id
@@ -120,7 +125,9 @@
     .validate_crossnobis_plan(x, deep = FALSE)
     relation <- x$task$left_relation
     metric_schedule <- x$metric_schedule
-    metric_status <- if (isTRUE(metric_schedule$capabilities$learned)) {
+    metric_status <- if (isTRUE(metric_schedule$capabilities$learned) ||
+        isTRUE(metric_schedule$capabilities$
+          calibration_requires_metric_uncertainty)) {
       "learned"
     } else {
       "fixed"
@@ -390,6 +397,14 @@
     stop("Dense covariance materialization requires a materialize operation.",
       call. = FALSE)
   }
+  if (is.null(metric_uncertainty) &&
+      identical(descriptor$record$metric_status, "learned")) {
+    # Nothing in evidence-sampling-v1 propagates metric-estimation
+    # uncertainty; record that honestly so the plan compiles and the
+    # admission layer refuses with the full reason set instead of a
+    # construction-shape error.
+    metric_uncertainty <- "ignored"
+  }
   metric <- .sampling_metric_record(
     descriptor$record$metric_identity,
     descriptor$record$metric_status,
@@ -480,6 +495,7 @@
 }
 
 .validate_evidence_sampling_plan <- function(x, deep = TRUE) {
+  if (.validated_before(x, "evidence_sampling_plan", deep)) return(invisible(x))
   expected <- c("contract", "evidence_plan", "error_source", "evidence",
     "error_channel", "metric", "partition", "sampling_axis", "target",
     "spatial_scope", "operation", "materialization", "capabilities",
@@ -555,7 +571,117 @@
       stop("Evidence-sampling-plan identity is inconsistent.", call. = FALSE)
     }
   }
+  .record_validated(x, "evidence_sampling_plan", deep)
   invisible(x)
+}
+
+.sampling_refusal_details <- function(reason) {
+  switch(reason,
+    missing_error_channel = list(
+      why = paste0(
+        "this evidence plan has only a precomputed relation and no error ",
+        "channel. Refit raw observations with `lm_relation_fit()` or supply ",
+        "a validated, identity-bound external error channel; beta matrices ",
+        "alone cannot recover residual uncertainty"
+      ),
+      remedy = "Refit raw observations with `lm_relation_fit()`."
+    ),
+    unsupported_error_model = list(
+      why = paste0(
+        "the retained error channel is not a separable GLM residual model, ",
+        "and evidence-sampling-v1 admits no other error law"
+      ),
+      remedy = paste0(
+        "Fit with `lm_relation_fit()`, which records the separable GLM ",
+        "channel this law requires."
+      )
+    ),
+    cross_relation_law_not_admitted = list(
+      why = paste0(
+        "the left and right relations differ, and the analytic sampling law ",
+        "is admitted only for self-forms built from one relation"
+      ),
+      remedy = "Build the plan from a single relation on both sides."
+    ),
+    bridge_law_not_admitted = list(
+      why = paste0(
+        "the neural operator plays a bridge role, and no analytic sampling ",
+        "law is admitted for bridge readouts"
+      ),
+      remedy = "Use a same-space neural metric instead of a bridge."
+    ),
+    learned_metric_uncertainty_unpropagated = list(
+      why = paste0(
+        "the neural metric was learned and its estimation uncertainty is ",
+        "not propagated"
+      ),
+      remedy = paste0(
+        "Use one common fixed metric, or retain the learned-metric result ",
+        "as a signed point estimate without an analytic law."
+      )
+    ),
+    learned_metric_law_not_admitted = list(
+      why = paste0(
+        "evidence-sampling-v1 admits only a common fixed metric, and this ",
+        "plan's neural metric was learned"
+      ),
+      remedy = paste0(
+        "Use a geometry plan with one common fixed metric, or retain the ",
+        "learned-metric result as a signed point estimate."
+      )
+    ),
+    heterogeneous_partition_model = list(
+      why = paste0(
+        "the equal-partition analytic law is not valid for this partition ",
+        "model or for partitions with unequal error structure"
+      ),
+      remedy = paste0(
+        "Use partitions sharing one error model, or treat the result as a ",
+        "point estimate."
+      )
+    ),
+    not_equal_weight_all_pairs = list(
+      why = paste0(
+        "the partition pairing is not the complete, equally weighted set of ",
+        "unordered partition pairs that the analytic law covers"
+      ),
+      remedy = "Pair with `cross_partitions()` over all partitions."
+    ),
+    endpoint_independence_not_declared = list(
+      why = paste0(
+        "the pairing does not declare its partition endpoints statistically ",
+        "independent"
+      ),
+      remedy = paste0(
+        "Declare `pairing(..., independence = \"independent\")` only when ",
+        "the partitions are truly independent."
+      )
+    ),
+    sampling_axis_missing_or_inconsistent = list(
+      why = paste0(
+        "no single sampling axis is declared, or the declared axis ",
+        "conflicts with the error channel's recorded sampling unit"
+      ),
+      remedy = paste0(
+        "Declare one `sampling_axis` that matches the error channel's ",
+        "sampling unit."
+      )
+    ),
+    spatial_covariance_model_unavailable = list(
+      why = paste0(
+        "cross-location sampling covariance requires an explicit spatial ",
+        "model; local marginal variances do not create one"
+      ),
+      remedy = paste0(
+        "Request `spatial_scope = \"local_marginals\"`; no spatial ",
+        "covariance model is admitted yet."
+      )
+    ),
+    list(
+      why = sprintf("requirement `%s` is unmet", reason),
+      remedy = character()
+    )
+  )
 }
 
 .require_sampling_covariance <- function(x) {
@@ -563,35 +689,24 @@
   if (identical(x$capabilities$sampling_covariance, "available")) {
     return(invisible(TRUE))
   }
-  reason <- x$unavailable_reasons[[1L]]
-  message <- switch(reason,
-    missing_error_channel = paste0(
-      "Sampling covariance is unavailable because this evidence plan has ",
-      "only a precomputed relation and no error channel. Refit raw ",
-      "observations with `lm_relation_fit()` or supply a validated, ",
-      "identity-bound external error channel; beta matrices alone cannot ",
-      "recover residual uncertainty."
-    ),
-    learned_metric_uncertainty_unpropagated = paste0(
-      "Sampling covariance is unavailable because the neural metric was ",
-      "learned and its uncertainty is not propagated."
-    ),
-    learned_metric_law_not_admitted = paste0(
-      "Sampling covariance is unavailable because evidence-sampling-v1 ",
-      "admits only a common fixed metric."
-    ),
-    heterogeneous_partition_model = paste0(
-      "Sampling covariance is unavailable because the equal-partition ",
-      "analytic law is not valid for this partition model."
-    ),
-    spatial_covariance_model_unavailable = paste0(
-      "Cross-location sampling covariance requires an explicit spatial ",
-      "model; local marginal variances do not create one."
-    ),
+  reasons <- x$unavailable_reasons
+  details <- lapply(reasons, .sampling_refusal_details)
+  why <- vapply(details, function(detail) detail$why, character(1))
+  remedies <- unique(unlist(lapply(details, function(detail) detail$remedy)))
+  message <- if (length(why) == 1L) {
+    paste0("Sampling covariance is unavailable because ", why, ".")
+  } else {
     paste0(
-      "Sampling covariance is unavailable under capability `", reason,
-      "` for this evidence-sampling plan."
+      "Sampling covariance is unavailable; ", length(why),
+      " requirements of the admitted analytic law are unmet:\n",
+      paste0("* ", why, ".", collapse = "\n")
     )
+  }
+  .capability_refusal(
+    message,
+    capability = "sampling_covariance",
+    namespace = "evidence_sampling",
+    reasons = reasons,
+    remedies = remedies
   )
-  stop(message, call. = FALSE)
 }

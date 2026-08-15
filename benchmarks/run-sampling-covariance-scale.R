@@ -43,17 +43,27 @@ signal_patterns <- matrix(rnorm(conditions * features), conditions, features)
 effect_covariance <- diag(0.05, conditions)
 residual_covariance <- diag(features)
 
-# The scale fixture uses a minimal canonical available plan. Its relation
-# dimensions are small because the covariance kernel depends only on the
-# compiled scientific identities and factorized local components.
-design <- cbind(1, condition = rep(c(-0.5, 0.5), 8L))
-effects <- rbind(level = c(1, 0), condition = c(0, 1))
-fixture_domain <- abstract_domain(2L, id = "sampling-scale-plan")
+# The scale fixture binds the covariance artifact to a real q = 120 plan:
+# `.sampling_covariance_from_components()` checks the contrasts' declared
+# experimental dimension and effect names against the bound plan's effect
+# space, so the identity this artifact records is the identity it measured.
+effect_labels <- paste0("condition", seq_len(conditions))
+observations <- 2L * conditions
+design <- kronecker(rep(1, 2L), diag(conditions))
+colnames(design) <- effect_labels
+effect_map <- diag(conditions)
+dimnames(effect_map) <- list(effect_labels, effect_labels)
+fixture_features <- 4L
+fixture_domain <- abstract_domain(
+  fixture_features, id = "sampling-scale-plan"
+)
 sources <- stats::setNames(lapply(seq_len(partitions), function(index) {
-  matrix(rnorm(16L * 2L), 16L, 2L)
+  matrix(
+    rnorm(observations * fixture_features), observations, fixture_features
+  )
 }), paste0("run", seq_len(partitions)))
 fit <- lm_relation_fit(
-  sources, design, effects, sampling_unit = "trial",
+  sources, design, effect_map, sampling_unit = "trial",
   domain = fixture_domain
 )
 evidence <- plan_geometry(

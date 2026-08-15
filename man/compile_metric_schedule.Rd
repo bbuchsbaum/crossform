@@ -35,3 +35,4 @@ estimator identity, training assignment, source revisions, and
 regularization policy. Local covariance and precision matrices are derived
 when requested and are never retained as a node-by-fold table.
 }
+\keyword{internal}

@@ -24,8 +24,8 @@ test_that("undirected marginals are invariant to every stored edge orientation",
     directed = FALSE
   )
 
-  a <- pairing_marginals(local, p1, mass = c(2, 4))
-  b <- pairing_marginals(local, p2, mass = c(2, 4))
+  a <- effectagram:::pairing_marginals(local, p1, mass = c(2, 4))
+  b <- effectagram:::pairing_marginals(local, p2, mass = c(2, 4))
 
   expect_named(a, "endpoint")
   expect_equal(a$endpoint, b$endpoint, tolerance = 1e-14)
@@ -40,7 +40,7 @@ test_that("undirected marginals survive arbitrary endpoint flips and edge order"
     dimnames = list(paste0("m", 1:4), paste0("e", 1:3), paste0("r", 1:5))
   )
   base <- cross_partitions(dimnames(local)[[3]])
-  oracle <- pairing_marginals(local, base, mass = c(1, 2, 3, 4))$endpoint
+  oracle <- effectagram:::pairing_marginals(local, base, mass = c(1, 2, 3, 4))$endpoint
 
   for (iteration in seq_len(25)) {
     flip <- sample(c(FALSE, TRUE), nrow(base), replace = TRUE)
@@ -52,7 +52,7 @@ test_that("undirected marginals survive arbitrary endpoint flips and edge order"
     )
 
     expect_equal(
-      pairing_marginals(local, transformed, mass = c(1, 2, 3, 4))$endpoint,
+      effectagram:::pairing_marginals(local, transformed, mass = c(1, 2, 3, 4))$endpoint,
       oracle,
       tolerance = 1e-13
     )
@@ -63,7 +63,7 @@ test_that("undirected endpoint marginal agrees with an explicit oracle", {
   local <- local_fixture()
   over <- pairing("r1", "r3", directed = FALSE)
 
-  got <- pairing_marginals(local, over, mass = c(2, 4))$endpoint
+  got <- effectagram:::pairing_marginals(local, over, mass = c(2, 4))$endpoint
   r1 <- local[, , "r1"] / c(2, 4)
   r3 <- local[, , "r3"] / c(2, 4)
   oracle <- 0.5 * (r1 + r3)
@@ -75,7 +75,7 @@ test_that("directed pairings preserve left and right roles", {
   local <- local_fixture()
   over <- pairing("r1", "r3", directed = TRUE)
 
-  got <- pairing_marginals(local, over, mass = 2)
+  got <- effectagram:::pairing_marginals(local, over, mass = 2)
 
   expect_named(got, c("left", "right"))
   expect_equal(got$left, local[, , "r1"] / 2, tolerance = 1e-14)
@@ -138,11 +138,11 @@ test_that("pairing use sites reject forged and mutated edge tables", {
 
   negative <- valid
   negative$weight <- -1
-  expect_error(pairing_marginals(local, negative), "nonnegative")
+  expect_error(effectagram:::pairing_marginals(local, negative), "nonnegative")
 
   unnormalized <- valid
   unnormalized$weight <- 0.5
-  expect_error(pairing_marginals(local, unnormalized), "unit mass")
+  expect_error(effectagram:::pairing_marginals(local, unnormalized), "unit mass")
 
   forged <- structure(
     data.frame(left = "r1", right = "r1", weight = 1),
@@ -152,10 +152,10 @@ test_that("pairing use sites reject forged and mutated edge tables", {
     estimate = "cross_generalized",
     class = c("effect_pairing", "data.frame")
   )
-  expect_error(pairing_marginals(local, forged), "explicit biased")
+  expect_error(effectagram:::pairing_marginals(local, forged), "explicit biased")
 
   duplicate <- pairing(c("r1", "r2"), c("r2", "r3"))
   duplicate$left[[2]] <- "r1"
   duplicate$right[[2]] <- "r2"
-  expect_error(pairing_marginals(local, duplicate), "duplicate")
+  expect_error(effectagram:::pairing_marginals(local, duplicate), "duplicate")
 })
