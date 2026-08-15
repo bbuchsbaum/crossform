@@ -55,18 +55,22 @@ effect_extractor <- function(map, effects = rownames(map),
 #' @param tolerance Positive rank and estimability tolerance.
 #' @param whiten Deprecated alias for `observation_whitener`. Supplying both is
 #'   an error.
+#' @param solver Numerical factorization route: automatic, pivoted QR, or SVD.
+#'   This changes execution provenance, not the requested effect.
 #' @return An `effect_extractor`.
 #' @export
 lm_extractor <- function(design, effects, observation_whitener = NULL,
                          effect_names = rownames(effects),
                          tolerance = sqrt(.Machine$double.eps),
-                         whiten = NULL) {
+                         whiten = NULL,
+                         solver = c("auto", "qr", "svd")) {
+  solver <- match.arg(solver)
   resolved <- .resolve_observation_whitener(
     observation_whitener, whiten, nrow(design),
     legacy_supplied = !missing(whiten) && !is.null(whiten)
   )
   .compile_lm_estimator(
-    design, effects, resolved, effect_names, tolerance
+    design, effects, resolved, effect_names, tolerance, solver = solver
   )$extractor
 }
 
@@ -122,7 +126,9 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
 }
 
 .compile_lm_estimator <- function(design, effects, observation_whitener,
-                                  effect_names, tolerance, partition = NULL) {
+                                  effect_names, tolerance, partition = NULL,
+                                  solver = c("auto", "qr", "svd")) {
+  solver <- match.arg(solver)
   if (!is.matrix(design) || !is.numeric(design) || any(dim(design) < 1L) ||
       any(!is.finite(design))) {
     stop("`design` must be a finite nonempty observation-by-coefficient matrix.",
@@ -157,14 +163,34 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
   rank <- decomposition$rank
   coefficients <- ncol(design)
 
-  if (rank == coefficients) {
+  if (identical(solver, "qr") && rank < coefficients) {
+    location <- if (is.null(partition)) "The design" else {
+      sprintf("Partition `%s`", partition)
+    }
+    .capability_refusal(
+      sprintf(
+        "%s has rank %d for %d regressors, so the requested QR route is unavailable.",
+        location, rank, coefficients
+      ),
+      capability = "full_rank_design",
+      namespace = "relation_fit",
+      reasons = sprintf("%s is rank deficient.", location),
+      remedies = c(
+        "Use `solver = \"auto\"` or `solver = \"svd\"` for estimable effects.",
+        "Remove redundant design columns."
+      )
+    )
+  }
+
+  use_qr <- rank == coefficients && solver %in% c("auto", "qr")
+  if (use_qr) {
     residual_basis <- qr.Q(decomposition, complete = FALSE)[,
       seq_len(rank), drop = FALSE]
     triangular <- qr.R(decomposition)[seq_len(rank), seq_len(rank), drop = FALSE]
     pivoted_map <- backsolve(triangular, t(residual_basis))
     coefficient_whitened_map <- matrix(0, coefficients, n)
     coefficient_whitened_map[decomposition$pivot, ] <- pivoted_map
-    solver <- "pivoted_qr"
+    solver_used <- "pivoted_qr"
     estimability_error <- rep(0, nrow(effects))
   } else {
     singular <- svd(whitened_design, nu = min(dim(whitened_design)),
@@ -236,7 +262,11 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
       (t(singular$u[, keep, drop = FALSE]) / singular$d[keep])
     coefficient_whitened_map <- inverse
     residual_basis <- singular$u[, keep, drop = FALSE]
-    solver <- "svd_estimable_fallback"
+    solver_used <- if (identical(solver, "svd")) {
+      "svd_requested"
+    } else {
+      "svd_estimable_fallback"
+    }
   }
 
   coefficient_map <- if (isTRUE(observation_whitener$identity)) {
@@ -253,7 +283,8 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     effects = effect_names,
     estimator = "linear_model",
     diagnostics = list(
-      solver = solver,
+      solver = solver_used,
+      solver_policy = solver,
       observations = n,
       coefficients = coefficients,
       rank = as.integer(rank),
@@ -286,7 +317,8 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     )),
     observation_whitener = observation_whitener$descriptor,
     effect_space = effect_names,
-    solver = solver,
+    solver = solver_used,
+    solver_policy = solver,
     rank = as.integer(rank),
     tolerance = tolerance
   )

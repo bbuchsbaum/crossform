@@ -51,3 +51,58 @@ study_fact_fixture <- function(use_functions = FALSE) {
     reads = reads
   )
 }
+
+bound_study_fixture <- function(use_functions = FALSE) {
+  fixture <- study_fact_fixture(use_functions)
+  observation_record <- observations(
+    fixture$sources,
+    fixture$indexes,
+    fixture$domain,
+    source_dims = fixture$source_dims,
+    capabilities = fixture$capabilities
+  )
+  event_table <- do.call(rbind, lapply(seq_along(fixture$partitions),
+    function(index) {
+      partition <- fixture$partitions[[index]]
+      upper <- max(fixture$indexes[[partition]]$time)
+      data.frame(
+        partition = partition,
+        event_id = paste0(partition, "-event-", 1:3),
+        onset = c(0, upper / 3, upper * 2 / 3),
+        duration = c(0.5, 1, 0.75),
+        condition = c("face", "place", "object"),
+        item = paste0("item-", 1:3),
+        stringsAsFactors = FALSE
+      )
+    }))
+  event_record <- events(event_table)
+
+  confound_table <- do.call(rbind, lapply(rev(fixture$partitions),
+    function(partition) {
+      ids <- rev(fixture$indexes[[partition]]$observation_id)
+      data.frame(
+        partition = partition,
+        observation_id = ids,
+        motion = seq_along(ids) / 100,
+        retained = ids != 2L,
+        stringsAsFactors = FALSE
+      )
+    }))
+  confound_record <- observation_confounds(
+    confound_table, censor = "retained"
+  )
+  hierarchy <- partition_hierarchy(data.frame(
+    partition = fixture$partitions,
+    run = fixture$partitions,
+    session = c("session-1", "session-2"),
+    subject = "subject-1",
+    stringsAsFactors = FALSE
+  ))
+  list(
+    fixture = fixture,
+    observations = observation_record,
+    events = event_record,
+    confounds = confound_record,
+    hierarchy = hierarchy
+  )
+}

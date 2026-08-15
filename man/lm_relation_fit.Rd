@@ -22,7 +22,8 @@ lm_relation_fit(
   capabilities = NULL,
   sampling_unit = "observation",
   provenance = list(),
-  whiten = NULL
+  whiten = NULL,
+  solver = "auto"
 )
 }
 \arguments{
@@ -47,6 +48,9 @@ partition.}
 \item{provenance}{Compact estimator provenance.}
 
 \item{whiten}{Deprecated alias for `observation_whitener`.}
+
+\item{solver}{One numerical route, or one per partition: automatic, QR, or
+SVD. The route is recorded in estimator provenance.}
 }
 \value{
 An `effect_relation_fit`.

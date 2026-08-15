@@ -331,6 +331,8 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
 #' @param sampling_unit One nonempty sampling-unit label, or one per partition.
 #' @param provenance Compact estimator provenance.
 #' @param whiten Deprecated alias for `observation_whitener`.
+#' @param solver One numerical route, or one per partition: automatic, QR, or
+#'   SVD. The route is recorded in estimator provenance.
 #' @return An `effect_relation_fit`.
 #' @export
 lm_relation_fit <- function(sources, design, effects,
@@ -345,7 +347,8 @@ lm_relation_fit <- function(sources, design, effects,
                             domain = NULL, domain_id = "abstract",
                             capabilities = NULL,
                             sampling_unit = "observation",
-                            provenance = list(), whiten = NULL) {
+                            provenance = list(), whiten = NULL,
+                            solver = "auto") {
   if (is.matrix(sources)) sources <- list(sources)
   if (!is.list(sources) || length(sources) < 1L) {
     stop("`sources` must be a matrix or nonempty list.", call. = FALSE)
@@ -387,6 +390,14 @@ lm_relation_fit <- function(sources, design, effects,
     sampling_unit <- rep(sampling_unit, length(partitions))
   }
   names(sampling_unit) <- partitions
+  if (!is.character(solver) || anyNA(solver) ||
+      !length(solver) %in% c(1L, length(partitions)) ||
+      any(!solver %in% c("auto", "qr", "svd"))) {
+    stop("`solver` must provide `auto`, `qr`, or `svd` per partition.",
+      call. = FALSE)
+  }
+  if (length(solver) == 1L) solver <- rep(solver, length(partitions))
+  names(solver) <- partitions
   for (partition in partitions) {
     source_value <- sources[[partition]]
     design_value <- designs[[partition]]
@@ -412,7 +423,8 @@ lm_relation_fit <- function(sources, design, effects,
     )
     .compile_lm_estimator(
       design_value, targets[[partition]], resolved,
-      name_value, tolerance, partition = partition
+      name_value, tolerance, partition = partition,
+      solver = solver[[partition]]
     )
   })
   names(compiled) <- partitions

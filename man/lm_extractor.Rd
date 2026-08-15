@@ -10,7 +10,8 @@ lm_extractor(
   observation_whitener = NULL,
   effect_names = rownames(effects),
   tolerance = sqrt(.Machine$double.eps),
-  whiten = NULL
+  whiten = NULL,
+  solver = c("auto", "qr", "svd")
 )
 }
 \arguments{
@@ -26,6 +27,9 @@ lm_extractor(
 
 \item{whiten}{Deprecated alias for `observation_whitener`. Supplying both is
 an error.}
+
+\item{solver}{Numerical factorization route: automatic, pivoted QR, or SVD.
+This changes execution provenance, not the requested effect.}
 }
 \value{
 An `effect_extractor`.
