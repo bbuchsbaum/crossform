@@ -167,6 +167,32 @@ test_that("RDM and RSA views execute only their compiled query coordinates", {
   )
 })
 
+test_that("structured pair queries remain exact across bounded pair tiles", {
+  fixture <- geometry_plan_fixture(effects = 24L, features = 6L)
+  plan <- plan_geometry(
+    fixture$relation, fixture$frame, fixture$pairing,
+    compute = compute_policy(block_features = 6L)
+  )
+  complete <- geometry(plan)
+  model <- as.matrix(stats::dist(seq_len(24L)))
+  effect_names <- fixture$relation$effect_space$coordinates
+  dimnames(model) <- list(effect_names, effect_names)
+
+  direct_rdm <- rdm(plan)
+  late_rdm <- rdm(complete)
+  direct_rsa <- rsa(plan, models = list(distance = model))
+  late_rsa <- rsa(complete, models = list(distance = model))
+
+  expect_equal(direct_rdm$values, late_rdm$values, tolerance = 1e-12)
+  expect_equal(
+    direct_rsa$coefficients, late_rsa$coefficients, tolerance = 1e-12
+  )
+  expect_equal(ncol(direct_rdm$values), choose(24L, 2L))
+  expect_true(is.finite(
+    direct_rdm$receipt$memory$planned_workspace_bytes
+  ))
+})
+
 test_that("contrast plans fuse energy components and signed marginals in one pass", {
   reads <- new.env(parent = emptyenv())
   reads$count <- 0L

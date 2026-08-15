@@ -117,36 +117,70 @@
   } else {
     .query_output_width(query)
   }
-  atoms <- if (form_atoms) matrix(0, length(feature_ids), output_width) else NULL
+  tiled_pair_output <- form_atoms && structured_query &&
+    is.null(query$coefficients)
+  atoms <- if (!form_atoms || tiled_pair_output) {
+    NULL
+  } else {
+    matrix(0, length(feature_ids), output_width)
+  }
   feature_count <- length(feature_ids)
+  pair_tile_size <- if (structured_query) {
+    min(64L, length(query$pair_left))
+  } else {
+    0L
+  }
   max_atom_work_bytes <- if (!form_atoms) {
     0
   } else if (is.null(query)) {
     8 * feature_count
   } else if (structured_query) {
-    8 * (length(query$pair_left) * feature_count)
+    # One accumulator and the difference/product temporaries for one bounded
+    # pair tile are live; the full pair-by-feature matrix is never formed.
+    8 * (6 * pair_tile_size * feature_count)
   } else {
     8 * (feature_count + q_left * q_right)
   }
 
   if (form_atoms && structured_query) {
-    pair_work <- matrix(0, length(query$pair_left), feature_count)
-    for (edge in seq_len(nrow(ordered_edges))) {
-      pair_work <- pair_work + ordered_edges$weight[[edge]] *
-        .pair_difference_edge_products(
+    atom_tiles <- if (tiled_pair_output) {
+      vector("list", ceiling(length(query$pair_left) / pair_tile_size))
+    } else {
+      NULL
+    }
+    tile_index <- 0L
+    for (pair_start in seq.int(1L, length(query$pair_left),
+        by = pair_tile_size)) {
+      tile_index <- tile_index + 1L
+      pair_indices <- pair_start:min(
+        pair_start + pair_tile_size - 1L, length(query$pair_left)
+      )
+      pair_work <- matrix(0, length(pair_indices), feature_count)
+      for (edge in seq_len(nrow(ordered_edges))) {
+        edge_product <- .pair_difference_edge_products(
           query,
           left_relations[[left_index[[edge]]]],
-          right_relations[[right_index[[edge]]]]
+          right_relations[[right_index[[edge]]]],
+          pair_indices
         )
+        pair_work <- pair_work + ordered_edges$weight[[edge]] * edge_product
+      }
+      if (any(!is.finite(pair_work))) {
+        stop("Direct effect-form querying produced non-finite values.",
+          call. = FALSE)
+      }
+      if (is.null(query$coefficients)) {
+        atom_tiles[[tile_index]] <- t(pair_work)
+      } else {
+        atoms <- atoms + t(
+          query$coefficients[, pair_indices, drop = FALSE] %*% pair_work
+        )
+      }
+      rm(pair_work, edge_product)
+      invisible(gc(full = FALSE))
     }
-    if (any(!is.finite(pair_work))) {
-      stop("Direct effect-form querying produced non-finite values.",
-        call. = FALSE)
-    }
-    atoms[, ] <- if (is.null(query$coefficients)) {
-      t(pair_work)
-    } else {
-      t(query$coefficients %*% pair_work)
+    if (tiled_pair_output) {
+      atoms <- do.call(cbind, atom_tiles)
     }
   } else if (form_atoms && is.null(query)) {
     coordinate <- 0L

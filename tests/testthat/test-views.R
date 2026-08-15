@@ -102,6 +102,21 @@ test_that("compiled multiple-regression RSA equals explicit RDM regression", {
   expect_identical(got$terms$role, c("intercept", "model", "nuisance"))
 })
 
+test_that("thin QR coefficient maps equal the dense-identity oracle", {
+  set.seed(2026081502L)
+  design <- cbind(
+    intercept = 1,
+    weak = stats::rnorm(300L, sd = 0.01),
+    strong = stats::rnorm(300L, sd = 10)
+  )
+  decomposition <- qr(design, LAPACK = FALSE)
+  got <- effectagram:::.thin_qr_coefficient_map(decomposition)
+  oracle <- qr.coef(decomposition, diag(nrow(design)))
+
+  expect_equal(got, oracle, tolerance = 1e-12)
+  expect_identical(dim(got), c(ncol(design), nrow(design)))
+})
+
 test_that("named RSA axes align by experimental identity", {
   fixture <- view_geometry_fixture()
   model <- as.matrix(dist(seq_len(4)))

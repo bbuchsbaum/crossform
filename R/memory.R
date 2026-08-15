@@ -296,9 +296,12 @@ memory_plan <- function(frame_bytes = 0,
   atom_work <- max(
     if (form_total) .dense_double_vector_bytes(f) else 0,
     if (!form_total || is.null(query)) 0 else if (structured_query) {
-      # The live pair-difference workspace is one pair-by-feature-block
-      # product per edge, plus the query's own payload.
-      .dense_double_matrix_bytes(length(query$pair_left), f) +
+      # Structured evaluation tiles the pair axis. Account conservatively for
+      # the accumulator plus indexing, difference, product, weighting, and
+      # addition temporaries for one live tile, plus the query payload.
+      6 * .dense_double_matrix_bytes(
+        min(64L, length(query$pair_left)), f
+      ) +
         .query_payload_bytes(query)
     } else {
       .dense_double_matrix_bytes(q_left, q_right) +

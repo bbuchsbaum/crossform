@@ -143,11 +143,17 @@
 
 # Per-edge structured evaluation for effect-by-feature relation blocks:
 # returns the pair-by-feature difference product (u^T L) * (u^T R).
-.pair_difference_edge_products <- function(query, left, right) {
-  dl <- left[query$pair_left, , drop = FALSE] -
-    left[query$pair_right, , drop = FALSE]
-  dr <- right[query$pair_left, , drop = FALSE] -
-    right[query$pair_right, , drop = FALSE]
+.pair_difference_edge_products <- function(query, left, right,
+                                           pair_indices = NULL) {
+  pair_indices <- if (is.null(pair_indices)) {
+    seq_along(query$pair_left)
+  } else {
+    as.integer(pair_indices)
+  }
+  dl <- left[query$pair_left[pair_indices], , drop = FALSE] -
+    left[query$pair_right[pair_indices], , drop = FALSE]
+  dr <- right[query$pair_left[pair_indices], , drop = FALSE] -
+    right[query$pair_right[pair_indices], , drop = FALSE]
   dl * dr
 }
 

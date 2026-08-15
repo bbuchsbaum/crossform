@@ -312,6 +312,19 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
   value[cbind(pairs[1L, ], pairs[2L, ])]
 }
 
+# Return X^+ without constructing an n-by-n identity as the response to
+# qr.coef(). For X[, pivot] = Q R, the coefficient map in pivoted order is
+# R^-1 Q^T; assigning those rows through qr$pivot restores model-term order.
+.thin_qr_coefficient_map <- function(qr_design) {
+  q <- qr.Q(qr_design, complete = FALSE)
+  r <- qr.R(qr_design, complete = FALSE)
+  pivoted <- backsolve(r, t(q))
+  out <- matrix(0, nrow(pivoted), ncol(pivoted))
+  out[qr_design$pivot, ] <- pivoted
+  dimnames(out) <- list(colnames(qr_design$qr), NULL)
+  out
+}
+
 #' Fit multiple-regression RSA as one compiled geometry query
 #'
 #' @param x An `effect_geometry_plan` or a complete effect form carrying the
@@ -352,7 +365,7 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
   # The OLS coefficient map is a fixed linear readout of pair space: the
   # compiled query stays in structured pair-difference form, so no packed
   # q(q+1)/2-by-pairs matrix is ever materialized.
-  coefficient_map <- qr.coef(qr_design, diag(nrow(design)))
+  coefficient_map <- .thin_qr_coefficient_map(qr_design)
   rownames(coefficient_map) <- colnames(design)
   query <- .pair_difference_query(
     source$effects, coefficients = coefficient_map

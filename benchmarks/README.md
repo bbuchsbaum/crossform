@@ -149,14 +149,15 @@ agreement between `rdm(plan, pairs = )` columns and the corresponding full-RDM
 columns, and route-stable scientific identity between the fused and
 materialize-then-project executions. The gate then requires the fused full
 RDM to be at least as fast as materialize-then-project and selected pairs to be
-no slower than the full fused sweep. A second fresh child warms every route
-but measures only selected-RDM, full-fused-RDM, and RSA execution against the
-512 MiB incremental RSS ceiling. The materialized comparator remains in the
-timing court and is excluded from the query-first memory claim so allocator
-residue from a different path cannot decide that gate. The receipt separately
-records the allocations avoided by structured
+no slower than the full fused sweep. Three additional fresh workers each run
+exactly one of selected-RDM, full-fused-RDM, and RSA execution. Each worker
+resets R's high-water heap counter after constructing the common fixture; the
+largest one-call heap increment must remain below 512 MiB. This is explicitly
+an R-heap claim, not an OS RSS claim. The materialized comparator remains in
+the timing court and is excluded from the query-first memory claim. The
+receipt separately records the allocations avoided by structured
 execution: a ~200 MB (191 MiB) dense packed query matrix and an ~87 MB
 (83 MiB) two-component geometry field. The recorded artifact reports 100
-selected pairs in 0.18 s, the full fused RDM in 8.10 s, and the materialized
-route in 15.67 s (fused/materialized ratio 0.52), 434 MB (414 MiB)
-query-first-only incremental peak RSS, and oracle error 4.4e-16.
+selected pairs in 0.27 s, the full fused RDM in 5.16 s, and the materialized
+route in 13.40 s (fused/materialized ratio 0.39), a 291 MB (277 MiB) maximum
+fresh-worker incremental R heap, and oracle error 4.4e-16.

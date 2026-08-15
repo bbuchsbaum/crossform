@@ -8,10 +8,10 @@
 # (q = 100 implies a 5050-by-4950 dense query of about 200 MiB, plus an
 # 87 MiB two-component geometry field; the fused route allocates neither).
 
-if (!requireNamespace("parallel", quietly = TRUE) ||
-    !requireNamespace("ps", quietly = TRUE) ||
+if (!requireNamespace("ps", quietly = TRUE) ||
+    !requireNamespace("processx", quietly = TRUE) ||
     !requireNamespace("devtools", quietly = TRUE)) {
-  stop("The query-first gate requires parallel, ps, and devtools.")
+  stop("The query-first gate requires ps, processx, and devtools.")
 }
 
 arguments <- commandArgs(trailingOnly = TRUE)
@@ -38,7 +38,9 @@ ready_path <- file.path(output_dir, "query-first-scale-gate.ready")
 unlink(c(result_path, ready_path))
 
 run_query_first_worker <- function(repo, result_path, ready_path,
-                                   repetitions, benchmark_paths) {
+                                   repetitions, benchmark_paths,
+                                   mode = c("certification", "memory")) {
+  mode <- match.arg(mode)
   suppressPackageStartupMessages(devtools::load_all(repo, quiet = TRUE))
   set.seed(2026081501L)
   dimensions <- c(12L, 10L, 9L)
@@ -107,6 +109,63 @@ run_query_first_worker <- function(repo, result_path, ready_path,
   run_materialized <- function() {
     rdm(geometry(plan))
   }
+  runners <- list(
+    selected_100 = run_selected,
+    full_fused = run_full_fused,
+    rsa_fused = run_rsa,
+    materialized = run_materialized
+  )
+  if (!is.character(benchmark_paths) || !length(benchmark_paths) ||
+      any(!benchmark_paths %in% names(runners)) ||
+      anyDuplicated(benchmark_paths)) {
+    stop("The query-first worker received invalid benchmark paths.")
+  }
+
+  # Memory is measured in one fresh worker per public query-first route. The
+  # worker constructs the common fixture, collects a baseline, and then runs
+  # exactly one route. It never warms or executes the materialized comparator,
+  # so allocator residue from a different route cannot enter the claim.
+  if (identical(mode, "memory")) {
+    if (length(benchmark_paths) != 1L ||
+        identical(benchmark_paths, "materialized")) {
+      stop("A memory worker requires exactly one query-first path.")
+    }
+    baseline_gc <- gc(full = TRUE, reset = TRUE)
+    if (ncol(baseline_gc) < 7L) {
+      stop("The memory court requires R's maximum-heap counters.")
+    }
+    baseline_heap_bytes <- round(sum(baseline_gc[, 2L]) * 1024^2)
+    baseline_rss <- unname(ps::ps_memory_info(
+      ps::ps_handle(Sys.getpid())
+    )[["rss"]])
+    file.create(ready_path)
+    for (iteration in seq_len(repetitions)) {
+      value <- runners[[benchmark_paths]]()
+      peak_gc <- gc(full = FALSE)
+      rm(value)
+      invisible(gc(full = TRUE))
+    }
+    peak_heap_bytes <- round(sum(peak_gc[, 7L]) * 1024^2)
+    result <- list(
+      schema_version = 1L,
+      path = benchmark_paths,
+      dimensions = list(
+        features = domain$n_features,
+        frame_nodes = nrow(frame$weights),
+        conditions = q
+      ),
+      memory = list(
+        baseline_rss_bytes = baseline_rss,
+        baseline_r_heap_bytes = baseline_heap_bytes,
+        peak_r_heap_bytes = peak_heap_bytes,
+        incremental_peak_r_heap_bytes = max(
+          0, peak_heap_bytes - baseline_heap_bytes
+        )
+      )
+    )
+    saveRDS(result, result_path)
+    return(TRUE)
+  }
 
   warm_selected <- run_selected()
   warm_full <- run_full_fused()
@@ -164,17 +223,6 @@ run_query_first_worker <- function(repo, result_path, ready_path,
     ps::ps_handle(Sys.getpid())
   )[["rss"]])
   file.create(ready_path)
-  runners <- list(
-    selected_100 = run_selected,
-    full_fused = run_full_fused,
-    rsa_fused = run_rsa,
-    materialized = run_materialized
-  )
-  if (!is.character(benchmark_paths) || !length(benchmark_paths) ||
-      any(!benchmark_paths %in% names(runners)) ||
-      anyDuplicated(benchmark_paths)) {
-    stop("The query-first worker received invalid benchmark paths.")
-  }
   timings <- vector("list", length(benchmark_paths) * repetitions)
   cursor <- 0L
   for (iteration in seq_len(repetitions)) {
@@ -237,82 +285,118 @@ run_query_first_worker <- function(repo, result_path, ready_path,
   TRUE
 }
 
-monitor_worker <- function(job, result_path, ready_path) {
-  handle <- ps::ps_handle(job$pid)
-  measurement_started <- FALSE
-  peak_rss <- 0
-  collected <- NULL
+monitor_process <- function(process, result_path, ready_path) {
   repeat {
-    alive <- tryCatch(ps::ps_is_running(handle), error = function(error) FALSE)
-    if (!measurement_started && file.exists(ready_path)) {
-      measurement_started <- TRUE
-      peak_rss <- 0
-    }
-    if (measurement_started && alive) {
-      rss <- tryCatch(
-        unname(ps::ps_memory_info(handle)[["rss"]]),
-        error = function(error) NA_real_
-      )
-      if (is.finite(rss)) peak_rss <- max(peak_rss, rss)
-    }
-    collected <- parallel::mccollect(job, wait = FALSE)
-    if (!is.null(collected) || !alive) break
-    Sys.sleep(0.01)
+    if (!process$is_alive()) break
+    Sys.sleep(0.05)
   }
-  if (is.null(collected)) collected <- parallel::mccollect(job)
-  if (is.null(collected) || inherits(collected[[1L]], "try-error") ||
-      !measurement_started || !file.exists(result_path)) {
-    stop("The isolated query-first scale worker failed.")
+  process$wait(timeout = 1000)
+  status <- process$get_exit_status()
+  if (!identical(status, 0L) || !file.exists(ready_path) ||
+      !file.exists(result_path)) {
+    stop(sprintf(
+      "The fresh query-first worker failed with status %s.", status
+    ), call. = FALSE)
   }
   result <- readRDS(result_path)
-  peak_rss <- max(peak_rss, result$memory$baseline_rss_bytes, na.rm = TRUE)
-  list(result = result, peak_rss = peak_rss)
+  list(result = result)
 }
 
-all_paths <- c("selected_100", "full_fused", "rsa_fused", "materialized")
-job <- parallel::mcparallel(
+# Every court worker is a genuinely fresh R process. These entry points are
+# private to the benchmark script.
+worker_mode <- Sys.getenv("EFFECTAGRAM_QUERY_WORKER_MODE")
+memory_worker_path <- Sys.getenv("EFFECTAGRAM_QUERY_MEMORY_PATH")
+if (identical(worker_mode, "timing")) {
   run_query_first_worker(
-    repo, result_path, ready_path, repetitions, all_paths
-  ),
-  silent = TRUE
-)
-comparison <- monitor_worker(job, result_path, ready_path)
-result <- comparison$result
+    repo, result_path, ready_path, repetitions,
+    c("selected_100", "full_fused", "rsa_fused", "materialized")
+  )
+  quit(save = "no", status = 0L)
+}
+if (identical(worker_mode, "memory") && nzchar(memory_worker_path)) {
+  run_query_first_worker(
+    repo,
+    Sys.getenv("EFFECTAGRAM_QUERY_MEMORY_RESULT"),
+    Sys.getenv("EFFECTAGRAM_QUERY_MEMORY_READY"),
+    1L, memory_worker_path, mode = "memory"
+  )
+  quit(save = "no", status = 0L)
+}
 
-# Process-level RSS is allocator-sensitive when the materialized comparator
-# runs in the same timing pool. Certify the public query-first paths in a
-# second fresh child after all routes have been warmed, and retain the mixed
-# process only as a diagnostic. This makes the memory claim match its subject.
-memory_result_path <- file.path(output_dir, "query-first-scale-memory.rds")
-memory_ready_path <- file.path(output_dir, "query-first-scale-memory.ready")
-unlink(c(memory_result_path, memory_ready_path))
+script_argument <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+if (length(script_argument) != 1L) {
+  stop("The query-first gate could not identify its worker script.")
+}
+script_path <- normalizePath(sub("^--file=", "", script_argument),
+  mustWork = TRUE)
+timing_stdout <- file.path(output_dir, "query-first-scale-timing.stdout")
+timing_stderr <- file.path(output_dir, "query-first-scale-timing.stderr")
+timing_process <- processx::process$new(
+  file.path(R.home("bin"), "Rscript"),
+  c(script_path, repo, output_dir, as.character(repetitions)),
+  stdout = timing_stdout,
+  stderr = timing_stderr,
+  env = c(EFFECTAGRAM_QUERY_WORKER_MODE = "timing"),
+  cleanup_tree = TRUE
+)
+timing <- monitor_process(timing_process, result_path, ready_path)
+result <- timing$result
+unlink(c(timing_stdout, timing_stderr, ready_path))
+
+# Process-level RSS is allocator-sensitive across routes. Certify each public
+# query-first route in its own fresh child, from an initialized-fixture
+# baseline, without ever warming or executing the materialized comparator.
 query_first_paths <- c("selected_100", "full_fused", "rsa_fused")
-memory_job <- parallel::mcparallel(
-  run_query_first_worker(
-    repo, memory_result_path, memory_ready_path, repetitions,
-    query_first_paths
-  ),
-  silent = TRUE
-)
-query_first_memory <- monitor_worker(
-  memory_job, memory_result_path, memory_ready_path
-)
-comparison_baseline <- result$memory$baseline_rss_bytes
-query_first_baseline <- query_first_memory$result$memory$baseline_rss_bytes
+memory_measurements <- lapply(query_first_paths, function(path) {
+  memory_result_path <- file.path(
+    output_dir, paste0("query-first-scale-memory-", path, ".rds")
+  )
+  memory_ready_path <- file.path(
+    output_dir, paste0("query-first-scale-memory-", path, ".ready")
+  )
+  unlink(c(memory_result_path, memory_ready_path))
+  worker_stdout <- paste0(memory_result_path, ".stdout")
+  worker_stderr <- paste0(memory_result_path, ".stderr")
+  memory_process <- processx::process$new(
+    file.path(R.home("bin"), "Rscript"),
+    c(script_path, repo, output_dir),
+    stdout = worker_stdout,
+    stderr = worker_stderr,
+    env = c(
+      EFFECTAGRAM_QUERY_WORKER_MODE = "memory",
+      EFFECTAGRAM_QUERY_MEMORY_PATH = path,
+      EFFECTAGRAM_QUERY_MEMORY_RESULT = memory_result_path,
+      EFFECTAGRAM_QUERY_MEMORY_READY = memory_ready_path
+    ),
+    cleanup_tree = TRUE
+  )
+  measurement <- monitor_process(
+    memory_process, memory_result_path, memory_ready_path
+  )
+  worker_memory <- measurement$result$memory
+  out <- data.frame(
+    path = path,
+    baseline_rss_bytes = worker_memory$baseline_rss_bytes,
+    baseline_r_heap_bytes = worker_memory$baseline_r_heap_bytes,
+    peak_r_heap_bytes = worker_memory$peak_r_heap_bytes,
+    incremental_peak_r_heap_bytes =
+      worker_memory$incremental_peak_r_heap_bytes,
+    stringsAsFactors = FALSE
+  )
+  unlink(c(
+    memory_result_path, memory_ready_path, worker_stdout, worker_stderr
+  ))
+  out
+})
+memory_measurements <- do.call(rbind, memory_measurements)
 result$memory <- list(
-  scope = "query_first_paths_only_after_all_route_warmup",
-  baseline_rss_bytes = query_first_baseline,
-  os_peak_rss_bytes = query_first_memory$peak_rss,
-  incremental_peak_rss_bytes = max(
-    0, query_first_memory$peak_rss - query_first_baseline
-  ),
-  comparison_process_baseline_rss_bytes = comparison_baseline,
-  comparison_process_peak_rss_bytes = comparison$peak_rss,
-  comparison_process_incremental_rss_bytes = max(
-    0, comparison$peak_rss - comparison_baseline
+  scope = "maximum_fresh_worker_r_heap_increment_across_query_first_paths",
+  measurement = "r_gc_max_used",
+  path_measurements = memory_measurements,
+  incremental_peak_r_heap_bytes = max(
+    memory_measurements$incremental_peak_r_heap_bytes
   )
 )
-unlink(c(memory_result_path, memory_ready_path))
 medians <- stats::aggregate(
   elapsed_seconds ~ path, result$timings, stats::median
 )
@@ -331,9 +415,9 @@ result$gate <- list(
   maximum_path_seconds = 120,
   # The dense packed query alone would be ~191 MiB and the materialized
   # two-component geometry field ~83 MiB more. The separately isolated
-  # query-first pool must remain within this absolute map-scale budget; the
+  # query-first R heap must remain within this absolute map-scale budget; the
   # materialized timing comparator is intentionally outside this memory claim.
-  maximum_incremental_rss_bytes = 512 * 1024^2,
+  maximum_incremental_r_heap_bytes = 512 * 1024^2,
   numerical_pass =
     result$numerical$independent_oracle_max_abs_error <= 1e-10 &&
     result$numerical$selected_column_max_abs_error <= 1e-12 &&
@@ -345,7 +429,8 @@ result$gate <- list(
   runtime_pass = max(
     selected_seconds, full_seconds, rsa_seconds, materialized_seconds
   ) <= 120,
-  memory_pass = result$memory$incremental_peak_rss_bytes <= 512 * 1024^2
+  memory_pass =
+    result$memory$incremental_peak_r_heap_bytes <= 512 * 1024^2
 )
 result$gate$passed <- all(unlist(result$gate[c(
   "numerical_pass", "identity_pass", "fused_not_slower_pass",
@@ -364,7 +449,8 @@ result$summary <- data.frame(
   fused_to_materialized_ratio = fused_ratio,
   independent_oracle_max_abs_error =
     result$numerical$independent_oracle_max_abs_error,
-  incremental_peak_rss_bytes = result$memory$incremental_peak_rss_bytes,
+  incremental_peak_r_heap_bytes =
+    result$memory$incremental_peak_r_heap_bytes,
   planned_workspace_bytes = result$identity$planned_workspace_bytes,
   passed = result$gate$passed,
   stringsAsFactors = FALSE

@@ -26,7 +26,7 @@ jobs:
         # resolution and install only the explicit court tools beside hard
         # package dependencies.
         dependencies: 'c("Depends", "Imports", "LinkingTo")'
-        extra-packages: any::devtools, any::ps, any::testthat
+        extra-packages: any::devtools, any::processx, any::ps, any::testthat
     - name: Record the exact source revision
       run: |
         Rscript -e 'dir.create("hosted-results", showWarnings = FALSE); writeLines(c(paste("source_revision", Sys.getenv("GITHUB_SHA")), capture.output(sessionInfo())), "hosted-results/session-info.txt")'
