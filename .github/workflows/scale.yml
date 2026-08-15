@@ -21,7 +21,26 @@ jobs:
         use-public-rspm: true
     - uses: r-lib/actions/setup-r-dependencies@v2
       with:
-        extra-packages: any::devtools, any::processx, any::ps
-        needs: check
-    - name: Run the opt-in map and 50k topology gates
-      run: Rscript -e 'devtools::test()'
+        # The scale court does not consume the optional first-level adapters.
+        # Keep exact-version fmridesign/fmrireg Suggests out of dependency
+        # resolution and install only the explicit court tools beside hard
+        # package dependencies.
+        dependencies: 'c("Depends", "Imports", "LinkingTo")'
+        extra-packages: any::devtools, any::ps, any::testthat
+    - name: Record the exact source revision
+      run: |
+        Rscript -e 'dir.create("hosted-results", showWarnings = FALSE); writeLines(c(paste("source_revision", Sys.getenv("GITHUB_SHA")), capture.output(sessionInfo())), "hosted-results/session-info.txt")'
+    - name: Run the public map and covariance gate
+      run: Rscript benchmarks/run-public-map-scale-gate.R . hosted-results
+    - name: Run the query-first scale gate
+      run: Rscript benchmarks/run-query-first-scale.R . hosted-results
+    - name: Run the 50k topology gates
+      run: |
+        Rscript -e 'testthat::test_dir("tests/testthat", filter = "support-index", load_package = "source", stop_on_failure = TRUE, stop_on_warning = TRUE); writeLines(c(paste("source_revision", Sys.getenv("GITHUB_SHA")), "support_index_50000 PASS", "searchlight_neighbors_50000 PASS"), "hosted-results/topology-gates.txt")'
+    - name: Upload scale receipts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scale-receipts-${{ github.sha }}
+        path: hosted-results/
+        if-no-files-found: warn
