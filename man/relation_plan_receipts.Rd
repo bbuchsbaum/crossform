@@ -7,10 +7,10 @@
 relation_plan_receipts(x)
 }
 \arguments{
-\item{x}{An [plan_relation()] result.}
+\item{x}{An \code{\link[=plan_relation]{plan_relation()}} result.}
 }
 \value{
-A named list of `effect_design_receipt` values.
+A named list of \code{effect_design_receipt} values.
 }
 \description{
 Inspect portable design receipts

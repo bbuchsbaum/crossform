@@ -157,7 +157,7 @@
     error_model = error_model,
     source_revision = source_revision,
     residual_revision = residual_revision
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .accumulate_residual_pair_partition <- function(x, partition, pair_i, pair_j,
@@ -242,7 +242,7 @@
     partitions = x$partitions,
     atomic = vapply(x$atomic, `[[`, character(1), "signature"),
     numerical_contract = x$numerical_contract
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .validate_atomic_residual_pair_statistics <- function(x, partition,
@@ -441,7 +441,7 @@ residual_pair_statistics <- function(
       parent = x$signature,
       partitions = partitions,
       residual_df = df
-    ), algo = "sha256", serialize = TRUE))
+    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
   ), class = "effect_residual_pair_scope")
 }
 

@@ -82,7 +82,7 @@
     query = query,
     scientific_plan_id = scientific_plan_id
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE))
+  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 # Universal complete effect-form result. This internal constructor establishes

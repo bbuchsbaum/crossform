@@ -10,14 +10,14 @@ catch_refusal(expr)
 \item{expr}{An expression expected to refuse.}
 }
 \value{
-The captured `effect_capability_refusal` condition, or `NULL` if
-  `expr` succeeded.
+The captured \code{effect_capability_refusal} condition, or \code{NULL} if
+\code{expr} succeeded.
 }
 \description{
 Every contract-level refusal in crossform signals a condition of class
-`effect_capability_refusal`. The condition carries the missing
-`$capability`, its `$namespace`, all unmet `$reasons`, and suggested
-`$remedies`, so callers can branch on the *cause* rather than matching
+\code{effect_capability_refusal}. The condition carries the missing
+\verb{$capability}, its \verb{$namespace}, all unmet \verb{$reasons}, and suggested
+\verb{$remedies}, so callers can branch on the \emph{cause} rather than matching
 message prose.
 }
 \examples{

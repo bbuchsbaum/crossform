@@ -13,14 +13,14 @@ additive_frame(
 }
 \arguments{
 \item{weights}{A finite, nonnegative measurement-by-feature base or sparse
-`Matrix` matrix.}
+\code{Matrix} matrix.}
 
-\item{normalization}{One of `none`, `local` (row sums equal one), or
-`conservative` (column sums equal one).}
+\item{normalization}{One of \code{none}, \code{local} (row sums equal one), or
+\code{conservative} (column sums equal one).}
 
 \item{domain_id}{Stable identity of the neural feature domain.}
 
-\item{domain}{Optional exact `effect_domain` or internal domain reference.}
+\item{domain}{Optional exact \code{effect_domain} or internal domain reference.}
 }
 \value{
 A declarative frame value.

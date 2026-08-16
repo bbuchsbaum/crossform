@@ -23,10 +23,10 @@ numbers are used when omitted.}
 input table.}
 }
 \value{
-An [observation_confounds()] fact object.
+An \code{\link[=observation_confounds]{observation_confounds()}} fact object.
 }
 \description{
 All columns are preserved without assigning them target or nuisance roles.
-If `censor` is supplied it must name a complete logical retain column; no
+If \code{censor} is supplied it must name a complete logical retain column; no
 censor policy is inferred from motion or outlier columns.
 }

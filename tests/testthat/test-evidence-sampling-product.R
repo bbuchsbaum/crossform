@@ -57,46 +57,67 @@ test_that("relation-fit product path supplies exact fixed-metric covariance", {
 
 test_that("relation-fit product agrees with an independent direct oracle", {
   fixture <- sampling_product_fixture()
-  covariance <- rdm_sampling_covariance(
-    fixture$evidence, fixture$fit, target = "plugin"
+  # Two metrics. The exact precision metric makes Sigma_R spherical, which is
+  # the historically flattering case; the identity metric leaves the AR-like
+  # toeplitz residual covariance anisotropic, so the signal term's dependence
+  # on Sigma_R is identifiable here and not only in the oracle.
+  metrics <- list(
+    exact_precision = solve(fixture$covariance),
+    identity = diag(nrow(fixture$covariance))
   )
-  observed <- sampling_covariance(covariance, "materialize")
-  effects <- fixture$fit$relation$effects
-  contrasts <- sampling_oracle_condition_contrasts(length(effects))
-  estimates <- lapply(fixture$fit$relation$partitions, function(partition) {
-    relation_block(fixture$fit, partition,
-      seq_len(fixture$fit$relation$n_features))
-  })
-  mean_patterns <- Reduce(`+`, estimates) / length(estimates)
-  metric_root <- chol(solve(fixture$covariance))
-  # whole_brain(normalization = "local") composes K with weights 1 / P.
-  # Here Sigma_R is kept in the base whitened coordinates and Eq. 13 retains
-  # its explicit P normalization, matching the product specialization.
-  effective_root <- metric_root
-  whitened_signal <- mean_patterns %*% t(effective_root)
-  residual_products <- lapply(fixture$fit$relation$partitions,
-    function(partition) {
-      crossprod(residual_block(
-        fixture$fit, partition,
-        seq_len(fixture$fit$relation$n_features)
-      ))
+  for (name in names(metrics)) {
+    evidence <- plan_geometry(
+      fixture$fit$relation,
+      compile_frame(whole_brain(), fixture$domain),
+      cross_partitions(fixture$fit$relation, independence = "independent"),
+      metric = noise_precision(
+        metrics[[name]], fixture$domain,
+        covariance = solve(metrics[[name]]),
+        provenance = list(source = paste0("simulation_", name))
+      )
+    )
+    covariance <- rdm_sampling_covariance(
+      evidence, fixture$fit, target = "plugin"
+    )
+    observed <- sampling_covariance(covariance, "materialize")
+    estimates <- lapply(fixture$fit$relation$partitions, function(partition) {
+      relation_block(fixture$fit, partition,
+        seq_len(fixture$fit$relation$n_features))
     })
-  total_df <- sum(vapply(fixture$fit$relation$partitions, function(partition) {
-    residual_df(fixture$fit, partition)
-  }, integer(1)))
-  residual <- Reduce(`+`, residual_products) / total_df
-  residual_whitened <- effective_root %*% residual %*% t(effective_root)
-  sigma_k <- effect_covariance(fixture$fit, 1L)
-  components <- sampling_oracle_components(
-    whitened_signal, sigma_k, residual_whitened
-  )
-  expected <- sampling_oracle_eq13(
-    components$delta, components$xi, residual_whitened,
-    length(fixture$fit$relation$partitions)
-  )$covariance
+    mean_patterns <- Reduce(`+`, estimates) / length(estimates)
+    # whole_brain(normalization = "local") composes K with weights 1 / P.
+    # Keeping Sigma_R in the base whitened coordinates and letting Eq. 13
+    # carry its explicit P normalization is the same law, so the two must
+    # agree exactly rather than coincidentally.
+    effective_root <- chol(metrics[[name]])
+    whitened_signal <- mean_patterns %*% t(effective_root)
+    residual_products <- lapply(fixture$fit$relation$partitions,
+      function(partition) {
+        crossprod(residual_block(
+          fixture$fit, partition,
+          seq_len(fixture$fit$relation$n_features)
+        ))
+      })
+    total_df <- sum(vapply(
+      fixture$fit$relation$partitions, function(partition) {
+        residual_df(fixture$fit, partition)
+      }, integer(1)
+    ))
+    residual <- Reduce(`+`, residual_products) / total_df
+    residual_whitened <- effective_root %*% residual %*% t(effective_root)
+    sigma_k <- effect_covariance(fixture$fit, 1L)
+    components <- sampling_oracle_components(
+      whitened_signal, sigma_k, residual_whitened
+    )
+    expected <- sampling_oracle_eq13(
+      components$differences, components$xi, residual_whitened,
+      length(fixture$fit$relation$partitions)
+    )$covariance
 
-  expect_equal(unname(observed), unname(expected), tolerance = 4e-12)
-  expect_identical(dim(observed), dim(expected))
+    expect_equal(unname(observed), unname(expected), tolerance = 4e-12,
+      info = name)
+    expect_identical(dim(observed), dim(expected))
+  }
 })
 
 test_that("beta-only and learned-metric product paths refuse honestly", {

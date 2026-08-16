@@ -61,7 +61,7 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 #' full-volume indices to the ordered compact feature columns of `domain`.
 #'
 #' @param mask A three-dimensional neuroim2 `NeuroVol` mask.
-#' @param radius Positive spherical radius in millimetres.
+#' @param radius Positive spherical radius in millimeters.
 #' @param domain An exact domain from [neuroim2_volume_domain()]. When omitted,
 #'   it is constructed from `mask`.
 #' @param normalization One of `none`, `local`, or `conservative`.
@@ -91,7 +91,7 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
     nonzero = TRUE)
   centers <- attr(neighborhoods, "center_indices", exact = TRUE)
   if (!identical(centers, domain$feature_ids)) {
-    stop("neuroim2 searchlight centres do not match the ordered domain features.",
+    stop("neuroim2 searchlight centers do not match the ordered domain features.",
       call. = FALSE)
   }
   members <- lapply(neighborhoods, function(indices) {

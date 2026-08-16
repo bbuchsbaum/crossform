@@ -16,20 +16,20 @@ raw_effect_map(
 \arguments{
 \item{target}{A finite effect-by-coefficient target matrix.}
 
-\item{effects}{An [effect_space()] or output effect names.}
+\item{effects}{An \code{\link[=effect_space]{effect_space()}} or output effect names.}
 
 \item{coefficients}{Unique ordered coefficient names.}
 
-\item{units, scale}{Output units and scale when `effects` is a character
+\item{units, scale}{Output units and scale when \code{effects} is a character
 vector.}
 
 \item{provenance}{Portable target provenance.}
 }
 \value{
-An `effect_raw_map`, also an `effect_lowered_map`.
+An \code{effect_raw_map}, also an \code{effect_lowered_map}.
 }
 \description{
-This is the honest degenerate route for a supplied `T` matrix. Its identity
+This is the honest degenerate route for a supplied \code{T} matrix. Its identity
 includes the coefficient order and target values, and it cannot claim
 symbolic or coding-invariant effects.
 }

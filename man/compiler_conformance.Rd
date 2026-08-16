@@ -7,14 +7,14 @@
 compiler_conformance(x)
 }
 \arguments{
-\item{x}{A [plan_relation()] result.}
+\item{x}{A \code{\link[=plan_relation]{plan_relation()}} result.}
 }
 \value{
 A data frame with one row per partition and one boolean per required
-  conformance field.
+conformance field.
 }
 \description{
 The conformance court validates the portable receipt required by
-`first-moment-relation-v1`. It reports construction evidence rather than
+\code{first-moment-relation-v1}. It reports construction evidence rather than
 trusting an adapter name or package version.
 }

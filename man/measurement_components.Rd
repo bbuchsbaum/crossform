@@ -7,14 +7,14 @@
 measurement_components(x, edge)
 }
 \arguments{
-\item{x}{A complete `effect_measurement_form` whose node measurements carry
+\item{x}{A complete \code{effect_measurement_form} whose node measurements carry
 decompositions.}
 
 \item{edge}{An edge number or edge identifier.}
 }
 \value{
 A data frame of crossed component dimensions, orientation status,
-  Frobenius strengths, and strongest singular values.
+Frobenius strengths, and strongest singular values.
 }
 \description{
 The returned strengths are invariant to rotations of subspace-only

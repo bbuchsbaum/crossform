@@ -27,7 +27,7 @@ lm_relation_fit(
 )
 }
 \arguments{
-\item{sources}{Raw observation-by-feature sources accepted by `relation()`.}
+\item{sources}{Raw observation-by-feature sources accepted by \code{relation()}.}
 
 \item{design}{One design matrix, or one per partition.}
 
@@ -41,19 +41,19 @@ partition.}
 \item{tolerance}{Positive rank and estimability tolerance.}
 
 \item{source_dims, partitions, domain, domain_id, capabilities}{Passed to
-`relation()`.}
+\code{relation()}.}
 
 \item{sampling_unit}{One nonempty sampling-unit label, or one per partition.}
 
 \item{provenance}{Compact estimator provenance.}
 
-\item{whiten}{Deprecated alias for `observation_whitener`.}
+\item{whiten}{Deprecated alias for \code{observation_whitener}.}
 
 \item{solver}{One numerical route, or one per partition: automatic, QR, or
 SVD. The route is recorded in estimator provenance.}
 }
 \value{
-An `effect_relation_fit`.
+An \code{effect_relation_fit}.
 }
 \description{
 The adapter compiles each supplied design once. Its pure effect map forms the
@@ -62,7 +62,7 @@ effect-coordinate covariance, residual degrees of freedom, and source
 revision form a separate separable-GLM error capability. Residual blocks are
 produced lazily without constructing a dense observation residualizer.
 This error channel is required by the admitted fixed-metric analytic RDM
-covariance in [rdm_sampling_covariance()]. The separable GLM is a declared
+covariance in \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. The separable GLM is a declared
 capability: it assumes the supplied observation model yields a common
 effect-coordinate covariance structure across neural features and, for the
 equal-partition specialization, across partitions.

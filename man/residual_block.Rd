@@ -7,7 +7,7 @@
 residual_block(x, partition, features)
 }
 \arguments{
-\item{x}{An `effect_relation_fit` with residual-block capability.}
+\item{x}{An \code{effect_relation_fit} with residual-block capability.}
 
 \item{partition}{One partition name or index.}
 

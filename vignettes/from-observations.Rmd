@@ -196,7 +196,7 @@ declared_design <- design_model(
 
 `design_model()` returns the declared design plus the metadata needed to check
 and reproduce its compilation. This example supplies matrices directly. An
-external compiler may instead build haemodynamic response functions and event
+external compiler may instead build hemodynamic response functions and event
 grammars, but it must provide the same named condition map, row lineage, ranks,
 aliasing information, and solver diagnostics.
 

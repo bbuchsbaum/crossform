@@ -14,7 +14,7 @@ effect_extractor(
 \arguments{
 \item{map}{A finite effect-by-observation numeric matrix.}
 
-\item{effects}{An `effect_space()` or unique names used as shorthand for an
+\item{effects}{An \code{effect_space()} or unique names used as shorthand for an
 unspecified-basis effect space.}
 
 \item{estimator}{Short estimator identity.}
@@ -22,9 +22,9 @@ unspecified-basis effect space.}
 \item{diagnostics}{Optional estimator diagnostics.}
 }
 \value{
-An `effect_extractor`.
+An \code{effect_extractor}.
 }
 \description{
-An extractor is the declared map `E` in `B = E Y`. It contains no neural
+An extractor is the declared map \code{E} in \verb{B = E Y}. It contains no neural
 data and may therefore be reused across feature blocks.
 }

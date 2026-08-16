@@ -7,12 +7,12 @@
 metric_capabilities(x)
 }
 \arguments{
-\item{x}{A `neural_metric()` or an on-demand metric recipe. A
-`measurement_bridge()` is refused because cross-space bridges are not
+\item{x}{A \code{neural_metric()} or an on-demand metric recipe. A
+\code{measurement_bridge()} is refused because cross-space bridges are not
 same-space metrics.}
 }
 \value{
-An `effect_metric_capabilities` record.
+An \code{effect_metric_capabilities} record.
 }
 \description{
 Inspect exact neural-metric capabilities

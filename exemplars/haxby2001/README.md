@@ -107,18 +107,18 @@ contradicted the estimand written above.
 
 The committed smoke report predates the package rename and therefore retains
 `effectagram` in its historical receipt text. Rerunning the current scripts
-writes `crossform`-labelled artifacts; the earlier evidence is not rewritten.
+writes `crossform`-labeled artifacts; the earlier evidence is not rewritten.
 
 ### Smoke tier result: matched estimand agrees, README estimand is not expressible
 
 Both arms consume the identical prepared object, and their searchlight
 geometry was verified rather than assumed: `neuroim2::searchlight_indices`
 (crossform) and `neuroim2::searchlight` (rMVPA) return **bit-identical
-sphere membership at all 577 VT centres** at radius 11.25 mm.
+sphere membership at all 577 VT centers** at radius 11.25 mm.
 
 | comparison | result |
 |---|---|
-| matched estimand, **crossform vs rMVPA's own crossnobis estimator** | max abs difference **8.88e-16**, 0/577 centres above the 1e-8 gate — PASS |
+| matched estimand, **crossform vs rMVPA's own crossnobis estimator** | max abs difference **8.88e-16**, 0/577 centers above the 1e-8 gate — PASS |
 | matched estimand, crossform vs an independent reference loop | max abs difference 1.33e-15, 0/577 — PASS |
 | shared Spearman score | max abs difference **0** (exact), map r = 1 — PASS |
 | native estimands (crossform vs rMVPA `rsa_model`) | r ≈ 0.54, fully accounted for by five named semantic differences |
@@ -138,7 +138,7 @@ system can express that combination:
 - **rMVPA's `rsa_model`** couples the two choices: `distmethod` sets both the
   neural RDM metric and the second-order correlation method, and `regtype` is
   inert for `"pearson"`/`"spearman"` — verified on this data, max abs
-  difference exactly 0 across 577 centres between the two `regtype` values.
+  difference exactly 0 across 577 centers between the two `regtype` values.
   (`vector_rsa_model` does decouple them, but it averages 96 per-trial row
   correlations rather than correlating over a condition RDM's lower triangle,
   so it is a different estimand again.)
@@ -161,7 +161,7 @@ of the headline comparison are package estimators — crossform's `rdm()` over
 a cross-run geometry against rMVPA's
 `compute_crossvalidated_means_sl(estimation_method = "crossnobis")` +
 `compute_crossnobis_distances_sl()` — and they agree to 8.88e-16 at every
-centre.
+center.
 
 The conditions:
 
@@ -189,7 +189,7 @@ the latter the way the Estimand section describes.
 ### Cost
 
 The parity tier (scripts 02–04) is genuinely cheap: about 20 s total, of which
-crossform's `rdm()` over 577 centres is 0.48 s and rMVPA's crossnobis RDM is
+crossform's `rdm()` over 577 centers is 0.48 s and rMVPA's crossnobis RDM is
 0.40 s. The error-channel arm (05) is heavier, but the old estimate in this
 section was stale. A 2026-08-14 rerun of 25 evenly spaced nodes on the current
 tree took 16.2 s total (0.65 s/node). A linear projection is therefore about
@@ -207,13 +207,13 @@ current runtime claim; rerunning script 05 writes the current per-node timings.
 
 `05` refits the same effects from raw volumes with `lm_relation_fit()` —
 reproducing `02`'s RDM to 4.44e-16, so the point estimand is unchanged — and
-then does what rMVPA cannot. Over 120 evenly spaced VT centres: RDM standard
+then does what rMVPA cannot. Over 120 evenly spaced VT centers: RDM standard
 errors (median 0.0207), and an **exact** transport of the RDM sampling
 covariance to the RSA coefficient (median estimate 0.0372, median SE 0.0121,
-median |z| 3.47, 72.5 % of centres above |z| = 1.96). The transport is exact
+median |z| 3.47, 72.5 % of centers above |z| = 1.96). The transport is exact
 rather than approximate because `rsa()` is a linear functional of the
 distances, verified to 1.1e-16. Learned-metric crossnobis (face − house) over
-all 577 centres: median 0.300, positive at 99.8 %.
+all 577 centers: median 0.300, positive at 99.8 %.
 
 All three capability **refusals** fired and are recorded verbatim in the
 report: no analytic covariance on a learned-metric plan, none from precomputed

@@ -7,7 +7,7 @@
 reverse_bridge(bridge)
 }
 \arguments{
-\item{bridge}{A factorized `measurement_bridge()`.}
+\item{bridge}{A factorized \code{measurement_bridge()}.}
 }
 \value{
 The exact bridge with source domains and legs exchanged.

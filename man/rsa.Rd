@@ -13,7 +13,7 @@ rsa(
 )
 }
 \arguments{
-\item{x}{An `effect_geometry_plan` or a complete effect form carrying the
+\item{x}{An \code{effect_geometry_plan} or a complete effect form carrying the
 symmetric self-form capability.}
 
 \item{models}{Named model RDMs, each matching the experimental dimension.}
@@ -25,8 +25,8 @@ symmetric self-form capability.}
 \item{component}{Geometry component to read.}
 }
 \value{
-An `effect_rsa_view` with one coefficient per requested model,
-  nuisance model, and optional intercept.
+An \code{effect_rsa_view} with one coefficient per requested model,
+nuisance model, and optional intercept.
 }
 \description{
 Fit multiple-regression RSA as one compiled geometry query

@@ -93,7 +93,7 @@ the self-pairs to obtain the two variances in its denominator. For a seed map
 or selected network, list the scientific edges you need and the self-pairs
 required by the chosen normalization.
 
-The matrix `center / 7` centres the eight time points and divides their sum of
+The matrix `center / 7` centers the eight time points and divides their sum of
 products by seven. `variation_query()` records that operation on the time
 axis. The `joint_covariance` construction is valid here because both sides of
 each product use the same session and the same fitted relation.

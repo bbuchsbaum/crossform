@@ -28,7 +28,7 @@
     construction = construction
   )
   paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
 }
 
@@ -70,6 +70,24 @@
   ), class = "effect_support_cost")
 }
 
+# The pair pattern marks feature pairs that share at least one support. The
+# sparse product costs about sum(support sizes^2) operations, the dense product
+# n_features^3 flops in BLAS; the dense route wins once supports cover more than
+# a few percent of the domain and the dense square fits comfortably in memory.
+# Both routes yield the identical pattern object, so signatures do not depend on
+# the route taken.
+.support_pair_pattern <- function(membership) {
+  n <- ncol(membership)
+  density <- Matrix::nnzero(membership) / (as.double(nrow(membership)) * n)
+  if (density > 0.05 && n <= 12000L) {
+    dense <- crossprod(as.matrix(membership) * 1)
+    pattern <- methods::as(dense, "sparseMatrix")
+  } else {
+    pattern <- Matrix::crossprod(membership)
+  }
+  methods::as(methods::as(pattern, "symmetricMatrix"), "nMatrix")
+}
+
 .support_index_from_membership <- function(membership, domain, node_ids,
                                            construction) {
   .validate_domain(domain)
@@ -94,8 +112,7 @@
   row_membership <- methods::as(membership, "RsparseMatrix")
   ptr <- as.double(row_membership@p)
   members <- as.integer(row_membership@j + 1L)
-  pair_pattern <- methods::as(Matrix::crossprod(membership), "symmetricMatrix")
-  pair_pattern <- methods::as(pair_pattern, "nMatrix")
+  pair_pattern <- .support_pair_pattern(membership)
   domain_reference <- domain$reference
   cost <- .support_index_cost(
     domain_reference, node_ids, ptr, members, pair_pattern, construction
@@ -154,7 +171,19 @@
       !is.matrix(voxel) || !identical(dim(voxel), c(domain$n_features, 3L))) {
     stop("The volume domain lacks canonical grid metadata.", call. = FALSE)
   }
-  extent <- floor(radius / spacing + 1e-12)
+  # An offset can only pair two grid voxels when it is shorter than the grid
+  # itself, so the stencil never needs to reach past `dims - 1` per axis. Without
+  # this clamp the enumeration grows cubically in the radius regardless of the
+  # volume, and a large radius stalls on work that maps nowhere.
+  extent <- pmin(floor(radius / spacing + 1e-12), as.double(dims) - 1)
+  stencil_size <- prod(2 * extent + 1)
+  if (stencil_size > domain$n_features / 4) {
+    # The ball is large relative to the volume: one vectorized pass per stencil
+    # offset costs about four direct pairwise tests, so past this point the
+    # pairwise route is cheaper. Membership, and therefore the support-index
+    # signature, is identical.
+    return(.volume_ball_membership_pairwise(voxel, spacing, radius))
+  }
   offsets <- as.matrix(expand.grid(lapply(extent, function(value) {
     seq.int(-value, value)
   }), KEEP.OUT.ATTRS = FALSE))
@@ -189,6 +218,36 @@
     i = unlist(center_chunks, use.names = FALSE),
     j = unlist(member_chunks, use.names = FALSE),
     dims = c(domain$n_features, domain$n_features)
+  )
+}
+
+# Direct pairwise membership on the spacing-scaled voxel grid. Used when the
+# offset stencil would be larger than the volume it indexes; produces exactly
+# the membership the stencil would.
+.volume_ball_membership_pairwise <- function(voxel, spacing, radius) {
+  n <- nrow(voxel)
+  limit <- radius^2 * (1 + 1e-12)
+  block <- max(1L, min(n, as.integer(floor(2^22 / max(n, 1L)))))
+  starts <- seq.int(1L, n, by = block)
+  center_chunks <- vector("list", length(starts))
+  member_chunks <- vector("list", length(starts))
+  for (chunk in seq_along(starts)) {
+    rows <- seq.int(starts[[chunk]], min(starts[[chunk]] + block - 1L, n))
+    # Integer grid differences times spacing, squared and summed per axis:
+    # the same arithmetic as the stencil test, so boundary membership agrees.
+    squared <- 0
+    for (axis in seq_len(ncol(voxel))) {
+      squared <- squared +
+        (outer(voxel[rows, axis], voxel[, axis], `-`) * spacing[[axis]])^2
+    }
+    hits <- which(squared <= limit, arr.ind = TRUE, useNames = FALSE)
+    center_chunks[[chunk]] <- as.integer(rows[hits[, 1L]])
+    member_chunks[[chunk]] <- as.integer(hits[, 2L])
+  }
+  Matrix::sparseMatrix(
+    i = unlist(center_chunks, use.names = FALSE),
+    j = unlist(member_chunks, use.names = FALSE),
+    dims = c(n, n)
   )
 }
 

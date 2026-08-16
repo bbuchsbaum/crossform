@@ -225,3 +225,45 @@ test_that("deep validation rejects noncanonical support order", {
     "strictly increasing"
   )
 })
+
+test_that("volume searchlights larger than the volume stay cheap and exact", {
+  set.seed(31)
+  mask <- array(stats::runif(6 * 6 * 4) > 0.3, c(6L, 6L, 4L))
+  domain <- volume_domain(mask, spacing = c(3, 3, 2.5))
+  voxel <- domain$metadata$voxel
+  spacing <- domain$metadata$spacing
+  brute <- function(radius) {
+    scaled <- sweep(voxel, 2L, spacing, `*`)
+    value <- matrix(FALSE, nrow(scaled), nrow(scaled))
+    for (center in seq_len(nrow(scaled))) {
+      squared <- rowSums(sweep(scaled, 2L, scaled[center, ], `-`)^2)
+      value[center, ] <- squared <= radius^2 * (1 + 1e-12)
+    }
+    value
+  }
+  for (radius in c(3, 6.5, 24, 1000)) {
+    stencil <- crossform:::.volume_ball_membership(domain, radius)
+    pairwise <- crossform:::.volume_ball_membership_pairwise(
+      voxel, spacing, radius
+    )
+    expect_identical(as.matrix(stencil) != 0, brute(radius), info = radius)
+    expect_identical(as.matrix(pairwise) != 0, brute(radius), info = radius)
+  }
+  # A radius far beyond the volume must not enumerate a radius-sized stencil.
+  elapsed <- system.time(
+    frame <- compile_frame(searchlights(1000), domain)
+  )[["elapsed"]]
+  expect_lt(elapsed, 5)
+  saturated <- compile_frame(searchlights(24), domain)$support_index
+  expect_identical(frame$support_index$members, saturated$members)
+  expect_identical(frame$support_index$ptr, saturated$ptr)
+  # The pair pattern is route-independent: dense and sparse products agree.
+  membership <- methods::as(
+    crossform:::.volume_ball_membership(domain, 24) != 0, "nMatrix"
+  )
+  dense_route <- crossform:::.support_pair_pattern(membership)
+  sparse_route <- methods::as(
+    methods::as(Matrix::crossprod(membership), "symmetricMatrix"), "nMatrix"
+  )
+  expect_identical(dense_route, sparse_route)
+})

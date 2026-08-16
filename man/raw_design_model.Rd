@@ -16,7 +16,7 @@ raw_design_model(designs, row_ids = NULL, solver = "auto", provenance = list())
 \item{provenance}{Portable provenance for the external construction.}
 }
 \value{
-An `effect_raw_design_model`, also an `effect_design_model`.
+An \code{effect_raw_design_model}, also an \code{effect_design_model}.
 }
 \description{
 This degenerate route binds design values, coefficient order, row identity,

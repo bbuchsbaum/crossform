@@ -3,26 +3,31 @@ Title: Cross-Generalized Effect Geometry
 Version: 0.0.0.9000
 Authors@R: person("Bradley", "Buchsbaum", role = c("aut", "cre"),
     email = "bradley.buchsbaum@gmail.com")
-Description: Implements a cross-generalized evidence calculus for asking where
-    task effects and representational geometries reproduce across declared data
-    partitions. Crossvalidated contrast energy, squared-distance
-    representational dissimilarity matrices, fixed linear representational
-    similarity analysis, and ordered cross-axis hypotheses are queries against
-    one estimand-bearing effect form. Spatial measurements, generalization
-    pairings, units, execution receipts, uncertainty capabilities, and
-    principled refusals remain explicit.
+Description: Asks where task effects and representational geometries
+    reproduce across independent partitions of a task functional magnetic
+    resonance imaging (fMRI) dataset, such as separate runs or sessions. The
+    effects, the spatial measurement, and the partitions that must generalize
+    are declared once and compiled into a single estimand-bearing effect form;
+    crossvalidated contrast energy, squared-distance representational
+    dissimilarity matrices, fixed linear representational similarity analysis,
+    and ordered cross-axis hypotheses are queries against that form rather
+    than separate pipelines. Spatial measurements, generalization pairings,
+    units, execution receipts, uncertainty capabilities, and principled
+    refusals remain explicit.
 License: MIT + file LICENSE
 URL: https://bbuchsbaum.github.io/crossform/,
     https://github.com/bbuchsbaum/crossform
 BugReports: https://github.com/bbuchsbaum/crossform/issues
 Encoding: UTF-8
+Language: en-US
 Imports:
     digest,
     Matrix,
-    methods
+    methods,
+    utils
 Suggests:
-    fmridesign (== 0.6.0),
-    fmrireg (== 0.1.2),
+    fmridesign,
+    fmrireg,
     future,
     knitr,
     neuroim2 (>= 0.19.0),
@@ -32,5 +37,8 @@ Suggests:
     rmarkdown,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
+Additional_repositories: https://bbuchsbaum.r-universe.dev
+Config/Needs/website: rmarkdown
 Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3

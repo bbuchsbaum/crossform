@@ -68,7 +68,13 @@ numerical_agreement <- function(x, y,
   difference <- abs(x - y)
   scale <- pmax(abs(x), abs(y))
   allowed <- contract$atol + contract$rtol * scale
-  passed <- if (guarantee == "scheduling") identical(x, y) else all(difference <= allowed)
+  # `num.eq = FALSE` makes the comparison genuinely bitwise: it distinguishes
+  # 0 from -0, which `==` (and identical()'s default) treats as equal.
+  passed <- if (guarantee == "scheduling") {
+    identical(x, y, num.eq = FALSE)
+  } else {
+    all(difference <= allowed)
+  }
 
   structure(
     list(

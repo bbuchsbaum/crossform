@@ -12,10 +12,10 @@ residual_pair_statistics(
 )
 }
 \arguments{
-\item{x}{An `effect_relation_fit` with residual-block capability.}
+\item{x}{An \code{effect_relation_fit} with residual-block capability.}
 
 \item{at}{A compiled frame carrying an explicit support index, such as a
-compiled searchlight frame. An internal `effect_support_index` is also
+compiled searchlight frame. An internal \code{effect_support_index} is also
 accepted.}
 
 \item{partitions}{Optional relation partitions. They are canonicalized to
@@ -24,15 +24,15 @@ relation order.}
 \item{workspace_bytes}{Positive crossform-owned workspace budget.}
 }
 \value{
-An `effect_residual_pair_statistics` object containing one atomic
-  residual cross-product vector and residual degrees of freedom per
-  partition. Execution diagnostics are excluded from its scientific
-  identity.
+An \code{effect_residual_pair_statistics} object containing one atomic
+residual cross-product vector and residual degrees of freedom per
+partition. Execution diagnostics are excluded from its scientific
+identity.
 }
 \description{
 Computes residual cross-products only for neural feature pairs that coexist
 in at least one requested support. The GEMM tile shape is derived from the
-support topology and is independent of `workspace_bytes`; the budget changes
+support topology and is independent of \code{workspace_bytes}; the budget changes
 only how many already-computed residual tiles may be cached. Consequently,
 changing the workspace plan cannot change the accumulated floating-point
 values.

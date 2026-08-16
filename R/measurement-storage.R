@@ -7,7 +7,7 @@
     nrow(left_frame$legs[[table$left[[index]]]]$operator) *
       nrow(right_frame$legs[[table$right[[index]]]]$operator)
   }, numeric(1))
-  offsets <- c(0, head(cumsum(lengths), -1L))
+  offsets <- c(0, utils::head(cumsum(lengths), -1L))
   value <- data.frame(
     edge_id = paste0("edge_", sprintf("%06d", seq_len(nrow(table)))),
     left = table$left,
@@ -41,7 +41,7 @@
     left_frame = left_frame$signature,
     right_frame = right_frame$signature,
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     )),
     class = c("effect_measurement_block_index", "data.frame")
   )
@@ -60,7 +60,7 @@
       any(index$length_elements !=
         as.double(index$d_left) * as.double(index$d_right)) ||
       !identical(index$offset_elements,
-        c(0, head(cumsum(index$length_elements), -1L))) ||
+        c(0, utils::head(cumsum(index$length_elements), -1L))) ||
       !is.character(attr(index, "edge_set", exact = TRUE)) ||
       !is.character(attr(index, "left_frame", exact = TRUE)) ||
       !is.character(attr(index, "right_frame", exact = TRUE)) ||
@@ -76,7 +76,7 @@
     index = lapply(index, unname)
   )
   expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(attr(index, "signature", exact = TRUE),
       expected_signature)) {
@@ -112,7 +112,7 @@
     index_signature = attr(index, "signature", exact = TRUE),
     codec = manifest$codec,
     block_count = manifest$block_count
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .measurement_edge_position <- function(index, edge) {

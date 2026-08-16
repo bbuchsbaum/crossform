@@ -15,19 +15,19 @@ variation_query(
 \arguments{
 \item{operator}{A finite symmetric positive-semidefinite matrix.}
 
-\item{effects}{The exact `effect_space` on both query axes.}
+\item{effects}{The exact \code{effect_space} on both query axes.}
 
-\item{sampling_axis}{Identifier such as `"time"`, `"trial"`, or
-`"subject"`.}
+\item{sampling_axis}{Identifier such as \code{"time"}, \code{"trial"}, or
+\code{"subject"}.}
 
-\item{construction}{`"psd_variation"` for a positive variation form, or
-`"joint_covariance"` when the later partition construction is a coherent
+\item{construction}{\code{"psd_variation"} for a positive variation form, or
+\code{"joint_covariance"} when the later partition construction is a coherent
 joint covariance.}
 
 \item{provenance}{Named fixed-construction metadata.}
 }
 \value{
-An axis-bound `effect_pair_query` with variation capabilities.
+An axis-bound \code{effect_pair_query} with variation capabilities.
 }
 \description{
 A variation query binds a positive semidefinite operator to one identified

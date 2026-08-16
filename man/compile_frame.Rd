@@ -9,11 +9,11 @@ compile_frame(specification, domain)
 \arguments{
 \item{specification}{An additive frame specification.}
 
-\item{domain}{An `effect_domain`.}
+\item{domain}{An \code{effect_domain}.}
 }
 \value{
-An `effect_frame` whose weights are a sparse measurement-by-feature
-  matrix.
+An \code{effect_frame} whose weights are a sparse measurement-by-feature
+matrix.
 }
 \description{
 Voxel, searchlight, region, and whole-brain scopes all compile to the same

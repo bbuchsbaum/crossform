@@ -6,7 +6,7 @@
     stop("Matrix response sources must be finite and nonempty.", call. = FALSE)
   }
   revision <- paste0(
-    "sha256:", digest::digest(value, algo = "sha256", serialize = TRUE)
+    "sha256:", digest::digest(value, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
   )
   structure(
     list(
@@ -512,7 +512,7 @@ relation_block <- function(x, partition, features) {
     domain = x$domain,
     provenance = x$provenance
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE))
+  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .identity_measurement_bridge <- function(left, right) {
@@ -535,7 +535,7 @@ relation_block <- function(x, partition, features) {
     provenance = list(rule = "exact_shared_neural_feature_identity")
   )
   signature <- paste0(
-    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE)
+    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
   )
   structure(
     c(semantic[-1L], list(signature = signature)),

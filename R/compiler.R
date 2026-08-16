@@ -67,7 +67,7 @@
 
 .effect_task_id <- function(semantic) {
   paste0(
-    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE)
+    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
   )
 }
 
@@ -572,7 +572,7 @@
     materialization = materialization,
     component = component
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE))
+  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .compiler_index <- function(at) {

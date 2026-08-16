@@ -61,46 +61,99 @@ sampling_oracle_leave_one_out <- function(partition_differences) {
   mean(values)
 }
 
-sampling_oracle_eq13 <- function(delta, xi, sigma_r, partitions) {
-  delta <- sampling_oracle_matrix(delta, "Delta", symmetric = TRUE)
-  xi <- sampling_oracle_matrix(xi, "Xi", symmetric = TRUE)
-  sigma_r <- sampling_oracle_matrix(
-    sigma_r, "residual covariance", symmetric = TRUE
-  )
-  if (!identical(dim(delta), dim(xi))) {
-    stop("Delta and Xi dimensions must agree")
-  }
+sampling_oracle_partitions <- function(partitions, minimum = 2L) {
   if (!is.numeric(partitions) || length(partitions) != 1L ||
       is.na(partitions) || !is.finite(partitions) ||
-      partitions %% 1 != 0 || partitions < 2L) {
-    stop("partitions must be one integer of at least two")
+      partitions %% 1 != 0 || partitions < minimum) {
+    stop("partitions must be one integer of at least ", minimum)
   }
-  partitions <- as.integer(partitions)
-  features <- nrow(sigma_r)
-  residual_factor <- sum(sigma_r * sigma_r) / features^2
-  signal <- 4 * (delta * xi) / partitions * residual_factor
-  noise <- 2 * (xi * xi) /
-    (partitions * (partitions - 1L)) * residual_factor
+  as.integer(partitions)
+}
+
+sampling_oracle_normalization <- function(normalization) {
+  if (!is.numeric(normalization) || length(normalization) != 1L ||
+      is.na(normalization) || !is.finite(normalization) ||
+      normalization <= 0) {
+    stop("normalization must be one positive finite value")
+  }
+  as.double(normalization)
+}
+
+# The exact sampling law of the equal-weight all-unordered-pairs
+# crossvalidated distance estimator, given
+#
+#   mu_r    row r of `differences`, the whitened contrast pattern;
+#   Sigma_R `sigma_r`, the whitened residual covariance;
+#   Xi      `xi`, the effect-coordinate contrast cross-products;
+#   M       `partitions`; and
+#   nu      `normalization`, the divisor already applied to each distance:
+#
+#   Cov(d_r, d_s) = (4 / M) Xi_rs (mu_r Sigma_R mu_s') / nu^2
+#                 + 2 / (M (M - 1)) Xi_rs^2 tr(Sigma_R Sigma_R) / nu^2.
+#
+# The signal term uses Sigma_R as a metric on the whitened patterns. Only
+# when Sigma_R = (tr(Sigma_R^2) / nu) I does it collapse to a multiple of
+# the plain Gram mu_r mu_s'.
+sampling_oracle_eq13_terms <- function(signal_gram, xi, noise_trace,
+                                       partitions) {
+  signal_gram <- sampling_oracle_matrix(
+    signal_gram, "signal Gram", symmetric = TRUE
+  )
+  xi <- sampling_oracle_matrix(xi, "Xi", symmetric = TRUE)
+  if (!identical(dim(signal_gram), dim(xi))) {
+    stop("signal Gram and Xi dimensions must agree")
+  }
+  if (!is.numeric(noise_trace) || length(noise_trace) != 1L ||
+      is.na(noise_trace) || !is.finite(noise_trace) || noise_trace < 0) {
+    stop("noise trace must be one finite nonnegative value")
+  }
+  partitions <- sampling_oracle_partitions(partitions)
+  signal <- 4 * (signal_gram * xi) / partitions
+  noise <- 2 * (xi * xi) * noise_trace /
+    (partitions * (partitions - 1L))
   list(signal = signal, noise = noise, covariance = signal + noise)
 }
 
-sampling_oracle_endpoint_enumeration <- function(delta, xi, sigma_r,
-                                                  partitions) {
-  delta <- sampling_oracle_matrix(delta, "Delta", symmetric = TRUE)
+sampling_oracle_eq13 <- function(differences, xi, sigma_r, partitions,
+                                 normalization = ncol(differences)) {
+  differences <- sampling_oracle_matrix(
+    differences, "whitened contrast differences"
+  )
+  sigma_r <- sampling_oracle_matrix(
+    sigma_r, "residual covariance", symmetric = TRUE
+  )
+  if (ncol(differences) != nrow(sigma_r)) {
+    stop("difference and residual-covariance feature axes must agree")
+  }
+  normalization <- sampling_oracle_normalization(normalization)
+  sampling_oracle_eq13_terms(
+    signal_gram = differences %*% sigma_r %*% t(differences) /
+      normalization^2,
+    xi = xi,
+    noise_trace = sum(sigma_r * sigma_r) / normalization^2,
+    partitions = partitions
+  )
+}
+
+sampling_oracle_endpoint_enumeration <- function(differences, xi, sigma_r,
+                                                  partitions,
+                                                  normalization =
+                                                    ncol(differences)) {
+  differences <- sampling_oracle_matrix(
+    differences, "whitened contrast differences"
+  )
   xi <- sampling_oracle_matrix(xi, "Xi", symmetric = TRUE)
   sigma_r <- sampling_oracle_matrix(
     sigma_r, "residual covariance", symmetric = TRUE
   )
-  if (!identical(dim(delta), dim(xi))) {
-    stop("Delta and Xi dimensions must agree")
+  if (ncol(differences) != nrow(sigma_r)) {
+    stop("difference and residual-covariance feature axes must agree")
   }
-  if (!is.numeric(partitions) || length(partitions) != 1L ||
-      is.na(partitions) || !is.finite(partitions) ||
-      partitions %% 1 != 0 || partitions < 2L) {
-    stop("partitions must be one integer of at least two")
+  if (!identical(dim(xi), as.integer(rep(nrow(differences), 2L)))) {
+    stop("Xi must be one distance-by-distance matrix")
   }
-  partitions <- as.integer(partitions)
-  features <- nrow(sigma_r)
+  partitions <- sampling_oracle_partitions(partitions)
+  normalization <- sampling_oracle_normalization(normalization)
   edges <- t(utils::combn(partitions, 2L))
   edge_count <- nrow(edges)
   shared_endpoints <- 0
@@ -112,7 +165,9 @@ sampling_oracle_endpoint_enumeration <- function(delta, xi, sigma_r,
       identical_edges <- identical_edges + as.integer(first == second)
     }
   }
-  residual_factor <- sum(sigma_r * sigma_r) / features^2
+  signal_gram <- differences %*% sigma_r %*% t(differences) /
+    normalization^2
+  noise_trace <- sum(sigma_r * sigma_r) / normalization^2
   signal_coefficient <- shared_endpoints / edge_count^2
   noise_coefficient <- identical_edges / edge_count^2
   list(
@@ -120,10 +175,8 @@ sampling_oracle_endpoint_enumeration <- function(delta, xi, sigma_r,
     identical_edges = identical_edges,
     signal_coefficient = signal_coefficient,
     noise_coefficient = noise_coefficient,
-    covariance = (
-      signal_coefficient * delta * xi +
-      noise_coefficient * xi * xi
-    ) * residual_factor
+    covariance = signal_coefficient * signal_gram * xi +
+      noise_coefficient * xi * xi * noise_trace
   )
 }
 
@@ -149,6 +202,132 @@ sampling_oracle_components <- function(patterns, sigma_k, sigma_r) {
     delta = tcrossprod(differences) / features,
     xi = contrasts %*% sigma_k %*% t(contrasts)
   )
+}
+
+# The same law written entry by entry with explicit scalar loops, sharing no
+# code path with `sampling_oracle_eq13()`. Slow on purpose: it exists so an
+# exact algebraic comparison has somewhere independent to stand.
+sampling_oracle_scalar_law <- function(differences, xi, sigma_r, partitions,
+                                       normalization) {
+  differences <- sampling_oracle_matrix(
+    differences, "whitened contrast differences"
+  )
+  xi <- sampling_oracle_matrix(xi, "Xi", symmetric = TRUE)
+  sigma_r <- sampling_oracle_matrix(
+    sigma_r, "residual covariance", symmetric = TRUE
+  )
+  if (ncol(differences) != nrow(sigma_r) ||
+      !identical(dim(xi), as.integer(rep(nrow(differences), 2L)))) {
+    stop("scalar law axes do not agree")
+  }
+  partitions <- sampling_oracle_partitions(partitions)
+  normalization <- sampling_oracle_normalization(normalization)
+  features <- ncol(differences)
+  dimension <- nrow(differences)
+  noise_trace <- 0
+  for (i in seq_len(features)) {
+    for (j in seq_len(features)) {
+      noise_trace <- noise_trace + sigma_r[i, j] * sigma_r[j, i]
+    }
+  }
+  value <- matrix(0, dimension, dimension)
+  for (row in seq_len(dimension)) {
+    for (column in seq_len(dimension)) {
+      quadratic <- 0
+      for (i in seq_len(features)) {
+        for (j in seq_len(features)) {
+          quadratic <- quadratic +
+            differences[row, i] * sigma_r[i, j] * differences[column, j]
+        }
+      }
+      value[row, column] <-
+        4 * xi[row, column] * quadratic /
+          (partitions * normalization^2) +
+        2 * xi[row, column]^2 * noise_trace /
+          (partitions * (partitions - 1) * normalization^2)
+    }
+  }
+  value
+}
+
+sampling_oracle_psd_root <- function(value, name) {
+  value <- sampling_oracle_matrix(value, name, symmetric = TRUE)
+  spectrum <- eigen(value, symmetric = TRUE)
+  scale <- max(1, max(abs(spectrum$values)))
+  if (min(spectrum$values) < -1e-10 * scale) {
+    stop(name, " must be positive semidefinite")
+  }
+  retained <- spectrum$values > 1e-12 * scale
+  if (!any(retained)) return(matrix(0, nrow(value), 1L))
+  spectrum$vectors[, retained, drop = FALSE] %*%
+    diag(sqrt(spectrum$values[retained]), sum(retained))
+}
+
+# Draw `replications` independent realizations of the equal-weight
+# all-unordered-pairs distance estimator directly in distance coordinates.
+# Contrast rows of a matrix-normal partition estimate are themselves
+# matrix-normal: C E ~ MN(0, C Sigma_K C', Sigma_R) = MN(0, Xi, Sigma_R), so
+# no condition-space or design-space simulation is needed and no crossform
+# code is involved.
+sampling_oracle_distance_draws <- function(differences, xi, sigma_r,
+                                           partitions, normalization,
+                                           replications, seed) {
+  differences <- sampling_oracle_matrix(
+    differences, "whitened contrast differences"
+  )
+  sigma_r <- sampling_oracle_matrix(
+    sigma_r, "residual covariance", symmetric = TRUE
+  )
+  if (ncol(differences) != nrow(sigma_r)) {
+    stop("difference and residual-covariance feature axes must agree")
+  }
+  dimension <- nrow(differences)
+  features <- ncol(differences)
+  if (!identical(dim(xi), as.integer(rep(dimension, 2L)))) {
+    stop("Xi must be one distance-by-distance matrix")
+  }
+  partitions <- sampling_oracle_partitions(partitions)
+  normalization <- sampling_oracle_normalization(normalization)
+  if (!is.numeric(replications) || length(replications) != 1L ||
+      is.na(replications) || !is.finite(replications) ||
+      replications %% 1 != 0 || replications < 2L) {
+    stop("replications must be one integer of at least two")
+  }
+  replications <- as.integer(replications)
+  root_xi <- sampling_oracle_psd_root(xi, "Xi")
+  root_r <- sampling_oracle_psd_root(sigma_r, "residual covariance")
+  rank_xi <- ncol(root_xi)
+  rank_r <- ncol(root_r)
+  set.seed(seed)
+  total <- vector("list", features)
+  for (feature in seq_len(features)) {
+    total[[feature]] <- matrix(0, replications, dimension)
+  }
+  squares <- matrix(0, replications, dimension)
+  for (partition in seq_len(partitions)) {
+    noise <- array(
+      matrix(
+        rnorm(replications * rank_xi * rank_r),
+        replications * rank_xi, rank_r
+      ) %*% t(root_r),
+      c(replications, rank_xi, features)
+    )
+    for (feature in seq_len(features)) {
+      draw <- matrix(noise[, , feature], replications, rank_xi) %*%
+        t(root_xi) + rep(differences[, feature], each = replications)
+      total[[feature]] <- total[[feature]] + draw
+      squares <- squares + draw * draw
+    }
+  }
+  # sum_{a<b} <g_a, g_b> = (||sum_m g_m||^2 - sum_m ||g_m||^2) / 2.
+  crossed <- matrix(0, replications, dimension)
+  for (feature in seq_len(features)) {
+    crossed <- crossed + total[[feature]] * total[[feature]]
+  }
+  edges <- choose(partitions, 2L)
+  values <- (crossed - squares) / (2 * edges * normalization)
+  colnames(values) <- rownames(differences)
+  values
 }
 
 sampling_oracle_naive_signal_factors <- function(partitions) {
@@ -282,7 +461,8 @@ sampling_oracle_calibration_experiment <- function(
         mean_patterns, sigma_k, sigma_r
       )
       plugin_se[replicate, ] <- sqrt(diag(sampling_oracle_eq13(
-        components$delta, components$xi, sigma_r, partitions
+        components$differences, components$xi, sigma_r, partitions,
+        normalization
       )$covariance))
     }
   }
@@ -290,7 +470,8 @@ sampling_oracle_calibration_experiment <- function(
     true_patterns, sigma_k, sigma_r
   )
   covariance <- sampling_oracle_eq13(
-    components$delta, components$xi, sigma_r, partitions
+    components$differences, components$xi, sigma_r, partitions,
+    normalization
   )$covariance
   list(
     estimates = estimates,

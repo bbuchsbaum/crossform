@@ -77,7 +77,7 @@ noise_precision <- function(value, domain, support = NULL,
     frame = .additive_frame_signature(frame),
     pairing = .metric_pairing_identity(pairing),
     metric_schedule = metric_schedule$signature
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .crossnobis_plan_signature <- function(fields) {
@@ -88,7 +88,7 @@ noise_precision <- function(value, domain, support = NULL,
     lowering = fields$lowering,
     kernel_version = fields$kernel_version,
     memory = unclass(fields$memory)
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .learned_crossnobis_memory_plan <- function(fit, frame, support_index, over,
@@ -349,7 +349,7 @@ print.effect_crossnobis_plan <- function(x, ...) {
       parent = plan$scientific_plan_id,
       contrast = contrast,
       query_role = "effect"
-    ), algo = "sha256", serialize = TRUE)),
+    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L)),
     compute = plan$compute,
     sources = plan$task$left_relation$capabilities,
     memory = plan$memory,

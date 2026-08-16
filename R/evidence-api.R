@@ -168,7 +168,7 @@ measurement_frame <- function(
     from_frame = fields$from_frame$signature,
     to_frame = fields$to_frame$signature,
     edges = fields$edges$signature
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .validate_edge_frame <- function(x) {

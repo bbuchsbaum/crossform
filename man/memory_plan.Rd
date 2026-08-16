@@ -57,7 +57,7 @@ copy-on-modify temporaries.}
 \item{baseline_rss_bytes, peak_rss_bytes}{Optional process RSS observations.}
 }
 \value{
-An immutable-by-convention `effect_memory_plan`.
+An immutable-by-convention \code{effect_memory_plan}.
 }
 \description{
 The hard budget covers package-owned live objects and conservative temporary

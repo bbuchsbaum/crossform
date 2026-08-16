@@ -14,37 +14,37 @@ plan_geometry(
 )
 }
 \arguments{
-\item{x}{An `effect_relation` supplying the left experimental axis.}
+\item{x}{An \code{effect_relation} supplying the left experimental axis.}
 
-\item{at}{A compiled additive `effect_frame`.}
+\item{at}{A compiled additive \code{effect_frame}.}
 
-\item{over}{An `effect_pairing`. Rectangular plans require directed
-pairings whose left endpoints identify partitions of `x` and right
-endpoints identify partitions of `right`.}
+\item{over}{An \code{effect_pairing}. Rectangular plans require directed
+pairings whose left endpoints identify partitions of \code{x} and right
+endpoints identify partitions of \code{right}.}
 
-\item{compute}{A sequential `compute_policy()`.}
+\item{compute}{A sequential \code{compute_policy()}.}
 
-\item{metric}{Optional fixed `neural_metric()`. A domain-wide metric is
+\item{metric}{Optional fixed \code{neural_metric()}. A domain-wide metric is
 restricted to each frame support on demand; a support-local metric is
 accepted only for a matching one-node frame. Learned metric recipes are
 added by the statistical fitting layer rather than stored per node.
 Fixed metrics are not yet admitted on rectangular plans.}
 
-\item{right}{Optional second `effect_relation` supplying a distinct right
+\item{right}{Optional second \code{effect_relation} supplying a distinct right
 experimental axis. Supplying it compiles a rectangular cross-axis plan:
 the resulting form has one row axis per left effect and one column axis
-per right effect, is read with axis-bound [pair_query()]s through
-[evaluate_geometry()], and materializes to a rectangular effect form.
+per right effect, is read with axis-bound \code{\link[=pair_query]{pair_query()}}s through
+\code{\link[=evaluate_geometry]{evaluate_geometry()}}, and materializes to a rectangular effect form.
 Encoding-retrieval similarity is the canonical use.}
 }
 \value{
-An immutable-by-convention `effect_geometry_plan`.
+An immutable-by-convention \code{effect_geometry_plan}.
 }
 \description{
-`plan_geometry()` validates the relation, spatial frame, pairing, source
+\code{plan_geometry()} validates the relation, spatial frame, pairing, source
 capabilities, and compute policy without reading relation blocks. The plan
-can answer fixed queries with [evaluate_geometry()] or be explicitly
-materialized with [geometry()]. Complete packed geometry is therefore an
+can answer fixed queries with \code{\link[=evaluate_geometry]{evaluate_geometry()}} or be explicitly
+materialized with \code{\link[=geometry]{geometry()}}. Complete packed geometry is therefore an
 optional materialization, not the object that every analysis must allocate.
 }
 \examples{

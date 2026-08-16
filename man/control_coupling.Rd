@@ -7,13 +7,13 @@
 control_coupling(matches, include_matches = FALSE)
 }
 \arguments{
-\item{matches}{A `match_coupling()` value.}
+\item{matches}{A \code{match_coupling()} value.}
 
 \item{include_matches}{Whether matched cells are also controls. The default
 excludes them.}
 }
 \value{
-An `effect_pair_coupling` over the same axes and eligibility set.
+An \code{effect_pair_coupling} over the same axes and eligibility set.
 }
 \description{
 Mark eligible control pairs

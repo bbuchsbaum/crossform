@@ -20,24 +20,24 @@ plan_crossnobis(
 )
 }
 \arguments{
-\item{x}{An `effect_relation_fit` with residual-block capability.}
+\item{x}{An \code{effect_relation_fit} with residual-block capability.}
 
 \item{at}{A support-index-backed compiled spatial frame.}
 
 \item{over}{Independent cross-partition evaluation edges.}
 
-\item{metric}{An on-demand metric recipe such as `shrinkage_precision()`.}
+\item{metric}{An on-demand metric recipe such as \code{shrinkage_precision()}.}
 
-\item{training}{A `metric_training_policy()`.}
+\item{training}{A \code{metric_training_policy()}.}
 
-\item{compute}{A sequential `compute_policy()`.}
+\item{compute}{A sequential \code{compute_policy()}.}
 
 \item{residual_workspace_bytes}{Positive budget used while accumulating
 canonical residual pair sufficient statistics. It changes cache capacity,
 never the canonical numerical tile shape.}
 }
 \value{
-An `effect_crossnobis_plan` reusable across fixed contrasts.
+An \code{effect_crossnobis_plan} reusable across fixed contrasts.
 }
 \description{
 The plan freezes the residual-statistics identity, training policy,
@@ -46,7 +46,7 @@ does not retain one covariance or precision matrix per node and fold; each
 local solve handle is derived on demand from canonical pair statistics.
 The learned metric is itself random. Version 0.1 therefore returns signed
 crossnobis point estimates but does not apply the fixed-metric analytic
-covariance law in [rdm_sampling_covariance()] or claim calibrated intervals
+covariance law in \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} or claim calibrated intervals
 for this plan; doing so requires propagation of metric-estimation
 uncertainty (for example, an admitted LD-t specialization).
 }

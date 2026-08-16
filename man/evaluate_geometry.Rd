@@ -15,14 +15,14 @@ evaluate_geometry(
 )
 }
 \arguments{
-\item{x, at, over, compute, reporter}{As in [geometry()].}
+\item{x, at, over, compute, reporter}{As in \code{\link[=geometry]{geometry()}}.}
 
-\item{query}{A fixed `bilinear_query()` or packed-coordinate query matrix.}
+\item{query}{A fixed \code{bilinear_query()} or packed-coordinate query matrix.}
 
-\item{component}{One of `total`, `coherent`, or `configuration`.}
+\item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.}
 }
 \value{
-A query-only `effect_view`.
+A query-only \code{effect_view}.
 }
 \description{
 Evaluate a fixed query without materializing complete geometry

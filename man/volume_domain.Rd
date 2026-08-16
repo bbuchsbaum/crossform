@@ -22,7 +22,7 @@ entries are included.}
 \item{coordinate_units}{One physical coordinate unit or one per axis.}
 }
 \value{
-An `effect_domain` with native voxel and physical coordinates.
+An \code{effect_domain} with native voxel and physical coordinates.
 }
 \description{
 Construct a native volumetric neural feature domain

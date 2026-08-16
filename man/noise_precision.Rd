@@ -28,11 +28,11 @@ noise_precision(
 cannot be replaced.}
 }
 \value{
-A fixed `effect_neural_metric` with noise-precision identity.
+A fixed \code{effect_neural_metric} with noise-precision identity.
 }
 \description{
-`noise_precision()` is the semantically specific constructor for a known or
+\code{noise_precision()} is the semantically specific constructor for a known or
 externally estimated precision that is fixed before effect evaluation. It
-uses the same `neural_metric()` representation while recording that the
+uses the same \code{neural_metric()} representation while recording that the
 operator has inverse-noise-covariance meaning.
 }

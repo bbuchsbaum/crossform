@@ -15,7 +15,7 @@ nested axis.}
 \item{provenance}{Portable hierarchy provenance.}
 }
 \value{
-An `effect_partition_hierarchy`.
+An \code{effect_partition_hierarchy}.
 }
 \description{
 Columns are ordered from the leaf partition outward. Each child level must

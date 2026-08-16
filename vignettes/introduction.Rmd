@@ -122,14 +122,14 @@ stopifnot(
 )
 ```
 
-Crossvalidated energy is centred on zero when no reproducible effect is
+Crossvalidated energy is centered on zero when no reproducible effect is
 present. Sampling noise can therefore produce negative estimates. Clipping
 them to zero would change the estimator and introduce positive bias, so
 `contrast()` retains them.
 
 The known truth makes that policy visible. Inside the affected searchlights the
 planted multivariate pattern is carried mostly by configuration; outside them,
-the estimate is centred near zero and therefore falls below zero about half the
+the estimate is centered near zero and therefore falls below zero about half the
 time.
 
 ```{r planted-summary}
@@ -157,7 +157,7 @@ stopifnot(
 )
 ```
 
-```{r contrast-map, echo=FALSE, fig.cap="Cross-generalized contrast energy in the middle slice. The generated signal is centred in the volume; the map checks the analysis and is not empirical evidence."}
+```{r contrast-map, echo=FALSE, fig.cap="Cross-generalized contrast energy in the middle slice. The generated signal is centered in the volume; the map checks the analysis and is not empirical evidence."}
 volume <- array(NA_real_, dim = example$domain$metadata$dim)
 volume[example$domain$metadata$mask] <- effect$total
 middle <- ceiling(dim(volume)[3] / 2)
@@ -297,12 +297,12 @@ For a fully declared first-moment fit, `plan_relation()` accepts either a
 semantic `design_model()` or the version-checked
 `fmridesign_design_model()` adapter. Crossform records the requested effects,
 design identity, fit receipt, and supported uncertainty operations. It does
-not perform preprocessing, registration, masking, or general haemodynamic
-response modelling.
+not perform preprocessing, registration, masking, or general hemodynamic
+response modeling.
 
 ## Why correlation distance is not an option to `rdm()`
 
-Feature centring is a fixed linear projection, so a plan can declare it as a
+Feature centering is a fixed linear projection, so a plan can declare it as a
 metric. Pearson correlation also divides each observed pattern by its norm.
 That denominator depends on the data and is therefore not a fixed linear query.
 A conventional correlation distance can be defined from a positive-semidefinite
@@ -312,7 +312,7 @@ estimator.
 
 The package therefore does not hide correlation normalization inside `rdm()`.
 The accepted extension requirements and refusal cases are recorded in the
-repository's `correlation-distance-policy.md`.
+[correlation-distance policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html).
 
 ## Where to go next
 
@@ -325,12 +325,14 @@ repository's `correlation-distance-policy.md`.
 - `?rdm_sampling_covariance` states the admitted analytic covariance
   contract, and `?sampling_capabilities` answers the admission question
   before it is provoked.
-- The repository's `failure-gallery.md` shows six realistic errors the
-  package guards against through classed refusals, deliberately absent
-  transformations, or distinct estimand identities.
+- The [failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html)
+  shows six realistic errors the package guards against through classed
+  refusals, deliberately absent transformations, or distinct estimand
+  identities.
 - The Haxby 2001 exemplar supplies public-data parity and refusal evidence.
-- `novelty.md` separates the package's architectural contribution from the
-  established statistics it implements.
+- [What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
+  separates the package's architectural contribution from the established
+  statistics it implements.
 
 For the usual workflow, construct one plan from the fitted relation, spatial
 frame, and cross-run pairing. Then pass that plan to `contrast()`, `rdm()`, or

@@ -28,7 +28,7 @@ events(
 \item{provenance}{Portable event provenance.}
 }
 \value{
-An `effect_events` fact object. Column roles remain model-relative.
+An \code{effect_events} fact object. Column roles remain model-relative.
 }
 \description{
 Declare a typed event record

@@ -7,13 +7,13 @@
 effect_covariance(x, partition)
 }
 \arguments{
-\item{x}{An `effect_relation_fit` with residual-block capability.}
+\item{x}{An \code{effect_relation_fit} with residual-block capability.}
 
 \item{partition}{One partition name or index.}
 }
 \value{
 A symmetric effect-by-effect covariance factor excluding neural
-  residual covariance.
+residual covariance.
 }
 \description{
 Read the unscaled effect-coordinate covariance of a fitted partition

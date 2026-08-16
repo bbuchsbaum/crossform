@@ -16,9 +16,9 @@ observations(
 }
 \arguments{
 \item{sources}{A matrix or named list of matrix, function, or
-`effect_source_descriptor` sources.}
+\code{effect_source_descriptor} sources.}
 
-\item{index}{One [observation_index()] or a named list, one per partition.}
+\item{index}{One \code{\link[=observation_index]{observation_index()}} or a named list, one per partition.}
 
 \item{domain}{The exact neural domain.}
 
@@ -26,15 +26,15 @@ observations(
 
 \item{partitions}{Optional partition order.}
 
-\item{capabilities}{Optional [source_capabilities()] per partition. Function
+\item{capabilities}{Optional \code{\link[=source_capabilities]{source_capabilities()}} per partition. Function
 sources require explicit capabilities.}
 
 \item{provenance}{Portable observation provenance.}
 }
 \value{
-An `effect_observations` fact object.
+An \code{effect_observations} fact object.
 }
 \description{
 The constructor validates only source metadata and axes. Neural values are
-read later by [estimate()].
+read later by \code{\link[=estimate]{estimate()}}.
 }

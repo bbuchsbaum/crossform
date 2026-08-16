@@ -16,7 +16,7 @@ observation_model(
 )
 }
 \arguments{
-\item{kind}{`"ols"`, `"fixed_gls"`, or `"learned_frozen_gls"`.}
+\item{kind}{\code{"ols"}, \code{"fixed_gls"}, or \code{"learned_frozen_gls"}.}
 
 \item{sampling_unit}{One sampling-unit axis name, or a named value per
 partition. It is required and is never inferred from events.}
@@ -24,7 +24,7 @@ partition. It is required and is never inferred from events.}
 \item{whitener}{For GLS, one finite square matrix or a named list per
 partition.}
 
-\item{independence}{Optional explicit independence declaration. `NULL`
+\item{independence}{Optional explicit independence declaration. \code{NULL}
 records that no independence guarantee was asserted.}
 
 \item{training_revision}{Strong training revision required for learned GLS.}
@@ -36,7 +36,7 @@ records that no independence guarantee was asserted.}
 \item{provenance}{Portable model provenance.}
 }
 \value{
-An `effect_observation_model`.
+An \code{effect_observation_model}.
 }
 \description{
 Declare the first-moment observation model

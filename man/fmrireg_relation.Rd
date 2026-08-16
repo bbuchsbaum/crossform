@@ -7,14 +7,14 @@
 fmrireg_relation(x)
 }
 \arguments{
-\item{x}{A [plan_relation()] result using an OLS observation model.}
+\item{x}{A \code{\link[=plan_relation]{plan_relation()}} result using an OLS observation model.}
 }
 \value{
-An `effect_relation_fit` with point-relation capabilities only.
+An \code{effect_relation_fit} with point-relation capabilities only.
 }
 \description{
 This installed-consumer adapter independently executes the OLS point
-relation using `fmrireg::fmri_ols_fit()`. It deliberately returns no
+relation using \code{fmrireg::fmri_ols_fit()}. It deliberately returns no
 residual error channel; analytic second-moment uncertainty therefore
 refuses rather than borrowing unsupported standard-error output.
 }

@@ -7,9 +7,9 @@
 compile_lowering(frame, query)
 }
 \arguments{
-\item{frame}{An `effect_frame`.}
+\item{frame}{An \code{effect_frame}.}
 
-\item{query}{An `effect_query`.}
+\item{query}{An \code{effect_query}.}
 }
 \value{
 A small compiler-decision value.

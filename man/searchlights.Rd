@@ -15,10 +15,10 @@ searchlights(radius, normalization = "local")
 An additive frame specification.
 }
 \description{
-The default `"local"` normalization matches the conventional
+The default \code{"local"} normalization matches the conventional
 center-assigned searchlight map, in which overlapping neighborhoods
 repeatedly count shared features. Local values under this default cannot
 be summed into a whole-brain quantity. Request
-`normalization = "conservative"` for exact local-to-global accounting of
-the `total` component, and check any frame with [frame_conservation()].
+\code{normalization = "conservative"} for exact local-to-global accounting of
+the \code{total} component, and check any frame with \code{\link[=frame_conservation]{frame_conservation()}}.
 }

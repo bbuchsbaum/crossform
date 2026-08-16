@@ -177,7 +177,7 @@
       strategy = strategy,
       residual_statistics = if (is.null(statistics)) NULL else
         statistics$signature
-    ), algo = "sha256", serialize = TRUE))
+    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
   ), class = "effect_sampling_resources")
 }
 
@@ -217,7 +217,7 @@
     strategy = x$strategy,
     residual_statistics = if (is.null(x$residual_statistics)) NULL else
       x$residual_statistics$signature
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
   if (!identical(x$signature, expected_signature)) {
     stop("Sampling-resource identity is inconsistent.", call. = FALSE)
   }
@@ -316,13 +316,33 @@
 #' factorized and queryable; it does not allocate the complete distance-by-
 #' distance covariance.
 #'
+#' Writing \eqn{\mu_r} for the whitened contrast pattern of distance \eqn{r},
+#' \eqn{\Sigma_w} for the residual covariance in the same whitened
+#' coordinates, \eqn{\Xi} for the effect-coordinate contrast cross-products,
+#' and \eqn{M} for the partition count, the law evaluated here is
+#' \deqn{\mathrm{Cov}(d_r, d_s) = \frac{4}{M}\,\Xi_{rs}\,
+#'   \mu_r\Sigma_w\mu_s^\top
+#'   + \frac{2}{M(M-1)}\,\Xi_{rs}^2\,\mathrm{tr}(\Sigma_w\Sigma_w).}
+#' The residual covariance enters the signal term as a metric on the whitened
+#' patterns, so the law is correct for a general anisotropic \eqn{\Sigma_w}
+#' and not only for the spherical case.
+#'
 #' @param x An `effect_geometry_plan` using `cross_partitions()` and a fixed
 #'   neural metric.
 #' @param fit The identity-bound `effect_relation_fit` that supplied
 #'   `x$task$left_relation`.
 #' @param target Whether the signal-dependent term is evaluated at the
-#'   partition-mean plug-in estimate or at the fixed zero null. These are
-#'   different calibration policies and are never chosen implicitly.
+#'   partition-mean plug-in estimate (`"plugin"`) or at the fixed zero null
+#'   (`"null"`). These are different calibration policies and are never
+#'   chosen implicitly. `"plugin"` substitutes the partition mean of the
+#'   *estimates* for the unknown signal, and because
+#'   \eqn{E[\hat\mu_r\Sigma_w\hat\mu_s^\top] = \mu_r\Sigma_w\mu_s^\top +
+#'   \Xi_{rs}\,\mathrm{tr}(\Sigma_w\Sigma_w)/M}, its signal term is biased
+#'   upward by \eqn{4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2}, an
+#'   inflation that shrinks like \eqn{1/M^2} and is largest when the noise
+#'   dominates the true distances. Prefer `"null"` for calibrating a test of
+#'   no effect, where it is exact; use `"plugin"` when reporting uncertainty
+#'   around an estimated nonzero distance and read it as mildly conservative.
 #' @param at One measurement position or identifier in the compiled frame.
 #' @param residual_strategy `"node_local"` reads residual blocks only for the
 #'   requested measurement. `"shared_pair_statistics"` explicitly compiles
@@ -503,6 +523,11 @@ print.effect_sampling_capabilities <- function(x, ...) {
 #' covariance unless `operation = "materialize"` is requested explicitly.
 #' A returned diagonal is a vector of variances, not standard errors or an
 #' automatic confidence interval.
+#'
+#' The values returned inherit the calibration target chosen when `x` was
+#' built. Under `target = "plugin"` they carry the documented upward bias of
+#' the partition-mean plug-in policy; see the `target` argument of
+#' [rdm_sampling_covariance()].
 #'
 #' @param x An object from [rdm_sampling_covariance()].
 #' @param operation One exact covariance operation.

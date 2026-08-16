@@ -3,7 +3,7 @@
 .coupling_result_signature <- function(fields) {
   paste0("sha256:", digest::digest(c(
     list(schema_version = 1L), fields
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .new_coupling_result <- function(kind, values, x, normalization_axis,
@@ -127,7 +127,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_coupling_partition_policy")
 }
@@ -527,7 +527,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_gaussian_covariance_model")
 }

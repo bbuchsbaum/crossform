@@ -13,28 +13,34 @@ sampling_covariance(
 )
 }
 \arguments{
-\item{x}{An object from [rdm_sampling_covariance()].}
+\item{x}{An object from \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}.}
 
 \item{operation}{One exact covariance operation.}
 
 \item{query}{Operation-specific argument: a two-column integer matrix for
-`selected_entries`, an evidence-coordinate vector for `apply` or
-`quadratic_form`, or an output-by-evidence matrix for `transport`.}
+\code{selected_entries}, an evidence-coordinate vector for \code{apply} or
+\code{quadratic_form}, or an output-by-evidence matrix for \code{transport}.}
 
 \item{max_bytes}{Positive payload/workspace budget used only for explicit
 dense materialization.}
 }
 \value{
 A named variance vector, selected covariance vector, covariance
-  action, scalar quadratic form, transported covariance, or explicitly
-  materialized covariance matrix.
+action, scalar quadratic form, transported covariance, or explicitly
+materialized covariance matrix.
 }
 \description{
 Applies exact linear covariance operations without materializing the full
-covariance unless `operation = "materialize"` is requested explicitly.
+covariance unless \code{operation = "materialize"} is requested explicitly.
 A returned diagonal is a vector of variances, not standard errors or an
 automatic confidence interval.
 }
+\details{
+The values returned inherit the calibration target chosen when \code{x} was
+built. Under \code{target = "plugin"} they carry the documented upward bias of
+the partition-mean plug-in policy; see the \code{target} argument of
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}.
+}
 \seealso{
-[rdm_sampling_covariance()]
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}
 }

@@ -15,21 +15,21 @@ as_neurovol(
 \arguments{
 \item{values}{One finite numeric value per compact domain feature.}
 
-\item{mask}{The three-dimensional neuroim2 `NeuroVol` whose geometry defined
-`domain`.}
+\item{mask}{The three-dimensional neuroim2 \code{NeuroVol} whose geometry defined
+\code{domain}.}
 
-\item{domain}{The exact domain from [neuroim2_volume_domain()].}
+\item{domain}{The exact domain from \code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}}.}
 
 \item{fill}{Finite value written outside the compact domain.}
 
 \item{label}{Optional result-volume label.}
 }
 \value{
-A neuroim2 `NeuroVol` with values at `domain$feature_ids`.
+A neuroim2 \code{NeuroVol} with values at \code{domain$feature_ids}.
 }
 \description{
 The compact values are inserted at the exact full-volume indices carried by
-a crossform volume domain. Features outside the domain receive `fill`.
+a crossform volume domain. Features outside the domain receive \code{fill}.
 This is an output adapter only; it performs no interpolation, smoothing, or
 coordinate reinterpretation.
 }

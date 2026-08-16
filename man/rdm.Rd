@@ -12,10 +12,10 @@ rdm(
 )
 }
 \arguments{
-\item{x}{An `effect_geometry_plan` or a complete effect form carrying the
+\item{x}{An \code{effect_geometry_plan} or a complete effect form carrying the
 symmetric self-form capability.}
 
-\item{component}{One of `total`, `coherent`, or `configuration`.}
+\item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.}
 
 \item{pairs}{Optional two-column matrix selecting the effect pairs to
 report, by effect name or index. The default reports every unordered
@@ -24,29 +24,29 @@ geometry: the RDM is a view, not a mandatory intermediate object.}
 
 \item{normalize}{Must be omitted. Correlation-style diagonal normalization
 of a signed cross-generalized form is refused: crossvalidated diagonals
-can be zero or negative, so `1 - r` here is not conventional Pearson
+can be zero or negative, so \code{1 - r} here is not conventional Pearson
 distance. The boundary is documented in the correlation-distance policy.}
 }
 \value{
-An `effect_rdm_view`; rows are spatial measurements and columns are
-  the requested experimental pairs. Cross-generalized distances may be
-  negative.
+An \code{effect_rdm_view}; rows are spatial measurements and columns are
+the requested experimental pairs. Cross-generalized distances may be
+negative.
 }
 \description{
-For effects `i` and `j`, this view applies the fixed contrast
-`c = e_i - e_j` to the selected geometry component `G`:
+For effects \code{i} and \code{j}, this view applies the fixed contrast
+\code{c = e_i - e_j} to the selected geometry component \code{G}:
 \deqn{d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.}
 With cross-partition geometry this is the signed crossvalidated squared
 Euclidean distance, or squared Mahalanobis distance when the plan carries a
-fixed neural metric. It is not `1 - Pearson correlation`: correlation
+fixed neural metric. It is not \verb{1 - Pearson correlation}: correlation
 distance requires data-dependent diagonal normalization and is outside this
 linear view.
 }
 \details{
 The returned values are point estimates. For equal-weight all-partition-
-pairs geometry with a common fixed metric, [rdm_sampling_covariance()] can
+pairs geometry with a common fixed metric, \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} can
 construct a separate analytic within-measurement covariance law when the
-plan was built from `lm_relation_fit()` and its residual error channel is
+plan was built from \code{lm_relation_fit()} and its residual error channel is
 still available. Pair rows that share a partition are not independent
 replicates for a spread-across-pairs standard error.
 }

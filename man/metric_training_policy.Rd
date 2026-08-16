@@ -10,8 +10,8 @@ metric_training_policy(
 )
 }
 \arguments{
-\item{kind}{`"exclude_evaluation"` estimates each edge metric without its
-two evaluation partitions. `"all_partitions_residual_orthogonality"`
+\item{kind}{\code{"exclude_evaluation"} estimates each edge metric without its
+two evaluation partitions. \code{"all_partitions_residual_orthogonality"}
 admits evaluation-partition GLM residuals under an explicit orthogonality
 justification.}
 
@@ -19,7 +19,7 @@ justification.}
 residual reuse is scientifically admitted; it is not treated as proof.}
 }
 \value{
-An `effect_metric_training_policy`.
+An \code{effect_metric_training_policy}.
 }
 \description{
 Declare which residual partitions may train a metric

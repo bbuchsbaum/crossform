@@ -21,11 +21,11 @@ design_model(
 \arguments{
 \item{specification}{A portable semantic model declaration.}
 
-\item{conditions}{The bound [condition_space()].}
+\item{conditions}{The bound \code{\link[=condition_space]{condition_space()}}.}
 
 \item{designs}{Named observation-by-coefficient matrices, one per partition.}
 
-\item{parameterizations}{Named [coefficient_parameterization()] values for
+\item{parameterizations}{Named \code{\link[=coefficient_parameterization]{coefficient_parameterization()}} values for
 the designs.}
 
 \item{row_ids}{Ordered observation identifiers per design. Defaults to
@@ -40,10 +40,10 @@ design row names; positional designs are refused.}
 \item{provenance}{Portable semantic model provenance.}
 }
 \value{
-An `effect_design_model`.
+An \code{effect_design_model}.
 }
 \description{
-`design_model_id` covers the semantic mean-model request. Concrete design
+\code{design_model_id} covers the semantic mean-model request. Concrete design
 matrices, coding maps, row order, compiler build, and solver route are kept
-in `compilation_route_id` and later design receipts.
+in \code{compilation_route_id} and later design receipts.
 }

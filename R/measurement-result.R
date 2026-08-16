@@ -25,7 +25,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_regularization")
 }
@@ -78,7 +78,7 @@
   )
   metadata <- list(evidence_capability = c(proof[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      proof, algo = "sha256", serialize = TRUE
+      proof, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )))
   pair_query(H, effect_space, effect_space, metadata)
@@ -111,7 +111,7 @@
     provenance = capability$provenance
   )
   expected <- paste0("sha256:", digest::digest(
-    proof, algo = "sha256", serialize = TRUE
+    proof, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(capability$signature, expected)) {
     stop("Variation-query construction signature is inconsistent.",
@@ -190,7 +190,7 @@
     right_frame = right_frame,
     weighted = weighted,
     edges = unclass(edges)
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .measurement_edges_are_complete <- function(edges, left_nodes, right_nodes) {
@@ -238,7 +238,7 @@
 .new_measurement_plan_from_fields <- function(fields) {
   semantic <- .measurement_plan_semantic(fields)
   scientific_plan_id <- paste0("measurement-sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   structure(c(fields, list(
     scientific_plan_id = scientific_plan_id,
@@ -441,7 +441,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_capabilities")
 }
@@ -514,7 +514,7 @@
     blocks = table,
     regularization = semantic$regularization,
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   ), class = "effect_measurement_diagnostics")
 }
@@ -539,7 +539,7 @@
     regularization = x$regularization
   )
   expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(x$signature, expected_signature)) {
     stop("Measurement diagnostics signature is inconsistent.",
@@ -597,7 +597,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_receipt")
 }
@@ -638,7 +638,7 @@
     derivation = x$derivation
   )
   expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(x$signature, expected_signature)) {
     stop("Measurement receipt signature is inconsistent.", call. = FALSE)
@@ -653,7 +653,7 @@
     plan = plan$signature,
     capabilities = capabilities$signature,
     completeness = completeness
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .new_measurement_form <- function(store, plan, capabilities, diagnostics,
@@ -837,7 +837,7 @@
     left_frame = fields$left_frame$signature,
     right_frame = fields$right_frame$signature,
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     )),
     class = c("effect_measurement_block_index", "data.frame")
   )
@@ -877,7 +877,7 @@
   )
   reversed_receipt <- structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_receipt")
   .new_measurement_form(
@@ -913,7 +913,7 @@
       "requested_complete"
     },
     contract_signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     )),
     result_capability = "query_only",
     completeness = "query_only"
@@ -951,7 +951,7 @@
     dimensions = dim(x$values)
   )
   expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(x$contract_signature, expected_signature)) {
     stop("Measurement-view identity is inconsistent.", call. = FALSE)

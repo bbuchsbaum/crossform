@@ -18,12 +18,12 @@ geometry_spectrum(
 \item{row_block}{Positive number of measurement rows read per block.}
 }
 \value{
-An `effect_spectrum_view`. Eigenvalues are ordered from largest to
-  smallest and are never truncated at zero.
+An \code{effect_spectrum_view}. Eigenvalues are ordered from largest to
+smallest and are never truncated at zero.
 }
 \description{
 Unlike the linear views, eigenvalues are not additive across components:
-the spectra of the `coherent` and `configuration` components do not sum
-to the spectrum of `total`, even though the underlying matrices do.
+the spectra of the \code{coherent} and \code{configuration} components do not sum
+to the spectrum of \code{total}, even though the underlying matrices do.
 Compare spectra across components only as separate decompositions.
 }

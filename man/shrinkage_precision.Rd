@@ -13,7 +13,7 @@ shrinkage_precision(
 )
 }
 \arguments{
-\item{shrinkage}{Fixed number in `(0, 1]`.}
+\item{shrinkage}{Fixed number in \verb{(0, 1]}.}
 
 \item{relative_variance_floor}{Positive floor relative to the mean positive
 local residual variance.}
@@ -27,11 +27,11 @@ local covariance scale.}
 until schedule compilation.}
 }
 \value{
-An `effect_metric_recipe`.
+An \code{effect_metric_recipe}.
 }
 \description{
 The local covariance estimator is
-`(1 - shrinkage) * S + shrinkage * diag(diag(S))`, followed by the declared
-variance and spectral floors. `shrinkage` is fixed by the recipe; it is not
+\code{(1 - shrinkage) * S + shrinkage * diag(diag(S))}, followed by the declared
+variance and spectral floors. \code{shrinkage} is fixed by the recipe; it is not
 tuned on evaluation effects.
 }

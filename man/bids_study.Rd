@@ -16,7 +16,7 @@ bids_study(
 )
 }
 \arguments{
-\item{observations}{A declared [observations()] record.}
+\item{observations}{A declared \code{\link[=observations]{observations()}} record.}
 
 \item{event_files}{Event-TSV paths in observation partition order.}
 
@@ -25,18 +25,18 @@ bids_study(
 \item{partitions}{Explicit ordered partition identifiers.}
 
 \item{observation_ids}{Optional confound-row identifiers. Defaults to the
-identifiers already declared by `observations`.}
+identifiers already declared by \code{observations}.}
 
 \item{censor}{Optional explicit logical retain-column name.}
 
-\item{hierarchy}{Optional [partition_hierarchy()].}
+\item{hierarchy}{Optional \code{\link[=partition_hierarchy]{partition_hierarchy()}}.}
 
 \item{units}{Physical event-time unit.}
 }
 \value{
-A generic [study()] object.
+A generic \code{\link[=study]{study()}} object.
 }
 \description{
 BIDS is an adapter boundary, not the crossform object model: the result is
-the same [study()] that can be built from any event and confound source.
+the same \code{\link[=study]{study()}} that can be built from any event and confound source.
 }

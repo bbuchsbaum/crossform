@@ -16,32 +16,32 @@ coupling(
 )
 }
 \arguments{
-\item{x}{A self-form `effect_geometry_plan`.}
+\item{x}{A self-form \code{effect_geometry_plan}.}
 
 \item{between}{A two-column matrix or data frame of frame node pairs,
 given as node names from the plan's frame index or as node indices.
 Each row becomes one ordered measurement edge.}
 
-\item{by}{The experimental closure: a [variation_query()].}
+\item{by}{The experimental closure: a \code{\link[=variation_query]{variation_query()}}.}
 
-\item{over}{Optional `effect_pairing`; defaults to the plan's own pairing.}
+\item{over}{Optional \code{effect_pairing}; defaults to the plan's own pairing.}
 
-\item{mode}{Measurement mode passed to [measurement_frame()].}
+\item{mode}{Measurement mode passed to \code{\link[=measurement_frame]{measurement_frame()}}.}
 
 \item{reducer}{Partition reducer for the measurement pipeline.}
 
-\item{compute}{A `compute_policy()`.}
+\item{compute}{A \code{compute_policy()}.}
 
-\item{route}{Measurement execution route; `"auto"` selects one.}
+\item{route}{Measurement execution route; \code{"auto"} selects one.}
 }
 \value{
-An effect measurement form; read it with [effect_coupling()],
-  [connectivity()], [measurement_components()], or the other coupling
-  views.
+An effect measurement form; read it with \code{\link[=effect_coupling]{effect_coupling()}},
+\code{\link[=connectivity]{connectivity()}}, \code{\link[=measurement_components]{measurement_components()}}, or the other coupling
+views.
 }
 \description{
 A geometry plan closes the neural boundary and leaves the experimental
-axes open; `coupling()` asks the adjoint question from the same plan
+axes open; \code{coupling()} asks the adjoint question from the same plan
 vocabulary: close the experimental boundary with a declared query and
 leave two neural measurements open. The plan's spatial frame supplies the
 measurement legs and the plan's pairing supplies the partition products,

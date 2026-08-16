@@ -19,7 +19,7 @@ each location.}
 
 \item{domain_id}{Stable identity of the neural feature domain.}
 
-\item{domain}{Optional exact `effect_domain` or internal domain reference.}
+\item{domain}{Optional exact \code{effect_domain} or internal domain reference.}
 }
 \value{
 A declarative frame value.

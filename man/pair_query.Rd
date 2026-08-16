@@ -7,10 +7,10 @@
 pair_query(H, left_space, right_space, metadata = list())
 }
 \arguments{
-\item{H}{A finite nonempty left-by-right numeric base or `Matrix` matrix.}
+\item{H}{A finite nonempty left-by-right numeric base or \code{Matrix} matrix.}
 
-\item{left_space, right_space}{The ordered `effect_space()` identities bound
-to the rows and columns of `H`. Unique character coordinates are accepted
+\item{left_space, right_space}{The ordered \code{effect_space()} identities bound
+to the rows and columns of \code{H}. Unique character coordinates are accepted
 as shorthand for an unspecified-basis space.}
 
 \item{metadata}{Optional compact semantic metadata, used by higher-level

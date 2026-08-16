@@ -27,19 +27,19 @@ execution_receipt(
 \item{scientific_plan_id}{Stable identity of relation, frame, pairing, and
 query/materialization semantics.}
 
-\item{compute}{An `effect_compute_policy`.}
+\item{compute}{An \code{effect_compute_policy}.}
 
-\item{sources}{A nonempty list of `effect_source_capabilities` values.}
+\item{sources}{A nonempty list of \code{effect_source_capabilities} values.}
 
-\item{memory}{An `effect_memory_plan`.}
+\item{memory}{An \code{effect_memory_plan}.}
 
 \item{kernel_version, task_partition_id, reduction_plan_id, precision}{Nonempty
 execution identity strings.}
 
-\item{numeric_contract}{An `effect_numerical_contract`.}
+\item{numeric_contract}{An \code{effect_numerical_contract}.}
 
-\item{completion_status}{One of `complete`, `planned`, `failed`, or
-`interrupted`.}
+\item{completion_status}{One of \code{complete}, \code{planned}, \code{failed}, or
+\code{interrupted}.}
 
 \item{task_count, completed_task_count}{Nonnegative exact whole task counts.}
 

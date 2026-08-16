@@ -78,3 +78,9 @@ test_that("numerical agreement revalidates mutated contracts", {
   expect_error(numerical_agreement(1, 1, contract = contract),
     "inconsistent or noncanonical")
 })
+
+test_that("the scheduling guarantee is bitwise, distinguishing 0 from -0", {
+  expect_true(numerical_agreement(c(0, 1), c(0, 1), "scheduling")$passed)
+  expect_false(numerical_agreement(c(0, 1), c(-0, 1), "scheduling")$passed)
+  expect_true(numerical_agreement(c(0, 1), c(-0, 1), "block_partition")$passed)
+})

@@ -10,13 +10,13 @@ pairing_marginals(local, over, mass = 1)
 \item{local}{A measurement-by-effect-by-partition numeric array containing
 spatially weighted relation sums.}
 
-\item{over}{An `effect_pairing`.}
+\item{over}{An \code{effect_pairing}.}
 
 \item{mass}{Positive frame mass for each measurement.}
 }
 \value{
-For undirected pairings, a list containing only `endpoint`; for
-  directed pairings, a list containing `left` and `right`.
+For undirected pairings, a list containing only \code{endpoint}; for
+directed pairings, a list containing \code{left} and \code{right}.
 }
 \description{
 Compute pairing-appropriate signed relation marginals

@@ -10,7 +10,7 @@ gaussian_covariance_model(provenance = list())
 \item{provenance}{Named metadata describing the fixed model assumption.}
 }
 \value{
-An `effect_gaussian_covariance_model` declaration.
+An \code{effect_gaussian_covariance_model} declaration.
 }
 \description{
 This explicit declaration is required before canonical correlations are

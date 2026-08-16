@@ -1,1 +1,0 @@
-{"actor":"codex-effectgeom","entity":"bd-01KZV092NXR33DMHEZ1CRR7GVQ","kind":"note","note_kind":"progress","op":"20260812T125759.557566Z-p34023-c0003-rcbdc-h525110","text":"Reworking memory accounting around active task-private buffers with overflow-safe whole-byte arithmetic.","ts":"2026-08-12T12:57:59.557566Z","v":1}

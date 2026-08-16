@@ -12,17 +12,17 @@ match_control(
 )
 }
 \arguments{
-\item{matches}{A `match_coupling()` value.}
+\item{matches}{A \code{match_coupling()} value.}
 
 \item{weights}{Optional positive eligible-pair weights.}
 
 \item{encoding_nuisance, retrieval_nuisance}{Nuisance-effect flags.}
 }
 \value{
-An axis-bound matched-versus-control `pair_query()`.
+An axis-bound matched-versus-control \code{pair_query()}.
 }
 \description{
-This convenience uses the eligible pair set carried by `matches`, includes
+This convenience uses the eligible pair set carried by \code{matches}, includes
 both item nuisance families by default, and reports the balance of the final
 operator. It does not claim invariance after any later external weighting.
 }

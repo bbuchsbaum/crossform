@@ -26,25 +26,25 @@ is restored on exit.}
 
 \item{noise_sd}{Positive residual standard deviation.}
 
-\item{spacing}{Three positive voxel spacings in millimetres.}
+\item{spacing}{Three positive voxel spacings in millimeters.}
 
-\item{searchlight_radius}{Positive searchlight radius in millimetres.}
+\item{searchlight_radius}{Positive searchlight radius in millimeters.}
 }
 \value{
-A named list containing `fit`, its full `domain`, a compiled
-  searchlight `frame`, the `contrast` weights, a category `model_rdm`, and
-  `truth` metadata identifying the planted features and noiseless patterns.
+A named list containing \code{fit}, its full \code{domain}, a compiled
+searchlight \code{frame}, the \code{contrast} weights, a category \code{model_rdm}, and
+\code{truth} metadata identifying the planted features and noiseless patterns.
 }
 \description{
 This is the executable newcomer fixture. Four conditions are observed in
 independent runs over a small volume. A reproducible animate-versus-
-inanimate multivariate pattern is planted near the volume centre, and raw
-trial responses are retained through [lm_relation_fit()] so both point
+inanimate multivariate pattern is planted near the volume center, and raw
+trial responses are retained through \code{\link[=lm_relation_fit]{lm_relation_fit()}} so both point
 geometry and the admitted fixed-metric uncertainty path are available.
 }
 \details{
 The returned object is generated, not empirical data. Use the Haxby exemplar
-under `exemplars/haxby2001` for the public-data parity workflow.
+under \code{exemplars/haxby2001} for the public-data parity workflow.
 }
 \examples{
 example <- example_fmri_effects()

@@ -11,7 +11,7 @@
     partitions = fields$partitions,
     labels = fields$labels,
     source = fields$source
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .sampling_covariance_form <- function(plan, signal_factor, xi_factor,
@@ -70,6 +70,44 @@
   value
 }
 
+# A rank-revealing PSD square root: `value == root %*% t(root)` with one
+# column per retained direction. The spectral factorization costs O(n^3) in
+# the size of `value`, which for the residual covariance is the local support
+# a caller has already materialized densely, not the whole domain.
+.sampling_psd_root <- function(value, what, empty = c("refuse", "zero")) {
+  empty <- match.arg(empty)
+  spectrum <- eigen(value, symmetric = TRUE)
+  scale <- max(1, max(abs(spectrum$values)))
+  if (min(spectrum$values) < -1e-10 * scale) {
+    stop(sprintf("%s must be positive semidefinite.", what), call. = FALSE)
+  }
+  retained <- spectrum$values > 1e-12 * scale
+  if (!any(retained)) {
+    if (identical(empty, "refuse")) {
+      stop(sprintf("%s has no positive sampling direction.", what),
+        call. = FALSE)
+    }
+    # A degenerate covariance contributes nothing; the rank-one zero column
+    # keeps the factorized form well formed instead of losing its axis.
+    return(matrix(0, nrow(value), 1L))
+  }
+  spectrum$vectors[, retained, drop = FALSE] %*%
+    diag(sqrt(spectrum$values[retained]), sum(retained))
+}
+
+# Exact sampling law of the equal-weight all-partition-pairs crossvalidated
+# distance estimator, in the coordinates crossform already whitens into.
+# Write mu_r = c_r U L' for the whitened contrast pattern of distance r
+# (`contrasts %*% signal_patterns`), Sigma_w for the whitened residual
+# covariance, Xi = C Sigma_K C' for the effect-coordinate cross-products,
+# M for the partition count, and nu for the distance normalization. Then
+#
+#   Cov(d_r, d_s) = (4 / M) Xi_rs (mu_r Sigma_w mu_s') / nu^2
+#                 + 2 / (M (M - 1)) Xi_rs^2 tr(Sigma_w Sigma_w) / nu^2.
+#
+# `normalization` is nu: the divisor already applied to every distance. Both
+# terms carry 1 / nu^2 because both are quadratic in the estimate. The
+# product path folds its frame weights into the metric and passes nu = 1.
 .sampling_covariance_from_components <- function(
     plan, contrasts, signal_patterns, effect_covariance,
     residual_covariance, normalization = ncol(signal_patterns),
@@ -119,24 +157,25 @@
     stop("Sampling covariance normalization must be one positive finite value.",
       call. = FALSE)
   }
-  effect_spectrum <- eigen(effect_covariance, symmetric = TRUE)
-  effect_scale <- max(1, max(abs(effect_spectrum$values)))
-  if (min(effect_spectrum$values) < -1e-10 * effect_scale) {
-    stop("Effect covariance must be positive semidefinite.",
-      call. = FALSE)
-  }
-  retained <- effect_spectrum$values > 1e-12 * effect_scale
-  if (!any(retained)) {
-    stop("Effect covariance has no positive sampling direction.",
-      call. = FALSE)
-  }
-  effect_root <- effect_spectrum$vectors[, retained, drop = FALSE] %*%
-    diag(sqrt(effect_spectrum$values[retained]), sum(retained))
+  effect_root <- .sampling_psd_root(
+    effect_covariance, "Effect covariance", empty = "refuse"
+  )
+  # The signal term of the exact law is
+  #
+  #   (4 / M) Xi_rs (mu_r Sigma_w mu_s') / nu^2,
+  #
+  # so the residual covariance enters the signal term as a genuine metric on
+  # the whitened contrast patterns, not as an isotropic scalar. Factoring
+  # Sigma_w = L L' keeps the rank-preserving row-factor form the query
+  # machinery requires while carrying the full anisotropy of Sigma_w.
+  residual_root <- .sampling_psd_root(
+    residual_covariance, "Residual covariance", empty = "zero"
+  )
   features <- ncol(signal_patterns)
   noise_trace <- sum(residual_covariance * residual_covariance) /
     normalization^2
-  signal_factor <- sqrt(noise_trace) *
-    contrasts %*% signal_patterns / sqrt(normalization)
+  signal_factor <- (contrasts %*% signal_patterns %*% residual_root) /
+    normalization
   xi_factor <- contrasts %*% effect_root
   .sampling_covariance_form(
     plan,
@@ -146,7 +185,7 @@
     partitions = plan$partition$count,
     labels = labels,
     source = c(source, list(
-      construction = "diedrichsen_eq13_components",
+      construction = "diedrichsen_eq13_components_general_metric",
       signal_rank = ncol(signal_factor),
       effect_covariance_rank = ncol(xi_factor),
       residual_dimension = as.integer(features),

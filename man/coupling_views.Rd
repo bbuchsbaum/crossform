@@ -17,7 +17,7 @@ canonical_coupling(x, ridge, ridge_right = ridge, tolerance = 1e-10)
 geometry_alignment(x, tolerance = 1e-10)
 }
 \arguments{
-\item{x}{A complete `effect_measurement_form`.}
+\item{x}{A complete \code{effect_measurement_form}.}
 
 \item{tolerance}{Positive numerical tolerance.}
 
@@ -25,14 +25,14 @@ geometry_alignment(x, tolerance = 1e-10)
 covariance blocks.}
 }
 \value{
-A typed `effect_coupling_result`.
+A typed \code{effect_coupling_result}.
 }
 \description{
 These functions are views over one completed measurement form, not separate
-fitting engines. `effect_coupling()` makes no covariance claim.
-`covariance_coupling()`, `canonical_coupling()`, and `connectivity()` require
+fitting engines. \code{effect_coupling()} makes no covariance claim.
+\code{covariance_coupling()}, \code{canonical_coupling()}, and \code{connectivity()} require
 certified repeated variation; normalized views additionally require
-coherent positive self-covariances. `geometry_alignment()` is static linear
+coherent positive self-covariances. \code{geometry_alignment()} is static linear
 CKA/RV-like alignment and does not redefine established dynamic
 informational-connectivity analyses.
 }

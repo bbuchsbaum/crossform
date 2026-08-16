@@ -21,11 +21,11 @@ file_matrix_source(
 
 \item{endian}{Byte order used by the file.}
 
-\item{stable_revision}{Optional expected `sha256:` content revision. When
+\item{stable_revision}{Optional expected \verb{sha256:} content revision. When
 omitted it is computed from the file.}
 }
 \value{
-An immutable `effect_source_descriptor`.
+An immutable \code{effect_source_descriptor}.
 }
 \description{
 The file must contain only consecutive IEEE-754 doubles in R column-major

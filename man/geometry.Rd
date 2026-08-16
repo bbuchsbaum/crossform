@@ -15,28 +15,28 @@ geometry(
 )
 }
 \arguments{
-\item{x}{An `effect_geometry_plan` or, for compatibility, an
-`effect_relation`.}
+\item{x}{An \code{effect_geometry_plan} or, for compatibility, an
+\code{effect_relation}.}
 
-\item{at}{A compiled additive `effect_frame`, required only with a relation.}
+\item{at}{A compiled additive \code{effect_frame}, required only with a relation.}
 
-\item{over}{An `effect_pairing`, required only with a relation.}
+\item{over}{An \code{effect_pairing}, required only with a relation.}
 
-\item{storage}{Either `"memory"` or `"block"`.}
+\item{storage}{Either \code{"memory"} or \code{"block"}.}
 
 \item{storage_path}{Durable directory for block-backed geometry.}
 
-\item{compute}{A sequential `compute_policy()` when `x` is a relation. A
+\item{compute}{A sequential \code{compute_policy()} when \code{x} is a relation. A
 compiled plan already owns this choice.}
 
 \item{reporter}{Optional nonsemantic coordinator-side event reporter.}
 }
 \value{
-A complete `effect_geometry`.
+A complete \code{effect_geometry}.
 }
 \description{
-`geometry()` explicitly materializes complete total and coherent packed
-geometry. Prefer [plan_geometry()] followed by [evaluate_geometry()] when a
+\code{geometry()} explicitly materializes complete total and coherent packed
+geometry. Prefer \code{\link[=plan_geometry]{plan_geometry()}} followed by \code{\link[=evaluate_geometry]{evaluate_geometry()}} when a
 fixed query is sufficient. The relation compatibility form compiles that
 same plan first; it does not use a second execution path.
 }

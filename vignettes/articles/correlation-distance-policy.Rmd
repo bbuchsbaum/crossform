@@ -1,0 +1,68 @@
+---
+title: "Correlation-distance policy"
+description: >
+  Why rdm() means squared Euclidean or fixed-Mahalanobis distance and never silently substitutes 1 - Pearson correlation.
+output: rmarkdown::html_document
+---
+
+**Status:** accepted design decision, 2026-08-14
+**Applies to:** the public RDM and RSA surface
+
+## Decision
+
+`rdm()` continues to mean squared Euclidean or fixed-Mahalanobis distance read
+from a bilinear geometry. It will not silently normalize each condition pattern
+to unit length, and `rsa()` will not silently substitute correlation distance.
+
+Conventional correlation distance, `1 - Pearson correlation`, is a legitimate
+and important RSA view. It is not, however, a fixed linear query of the pattern
+bilinear form: its denominator depends on the observed norm of each pattern.
+It belongs in a named nonlinear view with a separate contract.
+
+This is a boundary within the architecture, not a claim that correlation
+distance cannot be represented at all. For a positive-semidefinite self second
+moment `G`, feature-centered correlation distance is a deterministic nonlinear
+function of `G`:
+
+\[
+d_{ij}^{\mathrm{corr}}
+= 1 - \frac{G_{ij}}{\sqrt{G_{ii}G_{jj}}}.
+\]
+
+The centering step itself is a fixed linear projection and can be represented by
+a declared neural metric. The diagonal normalization is the nonlinear step.
+
+## Dispositions
+
+| Requested quantity | Disposition | Reason |
+|---|---|---|
+| Squared Euclidean or fixed-Mahalanobis RDM | Public bilinear core | Fixed contrast query; signed and unbiased under cross-generalization |
+| Conventional correlation distance from a guaranteed-PSD self form | Disciplined nonlinear view | Deterministic diagonal normalization is well defined when required diagonals are positive |
+| Diagonal normalization of a signed cross-generalized form | Refuse pending a named estimand | Crossvalidated diagonals may be zero or negative; this is not automatically conventional Pearson distance |
+| Normalization learned from the evaluation data | Estimator extension | The learned denominator changes the estimand and its sampling law |
+| RSA on correlation-distance RDMs | Future named view | Point computation is possible, but exact covariance transport from the linear RDM does not automatically follow |
+
+## Required contract for a future `correlation_rdm()`
+
+Before export, the view must:
+
+- state whether feature centering occurs and identify its exact metric;
+- require a guaranteed-PSD self form and strictly positive relevant diagonals;
+- return a first-class refusal for zero, negative, or undefined normalization;
+- record that it is a nonlinear view rather than a bilinear query;
+- define behavior for spatial frames and units;
+- provide an independent numerical oracle and a map-scale performance gate;
+- make no analytic-standard-error claim without a delta-method, bootstrap, or
+  other separately validated sampling contract.
+
+There will be no private normalizer routed through `rdm()`, no clipping of
+crossvalidated diagonals to make the formula run, and no relabeling of a
+different cross-partition normalization as ordinary Pearson distance.
+
+## Recommended default
+
+For cross-generalized inference, use squared Euclidean distance or crossnobis.
+These estimators are signed, unbiased around zero under independent partitions,
+and compatible with the package's admitted fixed-metric calibration. Use
+correlation distance when its scale invariance is itself the scientific
+estimand, through the future explicit view rather than an implicit option.

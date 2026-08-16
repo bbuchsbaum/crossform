@@ -9,16 +9,16 @@ bids_events(files, partitions = names(files), units = "seconds")
 \arguments{
 \item{files}{Character event-TSV paths, one per partition.}
 
-\item{partitions}{Explicit ordered partition identifiers. Named `files` may
+\item{partitions}{Explicit ordered partition identifiers. Named \code{files} may
 supply these names.}
 
 \item{units}{Physical onset and duration units.}
 }
 \value{
-An [events()] fact object.
+An \code{\link[=events]{events()}} fact object.
 }
 \description{
 The adapter preserves arbitrary BIDS columns and adds private partition and
-event-key columns required by the generic [events()] contract. Partition
+event-key columns required by the generic \code{\link[=events]{events()}} contract. Partition
 identity is explicit rather than inferred from filenames.
 }

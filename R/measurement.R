@@ -34,7 +34,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_axis")
 }
@@ -116,7 +116,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_leg")
 }
@@ -185,7 +185,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_decomposition")
 }
@@ -218,7 +218,7 @@
     provenance = rebuilt$provenance
   )
   rebuilt$signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(x, rebuilt)) {
     stop("Measurement-decomposition identity is inconsistent.",
@@ -248,7 +248,7 @@
     provenance = decomposition$provenance
   )
   decomposition$signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   .validate_measurement_decomposition(decomposition)
 }
@@ -286,7 +286,7 @@
   )
   widths <- vapply(components, function(x) nrow(x$operator), integer(1))
   ends <- cumsum(widths)
-  starts <- c(1L, head(ends, -1L) + 1L)
+  starts <- c(1L, utils::head(ends, -1L) + 1L)
   ranges <- Map(seq.int, starts, ends)
   names(ranges) <- names(components)
   decomposition <- .measurement_decomposition(
@@ -308,7 +308,7 @@
       list(construction = "direct_sum", components = unname(component_signatures))
     } else {
       training <- paste0("sha256:", digest::digest(
-        component_signatures, algo = "sha256", serialize = TRUE
+        component_signatures, algo = "sha256", serialize = TRUE, serializeVersion = 2L
       ))
       list(construction = "direct_sum", components = unname(component_signatures),
         frozen = TRUE, training_signature = training)
@@ -366,7 +366,7 @@
     )
   }
   operator_signature <- paste0("sha256:", digest::digest(
-    operator, algo = "sha256", serialize = TRUE
+    operator, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   decomposition_identity <- vapply(legs, function(x) {
     if (is.null(x$decomposition)) NA_character_ else x$decomposition$signature
@@ -395,7 +395,7 @@
   ), semantic[c("frame_operator", "coverage", "decomposition_identity",
     "injectivity", "dual")], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_frame")
 }
@@ -454,7 +454,7 @@
     weighted = weighted,
     edges = table,
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   ), class = "effect_measurement_edges")
 }
@@ -542,7 +542,7 @@
     index = frame$index,
     specification = frame$specification
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE))
+  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .measurement_frame_from_additive <- function(

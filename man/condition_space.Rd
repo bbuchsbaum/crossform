@@ -26,10 +26,10 @@ coordinate.}
 \item{provenance}{Portable semantic provenance.}
 }
 \value{
-An `effect_condition_space`.
+An \code{effect_condition_space}.
 }
 \description{
 A condition space identifies the named mean-model coordinates against which
-an [effect_map()] is declared. It is independent of design-matrix coding and
+an \code{\link[=effect_map]{effect_map()}} is declared. It is independent of design-matrix coding and
 column order.
 }

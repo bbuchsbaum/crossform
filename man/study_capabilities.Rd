@@ -7,7 +7,7 @@
 study_capabilities(x)
 }
 \arguments{
-\item{x}{An [study()].}
+\item{x}{An \code{\link[=study]{study()}}.}
 }
 \value{
 A one-row data frame of construction guarantees.

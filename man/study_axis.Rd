@@ -7,12 +7,12 @@
 study_axis(x, name)
 }
 \arguments{
-\item{x}{An [study()].}
+\item{x}{An \code{\link[=study]{study()}}.}
 
 \item{name}{One hierarchy axis name.}
 }
 \value{
-An `effect_study_axis`.
+An \code{effect_study_axis}.
 }
 \description{
 This accessor supplies vocabulary only. The returned object does not select

@@ -14,20 +14,29 @@ rdm_sampling_covariance(
 )
 }
 \arguments{
-\item{x}{An `effect_geometry_plan` using `cross_partitions()` and a fixed
+\item{x}{An \code{effect_geometry_plan} using \code{cross_partitions()} and a fixed
 neural metric.}
 
-\item{fit}{The identity-bound `effect_relation_fit` that supplied
-`x$task$left_relation`.}
+\item{fit}{The identity-bound \code{effect_relation_fit} that supplied
+\code{x$task$left_relation}.}
 
 \item{target}{Whether the signal-dependent term is evaluated at the
-partition-mean plug-in estimate or at the fixed zero null. These are
-different calibration policies and are never chosen implicitly.}
+partition-mean plug-in estimate (\code{"plugin"}) or at the fixed zero null
+(\code{"null"}). These are different calibration policies and are never
+chosen implicitly. \code{"plugin"} substitutes the partition mean of the
+\emph{estimates} for the unknown signal, and because
+\eqn{E[\hat\mu_r\Sigma_w\hat\mu_s^\top] = \mu_r\Sigma_w\mu_s^\top +
+  \Xi_{rs}\,\mathrm{tr}(\Sigma_w\Sigma_w)/M}, its signal term is biased
+upward by \eqn{4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2}, an
+inflation that shrinks like \eqn{1/M^2} and is largest when the noise
+dominates the true distances. Prefer \code{"null"} for calibrating a test of
+no effect, where it is exact; use \code{"plugin"} when reporting uncertainty
+around an estimated nonzero distance and read it as mildly conservative.}
 
 \item{at}{One measurement position or identifier in the compiled frame.}
 
-\item{residual_strategy}{`"node_local"` reads residual blocks only for the
-requested measurement. `"shared_pair_statistics"` explicitly compiles
+\item{residual_strategy}{\code{"node_local"} reads residual blocks only for the
+requested measurement. \code{"shared_pair_statistics"} explicitly compiles
 reusable residual pair sufficient statistics for a batch of overlapping
 supports.}
 
@@ -35,18 +44,30 @@ supports.}
 for shared residual pair statistics.}
 }
 \value{
-An `effect_rdm_sampling_covariance`, queryable by
-  [sampling_covariance()]. It contains within-measurement uncertainty only;
-  it does not imply covariance between spatial locations.
+An \code{effect_rdm_sampling_covariance}, queryable by
+\code{\link[=sampling_covariance]{sampling_covariance()}}. It contains within-measurement uncertainty only;
+it does not imply covariance between spatial locations.
 }
 \description{
 Builds the local sampling-covariance form from Diedrichsen, Provost, and
 Zareamoghaddam (2016), Eq. 13, for an equal-weight all-partition-pairs RDM.
 The admitted specialization requires a geometry plan built from an
-`lm_relation_fit()` relation, equal partition error structures, independent
+\code{lm_relation_fit()} relation, equal partition error structures, independent
 partition endpoints, and one common fixed neural metric. The result remains
 factorized and queryable; it does not allocate the complete distance-by-
 distance covariance.
+}
+\details{
+Writing \eqn{\mu_r} for the whitened contrast pattern of distance \eqn{r},
+\eqn{\Sigma_w} for the residual covariance in the same whitened
+coordinates, \eqn{\Xi} for the effect-coordinate contrast cross-products,
+and \eqn{M} for the partition count, the law evaluated here is
+\deqn{\mathrm{Cov}(d_r, d_s) = \frac{4}{M}\,\Xi_{rs}\,
+  \mu_r\Sigma_w\mu_s^\top
+  + \frac{2}{M(M-1)}\,\Xi_{rs}^2\,\mathrm{tr}(\Sigma_w\Sigma_w).}
+The residual covariance enters the signal term as a metric on the whitened
+patterns, so the law is correct for a general anisotropic \eqn{\Sigma_w}
+and not only for the spherical case.
 }
 \examples{
 set.seed(23)
@@ -77,7 +98,7 @@ sqrt(sampling_covariance(uncertainty))
 }
 \references{
 Diedrichsen J, Provost S, Zareamoghaddam H (2016),
-  "On the distribution of cross-validated Mahalanobis distances",
-  especially Eqs. 10, 13, and 35 and Section 5.1.
-  \doi{10.48550/arXiv.1607.01371}
+"On the distribution of cross-validated Mahalanobis distances",
+especially Eqs. 10, 13, and 35 and Section 5.1.
+\doi{10.48550/arXiv.1607.01371}
 }

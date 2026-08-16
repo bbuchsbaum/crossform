@@ -14,7 +14,7 @@ match_coupling(left, right, left_space, right_space, eligible = NULL)
 \item{eligible}{Optional restricted eligible-pair set.}
 }
 \value{
-An `effect_pair_coupling`.
+An \code{effect_pair_coupling}.
 }
 \description{
 Duplicate rows are retained as multiplicity, so repeated retrievals are

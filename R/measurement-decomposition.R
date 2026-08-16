@@ -175,7 +175,7 @@
     blocks = blocks,
     original_dimension = dim(value),
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   ), class = "effect_measurement_decomposition_view")
 }
@@ -214,7 +214,7 @@
     index = unclass(x$index)
   )
   expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(x$signature, expected_signature)) {
     stop("Measurement-decomposition view signature is inconsistent.",

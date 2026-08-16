@@ -9,7 +9,7 @@
   semantic <- c(list(schema_version = 1L, kind = kind), fields)
   structure(c(list(kind = kind), fields, list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_sampling_record")
 }
@@ -449,7 +449,7 @@
     target, spatial_scope, operation, materialization, capabilities, reasons
   )
   scientific_plan_id <- paste0("sampling-sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   value <- structure(list(
     contract = "evidence-sampling-v1",
@@ -472,7 +472,7 @@
       scientific_plan_id = scientific_plan_id,
       evidence_object = descriptor$record$signature,
       error_source = channel$record$signature
-    ), algo = "sha256", serialize = TRUE))
+    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
   ), class = "effect_evidence_sampling_plan")
   .validate_evidence_sampling_plan(value, deep = TRUE)
   value
@@ -558,14 +558,14 @@
       expected_capabilities, reasons
     )
     expected_id <- paste0("sampling-sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
     expected_signature <- paste0("sha256:", digest::digest(list(
       schema_version = 1L,
       scientific_plan_id = expected_id,
       evidence_object = evidence$record$signature,
       error_source = channel$record$signature
-    ), algo = "sha256", serialize = TRUE))
+    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
     if (!identical(x$scientific_plan_id, expected_id) ||
         !identical(x$signature, expected_signature)) {
       stop("Evidence-sampling-plan identity is inconsistent.", call. = FALSE)

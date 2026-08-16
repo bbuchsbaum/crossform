@@ -7,31 +7,31 @@
 crossnobis(x, weights)
 }
 \arguments{
-\item{x}{Either an `effect_geometry_plan` carrying an explicit fixed
-`noise_precision()` metric, or an `effect_crossnobis_plan` carrying a
+\item{x}{Either an \code{effect_geometry_plan} carrying an explicit fixed
+\code{noise_precision()} metric, or an \code{effect_crossnobis_plan} carrying a
 provenance-frozen on-demand metric schedule.}
 
 \item{weights}{One finite contrast weight per experimental effect.}
 }
 \value{
-An `effect_crossnobis_view` with one signed value per spatial
-  measurement and the executed plan receipt.
+An \code{effect_crossnobis_view} with one signed value per spatial
+measurement and the executed plan receipt.
 }
 \description{
 The result is the query-first evidence
-`tr(c c^T B_a K B_b^T)` aggregated over the plan's independent partition
+\verb{tr(c c^T B_a K B_b^T)} aggregated over the plan's independent partition
 edges. This function is a validating view over the ordinary geometry
 compiler; it does not introduce a second numerical engine. Negative finite
 estimates are retained.
 }
 \section{One estimand, two views}{
 
-On a fixed-metric geometry plan, `crossnobis(x, weights)` is the named
-Mahalanobis reading of exactly `contrast(x, weights)$total`: the same
+On a fixed-metric geometry plan, \code{crossnobis(x, weights)} is the named
+Mahalanobis reading of exactly \code{contrast(x, weights)$total}: the same
 compiled estimand, exposed as a single signed value. When the analysis
 also needs the signed endpoint marginals or the exact
 coherent/configuration decomposition of the same quantity, call
-[contrast()] on the same plan; every component it returns inherits the
+\code{\link[=contrast]{contrast()}} on the same plan; every component it returns inherits the
 plan's fixed metric.
 }
 

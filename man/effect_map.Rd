@@ -17,11 +17,11 @@ effect_map(
 \arguments{
 \item{weights}{A finite effect-by-condition matrix.}
 
-\item{conditions}{A [condition_space()] or condition names. Defaults to the
-column names of `weights`.}
+\item{conditions}{A \code{\link[=condition_space]{condition_space()}} or condition names. Defaults to the
+column names of \code{weights}.}
 
-\item{effects}{An [effect_space()] or output effect names. Defaults to the
-row names of `weights`.}
+\item{effects}{An \code{\link[=effect_space]{effect_space()}} or output effect names. Defaults to the
+row names of \code{weights}.}
 
 \item{units}{Output units. By default the shared condition-space unit.}
 
@@ -32,10 +32,10 @@ row names of `weights`.}
 \item{provenance}{Portable provenance for the declared functional.}
 }
 \value{
-An `effect_condition_map`.
+An \code{effect_condition_map}.
 }
 \description{
-The rows of `weights` are named scientific effects and the columns are bound
+The rows of \code{weights} are named scientific effects and the columns are bound
 semantic condition coordinates. The returned identity never contains a
 compiled design matrix or coefficient coding.
 }

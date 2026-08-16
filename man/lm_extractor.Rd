@@ -19,20 +19,20 @@ lm_extractor(
 
 \item{effects}{Finite effect-by-coefficient target matrix.}
 
-\item{observation_whitener}{Optional finite square observation whitener `L`.}
+\item{observation_whitener}{Optional finite square observation whitener \code{L}.}
 
-\item{effect_names}{Optional names or an `effect_space()` for target effects.}
+\item{effect_names}{Optional names or an \code{effect_space()} for target effects.}
 
 \item{tolerance}{Positive rank and estimability tolerance.}
 
-\item{whiten}{Deprecated alias for `observation_whitener`. Supplying both is
+\item{whiten}{Deprecated alias for \code{observation_whitener}. Supplying both is
 an error.}
 
 \item{solver}{Numerical factorization route: automatic, pivoted QR, or SVD.
 This changes execution provenance, not the requested effect.}
 }
 \value{
-An `effect_extractor`.
+An \code{effect_extractor}.
 }
 \description{
 The function accepts an already constructed design matrix; it does not own

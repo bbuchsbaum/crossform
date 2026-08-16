@@ -17,12 +17,12 @@ fmridesign_design_model(
 )
 }
 \arguments{
-\item{model}{A `fmridesign` event model from the certified package version.}
+\item{model}{A \code{fmridesign} event model from the certified package version.}
 
-\item{study}{A bound [study()] containing the exact timed event facts.}
+\item{study}{A bound \code{\link[=study]{study()}} containing the exact timed event facts.}
 
 \item{basis_id, units, scale}{Scientific coordinate declarations passed to
-[condition_space()].}
+\code{\link[=condition_space]{condition_space()}}.}
 
 \item{block_map}{Optional named integer map from study partitions to
 fmridesign blocks.}
@@ -36,10 +36,10 @@ the adapter derives one from the pinned fmridesign model.}
 \item{solver}{Numerical route recorded in the design receipt.}
 }
 \value{
-An [design_model()] suitable for [plan_relation()].
+An \code{\link[=design_model]{design_model()}} suitable for \code{\link[=plan_relation]{plan_relation()}}.
 }
 \description{
-This exact-version adapter binds a compiled `fmridesign::event_model()` to
+This exact-version adapter binds a compiled \code{fmridesign::event_model()} to
 the event facts and observation rows of a study. Scientific condition
 effects remain declared in condition space; concrete design coding is a
 compilation receipt.

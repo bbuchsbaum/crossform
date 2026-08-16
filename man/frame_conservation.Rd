@@ -7,26 +7,26 @@
 frame_conservation(x, tolerance = 1e-10)
 }
 \arguments{
-\item{x}{A compiled `effect_frame`.}
+\item{x}{A compiled \code{effect_frame}.}
 
 \item{tolerance}{Nonnegative absolute per-feature mass tolerance.}
 }
 \value{
-An `effect_frame_conservation` list reporting `conserved`, the
-  covered `component` (`"total"`), the frame `normalization`, the maximum
-  per-feature mass deviation from one, and the per-feature mass vector.
+An \code{effect_frame_conservation} list reporting \code{conserved}, the
+covered \code{component} (\code{"total"}), the frame \code{normalization}, the maximum
+per-feature mass deviation from one, and the per-feature mass vector.
 }
 \description{
 Under a conservative frame every domain feature carries total weight mass
-one, so local `total` geometries sum exactly to the global geometry:
+one, so local \code{total} geometries sum exactly to the global geometry:
 \deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}
-Overlapping neighborhoods under `normalization = "local"` double-count
+Overlapping neighborhoods under \code{normalization = "local"} double-count
 shared features, so their local values are not contributions to a
 whole-brain quantity. Two preconditions matter when checking the law:
 the global comparator must be the unnormalized operator
-(`whole_brain("none")`), because default local normalization divides by
-the feature count; and the law covers the `total` component only —
-`coherent` is defined by each measurement's own weighted common mode, and
+(\code{whole_brain("none")}), because default local normalization divides by
+the feature count; and the law covers the \code{total} component only —
+\code{coherent} is defined by each measurement's own weighted common mode, and
 local coherent values do not sum to the global coherent component.
 }
 \examples{

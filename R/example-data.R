@@ -33,7 +33,7 @@
 #'
 #' This is the executable newcomer fixture. Four conditions are observed in
 #' independent runs over a small volume. A reproducible animate-versus-
-#' inanimate multivariate pattern is planted near the volume centre, and raw
+#' inanimate multivariate pattern is planted near the volume center, and raw
 #' trial responses are retained through [lm_relation_fit()] so both point
 #' geometry and the admitted fixed-metric uncertainty path are available.
 #'
@@ -46,8 +46,8 @@
 #' @param partitions Number of independent runs, at least two.
 #' @param trials_per_condition Trials per condition and run, at least two.
 #' @param noise_sd Positive residual standard deviation.
-#' @param spacing Three positive voxel spacings in millimetres.
-#' @param searchlight_radius Positive searchlight radius in millimetres.
+#' @param spacing Three positive voxel spacings in millimeters.
+#' @param searchlight_radius Positive searchlight radius in millimeters.
 #' @return A named list containing `fit`, its full `domain`, a compiled
 #'   searchlight `frame`, the `contrast` weights, a category `model_rdm`, and
 #'   `truth` metadata identifying the planted features and noiseless patterns.
@@ -103,8 +103,8 @@ example_fmri_effects <- function(
       # every plan built from the otherwise unchanged generated fixture.
       mask, spacing = spacing, id = "effectagram:generated-fmri-example"
     )
-    centre <- colMeans(domain$coordinates)
-    displacement <- sweep(domain$coordinates, 2L, centre, `-`)
+    center <- colMeans(domain$coordinates)
+    displacement <- sweep(domain$coordinates, 2L, center, `-`)
     distance <- sqrt(rowSums(displacement^2))
     planted <- which(distance <= 1.5 * min(spacing))
     profile <- numeric(domain$n_features)

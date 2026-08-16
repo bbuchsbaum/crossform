@@ -7,15 +7,15 @@
 sampling_capabilities(x, fit = NULL)
 }
 \arguments{
-\item{x}{A compiled `effect_geometry_plan` (or crossnobis plan).}
+\item{x}{A compiled \code{effect_geometry_plan} (or crossnobis plan).}
 
-\item{fit}{Optional `effect_relation_fit` supplying the error channel;
+\item{fit}{Optional \code{effect_relation_fit} supplying the error channel;
 omitting it probes the plan's bare relation, which has no channel.}
 }
 \value{
-An `effect_sampling_capabilities` list: `available`, the full
-  `capabilities` record, and a `reasons` data frame with one row per
-  unmet requirement (`reason`, `why`, `remedy`).
+An \code{effect_sampling_capabilities} list: \code{available}, the full
+\code{capabilities} record, and a \code{reasons} data frame with one row per
+unmet requirement (\code{reason}, \code{why}, \code{remedy}).
 }
 \description{
 A scientist should be able to ask what the uncertainty channel will grant

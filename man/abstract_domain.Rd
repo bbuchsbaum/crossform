@@ -25,7 +25,7 @@ spatial frame builders.}
 \item{coordinate_units}{One coordinate unit or one per coordinate axis.}
 }
 \value{
-An `effect_domain`.
+An \code{effect_domain}.
 }
 \description{
 Construct an abstract neural feature domain

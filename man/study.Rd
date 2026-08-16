@@ -14,13 +14,13 @@ study(
 )
 }
 \arguments{
-\item{observations}{An [observations()] object.}
+\item{observations}{An \code{\link[=observations]{observations()}} object.}
 
-\item{events}{Optional [events()] record.}
+\item{events}{Optional \code{\link[=events]{events()}} record.}
 
-\item{confounds}{Optional [observation_confounds()] record.}
+\item{confounds}{Optional \code{\link[=observation_confounds]{observation_confounds()}} record.}
 
-\item{hierarchy}{Optional [partition_hierarchy()]. A leaf-only hierarchy is
+\item{hierarchy}{Optional \code{\link[=partition_hierarchy]{partition_hierarchy()}}. A leaf-only hierarchy is
 constructed from observation partitions when omitted.}
 
 \item{clock_tolerance}{Nonnegative finite tolerance for clock coverage.}
@@ -28,10 +28,10 @@ constructed from observation partitions when omitted.}
 \item{provenance}{Portable binding provenance.}
 }
 \value{
-An `effect_study`.
+An \code{effect_study}.
 }
 \description{
-`study()` records factual correspondence only. It does not assign model
+\code{study()} records factual correspondence only. It does not assign model
 roles, choose a sampling unit, infer independence, or select a
-`generalizes_over` axis.
+\code{generalizes_over} axis.
 }

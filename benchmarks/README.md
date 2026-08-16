@@ -8,7 +8,7 @@ Run the matched implicit-identity and explicit fixed-diagonal map paths with:
 Rscript benchmarks/run-public-map-scale-gate.R . benchmark-results
 ```
 
-The isolated 576-feature, 576-centre fixture uses 12 conditions, eight
+The isolated 576-feature, 576-center fixture uses 12 conditions, eight
 partitions, and 66 RDM coordinates. Both public plans are warmed once and then
 timed three times in alternating order. Sixteen spatial nodes are also checked
 against a direct loop over condition contrasts, partition pairs, and
@@ -18,7 +18,7 @@ median runtime ratio no greater than five, and no more than 1 GiB incremental
 peak RSS in the isolated measured phase.
 
 The same isolated worker also fits an error-bearing 12-condition relation and
-evaluates the factorized RDM-variance diagonal over a 576-centre frame with a
+evaluates the factorized RDM-variance diagonal over a 576-center frame with a
 mean support of about 42 features. Twenty-five evenly spaced nodes are warmed
 and repeated three times before one complete sweep. The sampling arm must be
 bit-identical across those reads, finite and nonnegative, no slower than one

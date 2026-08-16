@@ -83,7 +83,7 @@ d_{ij} = G_{ii} + G_{jj} - 2G_{ij}.
 Under cross-partition pairing this is a signed crossvalidated squared
 Euclidean distance; a fixed neural metric makes it squared Mahalanobis. It is
 not `1 - Pearson correlation`. The deliberate boundary is documented in the
-[correlation-distance policy](correlation-distance-policy.md).
+[correlation-distance policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html).
 
 ## Start before the beta matrices
 
@@ -152,7 +152,7 @@ provoking: `sampling_capabilities(plan, example$fit)` reports whether the
 analytic law is admitted and, if not, every unmet requirement with its
 remedy. Refusals themselves are classed conditions — `catch_refusal(expr)`
 returns the missing capability and remedies as data. The
-[failure gallery](failure-gallery.md) shows six realistic errors the package
+[failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html) shows six realistic errors the package
 guards against. Unsupported callable interpretations return classed refusals;
 other errors are prevented by the absence of a misleading API or by distinct
 estimand identities.
@@ -206,13 +206,14 @@ interpretation.
 The strongest scientific claims are deliberately gated, and three gates have
 landed: the one-plan coherent/configuration family, the large-condition
 query-first benchmark (at 100 conditions over 1,080 searchlights, one hundred
-selected pairs run in 0.18 s and the fused full RDM is about twice as fast as
-materialize-then-project, with a `4.4e-16` oracle), and the executable
-[failure gallery](failure-gallery.md). `rsatoolbox`
+selected pairs run in 0.27 s and the fused full RDM in 5.16 s against 13.40 s
+for materialize-then-project, a fused/materialized ratio of 0.39, with a
+`4.4e-16` oracle), and the executable
+[failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html). `rsatoolbox`
 parity, a real rectangular exemplar, and an operational conservation example
 remain work to be earned. The full claim ledger—established precedents,
 current evidence with its machine-checkable artifacts, and promotion gates—is
-in [What is novel in crossform?](novelty.md).
+in [What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html).
 
 ## Real-data evidence
 
@@ -247,9 +248,9 @@ Then read:
 - `vignette("evidence-pairing", package = "crossform")` for measurement
   forms and coupling views, including one bounded cross-domain contraction
   and the Parseval reconstruction law;
-- [the effect-form contract](effect-form-contract.md) for normative algebra and
+- [the effect-form contract](design/effect-form-contract.md) for normative algebra and
   execution identity;
-- [the evidence-sampling contract](evidence-sampling-contract.md) for the exact
+- [the evidence-sampling contract](design/evidence-sampling-contract.md) for the exact
   admitted uncertainty specialization and its refusals.
 
 For neuroim2 volumes, `neuroim2_volume_domain()` and

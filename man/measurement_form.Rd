@@ -19,15 +19,15 @@ measurement_form(
 )
 }
 \arguments{
-\item{left}{The left `effect_relation`.}
+\item{left}{The left \code{effect_relation}.}
 
-\item{between}{An explicit `edge_frame()`.}
+\item{between}{An explicit \code{edge_frame()}.}
 
-\item{by}{An axis-bound `pair_query()` or `variation_query()`.}
+\item{by}{An axis-bound \code{pair_query()} or \code{variation_query()}.}
 
-\item{over}{An explicit partition `pairing()`.}
+\item{over}{An explicit partition \code{pairing()}.}
 
-\item{right}{The right `effect_relation`; defaults to `left`.}
+\item{right}{The right \code{effect_relation}; defaults to \code{left}.}
 
 \item{reducer}{A partition-order declaration. Raw forms are bilinear, but
 the choice remains part of scientific plan identity.}
@@ -36,19 +36,19 @@ the choice remains part of scientific plan identity.}
 
 \item{storage_path}{Required for block-backed storage.}
 
-\item{compute}{A `compute_policy()`.}
+\item{compute}{A \code{compute_policy()}.}
 
-\item{route}{Internal contraction route. `"auto"` chooses an equivalent
+\item{route}{Internal contraction route. \code{"auto"} chooses an equivalent
 bounded route without changing the scientific plan.}
 }
 \value{
-A complete `effect_measurement_form` over the requested edge set.
+A complete \code{effect_measurement_form} over the requested edge set.
 }
 \description{
-`measurement_form()` closes the experimental boundary with `by` and leaves
-only the explicitly requested neural edges in `between` open. `left` and
-`right` always name experimental-neural relations; spatial endpoints are
-contained inside `between`.
+\code{measurement_form()} closes the experimental boundary with \code{by} and leaves
+only the explicitly requested neural edges in \code{between} open. \code{left} and
+\code{right} always name experimental-neural relations; spatial endpoints are
+contained inside \code{between}.
 }
 \details{
 Raw forms are bilinear. Covariance, correlation, CCA, geometry alignment,

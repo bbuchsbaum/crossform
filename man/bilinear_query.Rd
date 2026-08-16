@@ -11,12 +11,12 @@ bilinear_query(operator, fixed = TRUE, effects = NULL)
 
 \item{fixed}{Whether the query is fixed before local data are inspected.}
 
-\item{effects}{Optional `effect_space()` binding for the operator axes.}
+\item{effects}{Optional \code{effect_space()} binding for the operator axes.}
 }
 \value{
 A declarative query value.
 }
 \description{
 This compatibility constructor describes a symmetric query on one effect
-space. Use `pair_query()` for distinct or unequal axes.
+space. Use \code{pair_query()} for distinct or unequal axes.
 }

@@ -19,14 +19,14 @@ matrices.}
 
 \item{left_domain, right_domain}{Exact neural domain values or references.}
 
-\item{common_space}{A named `measurement_space()` shared by both legs.}
+\item{common_space}{A named \code{measurement_space()} shared by both legs.}
 
 \item{provenance}{Portable provenance for the fixed legs.}
 }
 \value{
-An immutable `effect_measurement_bridge`.
+An immutable \code{effect_measurement_bridge}.
 }
 \description{
-The induced cross-space operator is `t(left_leg) %*% right_leg`. Only the
+The induced cross-space operator is \code{t(left_leg) \%*\% right_leg}. Only the
 factorized fixed legs are public; an arbitrary dense cross operator is not.
 }

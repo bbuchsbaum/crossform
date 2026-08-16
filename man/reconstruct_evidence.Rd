@@ -16,11 +16,11 @@ reconstruct_evidence(
 )
 }
 \arguments{
-\item{x}{A frame-complete `effect_measurement_form`.}
+\item{x}{A frame-complete \code{effect_measurement_form}.}
 
-\item{between}{The exact `edge_frame()` used to construct `x`.}
+\item{between}{The exact \code{edge_frame()} used to construct \code{x}.}
 
-\item{method}{Reconstruction method; `"auto"` selects Parseval, canonical
+\item{method}{Reconstruction method; \code{"auto"} selects Parseval, canonical
 dual, or projected pseudoinverse according to frame diagnostics.}
 
 \item{tolerance}{Positive relative singular-value and certification
@@ -29,7 +29,7 @@ tolerance.}
 \item{max_condition}{Maximum accepted retained condition number.}
 
 \item{allow_projection}{Whether rank-deficient projected (lossy)
-reconstruction is admitted. It defaults to `FALSE` so a projection is an
+reconstruction is admitted. It defaults to \code{FALSE} so a projection is an
 explicit choice, never a silent fallback: rank-deficient frames refuse
 until projection is explicitly admitted.}
 
@@ -40,8 +40,8 @@ hard 512 MiB ceiling for this explicitly small-node reconstruction path.}
 numerical reconstruction residual.}
 }
 \value{
-An `effect_tomography_result` distinguishing exact, certified, and
-  projected reconstruction.
+An \code{effect_tomography_result} distinguishing exact, certified, and
+projected reconstruction.
 }
 \description{
 Lossless reconstruction requires the complete node-edge block form and

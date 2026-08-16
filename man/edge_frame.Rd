@@ -9,19 +9,19 @@ edge_frame(from, to, frame, to_frame = frame, weight = NULL)
 \arguments{
 \item{from, to}{Equal-length vectors of node identifiers.}
 
-\item{frame}{Measurement frame containing `from` nodes.}
+\item{frame}{Measurement frame containing \code{from} nodes.}
 
-\item{to_frame}{Measurement frame containing `to` nodes. Defaults to
-`frame`.}
+\item{to_frame}{Measurement frame containing \code{to} nodes. Defaults to
+\code{frame}.}
 
 \item{weight}{Optional finite edge weights recorded as part of edge identity.}
 }
 \value{
-An explicit `effect_edge_frame` for the `between` argument.
+An explicit \code{effect_edge_frame} for the \code{between} argument.
 }
 \description{
 Every edge is explicit. The constructor never creates all pairs on the
-user's behalf. `from` and `to` name neural measurement nodes; the words
-`left` and `right` are reserved for experimental relation sides in
-[measurement_form()].
+user's behalf. \code{from} and \code{to} name neural measurement nodes; the words
+\code{left} and \code{right} are reserved for experimental relation sides in
+\code{\link[=measurement_form]{measurement_form()}}.
 }

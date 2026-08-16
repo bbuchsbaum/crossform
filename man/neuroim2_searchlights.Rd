@@ -13,22 +13,22 @@ neuroim2_searchlights(
 )
 }
 \arguments{
-\item{mask}{A three-dimensional neuroim2 `NeuroVol` mask.}
+\item{mask}{A three-dimensional neuroim2 \code{NeuroVol} mask.}
 
-\item{radius}{Positive spherical radius in millimetres.}
+\item{radius}{Positive spherical radius in millimeters.}
 
-\item{domain}{An exact domain from [neuroim2_volume_domain()]. When omitted,
-it is constructed from `mask`.}
+\item{domain}{An exact domain from \code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}}. When omitted,
+it is constructed from \code{mask}.}
 
-\item{normalization}{One of `none`, `local`, or `conservative`.}
+\item{normalization}{One of \code{none}, \code{local}, or \code{conservative}.}
 
-\item{nonzero}{Passed to `neuroim2::searchlight_indices()`; version 0.1
-requires `TRUE` so every member belongs to the compact domain.}
+\item{nonzero}{Passed to \code{neuroim2::searchlight_indices()}; version 0.1
+requires \code{TRUE} so every member belongs to the compact domain.}
 }
 \value{
-A sparse additive `effect_frame`.
+A sparse additive \code{effect_frame}.
 }
 \description{
-The function calls only `neuroim2::searchlight_indices()` and maps its stable
-full-volume indices to the ordered compact feature columns of `domain`.
+The function calls only \code{neuroim2::searchlight_indices()} and maps its stable
+full-volume indices to the ordered compact feature columns of \code{domain}.
 }

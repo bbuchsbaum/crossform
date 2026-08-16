@@ -7,10 +7,10 @@
 query_geometry(x, query, component = "total", row_block = 1024L)
 }
 \arguments{
-\item{x}{A complete `effect_form` (including an `effect_geometry`).}
+\item{x}{A complete \code{effect_form} (including an \code{effect_geometry}).}
 
-\item{query}{An axis-bound `pair_query()`, a compatible
-`bilinear_query()`, or a finite physical-coordinate-by-view matrix.}
+\item{query}{An axis-bound \code{pair_query()}, a compatible
+\code{bilinear_query()}, or a finite physical-coordinate-by-view matrix.}
 
 \item{component}{Geometry component to query.}
 
@@ -18,7 +18,7 @@ query_geometry(x, query, component = "total", row_block = 1024L)
 bounds packed-geometry memory for block-backed stores.}
 }
 \value{
-An `effect_view`, not another geometry.
+An \code{effect_view}, not another geometry.
 }
 \description{
 Apply a linear query to a complete geometry

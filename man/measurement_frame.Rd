@@ -13,24 +13,24 @@ measurement_frame(
 )
 }
 \arguments{
-\item{x}{A compiled additive `effect_frame`, or a uniquely named list of
+\item{x}{A compiled additive \code{effect_frame}, or a uniquely named list of
 fixed measurement matrices.}
 
 \item{domain}{Required for a list of matrices; the exact source
-`effect_domain`.}
+\code{effect_domain}.}
 
-\item{mode}{For an additive frame, one of `"total"`, `"coherent"`, or
-`"coherent_configuration"`.}
+\item{mode}{For an additive frame, one of \code{"total"}, \code{"coherent"}, or
+\code{"coherent_configuration"}.}
 
 \item{id}{Stable identity used for custom measurement axes.}
 
 \item{units}{One unit or one per row of each custom operator.}
 }
 \value{
-An identified `effect_measurement_frame`.
+An identified \code{effect_measurement_frame}.
 }
 \description{
-`measurement_frame()` preserves the oriented measurement legs needed for
+\code{measurement_frame()} preserves the oriented measurement legs needed for
 cross-region forms. An additive frame can be adapted as total, coherent, or
 coherent/configuration measurements. A named list of fixed matrices can be
 used for prespecified measurements. Learned operators are intentionally not
@@ -39,7 +39,7 @@ training provenance.
 }
 \details{
 Version 0.1 exposes this as a deliberately small-node dense path.
-  Construction fails before dense conversion when its estimated frame and
-  leg payload exceeds 256 MiB. Brain-scale work should use the support-local
-  geometry-plan path until matrix-free measurement frames are qualified.
+Construction fails before dense conversion when its estimated frame and
+leg payload exceeds 256 MiB. Brain-scale work should use the support-local
+geometry-plan path until matrix-free measurement frames are qualified.
 }

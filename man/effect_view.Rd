@@ -23,22 +23,22 @@ effect_view(
 
 \item{component}{Geometry component used to create the view.}
 
-\item{receipt}{The `execution_receipt()` proving how the view was made.}
+\item{receipt}{The \code{execution_receipt()} proving how the view was made.}
 
 \item{index}{Optional measurement index.}
 
 \item{metadata}{Optional compact semantic metadata.}
 
-\item{effects}{Compatibility self-space binding. Prefer `left_space` and
-`right_space` for rectangular views.}
+\item{effects}{Compatibility self-space binding. Prefer \code{left_space} and
+\code{right_space} for rectangular views.}
 
 \item{left_space, right_space}{Optional ordered effect-space bindings.}
 }
 \value{
-A query-only `effect_view`.
+A query-only \code{effect_view}.
 }
 \description{
-An `effect_view` contains derived values but not the geometry from which they
-arose. It is never returned where a complete `effect_geometry` is promised.
+An \code{effect_view} contains derived values but not the geometry from which they
+arose. It is never returned where a complete \code{effect_geometry} is promised.
 }
 \keyword{internal}

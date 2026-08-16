@@ -209,7 +209,7 @@
   )
   structure(c(semantic, list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_measurement_route_plan")
 }
@@ -309,7 +309,7 @@
   legs <- frame$legs[nodes]
   widths <- vapply(legs, function(x) nrow(x$operator), integer(1))
   ends <- cumsum(widths)
-  starts <- c(1L, head(ends, -1L) + 1L)
+  starts <- c(1L, utils::head(ends, -1L) + 1L)
   ranges <- Map(seq.int, starts, ends)
   names(ranges) <- nodes
   operator <- do.call(rbind, lapply(legs, `[[`, "operator"))

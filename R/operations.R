@@ -157,7 +157,7 @@ aggregate_first <- function() .new_partition_reducer("aggregate_first")
   )
   structure(c(semantic, list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_edge_operation_plan")
 }

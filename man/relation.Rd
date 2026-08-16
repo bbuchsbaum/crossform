@@ -18,19 +18,19 @@ relation(
 }
 \arguments{
 \item{sources}{A matrix, or a named list of matrix, function, or
-`effect_source_descriptor` response sources.}
+\code{effect_source_descriptor} response sources.}
 
-\item{extract}{NULL, one `effect_extractor`, or one extractor per partition.}
+\item{extract}{NULL, one \code{effect_extractor}, or one extractor per partition.}
 
-\item{effects}{An `effect_space()` for already estimated sources, or unique
+\item{effects}{An \code{effect_space()} for already estimated sources, or unique
 names used as shorthand for an unspecified-basis effect space.}
 
 \item{source_dims}{Required dimensions for function sources, as one
 two-element vector per partition.}
 
-\item{partitions}{Optional partition names when not supplied by `sources`.}
+\item{partitions}{Optional partition names when not supplied by \code{sources}.}
 
-\item{domain}{Optional `effect_domain`; its identity is recorded without
+\item{domain}{Optional \code{effect_domain}; its identity is recorded without
 resampling or changing neural features.}
 
 \item{domain_id}{Stable neural-domain identity.}
@@ -40,16 +40,16 @@ resampling or changing neural features.}
 \item{provenance}{Optional provenance metadata.}
 }
 \value{
-An `effect_relation`.
+An \code{effect_relation}.
 }
 \description{
 Each source is read only by neural feature block. Extractors map its
 observation rows into one common named experimental space. Omitting
-`extract` declares that sources already contain effect-by-feature matrices.
+\code{extract} declares that sources already contain effect-by-feature matrices.
 A relation made from precomputed effects supports point evidence but carries
 no residual error channel. Beta matrices alone cannot recover within-
 participant analytic uncertainty. If later work needs a learned neural
-metric or [rdm_sampling_covariance()], start from raw responses with
-[lm_relation_fit()]. Subject-level resampling answers a population question;
+metric or \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, start from raw responses with
+\code{\link[=lm_relation_fit]{lm_relation_fit()}}. Subject-level resampling answers a population question;
 it does not recreate discarded first-level residual information.
 }

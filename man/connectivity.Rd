@@ -15,7 +15,7 @@ connectivity(
 )
 }
 \arguments{
-\item{x}{A complete `effect_measurement_form`.}
+\item{x}{A complete \code{effect_measurement_form}.}
 
 \item{view}{One of signed scalar correlation, a canonical spectrum, static
 geometry alignment, or Gaussian mutual information.}
@@ -23,14 +23,14 @@ geometry alignment, or Gaussian mutual information.}
 \item{ridge, ridge_right}{Explicit ridge values for canonical or Gaussian
 views.}
 
-\item{model}{A [gaussian_covariance_model()] for Gaussian information.}
+\item{model}{A \code{\link[=gaussian_covariance_model]{gaussian_covariance_model()}} for Gaussian information.}
 
 \item{units}{Information units, when applicable.}
 
 \item{tolerance}{Positive numerical tolerance.}
 }
 \value{
-A typed `effect_coupling_result`.
+A typed \code{effect_coupling_result}.
 }
 \description{
 Request a validated connectivity view

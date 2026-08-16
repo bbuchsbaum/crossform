@@ -17,12 +17,12 @@ observation_confounds(
 
 \item{partition, observation_id}{Columns binding rows to observation indexes.}
 
-\item{censor}{Optional logical censor column. `TRUE` means retained.}
+\item{censor}{Optional logical censor column. \code{TRUE} means retained.}
 
 \item{provenance}{Portable confound provenance.}
 }
 \value{
-An `effect_observation_confounds` fact object.
+An \code{effect_observation_confounds} fact object.
 }
 \description{
 Declare observation-level confounds and censor facts

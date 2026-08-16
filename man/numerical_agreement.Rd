@@ -14,14 +14,14 @@ numerical_agreement(
 \arguments{
 \item{x, y}{Numeric objects with identical dimensions.}
 
-\item{guarantee}{One of `scheduling`, `block_partition`, or `cross_platform`.}
+\item{guarantee}{One of \code{scheduling}, \code{block_partition}, or \code{cross_platform}.}
 
-\item{contract}{An `effect_numerical_contract`.}
+\item{contract}{An \code{effect_numerical_contract}.}
 }
 \value{
-A diagnostic `effect_numeric_agreement` value.
+A diagnostic \code{effect_numeric_agreement} value.
 }
 \description{
 Tolerance agreement uses
-`abs(x - y) <= atol + rtol * max(abs(x), abs(y))` elementwise.
+\code{abs(x - y) <= atol + rtol * max(abs(x), abs(y))} elementwise.
 }

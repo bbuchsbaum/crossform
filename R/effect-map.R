@@ -1,7 +1,7 @@
 # Condition-vocabulary effect maps ------------------------------------------
 
 .semantic_digest <- function(prefix, value) {
-  paste0(prefix, digest::digest(value, algo = "sha256", serialize = TRUE))
+  paste0(prefix, digest::digest(value, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .validate_nonempty_id <- function(value, name) {

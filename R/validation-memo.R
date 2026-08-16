@@ -4,7 +4,7 @@
 # and that is the right default: a compiled plan, relation fit, or covariance
 # form must never be trusted because of where it came from. The cost is that a
 # searchlight sweep hands the *same* immutable plan, fit, and metric to the
-# same validators tens of thousands of times. On a 577-centre frame the
+# same validators tens of thousands of times. On a 577-center frame the
 # analytic sampling-covariance path spent essentially all of its time
 # revalidating objects it had already validated microseconds earlier.
 #

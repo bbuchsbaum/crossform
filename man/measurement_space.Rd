@@ -14,7 +14,7 @@ measurement_space(n_measurements, id, provenance = list())
 \item{provenance}{Portable fixed-space provenance.}
 }
 \value{
-An immutable `effect_measurement_space`.
+An immutable \code{effect_measurement_space}.
 }
 \description{
 Name a common measurement space

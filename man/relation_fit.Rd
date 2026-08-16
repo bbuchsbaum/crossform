@@ -7,7 +7,7 @@
 relation_fit(relation, error_models = NULL, provenance = list())
 }
 \arguments{
-\item{relation}{A validated `effect_relation`.}
+\item{relation}{A validated \code{effect_relation}.}
 
 \item{error_models}{Optional named list of internal error-model values, one
 per relation partition. Omitting it records an explicitly absent channel.}
@@ -15,10 +15,10 @@ per relation partition. Omitting it records an explicitly absent channel.}
 \item{provenance}{Compact fit-level provenance.}
 }
 \value{
-An `effect_relation_fit`.
+An \code{effect_relation_fit}.
 }
 \description{
-`relation_fit()` keeps the mathematical `effect_relation` intact and adds a
+\code{relation_fit()} keeps the mathematical \code{effect_relation} intact and adds a
 separate, capability-bearing error channel. A relation can remain valid
 without this envelope; operations that learn a neural metric or calibrate
 within-participant uncertainty must require the corresponding capability.

@@ -30,7 +30,7 @@
   if (isTRUE(deep)) {
     semantic <- x[names(x) != "signature"]
     expected <- paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
     if (!identical(x$signature, expected)) {
       stop("Observation-whitener identity is inconsistent.", call. = FALSE)
@@ -56,7 +56,7 @@
     provenance = model$provenance
   )
   paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
 }
 
@@ -183,7 +183,7 @@
     provenance = provenance
   )
   paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
 }
 
@@ -450,7 +450,7 @@ lm_relation_fit <- function(sources, design, effects,
       kind = "whitened_orthogonal_residuals"
     )
     residual_revision <- paste0("sha256:", digest::digest(
-      residual_semantic, algo = "sha256", serialize = TRUE
+      residual_semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
     residual_source <- .residual_source(
       source$dim,

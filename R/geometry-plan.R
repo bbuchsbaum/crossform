@@ -40,7 +40,7 @@
     return(structure(c(semantic[-1L], list(
       metric = metric,
       signature = paste0("sha256:", digest::digest(
-        semantic, algo = "sha256", serialize = TRUE
+        semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
       ))
     )), class = "effect_metric_schedule"))
   }
@@ -59,7 +59,7 @@
   structure(c(semantic[-1L], list(
     metric = NULL,
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_metric_schedule")
 }
@@ -116,7 +116,7 @@
     !names(x) %in% c("metric", "signature")
   ]))
   expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
   if (!identical(x$signature, expected_signature)) {
     stop("Geometry metric-schedule identity is inconsistent.", call. = FALSE)
@@ -159,7 +159,7 @@
     metric_schedule = metric_schedule$signature,
     component = component,
     signed_query = signed_query
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 # A view's scientific identity is the parent geometry estimand plus the
@@ -180,7 +180,7 @@
     component = component,
     query = .query_identity_semantic(query),
     signed_query = if (is.null(signed_query)) NULL else unname(signed_query)
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .geometry_dense_payload_bytes <- function(measurements, packed_width,
@@ -207,7 +207,7 @@
     scientific_plan_id = scientific_plan_id,
     compute = unclass(compute),
     dense_payload_bytes = dense_payload_bytes
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 #' Compile a reusable query-first geometry plan
@@ -461,7 +461,7 @@ print.effect_geometry_plan <- function(x, ...) {
     memory = unclass(fields$memory),
     lowering = fields$lowering,
     kernel_version = fields$kernel_version
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .compile_geometry_execution_plan <- function(
@@ -746,7 +746,7 @@ print.effect_geometry_plan <- function(x, ...) {
     metric_schedule = x$metric_schedule$signature,
     component = "full",
     signed_query = NULL
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
   relation <- x$task$left_relation
   right_relation <- x$task$right_relation
   same <- isTRUE(x$task$same_relation)

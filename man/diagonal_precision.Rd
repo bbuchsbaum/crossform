@@ -20,7 +20,7 @@ local residual variance.}
 until schedule compilation.}
 }
 \value{
-An `effect_metric_recipe`.
+An \code{effect_metric_recipe}.
 }
 \description{
 Specify on-demand diagonal residual-variance precision

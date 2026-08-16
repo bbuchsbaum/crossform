@@ -16,7 +16,7 @@ pair_lm_query(
 )
 }
 \arguments{
-\item{design}{A data frame with `left`, `right`, and one or more finite
+\item{design}{A data frame with \code{left}, \code{right}, and one or more finite
 numeric predictor columns. Duplicate pair rows are allowed.}
 
 \item{coefficient}{One coefficient name, or a named numeric contrast over
@@ -25,15 +25,15 @@ the compiled design columns.}
 \item{left_space, right_space}{Ordered effect-space identities.}
 
 \item{weights}{Optional positive row weights, or the name of a design weight
-column. A `weight` column is used automatically when present.}
+column. A \code{weight} column is used automatically when present.}
 
 \item{encoding_nuisance, retrieval_nuisance}{Include fixed-effect nuisance
 columns for the respective item axis.}
 
-\item{sparse}{Return `H` as a sparse `Matrix` object.}
+\item{sparse}{Return \code{H} as a sparse \code{Matrix} object.}
 }
 \value{
-An axis-bound `pair_query()` carrying design and balance diagnostics.
+An axis-bound \code{pair_query()} carrying design and balance diagnostics.
 }
 \description{
 The returned matrix is the exact linear map from eligible pair values to a

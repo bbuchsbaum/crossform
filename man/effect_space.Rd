@@ -25,7 +25,7 @@ coordinate.}
 \item{provenance}{Optional design or contrast provenance as a list.}
 }
 \value{
-An immutable-by-convention `effect_space` value.
+An immutable-by-convention \code{effect_space} value.
 }
 \description{
 An effect space gives experimental coordinates a semantic identity beyond

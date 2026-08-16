@@ -7,16 +7,16 @@
 estimate(x, ...)
 }
 \arguments{
-\item{x}{An [plan_relation()] result.}
+\item{x}{An \code{\link[=plan_relation]{plan_relation()}} result.}
 
 \item{...}{Reserved for future execution policies.}
 }
 \value{
-An `effect_relation_fit` whose identity binds the relation plan,
-  source revisions, realized row lineage, and design receipts.
+An \code{effect_relation_fit} whose identity binds the relation plan,
+source revisions, realized row lineage, and design receipts.
 }
 \description{
 This is the authorized first-moment execution verb. It emits the existing
-`effect_relation_fit` contract, so every second-moment plan and view remains
+\code{effect_relation_fit} contract, so every second-moment plan and view remains
 unchanged.
 }

@@ -7,12 +7,12 @@
 neuroim2_volume_domain(mask, id = "neuroim2-volume")
 }
 \arguments{
-\item{mask}{A three-dimensional neuroim2 `NeuroVol` mask.}
+\item{mask}{A three-dimensional neuroim2 \code{NeuroVol} mask.}
 
 \item{id}{Stable domain identity.}
 }
 \value{
-An `effect_domain` whose `feature_ids` are full-volume indices.
+An \code{effect_domain} whose \code{feature_ids} are full-volume indices.
 }
 \description{
 This conditional adapter records the mask's stable full-volume indices,

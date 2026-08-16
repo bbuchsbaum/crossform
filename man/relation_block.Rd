@@ -7,7 +7,7 @@
 relation_block(x, partition, features)
 }
 \arguments{
-\item{x}{An `effect_relation`.}
+\item{x}{An \code{effect_relation}.}
 
 \item{partition}{One partition name or index.}
 

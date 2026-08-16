@@ -7,7 +7,7 @@
 relation_fit_capabilities(x)
 }
 \arguments{
-\item{x}{An `effect_relation` or `effect_relation_fit`.}
+\item{x}{An \code{effect_relation} or \code{effect_relation_fit}.}
 }
 \value{
 A data frame with one row per partition and explicit capability flags.

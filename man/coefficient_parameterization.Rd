@@ -16,9 +16,9 @@ coefficient_parameterization(
 \arguments{
 \item{map}{A finite condition-by-coefficient matrix.}
 
-\item{conditions}{The bound [condition_space()].}
+\item{conditions}{The bound \code{\link[=condition_space]{condition_space()}}.}
 
-\item{coefficients}{Unique ordered coefficient names. Defaults to `map`
+\item{coefficients}{Unique ordered coefficient names. Defaults to \code{map}
 column names.}
 
 \item{coding_id}{One coding identifier recorded in the receipt.}
@@ -28,10 +28,10 @@ column names.}
 \item{tolerance}{Positive rank tolerance.}
 }
 \value{
-An `effect_coefficient_parameterization`.
+An \code{effect_coefficient_parameterization}.
 }
 \description{
-`map` declares `mu = map %*% beta`, where `mu` follows the semantic
-condition coordinates and `beta` follows the compiled coefficient axis.
+\code{map} declares \code{mu = map \%*\% beta}, where \code{mu} follows the semantic
+condition coordinates and \code{beta} follows the compiled coefficient axis.
 The object belongs to a design receipt, not scientific plan identity.
 }

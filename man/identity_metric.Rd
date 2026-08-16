@@ -11,11 +11,11 @@ identity_metric(domain = NULL)
 until schedule compilation.}
 }
 \value{
-An `effect_metric_recipe`.
+An \code{effect_metric_recipe}.
 }
 \description{
 These constructors describe how a local neural metric is to be produced.
-They do not allocate a domain-wide matrix. Use `compile_metric_schedule()`
+They do not allocate a domain-wide matrix. Use \code{compile_metric_schedule()}
 to bind a recipe to residual sufficient statistics, spatial supports, and
 evaluation edges.
 }

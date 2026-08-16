@@ -25,7 +25,7 @@ test_that("correlation-style normalization refuses with the policy boundary", {
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_identical(refusal$capability, "guaranteed_psd")
   expect_match(refusal$message, "zero or negative")
-  expect_match(refusal$message, "correlation-distance-policy")
+  expect_match(refusal$message, "correlation-distance policy")
 })
 
 test_that("univariate removal refuses and points at the decomposition", {

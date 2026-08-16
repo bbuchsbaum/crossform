@@ -186,7 +186,7 @@ metric_training_policy <- function(
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_metric_training_policy")
 }
@@ -290,7 +290,7 @@ metric_training_policy <- function(
     "training_partitions", "atomic_signatures", "source_revisions",
     "residual_revisions")], list(
     training_signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_metric_training_record")
 }
@@ -307,7 +307,7 @@ metric_training_policy <- function(
     training_policy = x$training_policy$signature,
     records = vapply(x$records, `[[`, character(1), "training_signature"),
     capabilities = unclass(x$capabilities)
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .validate_frozen_metric_schedule <- function(x, deep = FALSE) {
@@ -752,7 +752,7 @@ compile_metric_schedule <- function(
     diagnostics = diagnostics,
     provenance = provenance,
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   ), class = "effect_scheduled_metric_handle")
 }

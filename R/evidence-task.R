@@ -2,7 +2,7 @@
 
 .evidence_boundary_signature <- function(semantic) {
   paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
+    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
   ))
 }
 
@@ -113,7 +113,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_neural_pair_query")
 }
@@ -311,7 +311,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_evidence_materialization")
 }
@@ -383,7 +383,7 @@
   )
   structure(c(semantic[-1L], list(
     signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
+      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
   )), class = "effect_evidence_stages")
 }

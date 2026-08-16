@@ -7,14 +7,14 @@
 lower_effect_map(effects, parameterization)
 }
 \arguments{
-\item{effects}{An [effect_map()].}
+\item{effects}{An \code{\link[=effect_map]{effect_map()}}.}
 
-\item{parameterization}{A [coefficient_parameterization()] for the same
+\item{parameterization}{A \code{\link[=coefficient_parameterization]{coefficient_parameterization()}} for the same
 semantic condition space.}
 }
 \value{
-An axis-bound `effect_lowered_map` containing the concrete target
-  matrix and its receipt identity.
+An axis-bound \code{effect_lowered_map} containing the concrete target
+matrix and its receipt identity.
 }
 \description{
 Lower semantic effects into a concrete coefficient basis

@@ -275,7 +275,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 .source_descriptor_key <- function(descriptor) {
   descriptor <- .validate_source_descriptor(descriptor)
   paste0("sha256:", digest::digest(descriptor, algo = "sha256",
-    serialize = TRUE))
+    serialize = TRUE, serializeVersion = 2L))
 }
 
 .open_relation_source_session <- function(relation,

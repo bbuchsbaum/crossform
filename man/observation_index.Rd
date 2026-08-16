@@ -19,12 +19,12 @@ observation_index(
 
 \item{time}{Optional strictly increasing finite observation times.}
 
-\item{units}{One physical time unit when `time` is supplied.}
+\item{units}{One physical time unit when \code{time} is supplied.}
 
 \item{provenance}{Portable acquisition provenance.}
 }
 \value{
-An `effect_observation_index`.
+An \code{effect_observation_index}.
 }
 \description{
 Define one partition's observation axis

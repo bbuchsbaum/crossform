@@ -102,7 +102,7 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
                                        metadata) {
   semantic <- list(kind = kind, coordinates = coordinates,
     coordinate_units = coordinate_units, metadata = metadata)
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE))
+  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .new_domain_reference <- function(id, feature_ids, coordinate_units,
@@ -128,7 +128,7 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
     geometry_signature = geometry_signature
   )
   signature <- paste0("sha256:", digest::digest(semantic, algo = "sha256",
-    serialize = TRUE))
+    serialize = TRUE, serializeVersion = 2L))
   structure(c(semantic, list(signature = signature)),
     class = "effect_domain_reference")
 }

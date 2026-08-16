@@ -29,16 +29,16 @@ learned and frozen before evaluation.}
 \item{tolerance}{Positive numerical validation tolerance.}
 
 \item{provenance}{Compact metric provenance. Learned-frozen metrics require
-`frozen = TRUE` and a strong `training_signature`.}
+\code{frozen = TRUE} and a strong \code{training_signature}.}
 }
 \value{
-An immutable `effect_neural_metric`.
+An immutable \code{effect_neural_metric}.
 }
 \description{
 A neural metric is the PSD same-space role of the evidence-pairing operator
-`K`. It is distinct from a cross-space `measurement_bridge()`. The stored
+\code{K}. It is distinct from a cross-space \code{measurement_bridge()}. The stored
 matrix has width equal to its local support, never the full neural domain
-unless the metric is genuinely global. Supplying `inverse` retains a
+unless the metric is genuinely global. Supplying \code{inverse} retains a
 mathematically equivalent inverse action, such as the covariance from which
 a precision metric was derived, so inverse quadratic forms need no second
 factorization.

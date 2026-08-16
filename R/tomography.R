@@ -3,14 +3,14 @@
 .tomography_signature <- function(kind, fields) {
   paste0("sha256:", digest::digest(c(
     list(schema_version = 1L, kind = kind), fields
-  ), algo = "sha256", serialize = TRUE))
+  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
 }
 
 .tomography_stack_frame <- function(frame) {
   frame <- .validate_measurement_frame(frame)
   widths <- vapply(frame$legs, function(leg) nrow(leg$operator), integer(1))
   ends <- cumsum(widths)
-  starts <- c(1L, head(ends, -1L) + 1L)
+  starts <- c(1L, utils::head(ends, -1L) + 1L)
   ranges <- Map(seq.int, starts, ends)
   names(ranges) <- frame$node_ids
   list(
@@ -417,7 +417,7 @@
     scale <- max(sqrt(sum(expected^2)), tolerance)
     relative_residual <- residual / scale
     reference_signature <- paste0("sha256:", digest::digest(
-      unname(reference_operator), algo = "sha256", serialize = TRUE
+      unname(reference_operator), algo = "sha256", serialize = TRUE, serializeVersion = 2L
     ))
     if (!is.finite(relative_residual) || relative_residual > tolerance) {
       diagnostics <- c(frame_diagnostics, list(

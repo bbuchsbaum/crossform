@@ -13,19 +13,19 @@ plan_relation(
 )
 }
 \arguments{
-\item{study}{A [study()].}
+\item{study}{A \code{\link[=study]{study()}}.}
 
-\item{model}{A [design_model()] or [raw_design_model()].}
+\item{model}{A \code{\link[=design_model]{design_model()}} or \code{\link[=raw_design_model]{raw_design_model()}}.}
 
-\item{effects}{An [effect_map()] for a semantic model, or [raw_effect_map()]
+\item{effects}{An \code{\link[=effect_map]{effect_map()}} for a semantic model, or \code{\link[=raw_effect_map]{raw_effect_map()}}
 for a raw design.}
 
-\item{observation_model}{An [observation_model()].}
+\item{observation_model}{An \code{\link[=observation_model]{observation_model()}}.}
 
 \item{tolerance}{Positive numerical rank and estimability tolerance.}
 }
 \value{
-An `effect_relation_plan`.
+An \code{effect_relation_plan}.
 }
 \description{
 The plan composes factual study identity, a semantic or raw design model,

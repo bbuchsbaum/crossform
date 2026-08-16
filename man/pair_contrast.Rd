@@ -13,7 +13,7 @@ pair_contrast(matches, controls, normalize = TRUE)
 subtraction.}
 }
 \value{
-An axis-bound `pair_query()` with balance diagnostics.
+An axis-bound \code{pair_query()} with balance diagnostics.
 }
 \description{
 Contrast matched and control pair couplings

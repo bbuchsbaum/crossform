@@ -235,8 +235,8 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
       "can be zero or negative, so dividing by them is not conventional ",
       "`1 - Pearson` distance and would silently change the estimand. ",
       "Conventional correlation distance requires a guaranteed ",
-      "positive-semidefinite self form and its own named view; see ",
-      "`correlation-distance-policy.md`."
+      "positive-semidefinite self form and its own named view; see the ",
+      "correlation-distance policy article."
     ),
       capability = "guaranteed_psd",
       namespace = "geometry_views",

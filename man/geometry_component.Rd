@@ -7,9 +7,9 @@
 geometry_component(x, component = "total", rows = NULL)
 }
 \arguments{
-\item{x}{A complete `effect_form` (including an `effect_geometry`).}
+\item{x}{A complete \code{effect_form} (including an \code{effect_geometry}).}
 
-\item{component}{One of `total`, `coherent`, or `configuration`.}
+\item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.}
 
 \item{rows}{Optional measurement rows to read.}
 }

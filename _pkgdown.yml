@@ -6,14 +6,24 @@ development:
 template:
   bootstrap: 5
 
+navbar:
+  structure:
+    left: [reference, articles]
+    right: [design, search, github]
+  components:
+    design:
+      text: Design
+      href: https://github.com/bbuchsbaum/crossform/tree/main/design
+      aria-label: Design documents and contracts
+
 home:
   links:
   - text: Novelty and claim boundaries
-    href: novelty.html
+    href: articles/novelty.html
   - text: Correlation-distance policy
-    href: correlation-distance-policy.html
+    href: articles/correlation-distance-policy.html
   - text: Failure gallery
-    href: failure-gallery.html
+    href: articles/failure-gallery.html
   - text: Haxby 2001 real-data exemplar
     href: https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001
 
@@ -21,11 +31,17 @@ articles:
 - title: Start here
   navbar: ~
   contents:
-  - from-observations
   - introduction
+  - from-observations
 - title: Advanced evidence forms
   contents:
   - evidence-pairing
+- title: Claims and policies
+  desc: What the package claims, what it refuses, and where the boundaries are drawn.
+  contents:
+  - articles/novelty
+  - articles/failure-gallery
+  - articles/correlation-distance-policy
 
 reference:
 - title: From observations to a fitted relation

@@ -7,21 +7,21 @@
 contrast(x, weights, remove_univariate = FALSE)
 }
 \arguments{
-\item{x}{An `effect_geometry_plan` or complete `effect_geometry`.}
+\item{x}{An \code{effect_geometry_plan} or complete \code{effect_geometry}.}
 
 \item{weights}{One finite contrast weight per named experimental effect.}
 
-\item{remove_univariate}{Must be omitted or `FALSE`. Destructive demeaning
+\item{remove_univariate}{Must be omitted or \code{FALSE}. Destructive demeaning
 is refused: the coherent/configuration/total decomposition already
 reports the common spatial mode and its orthogonal remainder as an
 exact, non-destructive partition.}
 }
 \value{
-An `effect_contrast_view` containing signed marginals and the three
-  energy components. `coherence_fraction` is reported only where the raw
-  cross-generalized components form a nonnegative partition.
+An \code{effect_contrast_view} containing signed marginals and the three
+energy components. \code{coherence_fraction} is reported only where the raw
+cross-generalized components form a nonnegative partition.
 }
 \description{
 This view never removes a mean pattern or reruns an analysis. It reads the
-exact coherent/configuration decomposition already contained in `x`.
+exact coherent/configuration decomposition already contained in \code{x}.
 }
