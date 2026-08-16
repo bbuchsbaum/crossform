@@ -27,9 +27,7 @@
     pair_pattern = .support_index_pattern_identity(pair_pattern),
     construction = construction
   )
-  paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  .sha256_signature(semantic)
 }
 
 .support_index_summary <- function(x) {
@@ -508,9 +506,7 @@
   }
   if (!is.list(index$construction) ||
       !inherits(index$cost, "effect_support_cost") ||
-      !is.character(index$signature) || length(index$signature) != 1L ||
-      is.na(index$signature) ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", index$signature)) {
+      !.strong_sha256(index$signature)) {
     stop("Support-index identity or cost metadata are invalid.",
       call. = FALSE)
   }

@@ -39,9 +39,7 @@
     )
     return(structure(c(semantic[-1L], list(
       metric = metric,
-      signature = paste0("sha256:", digest::digest(
-        semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-      ))
+      signature = .sha256_signature(semantic)
     )), class = "effect_metric_schedule"))
   }
   semantic <- list(
@@ -58,9 +56,7 @@
   )
   structure(c(semantic[-1L], list(
     metric = NULL,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_metric_schedule")
 }
 
@@ -115,9 +111,7 @@
   semantic <- c(list(schema_version = 1L), unclass(x[
     !names(x) %in% c("metric", "signature")
   ]))
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  expected_signature <- .sha256_signature(semantic)
   if (!identical(x$signature, expected_signature)) {
     stop("Geometry metric-schedule identity is inconsistent.", call. = FALSE)
   }
@@ -152,14 +146,14 @@
     stop("Signed query weights are valid only for contrast plans.",
       call. = FALSE)
   }
-  paste0("geometry-sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     evidence_task = task$task_id,
     frame = .additive_frame_signature(frame),
     metric_schedule = metric_schedule$signature,
     component = component,
     signed_query = signed_query
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ), "geometry-sha256:")
 }
 
 # A view's scientific identity is the parent geometry estimand plus the
@@ -173,14 +167,14 @@
     stop("A view identity requires its parent geometry estimand id.",
       call. = FALSE)
   }
-  paste0("geometry-sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     role = "geometry_view",
     parent = estimand_id,
     component = component,
     query = .query_identity_semantic(query),
     signed_query = if (is.null(signed_query)) NULL else unname(signed_query)
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ), "geometry-sha256:")
 }
 
 .geometry_dense_payload_bytes <- function(measurements, packed_width,
@@ -202,12 +196,12 @@
 
 .geometry_plan_signature <- function(scientific_plan_id, compute,
                                      dense_payload_bytes) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     scientific_plan_id = scientific_plan_id,
     compute = unclass(compute),
     dense_payload_bytes = dense_payload_bytes
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 #' Compile a reusable query-first geometry plan
@@ -485,7 +479,7 @@ print.effect_geometry_plan <- function(x, ...) {
 }
 
 .geometry_execution_signature <- function(fields) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     parent = fields$parent_signature,
     scientific_plan_id = fields$scientific_plan_id,
@@ -502,7 +496,7 @@ print.effect_geometry_plan <- function(x, ...) {
     memory = unclass(fields$memory),
     lowering = fields$lowering,
     kernel_version = fields$kernel_version
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .compile_geometry_execution_plan <- function(
@@ -780,14 +774,14 @@ print.effect_geometry_plan <- function(x, ...) {
   # The claimed estimand id is bound two ways: to the stored task through the
   # query-stripped base task id, and to the parent plan through the parent
   # signature, which digests exactly (estimand id, compute, payload bytes).
-  expected_estimand_id <- paste0("geometry-sha256:", digest::digest(list(
+  expected_estimand_id <- .sha256_signature(list(
     schema_version = 1L,
     evidence_task = .effect_task_base_id(x$task),
     frame = .additive_frame_signature(x$frame),
     metric_schedule = x$metric_schedule$signature,
     component = "full",
     signed_query = NULL
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ), "geometry-sha256:")
   relation <- x$task$left_relation
   right_relation <- x$task$right_relation
   same <- isTRUE(x$task$same_relation)

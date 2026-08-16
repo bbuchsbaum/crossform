@@ -23,9 +23,7 @@
       if (length(rows) == 1L) "row" else "rows",
       .msg_positions(apply(bad, 1L, any), rownames(value))), call. = FALSE)
   }
-  revision <- paste0(
-    "sha256:", digest::digest(value, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
-  )
+  revision <- .sha256_signature(value)
   structure(
     list(
       dim = as.integer(dim(value)),
@@ -619,7 +617,7 @@ relation_block <- function(x, partition, features) {
     domain = x$domain,
     provenance = x$provenance
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  .sha256_signature(semantic)
 }
 
 .identity_measurement_bridge <- function(left, right) {
@@ -641,9 +639,7 @@ relation_block <- function(x, partition, features) {
     n_features = as.integer(left$n_features),
     provenance = list(rule = "exact_shared_neural_feature_identity")
   )
-  signature <- paste0(
-    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
-  )
+  signature <- .sha256_signature(semantic)
   structure(
     c(semantic[-1L], list(signature = signature)),
     class = "effect_measurement_bridge"

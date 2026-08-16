@@ -29,9 +29,7 @@
   }
   if (isTRUE(deep)) {
     semantic <- x[names(x) != "signature"]
-    expected <- paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    expected <- .sha256_signature(semantic)
     if (!identical(x$signature, expected)) {
       stop("Observation-whitener identity is inconsistent.", call. = FALSE)
     }
@@ -55,9 +53,7 @@
     estimator_provenance = model$estimator_provenance,
     provenance = model$provenance
   )
-  paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  .sha256_signature(semantic)
 }
 
 .separable_glm_error_model <- function(effect_covariance, residual_df,
@@ -182,9 +178,7 @@
     }, character(1)),
     provenance = provenance
   )
-  paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  .sha256_signature(semantic)
 }
 
 #' Attach statistical error information to a relation
@@ -528,9 +522,7 @@ lm_relation_fit <- function(sources, design, effects,
       estimator = estimate$estimator_provenance$signature,
       kind = "whitened_orthogonal_residuals"
     )
-    residual_revision <- paste0("sha256:", digest::digest(
-      residual_semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    residual_revision <- .sha256_signature(residual_semantic)
     residual_source <- .residual_source(
       source$dim,
       read = function(features) {

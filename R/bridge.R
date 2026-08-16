@@ -52,9 +52,7 @@ measurement_space <- function(n_measurements, id, provenance = list()) {
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_space")
 }
 
@@ -155,9 +153,7 @@ measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_bridge")
 }
 

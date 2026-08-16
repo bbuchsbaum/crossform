@@ -169,7 +169,7 @@
     frame = .additive_frame_signature(evidence$frame),
     strategy = strategy,
     residual_statistics = statistics,
-    signature = paste0("sha256:", digest::digest(list(
+    signature = .sha256_signature(list(
       schema_version = 1L,
       plan = plan$scientific_plan_id,
       relation_fit = fit$signature,
@@ -177,7 +177,7 @@
       strategy = strategy,
       residual_statistics = if (is.null(statistics)) NULL else
         statistics$signature
-    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+    ))
   ), class = "effect_sampling_resources")
 }
 
@@ -209,7 +209,7 @@
     stop("Shared-pair sampling resources are missing their pair statistics.",
       call. = FALSE)
   }
-  expected_signature <- paste0("sha256:", digest::digest(list(
+  expected_signature <- .sha256_signature(list(
     schema_version = 1L,
     plan = x$plan,
     relation_fit = x$relation_fit,
@@ -217,7 +217,7 @@
     strategy = x$strategy,
     residual_statistics = if (is.null(x$residual_statistics)) NULL else
       x$residual_statistics$signature
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
   if (!identical(x$signature, expected_signature)) {
     stop("Sampling-resource identity is inconsistent.", call. = FALSE)
   }

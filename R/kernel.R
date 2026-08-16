@@ -1,15 +1,5 @@
 # Bounded additive contraction ----------------------------------------------
 
-.tile_starts <- function(n, size) seq.int(1L, n, by = size)
-
-.validate_tile_size <- function(x, name) {
-  if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
-      x < 1 || x %% 1 != 0) {
-    stop(sprintf("`%s` must be one positive integer.", name), call. = FALSE)
-  }
-  as.integer(x)
-}
-
 .tiled_contraction <- function(weights, atoms, row_tile, coordinate_tile,
                                feature_tile, write_tile = NULL) {
   if (!is.matrix(weights) || !is.numeric(weights) || any(!is.finite(weights))) {
@@ -422,11 +412,11 @@
     stop("`query` must match the finite packed effect coordinates.",
       call. = FALSE)
   }
-  operators <- if (is.null(query) || structured_query) NULL else lapply(
-    seq_len(ncol(query)), function(view) {
-      .unsvec_symmetric(query[, view], q)
-    }
-  )
+  operators <- if (is.null(query) || structured_query) {
+    NULL
+  } else {
+    .physical_query_operators(query, q, q, "symmetric_packed")
+  }
   measurements <- nrow(frame$weights)
   output_width <- if (is.null(query)) {
     packed_width
@@ -1041,11 +1031,9 @@
     } else {
       for (view in seq_len(ncol(query))) {
         work <- numeric(length(rows))
-        operator <- if (codec == "rectangular") {
-          matrix(query[, view], q_left, q_right)
-        } else {
-          .unsvec_symmetric(query[, view], q_left)
-        }
+        operator <- .physical_query_operator(
+          query[, view], q_left, q_right, codec
+        )
         for (edge in seq_len(nrow(ordered_edges))) {
           left <- matrix(
             left_first[rows, , left_index[[edge]], drop = FALSE],

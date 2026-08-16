@@ -70,9 +70,7 @@
   if (is.null(inverse)) {
     semantic <- list(kind = "none")
     return(structure(c(semantic, list(
-      signature = paste0("sha256:", digest::digest(
-        semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-      ))
+      signature = .sha256_signature(semantic)
     )), class = "effect_metric_inverse_representation"))
   }
   inverse <- .canonical_symmetric_metric(
@@ -94,9 +92,7 @@
   }
   semantic <- list(kind = "retained_inverse_metric", value = inverse)
   structure(c(semantic, list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_metric_inverse_representation")
 }
 
@@ -231,9 +227,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
     provenance = semantic$provenance,
     inverse_representation = inverse_representation,
     capabilities = capabilities,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_neural_metric")
 }
 
@@ -376,9 +370,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
     capabilities = capabilities,
     hyperparameters = hyperparameters,
     provenance = provenance,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_metric_recipe")
 }
 
@@ -614,9 +606,7 @@ coherent_functional <- function(value, domain, support = NULL,
   )
   structure(c(semantic[c("domain", "support", "value", "label",
     "orientation", "provenance")], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_coherent_functional")
 }
 
@@ -826,9 +816,7 @@ coherent_functional <- function(value, domain, support = NULL,
     base_metric = metric,
     metric = effective,
     coherent = coherent,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_composed_metric")
 }
 
@@ -925,9 +913,7 @@ metric_components <- function(metric, coherent = NULL) {
     configuration_psd = TRUE,
     inverse_quadratic_mode = diagnostic$inverse_mode,
     factorization_count = diagnostic$factorizations,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_metric_components")
 }
 
@@ -983,9 +969,7 @@ metric_components <- function(metric, coherent = NULL) {
     } else {
       "The composed feature-additive metrics resolve the native identity."
     },
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_metric_conservation")
 }
 

@@ -40,9 +40,7 @@
     edge_set = edges$signature,
     left_frame = left_frame$signature,
     right_frame = right_frame$signature,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    )),
+    signature = .sha256_signature(semantic),
     class = c("effect_measurement_block_index", "data.frame")
   )
 }
@@ -75,9 +73,7 @@
     right_frame = attr(index, "right_frame", exact = TRUE),
     index = lapply(index, unname)
   )
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  expected_signature <- .sha256_signature(semantic)
   if (!identical(attr(index, "signature", exact = TRUE),
       expected_signature)) {
     stop("Measurement block-index identity is inconsistent.",
@@ -107,12 +103,12 @@
 }
 
 .measurement_store_signature <- function(index, manifest) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     index_signature = attr(index, "signature", exact = TRUE),
     codec = manifest$codec,
     block_count = manifest$block_count
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .measurement_edge_position <- function(index, edge) {

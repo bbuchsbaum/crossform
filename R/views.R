@@ -1,62 +1,5 @@
 # Scientific views of complete geometry -----------------------------------
 
-.align_contrast <- function(value, effects, label = "weights") {
-  if (!is.numeric(value) || is.matrix(value)) {
-    stop(sprintf(paste0(
-      "`%s` must be a numeric contrast vector with one weight per effect; ",
-      "received %s. The relation declares %s: %s."
-    ), label, .msg_value(value), .msg_count(length(effects), "effect"),
-      .msg_names(effects)), call. = FALSE)
-  }
-  if (length(value) != length(effects)) {
-    stop(sprintf(paste0(
-      "`%s` has %s but the relation declares %s (%s). Supply one weight per ",
-      "effect, or name the weights to have them aligned for you."
-    ), label, .msg_count(length(value), "value"),
-      .msg_count(length(effects), "effect"), .msg_names(effects)),
-      call. = FALSE)
-  }
-  if (any(!is.finite(value))) {
-    stop(sprintf(paste0(
-      "`%s` must be finite, but the weight%s for %s %s NA, NaN, or Inf. A ",
-      "contrast weight of zero excludes an effect."
-    ), label, if (sum(!is.finite(value)) == 1L) "" else "s",
-      .msg_positions(!is.finite(value),
-        if (is.null(names(value))) effects else names(value)),
-      if (sum(!is.finite(value)) == 1L) "is" else "are"), call. = FALSE)
-  }
-  if (!is.null(names(value))) {
-    supplied <- names(value)
-    if (anyNA(supplied) || any(!nzchar(supplied))) {
-      stop(sprintf(paste0(
-        "`%s` is partially named: every weight must be named, or none. The ",
-        "relation declares %s."
-      ), label, .msg_names(effects)), call. = FALSE)
-    }
-    if (anyDuplicated(supplied)) {
-      stop(sprintf(
-        "`%s` names %s more than once; each effect takes exactly one weight.",
-        label, .msg_names(unique(supplied[duplicated(supplied)]))),
-        call. = FALSE)
-    }
-    if (!setequal(supplied, effects)) {
-      unknown <- setdiff(supplied, effects)
-      absent <- setdiff(effects, supplied)
-      detail <- c(
-        if (length(unknown)) sprintf("%s is not a declared effect",
-          .msg_names(unknown)),
-        if (length(absent)) sprintf("%s has no weight", .msg_names(absent))
-      )
-      stop(sprintf(
-        "`%s` does not match the relation's effects (%s): %s.",
-        label, .msg_names(effects), paste(detail, collapse = "; ")),
-        call. = FALSE)
-    }
-    value <- value[effects]
-  }
-  stats::setNames(as.numeric(value), effects)
-}
-
 #' Read a contrast as signed, coherent, configuration, and total evidence
 #'
 #' This view never removes a mean pattern or reruns an analysis. It reads the
@@ -282,37 +225,6 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
 .require_self_form_view <- function(x, operation) {
   .self_geometry_source(x, operation, complete = TRUE)
   invisible(x)
-}
-
-.rdm_query <- function(effects, codec = "symmetric_packed") {
-  q <- length(effects)
-  if (q < 2L) stop("An RDM requires at least two experimental effects.",
-    call. = FALSE)
-  pairs <- utils::combn(seq_len(q), 2L)
-  width <- if (identical(codec, "symmetric_packed")) {
-    q * (q + 1L) / 2L
-  } else {
-    q * q
-  }
-  query <- matrix(0, width, ncol(pairs))
-  labels <- character(ncol(pairs))
-  for (pair in seq_len(ncol(pairs))) {
-    difference <- numeric(q)
-    difference[pairs[1L, pair]] <- 1
-    difference[pairs[2L, pair]] <- -1
-    operator <- tcrossprod(difference)
-    query[, pair] <- if (identical(codec, "symmetric_packed")) {
-      .svec_symmetric(operator)
-    } else {
-      as.vector(operator)
-    }
-    labels[[pair]] <- paste(effects[pairs[, pair]], collapse = " - ")
-  }
-  colnames(query) <- labels
-  list(query = query, pairs = data.frame(
-    left = effects[pairs[1L, ]], right = effects[pairs[2L, ]],
-    stringsAsFactors = FALSE
-  ))
 }
 
 #' Read squared experimental distances from geometry
@@ -726,25 +638,6 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
     ),
     class = "effect_rsa_view"
   )
-}
-
-.unsvec_symmetric <- function(value, q) {
-  if (!is.numeric(value) || length(value) != q * (q + 1L) / 2L ||
-      any(!is.finite(value))) {
-    stop("Packed geometry has the wrong width or non-finite values.",
-      call. = FALSE)
-  }
-  out <- matrix(0, q, q)
-  coordinate <- 0L
-  for (column in seq_len(q)) {
-    for (row in column:q) {
-      coordinate <- coordinate + 1L
-      entry <- value[[coordinate]] / if (row == column) 1 else sqrt(2)
-      out[row, column] <- entry
-      out[column, row] <- entry
-    }
-  }
-  out
 }
 
 #' Read the signed eigenvalue spectrum of cross-generalized geometry

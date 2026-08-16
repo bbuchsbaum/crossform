@@ -189,7 +189,7 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
                                        metadata) {
   semantic <- list(kind = kind, coordinates = coordinates,
     coordinate_units = coordinate_units, metadata = metadata)
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  .sha256_signature(semantic)
 }
 
 .new_domain_reference <- function(id, feature_ids, coordinate_units,
@@ -202,9 +202,7 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
       anyNA(coordinate_units) || any(!nzchar(coordinate_units))) {
     stop("Domain coordinate units are invalid.", call. = FALSE)
   }
-  if (!is.character(geometry_signature) || length(geometry_signature) != 1L ||
-      is.na(geometry_signature) ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", geometry_signature)) {
+  if (!.strong_sha256(geometry_signature)) {
     stop("Domain geometry signature is invalid.", call. = FALSE)
   }
   semantic <- list(
@@ -214,8 +212,7 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
     coordinate_units = coordinate_units,
     geometry_signature = geometry_signature
   )
-  signature <- paste0("sha256:", digest::digest(semantic, algo = "sha256",
-    serialize = TRUE, serializeVersion = 2L))
+  signature <- .sha256_signature(semantic)
   structure(c(semantic, list(signature = signature)),
     class = "effect_domain_reference")
 }

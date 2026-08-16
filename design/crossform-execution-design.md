@@ -281,6 +281,12 @@ the additive contraction.
 
 ## 3A. Bounded scheduling and backpressure
 
+> Not implemented. `compute_policy()` has no `max_inflight` or
+> `max_reorder_bytes` field, and the package ships no scheduler. An unwired
+> in-process simulator (`.simulate_bounded_schedule()`) existed until
+> 2026-08-16 and was deleted so that test coverage stops overstating delivered
+> capability; this section remains the design target.
+
 Dynamic scheduling is allowed only behind a bounded reorder window. Let the
 next reducible feature task be \(t\). The coordinator may hold completed tasks
 with ids greater than \(t\), but enforces both:
@@ -556,6 +562,12 @@ Shared-memory lifecycle is part of correctness, not best-effort cleanup:
 
 ## 9. Checkpointing and resume
 
+> Not implemented. No public entry point accepts a `checkpoint` argument, and
+> `receipt$observed$checkpoint` is permanently `enabled = FALSE`. Unwired
+> shard read/write helpers existed until 2026-08-16 and were deleted; the
+> `checkpoint_buffer` memory-budget category is retained because it is part of
+> the hashed `memory_plan()` schema, not because the package checkpoints.
+
 Checkpointing is optional and should arrive after the base kernel.
 
 Each completed feature task writes one atomic, content-addressed shard:
@@ -824,6 +836,9 @@ peak memory. No parallel dependency; version 0.1 rejects `workers > 1`.
 This phase may already deliver most of the speedup.
 
 ### Phase E1: in-process scheduling simulator and task protocol
+
+Not started. A partial simulator was written and tested in isolation, never
+wired into the compiler, and deleted on 2026-08-16.
 
 Factor the block kernel into pure task inputs/outputs. Simulate adversarial
 completion order, bounded reordering, backpressure, failure receipts, reporter

@@ -189,10 +189,10 @@ test_that("compiler hashes a file source once at session admission", {
   writeBin(as.double(values), connection, size = 8, endian = .Platform$endian)
   close(connection)
   descriptor <- file_matrix_source(path, dim(values))
-  original_hash <- crossform:::.file_sha256
+  original_hash <- crossform:::.sha256_file
   hashes <- 0L
   testthat::local_mocked_bindings(
-    .file_sha256 = function(path) {
+    .sha256_file = function(path) {
       hashes <<- hashes + 1L
       original_hash(path)
     },

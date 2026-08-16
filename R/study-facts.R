@@ -118,7 +118,7 @@ observation_index <- function(observation_id, partition, time = NULL,
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = .semantic_digest("observation-index-sha256:", semantic)
+    signature = .sha256_signature(semantic, "observation-index-sha256:")
   )), class = "effect_observation_index")
 }
 
@@ -338,7 +338,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
     n_features = domain$n_features,
     capabilities = capabilities,
     provenance = provenance,
-    observations_id = .semantic_digest("observations-sha256:", semantic)
+    observations_id = .sha256_signature(semantic, "observations-sha256:")
   ), class = "effect_observations")
 }
 
@@ -403,7 +403,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
     provenance = value$provenance
   )
   if (!identical(value$observations_id,
-      .semantic_digest("observations-sha256:", semantic))) {
+      .sha256_signature(semantic, "observations-sha256:"))) {
     stop("Observation identity is inconsistent.", call. = FALSE)
   }
   value
@@ -508,7 +508,7 @@ observation_events <- function(data, partition = "partition",
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    events_id = .semantic_digest("events-sha256:", semantic)
+    events_id = .sha256_signature(semantic, "events-sha256:")
   )), class = "effect_events")
 }
 
@@ -616,7 +616,7 @@ observation_confounds <- function(
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    confounds_id = .semantic_digest("observation-confounds-sha256:", semantic)
+    confounds_id = .sha256_signature(semantic, "observation-confounds-sha256:")
   )), class = "effect_observation_confounds")
 }
 
@@ -723,7 +723,7 @@ partition_hierarchy <- function(data, leaf = names(data)[[1L]],
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = .semantic_digest("partition-hierarchy-sha256:", semantic)
+    signature = .sha256_signature(semantic, "partition-hierarchy-sha256:")
   )), class = "effect_partition_hierarchy")
 }
 

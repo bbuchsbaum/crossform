@@ -8,9 +8,7 @@
   }
   semantic <- c(list(schema_version = 1L, kind = kind), fields)
   structure(c(list(kind = kind), fields, list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_sampling_record")
 }
 
@@ -463,9 +461,7 @@
     descriptor$record, channel$record, metric, partition, sampling_axis,
     target, spatial_scope, operation, materialization, capabilities, reasons
   )
-  scientific_plan_id <- paste0("sampling-sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  scientific_plan_id <- .sha256_signature(semantic, "sampling-sha256:")
   value <- structure(list(
     contract = "evidence-sampling-v1",
     evidence_plan = evidence,
@@ -482,12 +478,12 @@
     capabilities = capabilities,
     unavailable_reasons = reasons,
     scientific_plan_id = scientific_plan_id,
-    signature = paste0("sha256:", digest::digest(list(
+    signature = .sha256_signature(list(
       schema_version = 1L,
       scientific_plan_id = scientific_plan_id,
       evidence_object = descriptor$record$signature,
       error_source = channel$record$signature
-    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+    ))
   ), class = "effect_evidence_sampling_plan")
   .validate_evidence_sampling_plan(value, deep = TRUE)
   value
@@ -572,15 +568,13 @@
       target, x$spatial_scope, operation, materialization,
       expected_capabilities, reasons
     )
-    expected_id <- paste0("sampling-sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
-    expected_signature <- paste0("sha256:", digest::digest(list(
+    expected_id <- .sha256_signature(semantic, "sampling-sha256:")
+    expected_signature <- .sha256_signature(list(
       schema_version = 1L,
       scientific_plan_id = expected_id,
       evidence_object = evidence$record$signature,
       error_source = channel$record$signature
-    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+    ))
     if (!identical(x$scientific_plan_id, expected_id) ||
         !identical(x$signature, expected_signature)) {
       stop("Evidence-sampling-plan identity is inconsistent.", call. = FALSE)

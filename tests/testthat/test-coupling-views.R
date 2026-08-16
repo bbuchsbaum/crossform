@@ -182,16 +182,39 @@ test_that("scalar repeated variation recovers signed Pearson correlation", {
 test_that("normalized coupling rejects missing joint covariance and zero self variance", {
   crossvalidated <- coupling_test_fixture(crossvalidated = TRUE)
   expect_silent(crossform:::.effect_coupling(crossvalidated$form))
-  expect_error(crossform:::.covariance_coupling(crossvalidated$form),
-    "joint covariance|positive self-blocks")
-  expect_error(crossform:::.canonical_coupling(
+
+  # Each precondition is a classed refusal carrying its own capability, so a
+  # caller distinguishes "no repeated variation" from "no joint covariance"
+  # without reading prose. This fixture certifies repeated variation but not a
+  # joint covariance, so the second gate is the one that fires.
+  covariance <- catch_refusal(
+    crossform:::.covariance_coupling(crossvalidated$form)
+  )
+  expect_s3_class(covariance, "effect_capability_refusal")
+  expect_identical(covariance$capability, "coherent_joint_covariance")
+  expect_identical(covariance$namespace, "coupling_views")
+  expect_identical(covariance$reasons, "joint_covariance_not_certified")
+  expect_match(conditionMessage(covariance), "joint covariance")
+
+  canonical <- catch_refusal(crossform:::.canonical_coupling(
     crossvalidated$form,
     crossform:::.measurement_regularization("ridge", 1e-4)
-  ), "joint covariance|positive self-blocks")
+  ))
+  expect_s3_class(canonical, "effect_capability_refusal")
+  expect_identical(canonical$capability, "coherent_joint_covariance")
+  expect_identical(canonical$namespace, "coupling_views")
 
   zero <- coupling_test_fixture(zero_second = TRUE)
-  expect_error(crossform:::.pearson_coupling(zero$form),
+  degenerate <- catch_refusal(crossform:::.pearson_coupling(zero$form))
+  expect_s3_class(degenerate, "effect_capability_refusal")
+  expect_identical(degenerate$capability, "nondegenerate_self_variance")
+  expect_identical(degenerate$namespace, "coupling_views")
+  expect_identical(degenerate$reasons, "self_variance_not_strictly_positive")
+  expect_match(conditionMessage(degenerate),
     "strictly positive scalar self-variance")
+  # The message reports the offending edge and its self-variances, not just
+  # the rule.
+  expect_match(conditionMessage(degenerate), "geometric mean")
 })
 
 test_that("CCA, geometry alignment, and Gaussian information match references", {

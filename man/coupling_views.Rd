@@ -41,6 +41,30 @@ coherent positive self-covariances. \code{geometry_alignment()} is static linear
 CKA/RV-like alignment and does not redefine established dynamic
 informational-connectivity analyses.
 }
+\section{Refusals}{
+
+\code{effect_coupling()} makes no covariance claim and so refuses nothing. Every
+other view signals an \code{effect_capability_refusal} in namespace
+\code{"coupling_views"}, so \code{\link[=catch_refusal]{catch_refusal()}} can branch on the cause rather than
+the prose:
+\itemize{
+\item \code{"certified_repeated_variation"} (reason
+\code{"repeated_variation_not_certified"}) when the form has not established
+that its measurement axis repeats;
+\item \code{"nondegenerate_variation"} (reason \code{"rank_one_variation_axis"})
+when the variation query has effective rank one;
+\item \code{"coherent_joint_covariance"}, carrying
+\code{"joint_covariance_not_certified"} and \code{"self_blocks_not_validated"} as
+applicable, when the form does not certify a joint covariance across
+both measurement spaces;
+\item \code{"nondegenerate_self_variance"} (reason
+\code{"self_variance_not_strictly_positive"}) when a scalar edge has no
+measured variation to divide by.
+}
+\code{canonical_coupling()} additionally refuses with
+\code{"declared_regularization"} when \code{ridge} is absent.
+}
+
 \examples{
 # Two sessions of six repeated time points over four native features,
 # measured at two multivariate populations.

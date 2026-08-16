@@ -311,9 +311,7 @@ metric_training_policy <- function(
     justification = justification
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_metric_training_policy")
 }
 
@@ -415,14 +413,12 @@ metric_training_policy <- function(
   structure(c(semantic[c("edge", "evaluation_left", "evaluation_right",
     "training_partitions", "atomic_signatures", "source_revisions",
     "residual_revisions")], list(
-    training_signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    training_signature = .sha256_signature(semantic)
   )), class = "effect_metric_training_record")
 }
 
 .metric_schedule_signature <- function(x) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     role = x$role,
     recipe_specification = x$recipe_specification,
@@ -433,7 +429,7 @@ metric_training_policy <- function(
     training_policy = x$training_policy$signature,
     records = vapply(x$records, `[[`, character(1), "training_signature"),
     capabilities = unclass(x$capabilities)
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .validate_frozen_metric_schedule <- function(x, deep = FALSE) {
@@ -592,20 +588,6 @@ compile_metric_schedule <- function(
       call. = FALSE)
   }
   as.integer(edge)
-}
-
-.metric_schedule_node <- function(index, node) {
-  index <- .validate_support_index(index)
-  if (is.numeric(node) && length(node) == 1L && !is.na(node) &&
-      is.finite(node) && node %% 1 == 0 && node >= 1L &&
-      node <= length(index$node_ids)) {
-    return(as.integer(node))
-  }
-  position <- match(node, index$node_ids)
-  if (length(position) != 1L || is.na(position)) {
-    stop("`node` must identify one compiled metric support.", call. = FALSE)
-  }
-  as.integer(position)
 }
 
 .metric_schedule_node_trusted <- function(index, node) {
@@ -877,9 +859,7 @@ compile_metric_schedule <- function(
     materialize = materialize,
     diagnostics = diagnostics,
     provenance = provenance,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_scheduled_metric_handle")
 }
 

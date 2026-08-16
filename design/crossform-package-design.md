@@ -866,9 +866,10 @@ temporaries and are validated against measured peak memory.
 
 ### Third: in-process execution simulator
 
-Exercise arbitrary completion orders, bounded inflight/reorder windows,
-backpressure, failure receipts, reporter isolation, and cleanup without worker
-processes.
+Not started. Exercise arbitrary completion orders, bounded inflight/reorder
+windows, backpressure, failure receipts, reporter isolation, and cleanup
+without worker processes. (A standalone prototype existed until 2026-08-16 and
+was deleted; it had no compiler caller.)
 
 Success criterion: adversarial schedules remain memory bounded and produce the
 same tolerance-qualified result as canonical sequential execution.

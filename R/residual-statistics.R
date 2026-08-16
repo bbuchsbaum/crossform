@@ -149,7 +149,7 @@
 .residual_pair_atomic_signature <- function(partition, values, residual_df,
                                              error_model, source_revision,
                                              residual_revision) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     partition = partition,
     cross_products = values,
@@ -157,7 +157,7 @@
     error_model = error_model,
     source_revision = source_revision,
     residual_revision = residual_revision
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .accumulate_residual_pair_partition <- function(x, partition, pair_i, pair_j,
@@ -232,7 +232,7 @@
 }
 
 .residual_pair_statistics_signature <- function(x) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     relation_fit = x$relation_fit,
     domain = x$domain,
@@ -242,7 +242,7 @@
     partitions = x$partitions,
     atomic = vapply(x$atomic, `[[`, character(1), "signature"),
     numerical_contract = x$numerical_contract
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .validate_atomic_residual_pair_statistics <- function(x, partition,
@@ -459,12 +459,12 @@ residual_pair_statistics <- function(
     cross_products = combined,
     residual_df = as.integer(df),
     covariance = combined / df,
-    signature = paste0("sha256:", digest::digest(list(
+    signature = .sha256_signature(list(
       schema_version = 1L,
       parent = x$signature,
       partitions = partitions,
       residual_df = df
-    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+    ))
   ), class = "effect_residual_pair_scope")
 }
 

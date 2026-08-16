@@ -144,9 +144,7 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     return(structure(list(
       matrix = NULL,
       identity = TRUE,
-      descriptor = c(semantic, list(signature = paste0(
-        "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
-      )))
+      descriptor = c(semantic, list(signature = .sha256_signature(semantic)))
     ), class = "effect_observation_whitener"))
   }
   if (!is.matrix(observation_whitener) ||
@@ -161,16 +159,12 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
   semantic <- list(
     kind = "explicit",
     dim = as.integer(dim(observation_whitener)),
-    matrix_revision = paste0("sha256:", digest::digest(
-      observation_whitener, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    matrix_revision = .sha256_signature(observation_whitener)
   )
   structure(list(
     matrix = observation_whitener,
     identity = FALSE,
-    descriptor = c(semantic, list(signature = paste0(
-      "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
-    )))
+    descriptor = c(semantic, list(signature = .sha256_signature(semantic)))
   ), class = "effect_observation_whitener")
 }
 
@@ -372,12 +366,8 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
   }
   semantic <- list(
     schema_version = 1L,
-    design_revision = paste0("sha256:", digest::digest(
-      design, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    )),
-    target_revision = paste0("sha256:", digest::digest(
-      effects, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    )),
+    design_revision = .sha256_signature(design),
+    target_revision = .sha256_signature(effects),
     observation_whitener = observation_whitener$descriptor,
     effect_space = effect_names,
     solver = solver_used,
@@ -393,9 +383,7 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     residual_df = residual_df,
     residualize = residualize,
     observation_whitener = observation_whitener$descriptor,
-    estimator_provenance = c(semantic, list(signature = paste0(
-      "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
-    )))
+    estimator_provenance = c(semantic, list(signature = .sha256_signature(semantic)))
   )
 }
 

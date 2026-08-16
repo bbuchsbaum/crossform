@@ -153,6 +153,8 @@ The claim must become true before Gate 5 can exist.
    `source_session$close()`; decide the fate of tested-but-unwired
    checkpoint/scheduler/tiled-contraction code (wire or move to attic —
    test coverage currently overstates delivered capability).
+   *Resolved 2026-08-16: `R/scheduler.R` and `R/checkpoint.R` deleted with
+   their tests; `.tiled_contraction()` retained (it has compiler callers).*
 5. **Gate 5 benchmark.** `benchmarks/run-query-first-scale.R`: large-q
    trial-level, selected edges + RSA coefficients, materialization receipts
    (`pair_atoms_materialized: FALSE`), recorded result artifact + opt-in test;

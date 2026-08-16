@@ -62,7 +62,7 @@
     names(value), "design_receipt_id"
   )])
   if (!identical(value$design_receipt_id,
-      .semantic_digest("design-receipt-sha256:", semantic))) {
+      .sha256_signature(semantic, "design-receipt-sha256:"))) {
     stop("Design-receipt identity is inconsistent.", call. = FALSE)
   }
   value
@@ -192,7 +192,7 @@
       capabilities = capabilities
     )
     receipts[[partition]] <- structure(c(semantic[-1L], list(
-      design_receipt_id = .semantic_digest("design-receipt-sha256:", semantic)
+      design_receipt_id = .sha256_signature(semantic, "design-receipt-sha256:")
     )), class = "effect_design_receipt")
   }
   list(
@@ -319,7 +319,7 @@ plan_relation <- function(study, model, effects, observation_model,
     effect_map_id = effect_map_id,
     observation_model_id = observation_model$observation_model_id
   )
-  relation_plan_id <- .semantic_digest("relation-plan-sha256:", semantic)
+  relation_plan_id <- .sha256_signature(semantic, "relation-plan-sha256:")
   compiled <- .compile_relation_receipts(
     study, model, effects, observation_model, tolerance
   )
@@ -434,7 +434,7 @@ relation_plan_receipts <- function(x) {
   names(dimensions) <- plan$partitions
   capabilities <- lapply(plan$partitions, function(partition) {
     source <- observations$capabilities[[partition]]
-    revision <- .semantic_digest("sha256:", list(
+    revision <- .sha256_signature(list(
       source_revision = source$stable_revision,
       retained_rows = plan$retained_rows[[partition]],
       design_receipt_id =

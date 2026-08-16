@@ -51,10 +51,17 @@
       call. = FALSE)
   }
   logical_width <- length(left_effects) * length(right_effects)
+  # Both codecs report `$physical_width` as an integer. `q * (q + 1L) / 2L` is
+  # exact but double-typed in R, so it is coerced here rather than leaving one
+  # codec reporting `6` and the other `6L` for the same quantity. This field
+  # reaches no signature: it is compared against `nrow(query)`, used as an
+  # output width, and returned. The same expression is still computed as a
+  # double for local widths in R/memory.R and R/kernel.R, which are not
+  # reported anywhere; R/geometry-plan.R already coerces its `packed_width`.
   physical_width <- if (codec == "rectangular") {
     logical_width
   } else {
-    length(left_effects) * (length(left_effects) + 1L) / 2L
+    as.integer(length(left_effects) * (length(left_effects) + 1L) / 2L)
   }
   if (!is.null(query)) {
     if (.is_pair_difference_query(query)) {
@@ -74,16 +81,6 @@
     logical_width = logical_width,
     physical_width = physical_width
   )
-}
-
-.physical_query_operators <- function(query, q_left, q_right, codec) {
-  lapply(seq_len(ncol(query)), function(view) {
-    if (identical(codec, "rectangular")) {
-      matrix(query[, view], q_left, q_right)
-    } else {
-      .unsvec_symmetric(query[, view], q_left)
-    }
-  })
 }
 
 # The universal numerical primitive. Every edge forms one ordered outer
@@ -212,11 +209,9 @@
   } else if (form_atoms) {
     for (view in seq_len(ncol(query))) {
       work <- numeric(length(feature_ids))
-      operator <- if (identical(validated$codec, "rectangular")) {
-        matrix(query[, view], q_left, q_right)
-      } else {
-        .unsvec_symmetric(query[, view], q_left)
-      }
+      operator <- .physical_query_operator(
+        query[, view], q_left, q_right, validated$codec
+      )
       for (edge in seq_len(nrow(ordered_edges))) {
         left <- left_relations[[left_index[[edge]]]]
         right <- right_relations[[right_index[[edge]]]]

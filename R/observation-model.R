@@ -26,7 +26,7 @@
 .whitener_revisions <- function(value) {
   if (is.null(value)) return(NULL)
   revisions <- vapply(value, function(matrix) {
-    .semantic_digest("sha256:", unname(matrix))
+    .sha256_signature(unname(matrix))
   }, character(1))
   names(revisions) <- names(value)
   revisions
@@ -133,9 +133,7 @@ observation_model <- function(
     training_provenance = training_provenance,
     assumptions = assumptions,
     provenance = provenance,
-    observation_model_id = .semantic_digest(
-      "observation-model-sha256:", semantic
-    ),
+    observation_model_id = .sha256_signature(semantic, "observation-model-sha256:"),
     capabilities = list(
       fixed_observation_model = !learned,
       learned_observation_model = learned,

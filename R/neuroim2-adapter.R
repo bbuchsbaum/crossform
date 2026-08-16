@@ -75,8 +75,7 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
     spacing = spacing,
     voxel = unname(grid),
     mask = included,
-    neuroim2_space_sha256 = paste0("sha256:", digest::digest(spatial_metadata,
-      algo = "sha256", serialize = FALSE))
+    neuroim2_space_sha256 = .sha256_string(spatial_metadata)
   )
   .new_domain(domain$id, domain$kind, domain$feature_ids, domain$coordinates,
     domain$coordinate_units, domain$metadata)

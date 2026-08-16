@@ -78,9 +78,7 @@ effect_space <- function(coordinates, basis_id = "unspecified",
     scale = scale,
     provenance = provenance
   )
-  signature <- paste0(
-    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
-  )
+  signature <- .sha256_signature(semantic)
   structure(
     c(semantic[-1L], list(signature = signature)),
     class = "effect_space"

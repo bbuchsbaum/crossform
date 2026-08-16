@@ -197,12 +197,12 @@ measurement_frame <- function(
 }
 
 .edge_frame_signature <- function(fields) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     from_frame = fields$from_frame$signature,
     to_frame = fields$to_frame$signature,
     edges = fields$edges$signature
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .validate_edge_frame <- function(x) {
@@ -527,6 +527,28 @@ measurement_form <- function(
 #' @seealso [measurement_form()] and [coupling()] to build `x`;
 #'   [connectivity()] for the same views behind one capability-checked entry
 #'   point; [measurement_components()] for decomposed nodes.
+#'
+#' @section Refusals:
+#' `effect_coupling()` makes no covariance claim and so refuses nothing. Every
+#' other view signals an `effect_capability_refusal` in namespace
+#' `"coupling_views"`, so [catch_refusal()] can branch on the cause rather than
+#' the prose:
+#' \itemize{
+#'   \item `"certified_repeated_variation"` (reason
+#'     `"repeated_variation_not_certified"`) when the form has not established
+#'     that its measurement axis repeats;
+#'   \item `"nondegenerate_variation"` (reason `"rank_one_variation_axis"`)
+#'     when the variation query has effective rank one;
+#'   \item `"coherent_joint_covariance"`, carrying
+#'     `"joint_covariance_not_certified"` and `"self_blocks_not_validated"` as
+#'     applicable, when the form does not certify a joint covariance across
+#'     both measurement spaces;
+#'   \item `"nondegenerate_self_variance"` (reason
+#'     `"self_variance_not_strictly_positive"`) when a scalar edge has no
+#'     measured variation to divide by.
+#' }
+#' `canonical_coupling()` additionally refuses with
+#' `"declared_regularization"` when `ridge` is absent.
 #' @family coupling and connectivity views
 #' @examples
 #' # Two sessions of six repeated time points over four native features,

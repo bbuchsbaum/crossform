@@ -24,9 +24,7 @@
     applied = applied
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_regularization")
 }
 
@@ -77,9 +75,7 @@
     provenance = provenance
   )
   metadata <- list(evidence_capability = c(proof[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      proof, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(proof)
   )))
   pair_query(H, effect_space, effect_space, metadata)
 }
@@ -110,9 +106,7 @@
     operator = capability$operator,
     provenance = capability$provenance
   )
-  expected <- paste0("sha256:", digest::digest(
-    proof, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  expected <- .sha256_signature(proof)
   if (!identical(capability$signature, expected)) {
     stop("Variation-query construction signature is inconsistent.",
       call. = FALSE)
@@ -154,8 +148,7 @@
   expected <- c("signature", "source_domain", "node_ids", "legs", "coverage",
     "injectivity", "dual")
   if (!is.list(x) || !identical(names(x), expected) ||
-      !is.character(x$signature) || length(x$signature) != 1L ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", x$signature) ||
+      !.strong_sha256(x$signature) ||
       !identical(names(x$legs), x$node_ids) ||
       any(!vapply(x$legs, function(leg) {
         is.list(leg) && identical(names(leg), c(
@@ -184,13 +177,13 @@
 
 .measurement_edge_set_signature <- function(edges, left_frame, right_frame,
                                             weighted) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     left_frame = left_frame,
     right_frame = right_frame,
     weighted = weighted,
     edges = unclass(edges)
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .measurement_edges_are_complete <- function(edges, left_nodes, right_nodes) {
@@ -237,9 +230,7 @@
 
 .new_measurement_plan_from_fields <- function(fields) {
   semantic <- .measurement_plan_semantic(fields)
-  scientific_plan_id <- paste0("measurement-sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  scientific_plan_id <- .sha256_signature(semantic, "measurement-sha256:")
   structure(c(fields, list(
     scientific_plan_id = scientific_plan_id,
     signature = scientific_plan_id
@@ -440,9 +431,7 @@
     construction = plan$query_construction
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_capabilities")
 }
 
@@ -513,9 +502,7 @@
     experimental_effective_rank = semantic$experimental_effective_rank,
     blocks = table,
     regularization = semantic$regularization,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_measurement_diagnostics")
 }
 
@@ -538,9 +525,7 @@
     blocks = unclass(x$blocks),
     regularization = x$regularization
   )
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  expected_signature <- .sha256_signature(semantic)
   if (!identical(x$signature, expected_signature)) {
     stop("Measurement diagnostics signature is inconsistent.",
       call. = FALSE)
@@ -596,9 +581,7 @@
     derivation = list(kind = "executed", parent = NULL)
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_receipt")
 }
 
@@ -637,9 +620,7 @@
     route = x$route,
     derivation = x$derivation
   )
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  expected_signature <- .sha256_signature(semantic)
   if (!identical(x$signature, expected_signature)) {
     stop("Measurement receipt signature is inconsistent.", call. = FALSE)
   }
@@ -647,13 +628,13 @@
 }
 
 .measurement_contract_signature <- function(plan, capabilities, completeness) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     type = "measurement_form",
     plan = plan$signature,
     capabilities = capabilities$signature,
     completeness = completeness
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .new_measurement_form <- function(store, plan, capabilities, diagnostics,
@@ -687,6 +668,11 @@
     contract_signature = .measurement_contract_signature(
       plan, capabilities, completeness
     ),
+    # `completeness` reads "complete" here and "full" on an `effect_form`
+    # (R/result.R). The word is hashed into `$contract_signature` just above,
+    # so harmonizing the two would invalidate every recorded measurement-form
+    # identity. `$result_capability` is the field with one vocabulary across
+    # both result kinds; branch on that.
     result_capability = "complete_form",
     completeness = completeness
   ), class = "effect_measurement_form")
@@ -836,9 +822,7 @@
     edge_set = fields$edge_set_signature,
     left_frame = fields$left_frame$signature,
     right_frame = fields$right_frame$signature,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    )),
+    signature = .sha256_signature(semantic),
     class = c("effect_measurement_block_index", "data.frame")
   )
   products <- fields$partition_products
@@ -876,9 +860,7 @@
     derivation = list(kind = "reversal", parent = receipt$signature)
   )
   reversed_receipt <- structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_receipt")
   .new_measurement_form(
     store, reversed_plan, capabilities, diagnostics, reversed_receipt
@@ -912,9 +894,7 @@
     } else {
       "requested_complete"
     },
-    contract_signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    )),
+    contract_signature = .sha256_signature(semantic),
     result_capability = "query_only",
     completeness = "query_only"
   ), class = "effect_measurement_view")
@@ -950,9 +930,7 @@
     view = x$view,
     dimensions = dim(x$values)
   )
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  expected_signature <- .sha256_signature(semantic)
   if (!identical(x$contract_signature, expected_signature)) {
     stop("Measurement-view identity is inconsistent.", call. = FALSE)
   }
@@ -970,17 +948,44 @@
     stop("`positive_self_blocks` must be TRUE or FALSE.", call. = FALSE)
   }
   if (view == "effect_coupling") return(invisible(x))
+  # Capability gating, not shape checking: these are contract-level refusals,
+  # so callers branch on `$capability` rather than on the prose.
   if (!isTRUE(x$capabilities$repeated_variation)) {
-    stop("Covariance coupling requires certified repeated variation.",
-      call. = FALSE)
+    .capability_refusal(paste0(
+      "Covariance coupling requires certified repeated variation: a ",
+      "covariance is an average over repeats, and this form has not ",
+      "established that its measurement axis repeats."
+    ),
+      capability = "certified_repeated_variation",
+      namespace = "coupling_views",
+      reasons = "repeated_variation_not_certified",
+      remedies = paste0(
+        "Build the form with a `variation_query()` that declares its ",
+        "sampling axis, over a pairing whose partitions repeat that axis."
+      )
+    )
   }
   if (view == "canonical_coupling" &&
       (!isTRUE(x$capabilities$joint_covariance) ||
        !isTRUE(positive_self_blocks))) {
-    stop(paste0(
+    .capability_refusal(paste0(
       "Canonical coupling requires a coherent joint covariance and ",
       "separately validated positive self-blocks."
-    ), call. = FALSE)
+    ),
+      capability = "coherent_joint_covariance",
+      namespace = "coupling_views",
+      reasons = c(
+        if (!isTRUE(x$capabilities$joint_covariance)) {
+          "joint_covariance_not_certified"
+        },
+        if (!isTRUE(positive_self_blocks)) "self_blocks_not_validated"
+      ),
+      remedies = paste0(
+        "Build the form over a pairing that certifies a joint covariance ",
+        "across both measurement spaces, and read it through ",
+        "`canonical_coupling()`, which validates the self-blocks it needs."
+      )
+    )
   }
   invisible(x)
 }

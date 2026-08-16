@@ -1,7 +1,7 @@
 # Exact structured sampling-covariance forms -------------------------------
 
 .sampling_covariance_signature <- function(fields) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     contract = "evidence-sampling-v1",
     plan = fields$plan$scientific_plan_id,
@@ -11,7 +11,7 @@
     partitions = fields$partitions,
     labels = fields$labels,
     source = fields$source
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .sampling_covariance_form <- function(plan, signal_factor, xi_factor,
@@ -504,26 +504,6 @@
   value <- 0.5 * (value + t(value))
   dimnames(value) <- list(x$labels, x$labels)
   value
-}
-
-.sampling_covariance_receipt <- function(x) {
-  .validate_sampling_covariance(x, deep = FALSE)
-  structure(list(
-    contract = x$plan$contract,
-    sampling_plan_id = x$plan$scientific_plan_id,
-    evidence_plan_id = x$plan$evidence$plan_id,
-    relation_fit = x$plan$error_channel$channel_identity,
-    metric = x$plan$metric$identity,
-    metric_status = x$plan$metric$status,
-    partition_model = x$plan$partition$model,
-    partitions = x$partitions,
-    sampling_axis = x$plan$sampling_axis,
-    target = x$plan$target$target,
-    target_policy = x$plan$target$policy,
-    spatial_scope = x$plan$spatial_scope,
-    source = x$source,
-    covariance = x$signature
-  ), class = "effect_sampling_receipt")
 }
 
 .execute_evidence_sampling_plan <- function(plan, covariance,

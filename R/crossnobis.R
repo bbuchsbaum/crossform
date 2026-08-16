@@ -131,25 +131,25 @@ noise_precision <- function(value, domain, support = NULL,
 .crossnobis_scientific_plan_id <- function(relation_fit_signature, task,
                                             frame, pairing,
                                             metric_schedule) {
-  paste0("crossnobis-sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     relation_fit = relation_fit_signature,
     evidence_task = task$task_id,
     frame = .additive_frame_signature(frame),
     pairing = .metric_pairing_identity(pairing),
     metric_schedule = metric_schedule$signature
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ), "crossnobis-sha256:")
 }
 
 .crossnobis_plan_signature <- function(fields) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     scientific_plan_id = fields$scientific_plan_id,
     compute = unclass(fields$compute),
     lowering = fields$lowering,
     kernel_version = fields$kernel_version,
     memory = unclass(fields$memory)
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .learned_crossnobis_memory_plan <- function(fit, frame, support_index, over,
@@ -425,12 +425,12 @@ print.effect_crossnobis_plan <- function(x, ...) {
 
 .planned_crossnobis_receipt <- function(plan, contrast) {
   execution_receipt(
-    scientific_plan_id = paste0("crossnobis-sha256:", digest::digest(list(
+    scientific_plan_id = .sha256_signature(list(
       schema_version = 1L,
       parent = plan$scientific_plan_id,
       contrast = contrast,
       query_role = "effect"
-    ), algo = "sha256", serialize = TRUE, serializeVersion = 2L)),
+    ), "crossnobis-sha256:"),
     compute = plan$compute,
     sources = plan$task$left_relation$capabilities,
     memory = plan$memory,

@@ -353,7 +353,7 @@ study <- function(observations, events = NULL, confounds = NULL,
     clock_tolerance = as.numeric(clock_tolerance),
     capabilities = capabilities,
     provenance = provenance,
-    study_id = .semantic_digest("study-sha256:", semantic)
+    study_id = .sha256_signature(semantic, "study-sha256:")
   ), class = "effect_study")
 }
 
@@ -410,7 +410,7 @@ study <- function(observations, events = NULL, confounds = NULL,
     clock_tolerance = value$clock_tolerance,
     provenance = value$provenance
   )
-  if (!identical(value$study_id, .semantic_digest("study-sha256:", semantic))) {
+  if (!identical(value$study_id, .sha256_signature(semantic, "study-sha256:"))) {
     stop("Study identity is inconsistent.", call. = FALSE)
   }
   value
@@ -478,7 +478,7 @@ study_axis <- function(x, name) {
     parent = parent
   )
   structure(c(semantic[-1L], list(
-    signature = .semantic_digest("study-axis-sha256:", semantic)
+    signature = .sha256_signature(semantic, "study-axis-sha256:")
   )), class = "effect_study_axis")
 }
 

@@ -1,10 +1,5 @@
 # Reopenable response-source descriptors -----------------------------------
 
-.strong_sha256 <- function(value) {
-  is.character(value) && length(value) == 1L && !is.na(value) &&
-    grepl("^sha256:[[:xdigit:]]{64}$", value)
-}
-
 .descriptor_value_is_serializable <- function(value) {
   if (is.null(value) || is.atomic(value)) return(TRUE)
   if (!is.list(value) || is.object(value)) return(FALSE)
@@ -58,10 +53,6 @@
     stop("Source descriptor metadata are invalid.", call. = FALSE)
   }
   structure(as.list(value), class = "effect_source_descriptor")
-}
-
-.file_sha256 <- function(path) {
-  paste0("sha256:", digest::digest(file = path, algo = "sha256"))
 }
 
 #' Describe a read-only column-major matrix file
@@ -130,7 +121,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
       observed_size, expected_size
     ), call. = FALSE)
   }
-  observed_revision <- .file_sha256(path)
+  observed_revision <- .sha256_file(path)
   if (!is.null(stable_revision) &&
       (!.strong_sha256(stable_revision) ||
        !identical(tolower(stable_revision), tolower(observed_revision)))) {
@@ -195,7 +186,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
   if (!file.exists(path)) {
     stop("Reopenable matrix source no longer exists.", call. = FALSE)
   }
-  observed <- .file_sha256(path)
+  observed <- .sha256_file(path)
   if (!identical(tolower(observed), tolower(expected_revision)) ||
       !identical(tolower(observed), tolower(descriptor$stable_revision))) {
     stop("Reopenable matrix source has a stale content revision.",
@@ -299,8 +290,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 
 .source_descriptor_key <- function(descriptor) {
   descriptor <- .validate_source_descriptor(descriptor)
-  paste0("sha256:", digest::digest(descriptor, algo = "sha256",
-    serialize = TRUE, serializeVersion = 2L))
+  .sha256_signature(descriptor)
 }
 
 .open_relation_source_session <- function(relation,

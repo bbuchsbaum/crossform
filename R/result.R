@@ -82,7 +82,7 @@
     query = query,
     scientific_plan_id = scientific_plan_id
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  .sha256_signature(semantic)
 }
 
 # Universal complete effect-form result. This internal constructor establishes
@@ -139,6 +139,17 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
       metadata = metadata,
       receipt = receipt,
       contract_signature = contract_signature,
+      # Two fields, two frozen vocabularies. `$result_capability` is a
+      # capability id ("complete_form" / "query_only") and is hashed into
+      # `$contract_signature` via `.effect_result_signature()`.
+      # `$completeness` is the human-facing word the print methods show, and
+      # its counterpart on a measurement form reads "complete" rather than
+      # "full". The words cannot be reconciled without a hash change:
+      # `.measurement_contract_signature()` (R/measurement-result.R) and
+      # `.evidence_materialization()` (R/evidence-task.R) both hash a
+      # `completeness` string, so renaming any of them would invalidate every
+      # recorded measurement-form and evidence-task identity. Branch on
+      # `$result_capability`, which is the same word everywhere.
       result_capability = "complete_form",
       completeness = "full",
       codec = codec,
@@ -812,17 +823,4 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
     .svec_symmetric(0.5 * (operator + t(operator)))
   }
   matrix(values, ncol = 1L, dimnames = list(NULL, "view1"))
-}
-
-.svec_symmetric <- function(x) {
-  q <- nrow(x)
-  out <- numeric(q * (q + 1L) / 2L)
-  k <- 0L
-  for (column in seq_len(q)) {
-    for (row in column:q) {
-      k <- k + 1L
-      out[[k]] <- x[row, column] * if (row == column) 1 else sqrt(2)
-    }
-  }
-  out
 }

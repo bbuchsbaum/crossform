@@ -66,9 +66,7 @@
 }
 
 .effect_task_id <- function(semantic) {
-  paste0(
-    "sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
-  )
+  .sha256_signature(semantic)
 }
 
 # The identity the task would have carried without an embedded query. This is
@@ -572,7 +570,7 @@
     materialization = materialization,
     component = component
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  .sha256_signature(semantic)
 }
 
 .compiler_index <- function(at) {
@@ -1112,6 +1110,15 @@
 #'   stores, the signed endpoint `$marginals`, the `$effects` names, the
 #'   measurement `$index`, and the execution `$receipt`. Read it with
 #'   [geometry_component()], [query_geometry()], or the named views.
+#'
+#'   `$result_capability` is `"complete_form"` here and `"query_only"` on a
+#'   view; it is the one field whose vocabulary is the same across every
+#'   result kind, so branch on it rather than on the displayed
+#'   `$completeness`, which reads `"full"` on an `effect_geometry` and
+#'   `"complete"` on an `effect_measurement_form`. Those two words are frozen:
+#'   `completeness` is hashed into the measurement contract signature and into
+#'   evidence-task identity, so reconciling them would invalidate recorded
+#'   identities.
 #' @seealso [plan_geometry()] then [evaluate_geometry()] for the query-first
 #'   route; [geometry_spectrum()], which requires a complete geometry.
 #' @family geometry plans and views

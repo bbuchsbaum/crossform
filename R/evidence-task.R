@@ -1,9 +1,7 @@
 # Boundary-typed evidence-task intermediate representation -----------------
 
 .evidence_boundary_signature <- function(semantic) {
-  paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  .sha256_signature(semantic)
 }
 
 .open_experimental_boundary <- function(left_space, right_space) {
@@ -112,9 +110,7 @@
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_neural_pair_query")
 }
 
@@ -310,9 +306,7 @@
     projection = projection
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_evidence_materialization")
 }
 
@@ -382,9 +376,7 @@
     lowering = operation$lowering
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_evidence_stages")
 }
 

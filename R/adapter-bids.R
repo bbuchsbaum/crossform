@@ -29,7 +29,7 @@
 .bids_file_provenance <- function(files) {
   lapply(files, function(path) list(
     file = basename(path),
-    revision = .file_sha256(path)
+    revision = .sha256_file(path)
   ))
 }
 

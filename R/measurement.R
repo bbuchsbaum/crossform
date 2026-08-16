@@ -33,9 +33,7 @@
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_axis")
 }
 
@@ -87,9 +85,7 @@
   if (estimation == "learned_frozen") {
     signature <- provenance$training_signature
     if (!identical(provenance$frozen, TRUE) ||
-        !is.character(signature) || length(signature) != 1L ||
-        is.na(signature) ||
-        !grepl("^sha256:[[:xdigit:]]{64}$", signature)) {
+        !.strong_sha256(signature)) {
       stop(paste0(
         "Learned measurement legs require frozen training provenance and ",
         "a training signature."
@@ -115,9 +111,7 @@
     decomposition = decomposition
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_leg")
 }
 
@@ -184,9 +178,7 @@
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_decomposition")
 }
 
@@ -217,9 +209,7 @@
     orientation = rebuilt$orientation,
     provenance = rebuilt$provenance
   )
-  rebuilt$signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  rebuilt$signature <- .sha256_signature(semantic)
   if (!identical(x, rebuilt)) {
     stop("Measurement-decomposition identity is inconsistent.",
       call. = FALSE)
@@ -247,9 +237,7 @@
     orientation = decomposition$orientation,
     provenance = decomposition$provenance
   )
-  decomposition$signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  decomposition$signature <- .sha256_signature(semantic)
   .validate_measurement_decomposition(decomposition)
 }
 
@@ -307,9 +295,7 @@
     }, logical(1)))) {
       list(construction = "direct_sum", components = unname(component_signatures))
     } else {
-      training <- paste0("sha256:", digest::digest(
-        component_signatures, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-      ))
+      training <- .sha256_signature(component_signatures)
       list(construction = "direct_sum", components = unname(component_signatures),
         frozen = TRUE, training_signature = training)
     },
@@ -365,9 +351,7 @@
       lower_bound = NULL
     )
   }
-  operator_signature <- paste0("sha256:", digest::digest(
-    operator, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-  ))
+  operator_signature <- .sha256_signature(operator)
   decomposition_identity <- vapply(legs, function(x) {
     if (is.null(x$decomposition)) NA_character_ else x$decomposition$signature
   }, character(1))
@@ -394,9 +378,7 @@
     legs = legs
   ), semantic[c("frame_operator", "coverage", "decomposition_identity",
     "injectivity", "dual")], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_frame")
 }
 
@@ -453,9 +435,7 @@
     right_frame = right_frame$signature,
     weighted = weighted,
     edges = table,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_measurement_edges")
 }
 
@@ -543,7 +523,7 @@
     index = frame$index,
     specification = frame$specification
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  .sha256_signature(semantic)
 }
 
 .measurement_frame_from_additive <- function(

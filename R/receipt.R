@@ -45,9 +45,7 @@ source_capabilities <- function(block_read, reopenable = FALSE,
   }, logical(1)))) {
     stop("Source capability flags must each be TRUE or FALSE.", call. = FALSE)
   }
-  if (!is.character(stable_revision) || length(stable_revision) != 1L ||
-      is.na(stable_revision) ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", stable_revision)) {
+  if (!.strong_sha256(stable_revision)) {
     stop("`stable_revision` must be a sha256 identifier with 64 hexadecimal digits.",
       call. = FALSE)
   }
@@ -70,9 +68,7 @@ source_capabilities <- function(block_read, reopenable = FALSE,
   }, logical(1)))) {
     stop("Source capability flags must each be TRUE or FALSE.", call. = FALSE)
   }
-  if (!is.character(value$stable_revision) || length(value$stable_revision) != 1L ||
-      is.na(value$stable_revision) ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", value$stable_revision)) {
+  if (!.strong_sha256(value$stable_revision)) {
     stop("Source capability revision must be one strong sha256 identifier.",
       call. = FALSE)
   }
@@ -131,10 +127,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   if (!identical(precision, "double")) {
     stop("crossform 0.1 supports only `precision = \"double\"`.", call. = FALSE)
   }
-  if (!is.null(domain_signature) &&
-      (!is.character(domain_signature) || length(domain_signature) != 1L ||
-       is.na(domain_signature) ||
-       !grepl("^sha256:[[:xdigit:]]{64}$", domain_signature))) {
+  if (!is.null(domain_signature) && !.strong_sha256(domain_signature)) {
     stop("`domain_signature` must be NULL or one strong sha256 identifier.",
       call. = FALSE)
   }
@@ -435,9 +428,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     stop("Execution receipt identities or precision are invalid.", call. = FALSE)
   }
   if (!is.null(receipt$domain_signature) &&
-      (!is.character(receipt$domain_signature) ||
-       length(receipt$domain_signature) != 1L || is.na(receipt$domain_signature) ||
-       !grepl("^sha256:[[:xdigit:]]{64}$", receipt$domain_signature))) {
+      !.strong_sha256(receipt$domain_signature)) {
     stop("Execution receipt domain signature is invalid.", call. = FALSE)
   }
   canonical_compute <- .validate_compute_policy(receipt$compute)

@@ -214,7 +214,7 @@ design_model <- function(
     specification = specification,
     provenance = provenance
   )
-  design_model_id <- .semantic_digest("design-model-sha256:", semantic)
+  design_model_id <- .sha256_signature(semantic, "design-model-sha256:")
   route <- list(
     schema_version = 1L,
     design_model_id = design_model_id,
@@ -238,9 +238,7 @@ design_model <- function(
     solver = solver,
     provenance = provenance,
     design_model_id = design_model_id,
-    compilation_route_id = .semantic_digest(
-      "design-compilation-route-sha256:", route
-    ),
+    compilation_route_id = .sha256_signature(route, "design-compilation-route-sha256:"),
     capabilities = list(
       symbolic_model = TRUE,
       coding_invariant = TRUE,
@@ -310,7 +308,7 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     row_ids = row_ids,
     provenance = provenance
   )
-  design_model_id <- .semantic_digest("raw-design-model-sha256:", semantic)
+  design_model_id <- .sha256_signature(semantic, "raw-design-model-sha256:")
   route <- list(
     schema_version = 1L,
     design_model_id = design_model_id,
@@ -328,9 +326,7 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     solver = solver,
     provenance = provenance,
     design_model_id = design_model_id,
-    compilation_route_id = .semantic_digest(
-      "design-compilation-route-sha256:", route
-    ),
+    compilation_route_id = .sha256_signature(route, "design-compilation-route-sha256:"),
     capabilities = list(
       symbolic_model = FALSE,
       coding_invariant = FALSE,

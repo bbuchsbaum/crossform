@@ -71,9 +71,9 @@ test_that("an unqueried self task packs every symmetric form coordinate", {
 
   expect_s3_class(got, "effect_form_feature_task_result")
   expect_identical(got$codec, "symmetric_packed")
-  # q(q + 1)/2 is computed in double arithmetic, unlike the rectangular
-  # width, which stays integer.
-  expect_identical(got$physical_width, 6)
+  # Both codecs report an integer physical width; `q(q + 1)/2` is computed in
+  # double arithmetic and coerced, so it does not leak a double here.
+  expect_identical(got$physical_width, 6L)
   expect_identical(got$logical_shape, c(3L, 3L))
   expect_false(got$projected)
   expect_true(got$atoms_formed)

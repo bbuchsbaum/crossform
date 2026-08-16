@@ -36,6 +36,15 @@ An \code{effect_geometry} holding the packed \verb{$total} and \verb{$coherent}
 stores, the signed endpoint \verb{$marginals}, the \verb{$effects} names, the
 measurement \verb{$index}, and the execution \verb{$receipt}. Read it with
 \code{\link[=geometry_component]{geometry_component()}}, \code{\link[=query_geometry]{query_geometry()}}, or the named views.
+
+\verb{$result_capability} is \code{"complete_form"} here and \code{"query_only"} on a
+view; it is the one field whose vocabulary is the same across every
+result kind, so branch on it rather than on the displayed
+\verb{$completeness}, which reads \code{"full"} on an \code{effect_geometry} and
+\code{"complete"} on an \code{effect_measurement_form}. Those two words are frozen:
+\code{completeness} is hashed into the measurement contract signature and into
+evidence-task identity, so reconciling them would invalidate recorded
+identities.
 }
 \description{
 \code{materialize_geometry()} explicitly materializes complete total and

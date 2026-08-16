@@ -1,9 +1,5 @@
 # Condition-vocabulary effect maps ------------------------------------------
 
-.semantic_digest <- function(prefix, value) {
-  paste0(prefix, digest::digest(value, algo = "sha256", serialize = TRUE, serializeVersion = 2L))
-}
-
 .validate_nonempty_id <- function(value, name) {
   if (!is.character(value) || length(value) != 1L || is.na(value) ||
       !nzchar(value)) {
@@ -93,7 +89,7 @@ condition_space <- function(coordinates, basis_id = "condition-means",
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = .semantic_digest("condition-space-sha256:", semantic)
+    signature = .sha256_signature(semantic, "condition-space-sha256:")
   )), class = "effect_condition_space")
 }
 
@@ -213,7 +209,7 @@ effect_map <- function(weights, conditions = colnames(weights),
       }
       units <- shared_units
     }
-    functional_revision <- .semantic_digest("sha256:", list(
+    functional_revision <- .sha256_signature(list(
       rows = effects,
       columns = conditions$coordinates,
       weights = unname(weights)
@@ -242,7 +238,7 @@ effect_map <- function(weights, conditions = colnames(weights),
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    effect_map_id = .semantic_digest("effect-map-sha256:", semantic)
+    effect_map_id = .sha256_signature(semantic, "effect-map-sha256:")
   )), class = "effect_condition_map")
 }
 
@@ -381,9 +377,7 @@ coefficient_parameterization <- function(
     semantic_rank = as.integer(rank)
   )
   structure(c(semantic[-1L], list(
-    parameterization_id = .semantic_digest(
-      "coefficient-parameterization-sha256:", semantic
-    )
+    parameterization_id = .sha256_signature(semantic, "coefficient-parameterization-sha256:")
   )), class = "effect_coefficient_parameterization")
 }
 
@@ -493,7 +487,7 @@ lower_effect_map <- function(effects, parameterization) {
     )
   )
   structure(c(semantic[-1L], list(
-    lowering_id = .semantic_digest("effect-lowering-sha256:", semantic)
+    lowering_id = .sha256_signature(semantic, "effect-lowering-sha256:")
   )), class = "effect_lowered_map")
 }
 
@@ -539,12 +533,12 @@ lower_effect_map <- function(effects, parameterization) {
         call. = FALSE)
     }
     .validate_effect_provenance(value$provenance)
-    expected_map_id <- .semantic_digest("raw-effect-map-sha256:", list(
+    expected_map_id <- .sha256_signature(list(
       target = unname(target),
       dimnames = dimnames(target),
       effect_space = effects,
       provenance = value$provenance
-    ))
+    ), "raw-effect-map-sha256:")
     if (!identical(value$effect_map_id, expected_map_id)) {
       stop("Raw effect-map identity is inconsistent.", call. = FALSE)
     }
@@ -564,7 +558,7 @@ lower_effect_map <- function(effects, parameterization) {
   } else {
     "effect-lowering-sha256:"
   }
-  if (!identical(value$lowering_id, .semantic_digest(prefix, semantic))) {
+  if (!identical(value$lowering_id, .sha256_signature(semantic, prefix))) {
     stop("Lowered-effect-map identity is inconsistent.", call. = FALSE)
   }
   value
@@ -634,12 +628,12 @@ raw_effect_map <- function(target, effects = rownames(target),
     dimnames = dimnames(target),
     effect_space = effects,
     condition_space = NULL,
-    effect_map_id = .semantic_digest("raw-effect-map-sha256:", list(
+    effect_map_id = .sha256_signature(list(
       target = unname(target),
       dimnames = dimnames(target),
       effect_space = effects,
       provenance = provenance
-    )),
+    ), "raw-effect-map-sha256:"),
     parameterization_id = NULL,
     coding_id = "raw-X-T",
     capabilities = list(
@@ -649,7 +643,7 @@ raw_effect_map <- function(target, effects = rownames(target),
     ),
     provenance = provenance
   )
-  lowering_id <- .semantic_digest("raw-effect-lowering-sha256:", semantic)
+  lowering_id <- .sha256_signature(semantic, "raw-effect-lowering-sha256:")
   structure(c(semantic[-1L], list(lowering_id = lowering_id)),
     class = c("effect_raw_map", "effect_lowered_map"))
 }

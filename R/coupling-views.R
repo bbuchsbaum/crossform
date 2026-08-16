@@ -1,9 +1,9 @@
 # Capability-gated views over completed measurement forms ------------------
 
 .coupling_result_signature <- function(fields) {
-  paste0("sha256:", digest::digest(c(
+  .sha256_signature(c(
     list(schema_version = 1L), fields
-  ), algo = "sha256", serialize = TRUE, serializeVersion = 2L))
+  ))
 }
 
 .new_coupling_result <- function(kind, values, x, normalization_axis,
@@ -126,9 +126,7 @@
     transform = unclass(transform)
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_coupling_partition_policy")
 }
 
@@ -285,8 +283,24 @@
     }
     denominator <- sqrt(blocks$left_self[[1L]] * blocks$right_self[[1L]])
     if (!is.finite(denominator) || denominator <= tolerance) {
-      stop("Pearson coupling requires strictly positive scalar self-variance.",
-        call. = FALSE)
+      # A correlation divides by this; a node that does not vary has no
+      # correlation to report, which is a capability refusal and not an
+      # arithmetic accident.
+      .capability_refusal(sprintf(paste0(
+        "Pearson coupling requires strictly positive scalar self-variance; ",
+        "edge %s has self-variances %s and %s, whose geometric mean is %s at ",
+        "tolerance %s. A node with no measured variation has no correlation."
+      ), .msg_names(blocks$edge_id), format(blocks$left_self[[1L]]),
+        format(blocks$right_self[[1L]]), format(denominator),
+        format(tolerance)),
+        capability = "nondegenerate_self_variance",
+        namespace = "coupling_views",
+        reasons = "self_variance_not_strictly_positive",
+        remedies = paste0(
+          "Drop the constant node from the edge frame, or read the ",
+          "unnormalized block with `effect_coupling()`."
+        )
+      )
     }
     value <- blocks$cross[[1L]] / denominator
     if (abs(value) > 1 + 10 * tolerance) {
@@ -549,9 +563,7 @@
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_gaussian_covariance_model")
 }
 

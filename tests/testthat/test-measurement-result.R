@@ -275,9 +275,16 @@ test_that("typed view eligibility is capability-gated before block reads", {
   expect_silent(crossform:::.require_measurement_view_capabilities(
     arbitrary, "effect_coupling"
   ))
-  expect_error(crossform:::.require_measurement_view_capabilities(
+  # Capability gating is a classed refusal, so a caller can branch on the
+  # cause rather than on the message prose.
+  refusal <- catch_refusal(crossform:::.require_measurement_view_capabilities(
     arbitrary, "covariance_coupling"
-  ), "repeated variation")
+  ))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "certified_repeated_variation")
+  expect_identical(refusal$namespace, "coupling_views")
+  expect_identical(refusal$reasons, "repeated_variation_not_certified")
+  expect_match(conditionMessage(refusal), "repeated variation")
 
   joint <- joint_measurement_fixture(crossvalidated = FALSE)
   joint_run <- crossform:::.run_measurement_contraction(joint$task,
@@ -290,9 +297,18 @@ test_that("typed view eligibility is capability-gated before block reads", {
   expect_silent(crossform:::.require_measurement_view_capabilities(
     covariance, "covariance_coupling"
   ))
-  expect_error(crossform:::.require_measurement_view_capabilities(
-    covariance, "canonical_coupling", positive_self_blocks = FALSE
-  ), "positive self-blocks")
+  unvalidated <- catch_refusal(
+    crossform:::.require_measurement_view_capabilities(
+      covariance, "canonical_coupling", positive_self_blocks = FALSE
+    )
+  )
+  expect_s3_class(unvalidated, "effect_capability_refusal")
+  expect_identical(unvalidated$capability, "coherent_joint_covariance")
+  expect_identical(unvalidated$namespace, "coupling_views")
+  # The joint covariance is certified here, so only the self-block reason is
+  # unmet: the refusal reports every unmet reason, not the first one.
+  expect_identical(unvalidated$reasons, "self_blocks_not_validated")
+  expect_match(conditionMessage(unvalidated), "positive self-blocks")
   expect_silent(crossform:::.require_measurement_view_capabilities(
     covariance, "canonical_coupling", positive_self_blocks = TRUE
   ))

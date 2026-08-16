@@ -208,9 +208,7 @@
     edge_tile = edge_tile
   )
   structure(c(semantic, list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE, serializeVersion = 2L
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_route_plan")
 }
 
