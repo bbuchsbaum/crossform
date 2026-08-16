@@ -23,6 +23,28 @@
 #'   components form a nonnegative partition, flagged by
 #'   `$coherence_fraction_valid`), the aligned `$weights`, `$index`, and
 #'   `$receipt`.
+#' @section Structure:
+#' Each value element holds one number per spatial measurement, in `$index`
+#' order.
+#'
+#' - `$signed`: the signed contrast of the local weighted mean. It keeps its
+#'   sign, so it says which way the effect goes; the energies below cannot.
+#' - `$coherent`: the part of the energy carried by the measurement's own
+#'   weighted common spatial mode.
+#' - `$configuration`: the orthogonal remainder, the pattern part.
+#' - `$total`: `$coherent + $configuration`, the crossvalidated energy of the
+#'   contrast. Cross-generalized values may be negative.
+#' - `$coherence_fraction`: `$coherent / $total`, and `NA` wherever the raw
+#'   components do not form a nonnegative partition.
+#' - `$coherence_fraction_valid`: `TRUE` exactly where that fraction was
+#'   reported.
+#' - `$weights`: the contrast, reordered to the relation's effect order and
+#'   named. Print it to confirm the alignment.
+#' - `$index`: the measurement identifiers, one per value, carried from the
+#'   frame's `$index$measurement`.
+#' - `$receipt`: the execution receipt for the run that produced the values.
+#'
+#' Any element not listed here is internal and may change.
 #' @seealso [plan_geometry()] to build `x`, [rdm()] and [rsa()] for the other
 #'   named views, and [crossnobis()] for the same total under a declared
 #'   noise-precision metric.
@@ -261,6 +283,20 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
 #'   the `left`/`right` table naming those columns, and `$component`,
 #'   `$index`, and `$receipt` record what was read. Cross-generalized
 #'   distances may be negative.
+#' @section Structure:
+#' The distances are one measurement-by-pair matrix; the other elements name
+#' its axes and record what was read.
+#'
+#' - `$values`: one row per spatial measurement, one column per requested
+#'   pair, in `$pairs` row order.
+#' - `$pairs`: a data frame whose `left` and `right` columns name the two
+#'   effects behind each column of `$values`.
+#' - `$component`: the geometry component the distances were taken from.
+#' - `$index`: the measurement identifiers, one per row of `$values`,
+#'   carried from the frame's `$index$measurement`.
+#' - `$receipt`: the execution receipt for the run that produced the values.
+#'
+#' Any element not listed here is internal and may change.
 #' @seealso [rsa()] to regress model RDMs on these distances,
 #'   [contrast_energy()] for a single contrast, and
 #'   [rdm_sampling_covariance()] for the admitted analytic uncertainty law.
@@ -312,7 +348,7 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
       "`1 - Pearson` distance and would silently change the estimand. ",
       "Conventional correlation distance requires a guaranteed ",
       "positive-semidefinite self form and its own named view; see the ",
-      "correlation-distance policy article."
+      "correlation-distance policy vignette."
     ),
       capability = "guaranteed_psd",
       namespace = "geometry_views",
@@ -537,6 +573,21 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
 #' @return An `effect_rsa_view`. `$coefficients` has one row per measurement
 #'   and one named column per model, nuisance model, and the optional
 #'   intercept; `$component`, `$index`, and `$receipt` record what was read.
+#' @section Structure:
+#' The fit is one measurement-by-term coefficient matrix; the other elements
+#' name its axes and record what was read.
+#'
+#' - `$coefficients`: one row per spatial measurement, one named column per
+#'   design term, in `$terms` row order.
+#' - `$terms`: a data frame naming each column of `$coefficients` in `term`
+#'   and labeling it `intercept`, `model`, or `nuisance` in `role`.
+#' - `$component`: the geometry component the models were regressed on.
+#' - `$index`: the measurement identifiers, one per row of `$coefficients`,
+#'   carried from the frame's `$index$measurement`.
+#' - `$receipt`: the execution receipt for the run that produced the fit.
+#'
+#' The compiled `$query` and any other element not listed here are internal
+#' and may change.
 #' @seealso [rdm()] for the distances the regression is fitted to, and
 #'   [plan_geometry()] for the plan.
 #' @family geometry plans and views
@@ -656,6 +707,20 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
 #'   and one column per eigenvalue (`root1` largest), with `$component`,
 #'   `$index`, `$receipt`, and `$indefinite_estimates_preserved = TRUE`
 #'   recording that negative eigenvalues are never truncated at zero.
+#' @section Structure:
+#' One signed spectrum per spatial measurement, with the labels that say what
+#' was decomposed.
+#'
+#' - `$values`: one row per measurement, one column per eigenvalue, ordered
+#'   `root1` (largest) through `rootq`. Negative roots are retained.
+#' - `$component`: the geometry component that was decomposed.
+#' - `$index`: the measurement identifiers, one per row of `$values`, carried
+#'   from the decomposed form.
+#' - `$indefinite_estimates_preserved`: always `TRUE`, recording that no
+#'   eigenvalue was truncated at zero.
+#' - `$receipt`: the execution receipt of the form that was decomposed.
+#'
+#' Any element not listed here is internal and may change.
 #' @seealso [materialize_geometry()], which produces the complete geometry
 #'   this view requires, and [rdm()] for the linear distance view.
 #' @family geometry plans and views

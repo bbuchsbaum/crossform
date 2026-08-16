@@ -1465,6 +1465,59 @@ print.effect_form <- function(x, ...) {
   invisible(x)
 }
 
+# Query-first geometry plans -------------------------------------------------
+
+# The plan is the object a user is told to keep with an analysis record, so the
+# default block says what was declared, in the words the declaration used. The
+# compiler's own vocabulary -- how the metric is lowered, how large a full
+# materialization would be -- is real but is not what the record is for, so it
+# is shown only on request.
+.geometry_plan_lines <- function(x, detail = FALSE) {
+  metric <- x$metric_schedule$metric
+  metric_status <- if (is.null(metric)) {
+    "implicit identity"
+  } else if (isTRUE(metric$capabilities$learned_frozen)) {
+    "fixed (learned, frozen before evaluation)"
+  } else {
+    "fixed"
+  }
+  axis <- attr(x$pairing, "generalizes_over", exact = TRUE)
+  independence <- attr(x$pairing, "independence", exact = TRUE)
+  lines <- c(
+    "<effect_geometry_plan>",
+    sprintf("  effects:      %d x %d", x$logical_shape[[1L]],
+      x$logical_shape[[2L]]),
+    sprintf("  measurements: %d", x$measurements),
+    sprintf("  features:     %d", x$task$left_relation$n_features),
+    sprintf("  metric:       %s", metric_status),
+    sprintf("  generalizes:  %d partition pairs%s, endpoints %s",
+      nrow(x$pairing),
+      if (is.null(axis)) " (axis undeclared)" else paste0(" over ", axis),
+      independence),
+    "  execution:    query-first, in memory"
+  )
+  if (isTRUE(detail)) {
+    payload <- structure(x$dense_payload_bytes, class = "object_size")
+    lines <- c(lines,
+      sprintf("  lowering:     %s", x$lowering),
+      sprintf("  dense payload: %s", format(payload, units = "auto")),
+      sprintf("  codec:        %s", x$codec),
+      sprintf("  plan id:      %s", .pf_sig(x$scientific_plan_id)),
+      sprintf("  signature:    %s", .pf_sig(x$signature))
+    )
+  }
+  c(lines,
+    "  state:        nothing computed yet",
+    "  next:         contrast_energy(plan, weights), rdm(plan), rsa(plan)")
+}
+
+#' @export
+print.effect_geometry_plan <- function(x, detail = FALSE, ...) {
+  .validate_geometry_plan(x, deep = FALSE)
+  cat(paste0(.geometry_plan_lines(x, detail = detail), "\n"), sep = "")
+  invisible(x)
+}
+
 # The worked example bundle --------------------------------------------------
 
 #' @export
@@ -1477,9 +1530,10 @@ print.effect_example_effects <- function(x, ...) {
     contrast = paste0(length(x$contrast), " weights (",
       .pf_num(x$contrast), ")"),
     model_rdm = paste0(.pf_dim(x$model_rdm), " model dissimilarities"),
-    truth = paste0(length(truth$planted_features), " planted features, ",
-      length(truth$signal_measurements), " signal measurements, seed ",
-      truth$seed),
+    planted = paste0(length(truth$planted_features), " pattern voxels + ",
+      length(truth$mean_features), " mean-shift voxels"),
+    truth = paste0(length(truth$signal_measurements),
+      " signal measurements, seed ", truth$seed),
     `next` = "plan_geometry(example$fit$relation, example$frame, pairing)"
   ))
   invisible(x)

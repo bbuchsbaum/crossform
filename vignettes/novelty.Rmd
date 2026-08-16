@@ -2,7 +2,11 @@
 title: "What is novel in crossform?"
 description: >
   The evidence-pairing calculus, the executable estimand contract, and an audited ledger separating what is demonstrated from what is still gated.
-output: rmarkdown::html_document
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{What is novel in crossform?}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 `crossform` is an estimand compiler for second-order neuroimaging analysis.
@@ -124,7 +128,8 @@ contained in the bilinear core.
 In particular, Pearson correlation distance is outside that core because its
 per-pattern norm is nonlinear in the fitted patterns. The package gives that
 boundary a named policy rather than a quiet escape hatch; see
-[the correlation-distance policy](correlation-distance-policy.html).
+[the correlation-distance policy](correlation-distance-policy.html)
+(`vignette("correlation-distance-policy", package = "crossform")` offline).
 
 ## What is distinctive
 
@@ -166,7 +171,9 @@ the remainder "purely multivariate." The implementation and numerical laws
 exist, and the one-plan family — signed contrast, the three energies with
 exact recomposition, the RDM, the RSA coefficient, and the admitted analytic
 standard error — is demonstrated on a generated planted-truth fixture in the
-[introduction vignette](introduction.html). That is Gate 2 in the ledger below.
+[introduction vignette](introduction.html)
+(`vignette("introduction", package = "crossform")` offline). That is Gate 2 in
+the ledger below.
 No real-data decomposition narrative has shipped, so the empirical reading of
 the accounting is still weaker than its algebraic one.
 
@@ -265,10 +272,12 @@ reverse-engineered from the spread of their edges. Refusals are classed
 conditions: `catch_refusal()` returns the missing capability, every unmet
 reason, and remedies as data, and `sampling_capabilities()` answers the
 admission question before it is provoked. The executable
-[failure gallery](failure-gallery.html) shows six realistic errors that the
-package guards against. Callable unsupported interpretations return classed
-refusals; clipping is absent rather than offered as a biased option; and
-changes in generalization produce distinct estimand identities.
+[failure gallery](failure-gallery.html)
+(`vignette("failure-gallery", package = "crossform")` offline) shows six
+realistic errors that the package guards against. Callable unsupported
+interpretations return classed refusals; clipping is absent rather than
+offered as a biased option; and changes in generalization produce distinct
+estimand identities.
 
 ## Evidence ledger
 
@@ -282,18 +291,18 @@ be audited rather than believed.
 
 | Claim | Status | Evidence artifact and boundary |
 |---|---|---|
-| Raw observations to identified relation | **Demonstrated** | A versioned four-run fixture binds unequal observation axes, timed events, scan-level confounds, censoring, semantic effects, and fixed or learned observation models; it agrees with direct extractor/relation oracles, the legacy `lm_relation_fit()` route, and the installed `fmrireg` adapter before proceeding through geometry, RDM, RSA, and admitted covariance: [`test-first-moment-vertical-slice.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-first-moment-vertical-slice.R), [`run-first-moment-vertical-slice.R`](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-first-moment-vertical-slice.R), and the [from-observations vignette](from-observations.html). This proves one serious linear vertical slice, not general BIDS or GLM coverage. |
+| Raw observations to identified relation | **Demonstrated** | A versioned four-run fixture binds unequal observation axes, timed events, scan-level confounds, censoring, semantic effects, and fixed or learned observation models; it agrees with direct extractor/relation oracles, the legacy `lm_relation_fit()` route, and the installed `fmrireg` adapter before proceeding through geometry, RDM, RSA, and admitted covariance: [`test-first-moment-vertical-slice.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-first-moment-vertical-slice.R), [`run-first-moment-vertical-slice.R`](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-first-moment-vertical-slice.R), and the [from-observations vignette](from-observations.html) (`vignette("from-observations", package = "crossform")` offline). This proves one serious linear vertical slice, not general BIDS or GLM coverage. |
 | Two-sided evidence-pairing laws | **Established algebraically** | Forward, adjoint, scalar, rectangular, reversal, decomposition, and tomography identities against independent bounded oracles: [`helper-evidence-pairing-laws.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/helper-evidence-pairing-laws.R), [`helper-effect-form-laws.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/helper-effect-form-laws.R), [`test-tomography.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-tomography.R). Algebraic and software evidence, not a scientific benchmark. |
 | Crossnobis point parity | **Demonstrated** | The Haxby 2001 exemplar agrees with an independent loop to `1.33e-15` and rMVPA to `8.88e-16` over 577 VT searchlights: [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001). Matched crossvalidated squared-Euclidean/crossnobis estimand, not correlation distance. |
 | Error-bearing refit and linear uncertainty transport | **Demonstrated under an admitted model** | Refit reproduces the point RDM to `4.44e-16`; a fixed linear RSA coefficient consumes factorized analytic covariance: [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001), [`test-evidence-sampling-kernel.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-kernel.R), [`test-evidence-sampling-generative.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-generative.R). Boundary: the declared equal-partition, fixed-metric, separable plug-in model. |
 | Query-first execution at scale | **Demonstrated** | Recorded gate artifact at q = 100 over 1,080 searchlights: selected 100 pairs 0.27 s, full fused RDM 5.16 s vs 13.40 s materialize-then-project, oracle error `4.4e-16`, and a maximum fresh-worker incremental R heap of 291 MB (277 MiB): [`benchmarks/run-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-query-first-scale.R), [`benchmark-results/query-first-scale-gate.rds`](https://github.com/bbuchsbaum/crossform/tree/main/benchmark-results), [`test-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-query-first-scale.R). The materialized comparator remains in the timing court but outside the query-first memory claim; the heap receipt is not presented as OS RSS. |
-| Coherent/configuration family | **Demonstrated** | One plan yields the signed contrast, the three energies with exact recomposition, the RDM, the RSA coefficient, and the admitted analytic SE, with planted-effect recovery (signal carried by configuration; null regions centered on zero): the [introduction vignette](introduction.html) with executable checks, plus [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R) and [`test-measurement-decomposition.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-measurement-decomposition.R). A real-data decomposition narrative on Haxby remains desirable but is no longer the gate. |
+| Coherent/configuration family | **Demonstrated** | One plan yields the signed contrast, the three energies with exact recomposition, the RDM, the RSA coefficient, and the admitted analytic SE, with planted-effect recovery (signal carried by configuration; null regions centered on zero): the [introduction vignette](introduction.html) (`vignette("introduction", package = "crossform")` offline) with executable checks, plus [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R) and [`test-measurement-decomposition.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-measurement-decomposition.R). A real-data decomposition narrative on Haxby remains desirable but is no longer the gate. |
 | Rectangular cross-domain analysis | **Implemented** | Public constructor, query-first pair queries, oracle parity, and materialized recomposition: [`test-rectangular-plan.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-rectangular-plan.R). A real match/control, pair-covariate analysis is Gate 3. |
 | Adjoint coupling from the plan vocabulary | **Implemented** | `coupling(plan, between, by)` compiles the adjoint closure against the plan's own frame and pairing, small-node contract enforced: [`test-coupling-views.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-coupling-views.R). |
 | Generalization axis in estimand identity | **Implemented** | Typed `generalizes_over` bound into task and metric-pairing identity; cross-run vs cross-session distinct under identical generic labels: [`test-generalization-axis.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-generalization-axis.R). |
 | Route-stable view identity | **Implemented** | Fused query-first and materialize-then-project executions of one estimand carry one scientific id with distinct execution receipts: [`test-route-identity.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-route-identity.R), [`test-effect-form-certification.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-effect-form-certification.R). |
 | Spatial conservation | **Implemented** | `frame_conservation()` diagnostic plus public tests with the unnormalized global comparator and the total-only boundary stated: [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R). The overlap-accounting demonstration is Gate 4. |
-| Refusal discipline | **Implemented** | Classed `effect_capability_refusal` conditions with all-reasons reporting, `catch_refusal()`, `sampling_capabilities()`, and the executable [failure gallery](failure-gallery.html): [`test-capability-refusals.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-capability-refusals.R). |
+| Refusal discipline | **Implemented** | Classed `effect_capability_refusal` conditions with all-reasons reporting, `catch_refusal()`, `sampling_capabilities()`, and the executable [failure gallery](failure-gallery.html) (`vignette("failure-gallery", package = "crossform")` offline): [`test-capability-refusals.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-capability-refusals.R). |
 | Cross-package speed advantage | **Not demonstrated** | The recorded matched-estimand comparison is internal (fused vs materialized routes of one plan). No cross-package speedup is claimed; that would require matched estimands, independent parity, warm-up, repeated timings, hardware, and map-scale budgets against the other implementation. |
 
 Reproducible Haxby scripts and qualifications are in
@@ -310,8 +319,9 @@ sections are promoted only as these gates land:
 2. **Inherited decomposition family:** one plan yields signed, coherent,
    configuration, total, RDM, and RSA outputs, with additive recomposition and
    planted-effect interpretation. **Landed:** the
-   [introduction vignette](introduction.html) demonstrates the full
-   family from one plan with executable recomposition and planted-truth
+   [introduction vignette](introduction.html)
+   (`vignette("introduction", package = "crossform")` offline) demonstrates the
+   full family from one plan with executable recomposition and planted-truth
    checks.
 3. **Real rectangular analysis:** distinct unequal axes, match/control coding,
    pair-space covariates, missing items, and explicit operation order. *Open;
@@ -327,9 +337,10 @@ sections are promoted only as these gates land:
    normalization, negative clipping, destructive demeaning claims,
    generalization identity changes, undeclared independence, and
    learned-metric leakage. **Landed:**
-   see the [failure gallery](failure-gallery.html). Callable unsupported
-   interpretations use classed refusals; the gallery also documents absent
-   transformations and estimand-identity guards.
+   see the [failure gallery](failure-gallery.html)
+   (`vignette("failure-gallery", package = "crossform")` offline). Callable
+   unsupported interpretations use classed refusals; the gallery also
+   documents absent transformations and estimand-identity guards.
 
 The decisive comparison is not "which RSA toolbox has more methods?" It is:
 reproduce an established RDM-first result as a specialization, then obtain a

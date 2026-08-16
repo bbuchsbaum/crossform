@@ -39,7 +39,12 @@
 #' @section Start here:
 #'
 #' - `vignette("introduction")` --- the guided entry point, from a ready
-#'   relation through contrasts, RDMs, RSA, and standard errors.
+#'   relation through contrasts, RDMs, RSA, and standard errors. Nine vignettes
+#'   ship with the package; `vignette(package = "crossform")` lists them. They
+#'   are present only if the package was installed with its vignettes built ---
+#'   `remotes::install_local(".", build_vignettes = TRUE)`, or `R CMD build`
+#'   followed by `R CMD INSTALL` --- and are otherwise readable at
+#'   <https://bbuchsbaum.github.io/crossform/>.
 #' - [example_fmri_effects()] --- a generated fixture with known truth, so the
 #'   whole workflow runs after installation and can check its own answer.
 #' - [plan_geometry()] --- compile a relation, frame, and pairing into a plan.

@@ -581,6 +581,26 @@ print.effect_crossnobis_plan <- function(x, ...) {
 #'   crossvalidated squared Mahalanobis value per spatial measurement, with
 #'   the aligned `$contrast`, the named `$estimand`, the `$metric` and
 #'   `$pairing` identities, `$index`, and the executed `$receipt`.
+#' @section Structure:
+#' One signed value per spatial measurement, alongside the declarations that
+#' make it a Mahalanobis reading.
+#'
+#' - `$values`: the signed crossvalidated squared Mahalanobis contrast, one
+#'   per measurement, in `$index` order. Negative estimates are retained.
+#' - `$contrast`: the weights, reordered to the relation's effect order and
+#'   named.
+#' - `$estimand`: the named estimand,
+#'   `"crossvalidated_squared_mahalanobis_contrast"`.
+#' - `$metric`: the signature of the noise-precision metric the values were
+#'   read under.
+#' - `$pairing`: the identity of the independent partition edges they were
+#'   generalized over.
+#' - `$index`: the measurement identifiers, one per value, carried from the
+#'   frame's `$index$measurement`.
+#' - `$receipt`: the execution receipt for the run that produced the values.
+#'
+#' The `$metadata` block and any other element not listed here are internal
+#' and may change.
 #' @seealso [noise_precision()] for the fixed metric a geometry plan needs,
 #'   [plan_crossnobis()] for the learned-metric route, and
 #'   [contrast_energy()] for the decomposed reading of the same estimand.

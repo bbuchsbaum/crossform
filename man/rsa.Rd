@@ -42,6 +42,25 @@ the plan rather than as a second analysis of a stored RDM. Model rows and
 columns are aligned to the relation's effect names before any geometry is
 read.
 }
+\section{Structure}{
+
+The fit is one measurement-by-term coefficient matrix; the other elements
+name its axes and record what was read.
+\itemize{
+\item \verb{$coefficients}: one row per spatial measurement, one named column per
+design term, in \verb{$terms} row order.
+\item \verb{$terms}: a data frame naming each column of \verb{$coefficients} in \code{term}
+and labeling it \code{intercept}, \code{model}, or \code{nuisance} in \code{role}.
+\item \verb{$component}: the geometry component the models were regressed on.
+\item \verb{$index}: the measurement identifiers, one per row of \verb{$coefficients},
+carried from the frame's \verb{$index$measurement}.
+\item \verb{$receipt}: the execution receipt for the run that produced the fit.
+}
+
+The compiled \verb{$query} and any other element not listed here are internal
+and may change.
+}
+
 \section{Refusal}{
 
 A rectangular cross-axis plan or a non-symmetric form signals an

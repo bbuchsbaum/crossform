@@ -49,10 +49,10 @@ c(
 ```
 
 `example$fit` contains four run-specific estimates for four conditions in a
-small 7 by 7 by 5 volume. `example$frame` defines the 245 searchlights at which
-the analysis will report results. The generator returns the frame separately
-because a fitted relation records the neural domain but does not own a mutable
-searchlight definition.
+small 8 by 7 by 5 volume. `example$frame` defines the 280 searchlights at which
+the analysis will report results, one centered on each voxel. The generator
+returns the frame separately because a fitted relation records the neural
+domain but does not own a mutable searchlight definition.
 
 The fit provides two kinds of information:
 
@@ -61,6 +61,47 @@ The fit provides two kinds of information:
 - its error channel stores residual blocks, residual degrees of freedom, and
   effect-coordinate covariance for uncertainty calculations whose assumptions
   the fit can support.
+
+`example$truth` records what was planted: two blocks of 19 voxels, at opposite
+ends of the longest axis, never overlapping, at the same per-voxel amplitude.
+They differ only in sign structure. In the **pattern** block the sign
+alternates between neighboring voxels, so the block's local average nearly
+cancels. In the **mean** block every voxel moves the same way. Same effect
+size, different *kind* of effect — the section on kinds below turns entirely
+on that difference.
+
+```{r truth}
+c(
+  pattern_voxels = length(example$truth$planted_features),
+  mean_voxels = length(example$truth$mean_features),
+  pattern_searchlights = length(example$truth$pattern_measurements),
+  mean_searchlights = length(example$truth$mean_measurements),
+  signal_searchlights = length(example$truth$signal_measurements)
+)
+```
+
+```{r truth-check, include=FALSE}
+stopifnot(
+  length(example$truth$planted_features) == 19L,
+  length(example$truth$mean_features) == 19L,
+  length(example$truth$pattern_measurements) == 52L,
+  length(example$truth$mean_measurements) == 52L,
+  length(intersect(
+    example$truth$pattern_measurements, example$truth$mean_measurements
+  )) == 0L,
+  identical(
+    example$truth$signal_measurements,
+    sort(union(
+      example$truth$pattern_measurements, example$truth$mean_measurements
+    ))
+  )
+)
+```
+
+A searchlight counts as planted if it gives any weight to a planted voxel, so
+each 19-voxel block occupies 52 of the 280 searchlights and the two sets stay
+disjoint. `signal_searchlights` is their union, and it is what the figures
+below highlight.
 
 ## Declare what must generalize
 
@@ -86,11 +127,12 @@ six run pairs as six independent samples. `plan_geometry()` checks that the
 relation, condition names, searchlight frame, metric, units, and neural domain
 agree before it reads neural values.
 
-Read the last line of that print. The plan is query-first: it holds the identity
-of the quantity, and nothing has been materialized yet. Save `plan` with the
-analysis record. It identifies the estimand: the scientific quantity the
-analysis is meant to estimate. Changing block size or storage changes the
-execution receipt, not this plan identity.
+Read the `execution` and `state` lines of that print. The plan is query-first:
+it holds the identity of the quantity, and nothing has been materialized yet.
+Save `plan` with the analysis record. It identifies the estimand: the
+scientific quantity the analysis is meant to estimate. Changing block size or
+storage changes the execution receipt, not this plan identity, and
+`print(plan, detail = TRUE)` is where those execution internals are shown.
 
 ### Choosing what must generalize
 
@@ -166,11 +208,15 @@ measure cross-run reproducibility:
   weighted mean;
 - `total` is their sum.
 
+The peak sits inside the pattern block, and its energy is almost entirely
+`configuration` — its signed contrast is close to zero. Hold that; it is the
+subject of the next section.
+
 Because the fixture planted its signal in known searchlights, the answer can be
-drawn against the truth. `highlight` marks those searchlights in the picture;
+drawn against the truth. `highlight` marks both planted blocks in the picture;
 it plays no part in the estimate.
 
-```{r contrast-plot, fig.width=8, fig.height=4, fig.cap="Left: every searchlight in the coherent/configuration plane, with the dashed guides at constant total energy. Right: total energy along the searchlight index. The planted searchlights are filled."}
+```{r contrast-plot, fig.width=8, fig.height=4, fig.cap="Left: every searchlight in the coherent/configuration plane, with the dashed guides at constant total energy. The two planted blocks separate along the two axes. Right: total energy along the searchlight index. The planted searchlights are filled."}
 plot(
   effect,
   highlight = example$truth$signal_measurements,
@@ -180,7 +226,8 @@ plot(
 
 ```{r contrast-check, include=FALSE}
 stopifnot(
-  peak %in% example$truth$signal_measurements,
+  peak %in% example$truth$pattern_measurements,
+  effect$configuration[peak] > 0.99 * effect$total[peak],
   isTRUE(all.equal(
     effect$total, effect$coherent + effect$configuration, tolerance = 1e-14
   ))
@@ -203,7 +250,8 @@ summarize_region <- function(index) c(
 )
 signal_searchlights <- example$truth$signal_measurements
 region_summary <- rbind(
-  signal = summarize_region(signal_searchlights),
+  pattern = summarize_region(example$truth$pattern_measurements),
+  mean = summarize_region(example$truth$mean_measurements),
   outside = summarize_region(
     setdiff(seq_along(effect$total), signal_searchlights)
   )
@@ -213,25 +261,34 @@ round(region_summary, 3)
 
 ```{r planted-summary-check, include=FALSE}
 stopifnot(
-  region_summary["signal", "configuration"] >
-    region_summary["signal", "coherent"],
+  abs(region_summary["pattern", "total"] - region_summary["mean", "total"]) <
+    0.01,
+  region_summary["pattern", "configuration"] >
+    10 * region_summary["pattern", "coherent"],
+  region_summary["mean", "coherent"] >
+    region_summary["mean", "configuration"],
   abs(region_summary["outside", "total"]) < 0.01,
   region_summary["outside", "fraction_below_zero"] > 0.4,
   region_summary["outside", "fraction_below_zero"] < 0.6
 )
 ```
 
-Outside the planted searchlights the mean total energy is within `0.01` of zero
-and roughly half the estimates are below it. That is what a correctly centered
-null looks like, and you can see it rather than assume it.
+The two blocks carry the same total energy to within `0.01` — they were
+planted at the same amplitude — and divide it in opposite directions: the
+pattern block puts more than ten times as much into configuration as into
+coherent, the mean block puts more into coherent than into configuration.
+Outside them the mean total energy is `0.003` and roughly half the estimates
+fall below zero. That is what a correctly centered null looks like, and you can
+see it rather than assume it.
 
-```{r contrast-map, echo=FALSE, fig.cap="Cross-generalized contrast energy in the middle slice. The generated signal is centered in the volume; the map checks the analysis and is not empirical evidence."}
+```{r contrast-map, echo=FALSE, fig.cap="Cross-generalized contrast energy in the middle slice, on a scale centered at zero: white is the noise floor, red is reproducible energy. The two generated blocks sit at opposite ends of the long axis, which runs vertically here. The map checks the analysis and is not empirical evidence."}
 volume <- array(NA_real_, dim = example$domain$metadata$dim)
 volume[example$domain$metadata$mask] <- effect$total
 middle <- ceiling(dim(volume)[3] / 2)
+limit <- max(abs(effect$total))
 image(
   t(volume[, , middle]), axes = FALSE, asp = 1,
-  col = hcl.colors(24, "Blue-Red 3", rev = TRUE),
+  zlim = c(-limit, limit), col = hcl.colors(25, "Blue-Red 3"),
   main = sprintf("Middle slice (z = %d)", middle)
 )
 box()
@@ -258,52 +315,107 @@ The coherent and configuration modes are orthogonal under the weights declared
 by the frame. They need not be orthogonal under an unweighted Euclidean inner
 product.
 
-In the region summary above, the planted searchlights carry more configuration
-than coherent energy. That is the signature of a multivariate pattern a
-univariate map would miss: the sphere reproduces a *shape*, while its average
-response barely moves. Nothing was removed to see this, and nothing was fitted
-twice; the split is a property of the plan.
+The two planted blocks make the split concrete, because they are the same
+effect size and a different kind of effect. Take the strongest searchlight in
+each:
+
+```{r two-kinds}
+strongest_in <- function(index) index[[which.max(effect$total[index])]]
+pattern_peak <- strongest_in(example$truth$pattern_measurements)
+mean_peak <- strongest_in(example$truth$mean_measurements)
+readout <- function(measurement) c(
+  signed = effect$signed[measurement],
+  coherent = effect$coherent[measurement],
+  configuration = effect$configuration[measurement],
+  total = effect$total[measurement]
+)
+kinds <- rbind(
+  pattern_block = readout(pattern_peak),
+  mean_block = readout(mean_peak)
+)
+round(kinds, 3)
+```
+
+```{r two-kinds-check, include=FALSE}
+stopifnot(
+  pattern_peak == peak,
+  abs(kinds["pattern_block", "total"] - kinds["mean_block", "total"]) < 0.2,
+  kinds["pattern_block", "configuration"] >
+    0.99 * kinds["pattern_block", "total"],
+  kinds["mean_block", "coherent"] > 0.99 * kinds["mean_block", "total"],
+  abs(kinds["mean_block", "signed"]) >
+    30 * abs(kinds["pattern_block", "signed"])
+)
+```
+
+Both peaks carry about `4` units of reproducible energy. The pattern block puts
+essentially all of it into `configuration`; the mean block puts essentially all
+of it into `coherent`. That first row is the signature of a multivariate
+pattern a univariate map would miss: the sphere reproduces a *shape*, while its
+average response barely moves. Nothing was removed to see this, and nothing was
+fitted twice; the split is a property of the plan.
 
 "A univariate map would miss it" is checkable here. `signed` is a first
 moment — the ordinary contrast of the frame-weighted mean pattern, carrying
 your effect's units and sign — while the three energies are second moments,
 squared and crossvalidated. `signed` can therefore only ever see the coherent
-half.
+half — and at the pattern block there is almost no coherent half to see. Take
+the largest signed value anywhere outside the two blocks as the signed noise
+level, and ask how far each block stands above it:
 
 ```{r signed-versus-configuration}
 outside <- setdiff(seq_along(effect$total), signal_searchlights)
+pattern <- example$truth$pattern_measurements
 largest_signed_outside <- max(abs(effect$signed[outside]))
-quiet_but_reproducing <- signal_searchlights[
-  abs(effect$signed[signal_searchlights]) < largest_signed_outside
-]
-c(
-  largest_signed_outside_signal = largest_signed_outside,
-  planted_below_that_signed_level = length(quiet_but_reproducing),
-  planted_total = length(signal_searchlights),
-  their_largest_total_energy = max(effect$total[quiet_but_reproducing])
+largest_total_outside <- max(effect$total[outside])
+clearing <- function(index) {
+  sum(abs(effect$signed[index]) >= largest_signed_outside)
+}
+comparison <- c(
+  signed_noise_level = largest_signed_outside,
+  mean_block_clearing_it = clearing(example$truth$mean_measurements),
+  pattern_block_clearing_it = clearing(pattern),
+  pattern_signed_over_noise =
+    stats::median(abs(effect$signed[pattern])) / largest_signed_outside,
+  pattern_energy_over_noise =
+    stats::median(effect$total[pattern]) / largest_total_outside,
+  signed_at_the_energy_peak = abs(effect$signed[peak]),
+  total_at_the_energy_peak = effect$total[peak],
+  largest_total_outside = largest_total_outside
 )
+round(comparison, 3)
 ```
 
 ```{r signed-versus-configuration-check, include=FALSE}
 stopifnot(
-  length(quiet_but_reproducing) > 10L,
-  max(effect$total[quiet_but_reproducing]) >
-    50 * max(effect$total[outside])
+  comparison[["mean_block_clearing_it"]] ==
+    length(example$truth$mean_measurements),
+  comparison[["pattern_signed_over_noise"]] < 3,
+  comparison[["pattern_energy_over_noise"]] > 20,
+  abs(effect$signed[peak]) < largest_signed_outside,
+  effect$total[peak] > 100 * largest_total_outside
 )
 ```
 
-Seventeen of the 57 planted searchlights have a signed contrast smaller than
-the largest signed value anywhere outside the signal, so a signed map cannot
-distinguish them from noise. One of them still carries `1.99` of reproducible
-energy, against a largest-elsewhere total of `0.03`. The energies see what the
-first moment cannot.
+Every one of the 52 mean-block searchlights clears that level: the first moment
+sees that block perfectly well. The pattern block is a different story. Its
+alternating signs do not cancel exactly, so most of its searchlights clear the
+level too — but only by about twice the noise level, where their energies
+clear it by more than fifty times. And the single strongest searchlight in the
+whole volume, the one you would actually report, has a signed contrast of
+`0.052`, *smaller* than the `0.154` noise level. A signed map ranks the best
+result in the volume below pure noise, while its total energy of `4.10` stands
+against a largest-elsewhere total of `0.03`. The energies see both blocks; the
+first moment sees only one of them clearly.
 
 `contrast_energy()` also reports `coherence_fraction`, the share of reproducible
 energy carried by the local mean, but only where the components form a
 nonnegative partition. Elsewhere it is `NA`, because a ratio whose denominator
-can be negative is not a share of anything. The
+can be negative is not a share of anything; printing a contrast view repeats
+that caveat under the table. The
 [interpreting-results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html)
-article covers how to read that fraction and the three ways it can mislead you.
+article (`vignette("interpreting-results")`) covers how to read that fraction
+and the three ways it can mislead you.
 
 ## Change the question without refitting
 
@@ -348,8 +460,8 @@ round(category_fit$coefficients[peak, ], 3)
 peak_distances <- distances$values[peak, ]
 within_category <- c("face - body", "house - tool")
 stopifnot(
-  identical(dim(distances$values), c(245L, 6L)),
-  identical(dim(category_fit$coefficients), c(245L, 2L)),
+  identical(dim(distances$values), c(280L, 6L)),
+  identical(dim(category_fit$coefficients), c(280L, 2L)),
   category_fit$coefficients[peak, "category"] > 0,
   # The animate/inanimate block structure the text describes.
   max(peak_distances[within_category]) <
@@ -369,7 +481,7 @@ dim(rdm(plan, pairs = rbind(c("face", "house")))$values)
 
 ```{r rdm-pairs-check, include=FALSE}
 stopifnot(
-  identical(dim(rdm(plan, pairs = rbind(c("face", "house")))$values), c(245L, 1L))
+  identical(dim(rdm(plan, pairs = rbind(c("face", "house")))$values), c(280L, 1L))
 )
 ```
 
@@ -475,60 +587,36 @@ before you provoke it.
 
 ## Use your own data
 
-The three routes below all end at a plan you can pass to `contrast_energy()`,
-`rdm()`, and `rsa()`. They differ only in what you start from, and therefore in
-whether analytic standard errors remain available. Each one runs as written; the
-generated inputs stand in for yours.
+`example_fmri_effects()` handed you a fitted relation; yours has to be built.
+Every route ends at a plan you can pass to `contrast_energy()`, `rdm()`, and
+`rsa()`. They differ only in what you start from, and therefore in whether the
+analytic standard errors above remain admitted.
 
-### From beta matrices
-
-If independent runs already contain condition-by-feature estimates, build a
-point relation directly. The relation needs a named list of matrices with one
-row per condition, a named effect space, and a neural domain.
-
-```{r own-betas}
-set.seed(20260815)
-condition_names <- c("face", "body", "house", "tool")
-native_domain <- abstract_domain(60L, id = "own-betas:v1")
-
-# Substitute your own: one condition-by-feature matrix per run, rows named.
-beta_runs <- lapply(seq_len(3), function(run) matrix(
-  rnorm(length(condition_names) * native_domain$n_features),
-  nrow = length(condition_names),
-  dimnames = list(condition_names, native_domain$feature_ids)
-))
-names(beta_runs) <- paste0("run", seq_len(3))
-
-rel <- relation(
-  beta_runs,
-  effects = effect_space(condition_names, units = "percent-signal"),
-  domain = native_domain
-)
-own_plan <- plan_geometry(
-  rel,
-  compile_frame(whole_brain(), native_domain),
-  cross_partitions(rel, independence = "independent", generalizes_over = "run")
-)
-own_plan
-```
-
-`abstract_domain()` is the right domain when the features are just a list of
-columns. `whole_brain()` reports one measurement over all of them, which is the
-simplest frame to check a pipeline against.
+The route below is the common one: beta matrices in a volume, which is also the
+starting point that makes searchlights available. It runs as written; the
+generated inputs stand in for yours. Two other starting points — raw
+scan-by-feature responses with an already-compiled design, which keeps the
+residual channel, and beta matrices over a bare list of feature columns, which
+does not — are worked in `vignette("from-observations")`.
 
 ### From beta matrices in a volume
 
-Give the domain a mask and voxel spacing, and searchlights become available.
-Nothing downstream changes: the same relation, pairing, and views apply, and the
-result simply has one row per searchlight instead of one row overall.
+If independent runs already contain condition-by-voxel estimates, build a point
+relation directly. It needs a named list of matrices with one row per
+condition, a named effect space, and a neural domain. Give that domain a mask
+and voxel spacing and searchlights become available. Nothing downstream
+changes: the same relation, pairing, and views apply, and the result simply has
+one row per searchlight.
 
 So that there is something to find, twelve voxels below carry the same
 face-minus-house pattern in every run, alternating in sign so that the regional
-mean stays near zero. Delete those three lines when you substitute your own
-betas.
+mean stays near zero — the fixture's pattern block trick, done by hand. Delete
+`volume_planted`, `volume_pattern`, and the two lines that add them to `b` when
+you substitute your own betas.
 
 ```{r own-betas-volume}
 set.seed(20260816)
+condition_names <- c("face", "body", "house", "tool")
 mask <- array(TRUE, c(8L, 8L, 6L))
 mask_domain <- volume_domain(mask, spacing = c(3, 3, 3))
 volume_frame <- compile_frame(searchlights(radius = 4), mask_domain)
@@ -599,7 +687,6 @@ c(
 ```{r own-betas-checks, include=FALSE}
 stopifnot(
   identical(dim(rdm(volume_plan)$values), c(sum(mask), 6L)),
-  nrow(compile_frame(whole_brain(), native_domain)$index) == 1L,
   sum(ranked[seq_along(touching)] %in% touching) == length(touching),
   max(volume_effect$total[-touching]) < 0.1 * max(volume_effect$total),
   all(volume_effect$configuration[touching] > volume_effect$coherent[touching])
@@ -610,9 +697,11 @@ The largest energies in the map are exactly the searchlights that touch the
 planted voxels, every one of them is configuration-dominated, and about half of
 the rest fall below zero.
 
-Either relation is enough for `contrast_energy()`, `rdm()`, and `rsa()`. Neither
-can supply the analytic standard errors shown above, for the reason the refusal
-gave: beta matrices contain no residuals and no residual degrees of freedom.
+This relation is enough for `contrast_energy()`, `rdm()`, and `rsa()`. It
+cannot supply the analytic standard errors shown above, for the reason the
+refusal gave: beta matrices contain no residuals and no residual degrees of
+freedom. Keeping them means starting further back, which is what
+`vignette("from-observations")` covers.
 
 ### Reading a map without ground truth
 
@@ -630,86 +719,25 @@ Your own data will not come with `volume_planted`, and the figure still works.
 What the figure does not give you is a threshold or a p-value. `crossform`
 performs no spatial and no group inference, and it will not invent a null
 distribution over measurements for you. A within-measurement standard error is
-available, but only from a fit that kept residuals, which is the difference
-between this section and the next one.
+available, but only from a fit that kept residuals, which the beta matrices
+above did not.
 [Reading a map without ground truth](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth)
-works through what a candidate is and is not, including why an error bar taken
-at `which.max()` is not an error bar.
+(`vignette("interpreting-results")`) works through what a candidate is and is
+not, including why an error bar taken at `which.max()` is not an error bar.
 
-### From raw responses and a compiled design
+### The other starting points
 
-If you kept the scan-by-feature responses and already have a design matrix,
-`lm_relation_fit()` is the compact route that keeps the error channel. The
-`effects` matrix says which linear combination of design columns each named
-condition is.
-
-```{r own-raw}
-n_scan <- 40L
-scan_condition <- factor(
-  rep(condition_names, length.out = n_scan), levels = condition_names
-)
-design_matrix <- cbind(
-  stats::model.matrix(~ 0 + scan_condition),
-  drift = seq(-1, 1, length.out = n_scan)
-)
-colnames(design_matrix) <- c(condition_names, "drift")
-
-target_matrix <- cbind(diag(length(condition_names)), drift = 0)
-dimnames(target_matrix) <- list(condition_names, colnames(design_matrix))
-
-# Substitute your own: one scan-by-feature response matrix per run.
-signal <- rbind(
-  matrix(rnorm(length(condition_names) * 60L, sd = 0.5), length(condition_names)),
-  rnorm(60L, sd = 0.1)
-)
-response_runs <- lapply(seq_len(3), function(run) {
-  design_matrix %*% signal + matrix(rnorm(n_scan * 60L), n_scan, 60L)
-})
-names(response_runs) <- paste0("run", seq_len(3))
-
-raw_fit <- lm_relation_fit(
-  response_runs,
-  design = design_matrix,
-  effects = target_matrix,
-  effect_names = effect_space(condition_names, units = "percent-signal"),
-  sampling_unit = "trial",
-  domain = native_domain
-)
-raw_plan <- plan_geometry(
-  raw_fit$relation,
-  compile_frame(whole_brain(), native_domain),
-  cross_partitions(
-    raw_fit$relation,
-    independence = "independent", generalizes_over = "run"
-  )
-)
-sampling_capabilities(raw_plan, raw_fit)
-```
-
-Because this fit retained residuals, the analytic law is admitted and the
-standard errors from the earlier section are available here too:
-
-```{r own-raw-uncertainty}
-round(sqrt(sampling_covariance(
-  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
-)), 4)
-```
-
-```{r own-raw-checks, include=FALSE}
-raw_se <- sqrt(sampling_covariance(
-  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
-))
-stopifnot(length(raw_se) == 6L, all(is.finite(raw_se)), all(raw_se > 0))
-```
-
-### From events and confounds
-
-If you have scan-by-feature responses but no compiled design — or you want the
+Everything above began with betas, which is why the standard errors were
+refused. If you still have the scan-by-feature responses — or you want the
 first-level model declared rather than hidden in an analysis script — continue
 with `vignette("from-observations", package = "crossform")`. That guide binds
-scan times, events, confounds, named effects, and an observation model before it
-fits the relation. `plan_relation()` there accepts either a semantic
-`design_model()` or the version-checked `fmridesign_design_model()` adapter.
+scan times, events, confounds, named effects, and an observation model before
+it fits the relation, and `plan_relation()` there accepts either a semantic
+`design_model()` or the version-checked `fmridesign_design_model()` adapter. It
+also works the short version of the same journey: `lm_relation_fit()` straight
+from an already-compiled design matrix, which keeps the error channel and
+readmits the analytic standard errors, and `relation()` straight from beta
+matrices over a plain list of feature columns, which does not.
 
 For `neuroim2` volumes, `neuroim2_volume_domain()` and `neuroim2_searchlights()`
 replace `volume_domain()` and `searchlights()` while preserving stable
@@ -732,7 +760,8 @@ estimator.
 
 The package therefore does not hide correlation normalization inside `rdm()`.
 The accepted extension requirements and refusal cases are recorded in the
-[correlation-distance policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html).
+[correlation-distance policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html)
+(`vignette("correlation-distance-policy")`).
 
 ## What you just did that you could not before
 
@@ -740,26 +769,29 @@ The accepted extension requirements and refusal cases are recorded in the
   coefficient, and the single-pair query all read the same compiled plan, so
   they agree by construction rather than by care. The
   [novelty ledger](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
-  states what that architecture does and does not yet demonstrate.
+  (`vignette("novelty")`) states what that architecture does and does not yet
+  demonstrate.
 - **You learned what kind of effect you had found.** The exact, non-destructive
   split into regional-mean and pattern-beyond-the-mean energy came free with the
-  contrast, and said the planted effect was mostly pattern.
+  contrast, and separated two blocks of equal effect size into a pattern and a
+  regional mean.
   [Reading the results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html)
-  covers the traps.
+  (`vignette("interpreting-results")`) covers the traps.
 - **You saw the null.** Negative crossvalidated estimates were kept, so the
   noise floor sat on zero in the figure instead of being clipped into a
   positive-looking band.
 - **You were told what could not be estimated, and why.** The refusal named the
   missing error channel and the remedy. The
   [failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html)
-  collects six such guards, this one among them.
+  (`vignette("failure-gallery")`) collects six such guards, this one among
+  them.
 
 ## Where to go next
 
 - `?plan_geometry` describes rectangular cross-axis plans
   (`right = `), read with axis-bound `pair_query()`s, and `?coupling` takes
   the adjoint neural-side closure from the same plan vocabulary.
-- The `evidence-pairing` vignette covers measurement forms and coupling
+- `vignette("evidence-pairing")` covers measurement forms and coupling
   views, including one bounded cross-domain contraction and the Parseval
   reconstruction law.
 - `?rdm_sampling_covariance` states the admitted analytic covariance
@@ -767,7 +799,7 @@ The accepted extension requirements and refusal cases are recorded in the
   before it is provoked.
 - The Haxby 2001 exemplar supplies public-data parity and refusal evidence.
 - [Coming from rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html)
-  maps the familiar objects onto this vocabulary.
+  (`vignette("from-rmvpa")`) maps the familiar objects onto this vocabulary.
 
 For the usual workflow, construct one plan from the fitted relation, spatial
 frame, and cross-run pairing. Then pass that plan to `contrast_energy()`,

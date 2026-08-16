@@ -2,7 +2,11 @@
 title: "Coming from rMVPA"
 description: >
   A concept map from rMVPA's dataset/design/model vocabulary to crossform's relation/frame/plan vocabulary, with an honest list of what crossform does not do.
-output: rmarkdown::html_document
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Coming from rMVPA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
@@ -24,7 +28,7 @@ library(crossform)
 > caveats.
 >
 > The rMVPA calls below are shown but not executed — rMVPA is not on CRAN, so
-> this article cannot depend on it. The `crossform` calls are executed.
+> this vignette cannot depend on it. The `crossform` calls are executed.
 
 ## The one structural difference
 
@@ -174,7 +178,8 @@ by its own norm is not a fixed linear operation on the patterns, so it is
 outside the bilinear core. Per-sphere mean-centering *is* expressible as a
 metric; the unit-norm denominator is not. The boundary and the conditions
 under which it could be crossed are recorded in the
-[correlation-distance policy](correlation-distance-policy.html).
+[correlation-distance policy](correlation-distance-policy.html)
+(`vignette("correlation-distance-policy", package = "crossform")` offline).
 
 If you want the two packages to compute the same thing, the estimand both can
 express is the condition-level crossvalidated squared Euclidean (crossnobis)
@@ -224,9 +229,9 @@ explicit refusals when an uncertainty claim is not supported by the fit
 ## The one measured comparison
 
 The [Haxby 2001 exemplar](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001)
-runs both packages on 12 conditions and 577 ventral-temporal searchlights at
-an 11.25 mm radius. On the matched estimand — `crossform`'s `rdm()` over a
-cross-run geometry against rMVPA's
+runs both packages on eight stimulus categories estimated in twelve runs, over
+577 ventral-temporal searchlights at an 11.25 mm radius. On the matched
+estimand — `crossform`'s `rdm()` over a cross-run geometry against rMVPA's
 `compute_crossvalidated_means_sl(estimation_method = "crossnobis")` followed by
 `compute_crossnobis_distances_sl()` — the two agree to a **maximum absolute
 difference of 8.88e-16** at every one of the 577 centers. Sphere membership
@@ -262,6 +267,8 @@ demonstrates nothing about speed, and nothing about correlation-distance RSA.
 - `vignette("neuroim2-data", package = "crossform")` — the input and output
   adapters, if your data is already in neuroim2 objects.
 - [Reading contrast energies, RDMs, and uncertainty](interpreting-results.html)
-  — how to read the numbers, and the three interpretive traps.
-- [What is novel in crossform?](novelty.html) — what is architecture and what
-  is established statistics.
+  (`vignette("interpreting-results", package = "crossform")`) — how to read
+  the numbers, and the three interpretive traps.
+- [What is novel in crossform?](novelty.html)
+  (`vignette("novelty", package = "crossform")`) — what is architecture and
+  what is established statistics.

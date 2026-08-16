@@ -235,6 +235,26 @@
 #'   `$logical_shape` and `$measurements` it will produce, and a
 #'   `$scientific_plan_id` naming the estimand. Changing block size or storage
 #'   changes the execution receipt, not this identity.
+#' @section Structure:
+#' A plan is a declaration, so every element describes what will be computed
+#' rather than a result.
+#'
+#' - `$frame`: the compiled `effect_frame` the geometry is measured at.
+#' - `$pairing`: the `effect_pairing` whose rows are the partition products
+#'   the plan may form.
+#' - `$measurements`: how many spatial measurements every view will return,
+#'   one per row of `$frame$weights`.
+#' - `$logical_shape`: the effect-axis extent as `c(left, right)`. The two
+#'   entries are equal on a self-form plan.
+#' - `$task$left_relation`: the relation supplying the left experimental
+#'   axis. Its `$effects` is the order unnamed contrast weights are read in.
+#' - `$compute`: the [compute_policy()] the plan was compiled under.
+#' - `$scientific_plan_id`: the estimand identity. Keep it with the analysis
+#'   record; block size, storage, and machine do not change it.
+#'
+#' The rest of `$task`, the `$metric_schedule`, and every other element not
+#' listed here are the lowered form the executor consumes: internal, and
+#' free to change.
 #' @seealso [contrast_energy()], [rdm()], [rsa()], and [crossnobis()] for the
 #'   named views of a plan; [evaluate_geometry()] for an arbitrary fixed
 #'   query and [materialize_geometry()] for complete packed geometry;
@@ -445,36 +465,6 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     }
   }
   .record_validated(x, "geometry_plan", deep)
-  invisible(x)
-}
-
-#' @export
-print.effect_geometry_plan <- function(x, ...) {
-  .validate_geometry_plan(x, deep = FALSE)
-  payload <- structure(x$dense_payload_bytes, class = "object_size")
-  metric <- x$metric_schedule$metric
-  metric_status <- if (is.null(metric)) {
-    "implicit identity"
-  } else if (isTRUE(metric$capabilities$learned_frozen)) {
-    "fixed (learned, frozen before evaluation)"
-  } else {
-    "fixed"
-  }
-  axis <- attr(x$pairing, "generalizes_over", exact = TRUE)
-  independence <- attr(x$pairing, "independence", exact = TRUE)
-  cat("<effect_geometry_plan>\n", sep = "")
-  cat("  effects:      ", x$logical_shape[[1L]], " x ",
-    x$logical_shape[[2L]], "\n", sep = "")
-  cat("  measurements: ", x$measurements, "\n", sep = "")
-  cat("  features:     ", x$task$left_relation$n_features, "\n", sep = "")
-  cat("  metric:       ", metric_status, "\n", sep = "")
-  cat("  generalizes:  ", nrow(x$pairing), " partition pairs",
-    if (is.null(axis)) " (axis undeclared)" else paste0(" over ", axis),
-    ", endpoints ", independence, "\n", sep = "")
-  cat("  lowering:     ", x$lowering, "\n", sep = "")
-  cat("  dense payload:", format(payload, units = "auto"), "\n")
-  cat("  state:        query-first;",
-    "call materialize_geometry(plan) to materialize\n")
   invisible(x)
 }
 

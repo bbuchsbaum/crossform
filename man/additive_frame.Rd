@@ -31,6 +31,25 @@ reference the weights are bound to.
 An additive frame is the only frame representation whose locations collapse
 to rows of one spatial contraction in the version 0.1 compiler.
 }
+\section{Structure}{
+
+A declared frame carries the operator and the domain it claims, and nothing
+about how it was chosen.
+\itemize{
+\item \verb{$weights}: the measurement-by-feature operator exactly as supplied. Row
+\code{m} holds the weight each domain feature contributes to measurement \code{m},
+in domain feature order.
+\item \verb{$normalization}: the normalization asserted about those rows. It is
+checked, not applied.
+\item \verb{$domain}: the neural domain reference the columns are bound to, and
+\verb{$domain_id} its identity.
+}
+
+Unlike a \code{\link[=compile_frame]{compile_frame()}} result, a declared frame has no \verb{$index} and no
+\verb{$specification}: nothing generated it, so views index its measurements by
+position. Any other element is internal and may change.
+}
+
 \examples{
 # Two overlapping local averages over four features, declared directly.
 # `"local"` asserts that each measurement's weights already sum to one, so

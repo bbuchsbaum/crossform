@@ -26,6 +26,30 @@ edges. This function is a validating view over the ordinary geometry
 compiler; it does not introduce a second numerical engine. Negative finite
 estimates are retained.
 }
+\section{Structure}{
+
+One signed value per spatial measurement, alongside the declarations that
+make it a Mahalanobis reading.
+\itemize{
+\item \verb{$values}: the signed crossvalidated squared Mahalanobis contrast, one
+per measurement, in \verb{$index} order. Negative estimates are retained.
+\item \verb{$contrast}: the weights, reordered to the relation's effect order and
+named.
+\item \verb{$estimand}: the named estimand,
+\code{"crossvalidated_squared_mahalanobis_contrast"}.
+\item \verb{$metric}: the signature of the noise-precision metric the values were
+read under.
+\item \verb{$pairing}: the identity of the independent partition edges they were
+generalized over.
+\item \verb{$index}: the measurement identifiers, one per value, carried from the
+frame's \verb{$index$measurement}.
+\item \verb{$receipt}: the execution receipt for the run that produced the values.
+}
+
+The \verb{$metadata} block and any other element not listed here are internal
+and may change.
+}
+
 \section{Refusal}{
 
 A plan carrying the implicit identity metric, or a fixed metric that was not

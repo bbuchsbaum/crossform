@@ -476,7 +476,7 @@ test_that("rdm() is squared distance and never a silent correlation distance", {
 
   # The oracle correlation distance is a different, nonlinear quantity, and
   # `rdm()` must not be quietly reporting it (see
-  # vignettes/articles/correlation-distance-policy.Rmd).
+  # vignettes/correlation-distance-policy.Rmd).
   correlations <- oracle_weighted_correlation(
     fixture$left_values$run1, fixture$left_values$run1, fixture$weights
   )

@@ -48,7 +48,12 @@ refit.
 
 \itemize{
 \item \code{vignette("introduction")} --- the guided entry point, from a ready
-relation through contrasts, RDMs, RSA, and standard errors.
+relation through contrasts, RDMs, RSA, and standard errors. Nine vignettes
+ship with the package; \code{vignette(package = "crossform")} lists them. They
+are present only if the package was installed with its vignettes built ---
+\code{remotes::install_local(".", build_vignettes = TRUE)}, or \verb{R CMD build}
+followed by \verb{R CMD INSTALL} --- and are otherwise readable at
+\url{https://bbuchsbaum.github.io/crossform/}.
 \item \code{\link[=example_fmri_effects]{example_fmri_effects()}} --- a generated fixture with known truth, so the
 whole workflow runs after installation and can check its own answer.
 \item \code{\link[=plan_geometry]{plan_geometry()}} --- compile a relation, frame, and pairing into a plan.

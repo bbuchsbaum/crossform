@@ -14,6 +14,21 @@
 #' @return An `effect_frame` with `representation = "additive_diagonal"`,
 #'   carrying the `$weights` matrix, its `$normalization`, and the `$domain`
 #'   reference the weights are bound to.
+#' @section Structure:
+#' A declared frame carries the operator and the domain it claims, and nothing
+#' about how it was chosen.
+#'
+#' - `$weights`: the measurement-by-feature operator exactly as supplied. Row
+#'   `m` holds the weight each domain feature contributes to measurement `m`,
+#'   in domain feature order.
+#' - `$normalization`: the normalization asserted about those rows. It is
+#'   checked, not applied.
+#' - `$domain`: the neural domain reference the columns are bound to, and
+#'   `$domain_id` its identity.
+#'
+#' Unlike a [compile_frame()] result, a declared frame has no `$index` and no
+#' `$specification`: nothing generated it, so views index its measurements by
+#' position. Any other element is internal and may change.
 #' @seealso [compile_frame()] with [searchlights()], [regions()], or
 #'   [voxelwise()], which build additive frames from a neural domain;
 #'   [measurement_frame()], which adapts one into oriented measurements.

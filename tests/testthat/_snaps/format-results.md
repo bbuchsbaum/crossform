@@ -32,6 +32,8 @@
        measurement signed coherent configuration total coherence_fraction
                 m1   -1.0   0.8358        0.3358 1.172             0.7134
                 m2   -0.5   1.1716        1.7574 2.929             0.4000
+        coherence_fraction: 2 of 2 valid; NA where coherent and configuration are
+          not a nonnegative partition
 
 ---
 

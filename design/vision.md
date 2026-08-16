@@ -6,7 +6,7 @@ Date: 2026-08-13 (calculus framing noted 2026-08-15)
 > Framing update, 2026-08-15: the public claim has since been sharpened into
 > the **evidence-pairing calculus** recorded in
 > [What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
-> (source: `vignettes/articles/novelty.Rmd`) — self- and
+> (source: `vignettes/novelty.Rmd`) — self- and
 > cross-experimental axes, self- and cross-neural measurements, and spatial
 > frames as boundary closures of one typed second-order pairing, with the
 > executable estimand contract as the mechanism that keeps those closures

@@ -49,11 +49,15 @@
 }
 
 #' @export
-format.effect_geometry_plan <- function(x, ...) {
+format.effect_geometry_plan <- function(x, detail = FALSE, ...) {
   .validate_geometry_plan(x, deep = FALSE)
+  if (isTRUE(detail)) {
+    return(.geometry_plan_lines(x, detail = TRUE))
+  }
   .format_counted_result(
     "effect_geometry_plan", x$measurements,
-    paste0(x$logical_shape[[1L]], " effects, ", x$lowering)
+    paste0(x$logical_shape[[1L]], " effects, ",
+      nrow(x$pairing), " partition pairs")
   )
 }
 
@@ -236,6 +240,16 @@ print.effect_contrast_view <- function(x, ...) {
   # a reader who mis-ordered them sees the alignment that was actually used.
   .format_result_preview(x, "effect_contrast_view",
     fields = list(contrast = .pf_weights(x$weights)), ...)
+  # A column of NA in the preview is otherwise unexplained, and the reason is
+  # a real property of the estimate rather than missing data.
+  valid <- x$coherence_fraction_valid
+  if (is.null(valid)) valid <- !is.na(x$coherence_fraction)
+  cat(strwrap(sprintf(paste0(
+    "coherence_fraction: %d of %d valid; NA where coherent and ",
+    "configuration are not a nonnegative partition"
+  ), sum(valid), length(valid)),
+    width = .pf_line_width, prefix = "    ", initial = "  "), sep = "\n")
+  invisible(x)
 }
 
 #' @export

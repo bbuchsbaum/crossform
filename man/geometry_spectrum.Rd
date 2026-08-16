@@ -31,6 +31,24 @@ the spectra of the \code{coherent} and \code{configuration} components do not su
 to the spectrum of \code{total}, even though the underlying matrices do.
 Compare spectra across components only as separate decompositions.
 }
+\section{Structure}{
+
+One signed spectrum per spatial measurement, with the labels that say what
+was decomposed.
+\itemize{
+\item \verb{$values}: one row per measurement, one column per eigenvalue, ordered
+\code{root1} (largest) through \code{rootq}. Negative roots are retained.
+\item \verb{$component}: the geometry component that was decomposed.
+\item \verb{$index}: the measurement identifiers, one per row of \verb{$values}, carried
+from the decomposed form.
+\item \verb{$indefinite_estimates_preserved}: always \code{TRUE}, recording that no
+eigenvalue was truncated at zero.
+\item \verb{$receipt}: the execution receipt of the form that was decomposed.
+}
+
+Any element not listed here is internal and may change.
+}
+
 \section{Refusal}{
 
 Passing a query-first \code{effect_geometry_plan} signals an

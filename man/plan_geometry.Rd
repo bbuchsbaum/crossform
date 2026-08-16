@@ -52,6 +52,30 @@ materialized with \code{\link[=materialize_geometry]{materialize_geometry()}}. C
 therefore an optional materialization, not the object that every analysis
 must allocate.
 }
+\section{Structure}{
+
+A plan is a declaration, so every element describes what will be computed
+rather than a result.
+\itemize{
+\item \verb{$frame}: the compiled \code{effect_frame} the geometry is measured at.
+\item \verb{$pairing}: the \code{effect_pairing} whose rows are the partition products
+the plan may form.
+\item \verb{$measurements}: how many spatial measurements every view will return,
+one per row of \verb{$frame$weights}.
+\item \verb{$logical_shape}: the effect-axis extent as \code{c(left, right)}. The two
+entries are equal on a self-form plan.
+\item \verb{$task$left_relation}: the relation supplying the left experimental
+axis. Its \verb{$effects} is the order unnamed contrast weights are read in.
+\item \verb{$compute}: the \code{\link[=compute_policy]{compute_policy()}} the plan was compiled under.
+\item \verb{$scientific_plan_id}: the estimand identity. Keep it with the analysis
+record; block size, storage, and machine do not change it.
+}
+
+The rest of \verb{$task}, the \verb{$metric_schedule}, and every other element not
+listed here are the lowered form the executor consumes: internal, and
+free to change.
+}
+
 \examples{
 domain <- abstract_domain(3, id = "plan-example")
 run1 <- rbind(a = c(1, 0, 2), b = c(0, 1, 1))

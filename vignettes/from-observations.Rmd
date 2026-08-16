@@ -28,6 +28,11 @@ declare the condition effects, declare the observation model, call
 `plan_relation()`, and fit it with `estimate_relation()`. A separate
 `plan_geometry()` then states what those fitted effects must reproduce across.
 
+If you already hold a compiled design matrix, or only per-run beta matrices,
+you do not need all five steps. Those two shorter routes are worked at the end
+of this guide; the only thing that changes along the way is whether the
+residual channel — and with it the analytic standard error — survives.
+
 ## What data does the fit require?
 
 Three objects, and nothing else:
@@ -363,6 +368,136 @@ as separate factors. They are not population-level uncertainty. A learned
 whitener would still permit the point estimates but would not receive this
 analytic uncertainty capability.
 
+## Shorter routes: a compiled design, or beta matrices
+
+The ladder above declares the first-level model so that the request survives a
+change of coding, a change of solver, or a change of compiler. Not every
+project starts there. Two shorter routes reach the same
+`plan_geometry()`/`contrast_energy()` step from less input, and they differ in
+exactly one consequence: whether the residual channel survives, and with it the
+standard errors calculated above. `vignette("introduction")` builds its worked
+fixture on the first of these and its own-data walkthrough on the second.
+
+### From raw responses and a compiled design
+
+If you kept the scan-by-feature responses and already have a design matrix,
+`lm_relation_fit()` is the compact route that keeps the error channel. It skips
+`study()`, `design_model()`, and `plan_relation()`, so nothing checks the
+design's semantics against events, confounds, and clocks for you; in exchange
+it is a single call. The `effects` matrix says which linear combination of
+design columns each named condition is.
+
+```{r compiled-design}
+set.seed(20260815)
+condition_names <- c("face", "body", "house", "tool")
+native_domain <- abstract_domain(60L, id = "short-routes:v1")
+
+raw_n_scan <- 40L
+scan_condition <- factor(
+  rep(condition_names, length.out = raw_n_scan), levels = condition_names
+)
+design_matrix <- cbind(
+  stats::model.matrix(~ 0 + scan_condition),
+  drift = seq(-1, 1, length.out = raw_n_scan)
+)
+colnames(design_matrix) <- c(condition_names, "drift")
+
+target_matrix <- cbind(diag(length(condition_names)), drift = 0)
+dimnames(target_matrix) <- list(condition_names, colnames(design_matrix))
+
+# Substitute your own: one scan-by-feature response matrix per run.
+signal <- rbind(
+  matrix(rnorm(length(condition_names) * 60L, sd = 0.5), length(condition_names)),
+  rnorm(60L, sd = 0.1)
+)
+raw_response_runs <- lapply(seq_len(3), function(run) {
+  design_matrix %*% signal + matrix(rnorm(raw_n_scan * 60L), raw_n_scan, 60L)
+})
+names(raw_response_runs) <- paste0("run", seq_len(3))
+
+raw_fit <- lm_relation_fit(
+  raw_response_runs,
+  design = design_matrix,
+  effects = target_matrix,
+  effect_names = effect_space(condition_names, units = "percent-signal"),
+  sampling_unit = "trial",
+  domain = native_domain
+)
+raw_plan <- plan_geometry(
+  raw_fit$relation,
+  compile_frame(whole_brain(), native_domain),
+  cross_partitions(
+    raw_fit$relation,
+    independence = "independent", generalizes_over = "run"
+  )
+)
+sampling_capabilities(raw_plan, raw_fit)
+```
+
+`whole_brain()` reports one measurement over every feature in the domain, which
+is the simplest frame to check a pipeline against. Because this fit retained
+residuals, the analytic law is admitted and the standard errors from the
+section above are available here too:
+
+```{r compiled-design-uncertainty}
+round(sqrt(sampling_covariance(
+  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
+)), 4)
+```
+
+```{r compiled-design-checks, include=FALSE}
+raw_se <- sqrt(sampling_covariance(
+  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
+))
+stopifnot(length(raw_se) == 6L, all(is.finite(raw_se)), all(raw_se > 0))
+```
+
+### From beta matrices alone
+
+If the responses are gone and only condition-by-feature estimates per run
+remain, build a point relation directly. It needs a named list of matrices with
+one row per condition, a named effect space, and a neural domain.
+
+```{r beta-matrices}
+# Substitute your own: one condition-by-feature matrix per run, rows named.
+beta_runs <- lapply(seq_len(3), function(run) matrix(
+  rnorm(length(condition_names) * native_domain$n_features),
+  nrow = length(condition_names),
+  dimnames = list(condition_names, native_domain$feature_ids)
+))
+names(beta_runs) <- paste0("run", seq_len(3))
+
+rel <- relation(
+  beta_runs,
+  effects = effect_space(condition_names, units = "percent-signal"),
+  domain = native_domain
+)
+own_plan <- plan_geometry(
+  rel,
+  compile_frame(whole_brain(), native_domain),
+  cross_partitions(rel, independence = "independent", generalizes_over = "run")
+)
+own_plan
+```
+
+```{r beta-matrices-check, include=FALSE}
+own_capabilities <- sampling_capabilities(own_plan, rel)
+stopifnot(
+  nrow(compile_frame(whole_brain(), native_domain)$index) == 1L,
+  identical(dim(rdm(own_plan)$values), c(1L, 6L)),
+  !own_capabilities$available,
+  "missing_error_channel" %in% own_capabilities$reasons$reason
+)
+```
+
+`own_plan` supports `contrast_energy()`, `rdm()`, and `rsa()` exactly as the
+fitted relations above do. What it cannot support is the analytic standard
+error: beta matrices carry no residuals and no residual degrees of freedom, so
+`sampling_capabilities()` reports the law unavailable and names
+`missing_error_channel` as the unmet requirement. Give the domain a mask and
+voxel spacing instead of a bare feature count and searchlights become
+available; `vignette("introduction")` works that variant end to end.
+
 ## How do BIDS and external compilers fit?
 
 `bids_study()` adapts one task `events.tsv` and one row-aligned confound table
@@ -402,11 +537,10 @@ crossform cannot verify the required residual covariance contract from its
 result.
 
 If you have compiled design and target matrices but not their semantic
-condition mapping, use `raw_design_model()` with `raw_effect_map()`. Their
-numeric values then become part of the plan identity, and the fit cannot claim
-that a different coefficient coding represents the same request. If only beta
-matrices remain, use `relation()` for point geometry; analytic uncertainty is
-unavailable because the residual channel is missing.
+condition mapping, and you still want the declared ladder rather than the short
+route above, use `raw_design_model()` with `raw_effect_map()`. Their numeric
+values then become part of the plan identity, and the fit cannot claim that a
+different coefficient coding represents the same request.
 
 The next call depends on the result you need. Use `contrast_energy()` for a
 named effect, `rdm()` for condition distances, `rsa()` for a fixed linear

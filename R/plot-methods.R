@@ -212,7 +212,7 @@
 #'   with one value per measurement, or measurement identifiers. Measurements
 #'   outside the view are an error rather than a silent drop.
 #' @param highlight_label What the highlighted measurements are, named in the
-#'   legend alongside their count, as in `"planted signal (57 measurements)"`.
+#'   legend alongside their count, as in `"planted signal (104 measurements)"`.
 #'   Say what the set means rather than that it was selected.
 #' @param measurement Which measurement to draw. For an `effect_rdm_view`,
 #'   one position or identifier, or the string `"mean"` for the mean
@@ -268,7 +268,7 @@
 #'
 #' # One panel per RSA coefficient, over measurements.
 #' plot(rsa(plan, models = list(category = example$model_rdm)),
-#'      highlight = planted)
+#'      highlight = planted, highlight_label = "planted signal")
 #'
 #' # The same estimand under a declared fixed noise metric.
 #' metric <- noise_precision(
@@ -327,14 +327,18 @@ plot.effect_contrast_view <- function(x,
       sign_color[!marked], alpha.f = if (length(highlight)) 0.35 else 0.7
     )
     sign_color[marked] <- .geometry_colors[["black"]]
-    xlim <- .finite_range(coherent)
-    ylim <- .finite_range(configuration)
-    ylim[[2L]] <- ylim[[2L]] + 0.2 * diff(ylim)
+    # A line of constant total has slope -1 only when the two axes share a
+    # scale, so the panel is drawn square with one common range and `asp = 1`.
+    # The guides are then visually true rather than merely labeled as such.
+    limits <- .finite_range(coherent, configuration)
+    limits[[2L]] <- limits[[2L]] + 0.2 * diff(limits)
+    xlim <- limits
+    ylim <- limits
     defaults <- list(
       x = coherent, y = configuration,
       col = sign_color, bg = fill, pch = ifelse(marked, 21L, 19L),
       cex = ifelse(marked, 1.05, 0.65),
-      xlim = xlim, ylim = ylim, cex.main = 1,
+      xlim = xlim, ylim = ylim, asp = 1, cex.main = 1,
       xlab = "Coherent energy (region-average contrast)",
       ylab = "Configuration energy (pattern beyond that mean)",
       main = .panel_main(main, 1L, "Coherent versus configuration energy")

@@ -8,7 +8,6 @@
 ^_pkgdown\.yml$
 ^design$
 ^docs$
-^vignettes/articles$
 ^exemplars$
 ^benchmarks$
 ^benchmark-results$

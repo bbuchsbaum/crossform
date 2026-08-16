@@ -22,6 +22,31 @@ scopes, a \verb{$support_index}.
 Voxel, searchlight, region, and whole-brain scopes all compile to the same
 sparse additive-frame representation.
 }
+\section{Structure}{
+
+A compiled frame is the spatial operator together with the record of how
+it was built.
+\itemize{
+\item \verb{$weights}: the sparse measurement-by-feature operator. Row \code{m} holds
+the weight each domain feature contributes to measurement \code{m}, in domain
+feature order, after normalization was applied.
+\item \verb{$index}: one row per measurement, in \verb{$weights} row order. Its
+\code{measurement} column names each measurement: domain feature identifiers
+for \code{\link[=voxelwise]{voxelwise()}} and \code{\link[=searchlights]{searchlights()}}, the distinct labels in first
+appearance order for \code{\link[=regions]{regions()}}, and \code{"whole_brain"} for
+\code{\link[=whole_brain]{whole_brain()}}. Views carry these identifiers through as their \verb{$index}.
+\item \verb{$normalization}: the normalization that was applied, which is what
+\code{\link[=frame_conservation]{frame_conservation()}} reports against.
+\item \verb{$specification}: the \code{effect_frame_spec} the frame was compiled from,
+so the scope and its arguments travel with the operator.
+\item \verb{$domain}: the neural domain the columns are bound to, carrying its
+\code{id}, \code{n_features}, and \code{feature_ids}.
+}
+
+Any element not listed here, including \verb{$support_index} and the
+representation flags, is internal and may change.
+}
+
 \examples{
 domain <- abstract_domain(9L, id = "compile-frame-example")
 

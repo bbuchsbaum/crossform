@@ -57,6 +57,31 @@ metric or \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, sta
 \code{\link[=lm_relation_fit]{lm_relation_fit()}}. Subject-level resampling answers a population question;
 it does not recreate discarded first-level residual information.
 }
+\section{Structure}{
+
+A relation declares what will be read, so its elements are identities and
+shapes rather than values.
+\itemize{
+\item \verb{$effects}: the effect labels, in the order every partition estimates
+them and the order unnamed contrast weights are read in.
+\item \verb{$effect_space}: the shared \code{effect_space()} those labels coordinate,
+carrying the basis identity, units, and signature every partition
+agrees on.
+\item \verb{$partitions}: the partition names, in the order they were supplied.
+These are what \code{\link[=cross_partitions]{cross_partitions()}} and \code{\link[=pairing]{pairing()}} name.
+\item \verb{$n_features}: the number of neural features every partition spans.
+\item \verb{$domain}: the neural domain the source columns are bound to, carrying
+its \code{id}, \code{n_features}, and \code{feature_ids}; \verb{$domain_id} repeats that
+\code{id}.
+\item \verb{$capabilities}: one \code{\link[=source_capabilities]{source_capabilities()}} per partition when the
+sources declared them, otherwise \code{NULL}.
+\item \verb{$provenance}: the metadata supplied at construction, unchanged.
+}
+
+\verb{$sources} and \verb{$extractors} are the compiled read path \code{\link[=relation_block]{relation_block()}}
+uses; they and any element not listed here are internal and may change.
+}
+
 \examples{
 # Precomputed condition betas: one effect-by-feature matrix per run.
 set.seed(1)

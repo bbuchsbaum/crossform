@@ -446,6 +446,13 @@ rdm_sampling_covariance <- function(
   }
   target <- match.arg(target, c("plugin", "null"))
   residual_strategy <- match.arg(residual_strategy)
+  # Checked here, against the plan the caller passed, so the message can name
+  # the plan's own measurement count instead of a compiled node position.
+  at <- .msg_measurement_index(
+    at,
+    if (is.null(x$measurements)) nrow(x$frame$weights) else x$measurements,
+    argument = "at", subject = "plan"
+  )
   target_record <- if (identical(target, "null")) {
     .sampling_target("null")
   } else {

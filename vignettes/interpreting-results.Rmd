@@ -2,7 +2,11 @@
 title: "Reading contrast energies, RDMs, and uncertainty"
 description: >
   What each returned column means, how to read negatives and the coherence fraction, the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame, and how to read a real map when no ground truth marks the answer.
-output: rmarkdown::html_document
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reading contrast energies, RDMs, and uncertainty}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
@@ -18,8 +22,10 @@ library(crossform)
 This article introduces no new statistics. It is about reading the numbers the
 package already returns: what each column means, three ways a reader can be
 misled by the coherence fraction, and how to read a map when nothing marks the
-right answer. Everything below runs on the generated fixture, whose planted
-truth makes the traps visible.
+right answer. Everything below runs on the generated fixture, which plants two
+blocks of equal amplitude at opposite ends of the volume — one whose sign
+alternates between neighboring voxels, one that shifts every voxel the same
+way — so each half of the energy decomposition has a known home.
 
 ```{r example}
 example <- example_fmri_effects()
@@ -31,7 +37,19 @@ pairing <- cross_partitions(
 plan <- plan_geometry(example$fit$relation, at = example$frame, over = pairing)
 effect <- contrast_energy(plan, example$contrast)
 peak <- which.max(effect$total)
+
+pattern <- example$truth$pattern_measurements
+mean_block <- example$truth$mean_measurements
+c(
+  measurements = length(effect$total),
+  pattern_searchlights = length(pattern),
+  mean_searchlights = length(mean_block),
+  overlap = length(intersect(pattern, mean_block))
+)
 ```
+
+The two blocks are the same size and never touch the same searchlight, so
+every comparison below between them is a comparison of sign structure alone.
 
 ## The four columns of a contrast view
 
@@ -55,9 +73,45 @@ head(as.data.frame(effect), 4)
 max(abs(effect$total - (effect$coherent + effect$configuration)))
 ```
 
-A large `configuration` with a near-zero `coherent` is the signature of a
-multivariate pattern that a univariate map would miss: the sphere reproduces
-a *shape*, but its average response barely moves.
+The fixture separates the two energies by construction. Here is the strongest
+searchlight in each block:
+
+```{r two-blocks}
+strongest <- function(measurements) {
+  measurements[which.max(effect$total[measurements])]
+}
+at <- c(pattern = strongest(pattern), mean = strongest(mean_block))
+block_rows <- as.data.frame(effect)[at, -1]
+rownames(block_rows) <- names(at)
+round(block_rows, 4)
+```
+
+```{r two-blocks-check, include=FALSE}
+stopifnot(
+  at[["pattern"]] == peak,
+  effect$configuration[at[["pattern"]]] >
+    50 * abs(effect$coherent[at[["pattern"]]]),
+  effect$coherent[at[["mean"]]] >
+    50 * abs(effect$configuration[at[["mean"]]]),
+  abs(effect$signed[at[["pattern"]]]) < 0.1,
+  abs(effect$signed[at[["mean"]]]) > 1.5,
+  is.na(effect$coherence_fraction[at[["pattern"]]]),
+  effect$coherence_fraction[at[["mean"]]] > 0.99
+)
+```
+
+Equal amplitude, equal block size, near-equal `total` — and opposite
+decompositions. The pattern block's energy is almost all `configuration`: a
+shape that reproduces across runs while the sphere's average barely moves,
+which is why its `signed` value is close to zero and a univariate contrast
+would find nothing there. The mean block's energy is almost all `coherent`,
+and its `signed` value is large, because the whole neighborhood shifts
+together.
+
+Note the `NA` in the first row. That searchlight is the largest `total` in the
+map and it reports no coherence fraction at all, because its `coherent`
+estimate landed a hair below zero. That is the subject of the section after
+next.
 
 ### Negatives are estimates, not errors
 
@@ -112,6 +166,11 @@ under an arbitrarily small change in the denominator. Rather than print such
 a number, the package withholds it. `NA` here means "this measurement has no
 interpretable coherent share", not "missing data".
 
+Nor is the gate a signal detector. The peak of the pattern block above is the
+strongest measurement in the entire map and it is one of these `NA`s: an
+effect that is genuinely all configuration has nothing left over to form a
+nonnegative pair with.
+
 The three sections below are the caveats that matter once you start reporting
 those fractions.
 
@@ -135,25 +194,35 @@ sweep <- t(vapply(radii, function(r) {
   c(
     median_support = median(Matrix::rowSums(frame_r$weights != 0)),
     valid = sum(effect_r$coherence_fraction_valid),
-    median_fraction = median(effect_r$coherence_fraction, na.rm = TRUE)
+    median_fraction = median(effect_r$coherence_fraction, na.rm = TRUE),
+    pattern_block = median(effect_r$coherence_fraction[pattern], na.rm = TRUE),
+    mean_block = median(effect_r$coherence_fraction[mean_block], na.rm = TRUE)
   )
-}, numeric(3)))
+}, numeric(5)))
 data.frame(radius = radii, round(sweep, 3))
 ```
 
 ```{r sphere-size-check, include=FALSE}
 stopifnot(
   sweep[1, "median_fraction"] == 1,
-  all(diff(sweep[, "median_fraction"]) <= 0)
+  sweep[1, "pattern_block"] == 1,
+  sweep[1, "mean_block"] == 1,
+  all(diff(sweep[, "median_fraction"]) <= 0),
+  all(diff(sweep[, "mean_block"]) <= 0),
+  all(sweep[-1, "mean_block"] > sweep[-1, "pattern_block"])
 )
 ```
 
 At radius 2 every support is a single voxel, so the weighted mean *is* the
-pattern and the fraction is exactly 1 by construction. It then falls
-monotonically. A sentence such as "roughly 10% of the reproducible signal was
-carried by the mean response" is therefore a statement about your radius as
-much as about the brain. Report the radius and the support sizes alongside the
-fraction, and never compare fractions across analyses with different frames.
+pattern and the fraction is exactly 1 by construction — in both blocks. It
+then falls. The decomposition keeps the two blocks in the right order at every
+larger radius, the mean block several times above the pattern block, so the
+ordering is real. But the mean block's own fraction still slides from 0.347 to
+0.289 while nothing about the planted signal changes. A sentence such as
+"roughly 30% of the reproducible signal was carried by the mean response" is
+therefore a statement about your radius as much as about the brain. Report the
+radius and the support sizes alongside the fraction, and never compare
+fractions across analyses with different frames.
 
 ## Trap (b): "coherent" means coherent under *your* weights
 
@@ -184,6 +253,10 @@ frame_gaussian <- additive_frame(
 identical(which(uniform_weights != 0), which(gaussian_weights != 0))
 ```
 
+Read the two frames at the searchlight sitting on each block's center. That
+measurement is chosen from geometry alone, not from the results, so nothing
+below is a selected extreme.
+
 ```{r weighting-effect}
 effect_uniform <- contrast_energy(
   plan_geometry(example$fit$relation, at = frame_uniform, over = pairing),
@@ -194,26 +267,59 @@ effect_gaussian <- contrast_energy(
   example$contrast
 )
 
-peak_uniform <- which.max(effect_uniform$total)
-round(rbind(
-  uniform = c(
-    total = effect_uniform$total[peak_uniform],
-    coherent = effect_uniform$coherent[peak_uniform],
-    fraction = effect_uniform$coherence_fraction[peak_uniform]
-  ),
-  gaussian = c(
-    total = effect_gaussian$total[peak_uniform],
-    coherent = effect_gaussian$coherent[peak_uniform],
-    fraction = effect_gaussian$coherence_fraction[peak_uniform]
-  )
-), 4)
+centered_on <- function(features) {
+  centroid <- colMeans(coords[features, , drop = FALSE])
+  which.min(rowSums(
+    (coords[centers, , drop = FALSE] -
+      matrix(centroid, length(centers), 3, byrow = TRUE))^2
+  ))
+}
+middle <- c(
+  pattern = centered_on(example$truth$planted_features),
+  mean = centered_on(example$truth$mean_features)
+)
+
+reweighted <- cbind(
+  uniform_coherent = effect_uniform$coherent[middle],
+  gaussian_coherent = effect_gaussian$coherent[middle],
+  uniform_total = effect_uniform$total[middle],
+  gaussian_total = effect_gaussian$total[middle]
+)
+rownames(reweighted) <- names(middle)
+round(reweighted, 4)
 ```
 
-Identical voxels, identical data, different numbers. This is not instability:
-each frame defines a different, well-specified estimand, and the plan records
-which one you asked for. It does mean that "the coherent component" is not a
-property of the brain region. It is a property of the region *and* the weights
-you chose to average it with.
+```{r weighting-check, include=FALSE}
+stopifnot(
+  identical(which(uniform_weights != 0), which(gaussian_weights != 0)),
+  identical(frame_uniform$index$measurement, example$frame$index$measurement),
+  middle[["pattern"]] %in% pattern,
+  middle[["mean"]] %in% mean_block,
+  effect_gaussian$coherent[middle[["pattern"]]] <
+    0.6 * effect_uniform$coherent[middle[["pattern"]]],
+  abs(
+    effect_gaussian$coherent[middle[["mean"]]] -
+      effect_uniform$coherent[middle[["mean"]]]
+  ) < 0.02 * effect_uniform$coherent[middle[["mean"]]],
+  effect_uniform$total[middle[["pattern"]]] !=
+    effect_gaussian$total[middle[["pattern"]]],
+  effect_uniform$total[middle[["mean"]]] !=
+    effect_gaussian$total[middle[["mean"]]]
+)
+```
+
+Identical voxels, identical data, different numbers — but not equally
+different. The mean block's coherent energy barely moves: a shift that is the
+same in every voxel is the same shift under any nonnegative weights. The
+pattern block's coherent energy halves, because there it is not a signal at
+all. It is whatever failed to cancel, and how much fails to cancel is decided
+entirely by the weights. Both totals move.
+
+This is not instability: each frame defines a different, well-specified
+estimand, and the plan records which one you asked for. It does mean that "the
+coherent component" is not a property of the brain region. It is a property of
+the region *and* the weights you chose to average it with — and the smaller
+the coherent component, the more of it belongs to the weights.
 
 ## Trap (c): reported fractions are a selected sample
 
@@ -240,6 +346,14 @@ c(
 )
 ```
 
+```{r selection-blocks}
+round(c(
+  pattern_block = mean(valid[pattern]),
+  mean_block = mean(valid[mean_block]),
+  elsewhere = mean(valid[-signal])
+), 3)
+```
+
 ```{r selection-share}
 c(
   share_of_map_reporting = mean(valid),
@@ -249,18 +363,24 @@ c(
 
 ```{r selection-check, include=FALSE}
 stopifnot(
-  mean(valid[signal]) > 0.9,
+  # Every frame here is one measurement per voxel in the same order, so the
+  # truth indices carry across radii.
+  identical(frame_small$index$measurement, example$frame$index$measurement),
+  mean(valid[pattern]) > 0.9,
+  mean(valid[mean_block]) > 0.9,
   mean(valid[-signal]) < 0.25
 )
 ```
 
-Almost every planted searchlight reports a fraction; only a small minority of
-the others do. So the average fraction "over the map" is really an average
-over a set that is mostly signal. That is fine if you say so, and misleading
-if you do not. If you want a map-wide summary, define the denominator
-explicitly — for instance the fraction of *all* measurements that report a
-coherent share at all, the first number above — rather than averaging the
-reported values and calling the result a property of the map.
+Both blocks clear the gate at about the same rate, so the selection is not
+about which kind of effect you have; it is about having one. Under a quarter
+of the remaining measurements report a fraction, on noise alone. The result is
+that the average fraction "over the map" is really an average over a set that
+is 70% planted signal. That is fine if you say so, and misleading if you do
+not. If you want a map-wide summary, define the denominator explicitly — for
+instance the share of *all* measurements that report a coherent share at all,
+the first number above — rather than averaging the reported values and calling
+the result a property of the map.
 
 The same warning applies to any post-hoc gate: thresholding on `total > 0`
 and then summarizing `coherent` conditions the summary on the numerator's
@@ -272,7 +392,7 @@ Every figure so far could mark the right answer, because the fixture carries
 `truth$signal_measurements`. Your data will not. This section is about what the
 same picture tells you when nothing is marked.
 
-```{r blind-map, fig.width=8, fig.height=4, fig.cap="The same contrast view with no highlight supplied. Nothing here identifies the planted searchlights; the reading below uses only what is on the page."}
+```{r blind-map, fig.width=8, fig.height=4, fig.cap="The same contrast view with no highlight supplied. Nothing here identifies the two planted blocks; the reading below uses only what is on the page."}
 plot(effect)
 ```
 
@@ -287,6 +407,7 @@ because the negatives were kept.
 ```{r floor-known}
 quiet <- setdiff(seq_along(effect$total), example$truth$signal_measurements)
 round(c(
+  measurements = length(quiet),
   mean = mean(effect$total[quiet]),
   sd = stats::sd(effect$total[quiet]),
   fraction_below_zero = mean(effect$total[quiet] < 0),
@@ -313,33 +434,46 @@ stopifnot(
 )
 ```
 
-The blind median lands near the true floor's center. The blind MAD is *larger*
-than the floor's true spread, because 23% of these measurements carry planted
-signal and inflate it — which is the right direction for a scale you are going
-to eyeball against, but it is a description, not an estimate of a null.
+The blind median lands near the true floor's center, and both sit under 0.3% of
+the peak. The blind MAD is more than twice the floor's true spread, because 37%
+of these measurements carry planted signal — two blocks, not one — and inflate
+it. That is the right direction for a scale you are going to eyeball against,
+but it is a description, not an estimate of a null.
 
 ### Candidates, not findings
 
-Sorted, this map has a visible shoulder: rank 55 is `0.037` and rank 56 is
-`0.030`, while rank 1 is `4.22`. The shoulder happens to fall exactly at the
-edge of the planted set here. That is a fact about this fixture, not a method.
+Sorted, this map has a visible shoulder: rank 104 is `0.478` and rank 105 is
+`0.030`, while rank 1 is `4.10`. The shoulder falls exactly at the edge of the
+planted set — all 104 planted searchlights outrank every other measurement.
+That is a fact about this fixture, not a method.
 
 ```{r shoulder}
-round(sort(effect$total, decreasing = TRUE)[c(1, 10, 40, 55, 56, 80, 245)], 4)
+round(sort(effect$total, decreasing = TRUE)[c(1, 10, 40, 104, 105, 150, 280)], 4)
+```
+
+```{r shoulder-check, include=FALSE}
+stopifnot(
+  identical(
+    sort(order(effect$total, decreasing = TRUE)[seq_along(signal)]),
+    signal
+  )
+)
 ```
 
 `crossform` deliberately gives you no way to turn that shoulder into a finding.
 There is no threshold, no p-value, no permutation null, no spatial
-random-field correction, and no group inference; the
-[Status and scope](../index.html#status-and-scope) section says so, and the
-[failure gallery](failure-gallery.html) treats manufactured uncertainty as an
-error to guard against. Measurements standing clear of the floor are
-**candidates**. What you may legitimately do with them:
+random-field correction, and no group inference; the README's **Status and
+scope** section says so, and the failure gallery
+([online](failure-gallery.html), or `vignette("failure-gallery")` offline)
+treats manufactured uncertainty as an error to guard against. Measurements
+standing clear of the floor are **candidates**. What you may legitimately do
+with them:
 
 - **Say what kind of effect each one is.** The coherent/configuration split is
   descriptive, not inferential, so it costs you nothing to read: a candidate
   high in configuration is a reproducible pattern, one far along the coherent
   axis is a regional mean that a univariate contrast would also have found.
+  This map has both, at opposite ends of the volume, with the same amplitude.
 - **Attach a within-measurement standard error at a measurement you chose in
   advance**, using `rdm_sampling_covariance()` with `target = "null"` — and
   only if the relation kept its residual channel, which means fitting with
@@ -361,6 +495,10 @@ somewhere you did not select it.
 
 ## Reading the RDM
 
+`peak` is the pattern block's strongest searchlight, so the two within-category
+pairs should sit near zero and the four across-category pairs near the planted
+separation.
+
 ```{r rdm}
 distances <- rdm(plan)
 distances$pairs
@@ -381,8 +519,31 @@ precision metric it is a squared Mahalanobis distance. Three consequences:
    each pattern by its own norm, which is not a fixed linear operation, so it
    cannot be a query against this geometry. The package refuses to substitute
    it silently; the reasoning and the conditions under which the boundary
-   could be crossed are in the
-   [correlation-distance policy](correlation-distance-policy.html).
+   could be crossed are in the correlation-distance policy
+   ([online](correlation-distance-policy.html), or
+   `vignette("correlation-distance-policy")` offline).
+
+Because the RDM is a geometry query and not a decomposition, it does not tell
+the two blocks apart. The strongest searchlight in each block returns much the
+same six distances, even though their energies split in opposite directions:
+
+```{r rdm-blocks}
+round(rbind(
+  pattern = distances$values[at[["pattern"]], ],
+  mean = distances$values[at[["mean"]], ]
+), 3)
+```
+
+```{r rdm-blocks-check, include=FALSE}
+stopifnot(
+  max(abs(
+    distances$values[at[["pattern"]], ] - distances$values[at[["mean"]], ]
+  )) < 0.5
+)
+```
+
+Only `contrast_energy()` separates coherent from configuration. If the
+distinction matters to your question, the RDM is not where you will find it.
 
 ## Reading RSA coefficients
 
@@ -438,7 +599,8 @@ round(rbind(distance = distances$values[peak, ],
   pair: with no signal assumed, the variance depends only on the noise.
 - **`target = "plugin"`** substitutes the estimated partition-mean pattern for
   the unknown signal. It tracks the actual distances — large where the
-  distance is large — which is what you want when reporting an error bar
+  distance is large, and back down toward the null value for the two
+  within-category pairs — which is what you want when reporting an error bar
   around a nonzero estimate. It is **biased upward**, by a term that shrinks
   like 1/M² in the number of features and is largest when noise dominates the
   true distances, so read it as mildly conservative. See
@@ -519,9 +681,11 @@ relation; only the error bar is withheld.
 
 - `vignette("introduction", package = "crossform")` — the workflow these
   results come from.
-- [Correlation-distance policy](correlation-distance-policy.html) — why
-  `rdm()` will not give you `1 - r`.
-- [Failure gallery](failure-gallery.html) — six realistic errors and the
-  refusals that stop them.
-- `?contrast_energy`, `?rdm`, `?rsa`, `?rdm_sampling_covariance` for the exact
-  contracts.
+- [Correlation-distance policy](correlation-distance-policy.html), offline
+  `vignette("correlation-distance-policy")` — why `rdm()` will not give you
+  `1 - r`.
+- [Failure gallery](failure-gallery.html), offline
+  `vignette("failure-gallery")` — six realistic errors and the refusals that
+  stop them.
+- `?example_fmri_effects` for the two planted blocks, and `?contrast_energy`,
+  `?rdm`, `?rsa`, `?rdm_sampling_covariance` for the exact contracts.

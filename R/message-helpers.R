@@ -51,6 +51,29 @@
   sprintf("an object of class `%s`", paste(class(x), collapse = "/"))
 }
 
+# One measurement position, checked against the number of measurements the
+# caller's plan or frame actually has. The message names the argument, the
+# value received, and the range, because "out of bounds" alone leaves the
+# reader guessing which of the two numbers is wrong.
+.msg_measurement_index <- function(value, measurements, argument = "at",
+                                   subject = "plan") {
+  measurements <- as.integer(measurements)
+  usable <- is.numeric(value) && length(value) == 1L && !is.na(value) &&
+    is.finite(value) && value %% 1 == 0
+  if (!usable) {
+    stop(sprintf(paste0(
+      "`%s` must be one measurement index in 1..%d; received %s."
+    ), argument, measurements, .msg_value(value)), call. = FALSE)
+  }
+  if (value < 1L || value > measurements) {
+    stop(sprintf(paste0(
+      "`%s` = %s is outside the %s's 1..%d measurements."
+    ), argument, format(value, scientific = FALSE), subject, measurements),
+      call. = FALSE)
+  }
+  as.integer(value)
+}
+
 # Which positions of a numeric vector are not usable, for a message that can
 # point at the offending entries rather than restating the rule.
 .msg_positions <- function(index, labels = NULL, max_shown = 6L) {

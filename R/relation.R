@@ -106,6 +106,27 @@
 #'   `$effects` labels, `$partitions`, `$n_features`, the `$domain` reference
 #'   and `$domain_id`, optional source `$capabilities`, and `$provenance`. No
 #'   neural values have been read.
+#' @section Structure:
+#' A relation declares what will be read, so its elements are identities and
+#' shapes rather than values.
+#'
+#' - `$effects`: the effect labels, in the order every partition estimates
+#'   them and the order unnamed contrast weights are read in.
+#' - `$effect_space`: the shared `effect_space()` those labels coordinate,
+#'   carrying the basis identity, units, and signature every partition
+#'   agrees on.
+#' - `$partitions`: the partition names, in the order they were supplied.
+#'   These are what [cross_partitions()] and [pairing()] name.
+#' - `$n_features`: the number of neural features every partition spans.
+#' - `$domain`: the neural domain the source columns are bound to, carrying
+#'   its `id`, `n_features`, and `feature_ids`; `$domain_id` repeats that
+#'   `id`.
+#' - `$capabilities`: one [source_capabilities()] per partition when the
+#'   sources declared them, otherwise `NULL`.
+#' - `$provenance`: the metadata supplied at construction, unchanged.
+#'
+#' `$sources` and `$extractors` are the compiled read path [relation_block()]
+#' uses; they and any element not listed here are internal and may change.
 #' @family relation planning and fitting
 #' @seealso [lm_relation_fit()] when raw responses are available and a residual
 #'   channel is needed, [relation_block()] to read one block, and

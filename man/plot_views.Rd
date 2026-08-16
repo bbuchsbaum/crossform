@@ -47,7 +47,7 @@ with one value per measurement, or measurement identifiers. Measurements
 outside the view are an error rather than a silent drop.}
 
 \item{highlight_label}{What the highlighted measurements are, named in the
-legend alongside their count, as in \code{"planted signal (57 measurements)"}.
+legend alongside their count, as in \code{"planted signal (104 measurements)"}.
 Say what the set means rather than that it was selected.}
 
 \item{main}{Optional title. For a multi-panel figure a character vector is
@@ -124,7 +124,7 @@ plot(distances, measurement = which.max(energy$total))
 
 # One panel per RSA coefficient, over measurements.
 plot(rsa(plan, models = list(category = example$model_rdm)),
-     highlight = planted)
+     highlight = planted, highlight_label = "planted signal")
 
 # The same estimand under a declared fixed noise metric.
 metric <- noise_precision(

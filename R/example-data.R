@@ -32,28 +32,67 @@
 #' Generate a small task-fMRI relation with known spatial truth
 #'
 #' This is the executable newcomer fixture. Four conditions are observed in
-#' independent runs over a small volume. A reproducible animate-versus-
-#' inanimate multivariate pattern is planted near the volume center, and raw
-#' trial responses are retained through [lm_relation_fit()] so both point
-#' geometry and the admitted fixed-metric uncertainty path are available.
+#' independent runs over a small volume, and raw trial responses are retained
+#' through [lm_relation_fit()] so both point geometry and the admitted
+#' fixed-metric uncertainty path are available.
+#'
+#' Two animate-versus-inanimate blocks are planted, at opposite ends of the
+#' longest axis and never overlapping. Both carry the same per-voxel amplitude;
+#' only the sign structure differs, so the two halves of the energy
+#' decomposition are each demonstrated by one block:
+#'
+#' - the **pattern** block alternates sign between neighboring voxels within
+#'   each axial slice, so its frame-weighted average nearly cancels and its
+#'   reproducible energy is almost entirely `configuration`;
+#' - the **mean** block shifts every voxel the same way, so its energy is
+#'   almost entirely `coherent`.
 #'
 #' The returned object is generated, not empirical data. Use the Haxby exemplar
 #' under `exemplars/haxby2001` for the public-data parity workflow.
 #'
 #' @param seed Nonnegative integer random seed. The caller's random-number state
 #'   is restored on exit.
-#' @param dimensions Three volume dimensions, each at least three.
+#' @param dimensions Three volume dimensions, each at least three. The default
+#'   is the smallest volume in which the two planted blocks, and the
+#'   searchlights that touch them, stay disjoint; smaller volumes still work
+#'   but the blocks crowd each other.
 #' @param partitions Number of independent runs, at least two.
 #' @param trials_per_condition Trials per condition and run, at least two.
 #' @param noise_sd Positive residual standard deviation.
 #' @param spacing Three positive voxel spacings in millimeters.
 #' @param searchlight_radius Positive searchlight radius in millimeters.
-#' @return An `effect_example_effects` list containing `$fit` (an
-#'   [lm_relation_fit()] with a residual channel), its full `$domain`, a
-#'   compiled searchlight `$frame`, the animate-versus-inanimate `$contrast`
-#'   weights, a category `$model_rdm`, and `$truth` metadata naming the
-#'   `planted_features`, the `signal_measurements` that overlap them, the
-#'   noiseless `condition_patterns`, and the generating `noise_sd` and `seed`.
+#' @param plant Which blocks to plant: `"pattern"`, `"mean"`, or both (the
+#'   default). Dropping one leaves its feature and measurement sets empty; the
+#'   noise draw is unchanged either way, so the two settings differ only in the
+#'   planted signal.
+#' @return An `effect_example_effects` list.
+#' @section Structure:
+#' The returned list has six public elements.
+#'
+#' - `$fit`: an [lm_relation_fit()] carrying a residual channel, so
+#'   [rdm_sampling_covariance()] is admitted. `$fit$relation` is what
+#'   [plan_geometry()] takes.
+#' - `$domain`: the full [volume_domain()] the fit was made over.
+#' - `$frame`: a searchlight [compile_frame()] over that domain, one
+#'   measurement per voxel.
+#' - `$contrast`: named animate-versus-inanimate weights over the four
+#'   conditions.
+#' - `$model_rdm`: a condition-by-condition category model for [rsa()].
+#' - `$truth`: what was planted, listed below.
+#'
+#' `$truth` holds feature indices into the domain, measurement indices into the
+#' frame, and the generating settings.
+#'
+#' - `$planted_features`, `$mean_features`: the two disjoint voxel sets, as
+#'   positions in the domain. `$planted_feature_ids` gives the same voxels as
+#'   domain feature identifiers.
+#' - `$pattern_measurements`, `$mean_measurements`: the searchlights that
+#'   overlap each block. `$signal_measurements` is their sorted union, which is
+#'   what a map-reading example should highlight.
+#' - `$contrast_pattern`: the planted per-voxel contrast profile over the whole
+#'   domain, zero outside the two blocks.
+#' - `$condition_patterns`: the noiseless condition-by-voxel means.
+#' - `$noise_sd`, `$seed`: the generating settings.
 #' @family geometry plans and views
 #' @seealso [plan_geometry()] for the next step, then [contrast_energy()],
 #'   [rdm()], or [rsa()]; and [rdm_sampling_covariance()], which the retained
@@ -61,10 +100,11 @@
 #' @examples
 #' example <- example_fmri_effects()
 #'
-#' # The planted contrast and the features it was planted in are carried
+#' # The planted contrast and the two blocks it was planted in are carried
 #' # alongside the data, so any result can be checked against ground truth.
 #' example$contrast
-#' length(example$truth$planted_features)
+#' c(pattern = length(example$truth$planted_features),
+#'   mean = length(example$truth$mean_features))
 #'
 #' # Everything a second-moment question needs is already built: a fit with
 #' # residuals, a compiled searchlight frame, and the cross-run pairing.
@@ -75,21 +115,24 @@
 #' distances <- rdm(plan)
 #' dim(distances$values)
 #'
-#' # Cross-run energy for the planted contrast is largest inside the planted
-#' # region, which is what makes this fixture usable as a check.
+#' # Each block reproduces the half of the decomposition it was built from.
 #' energy <- contrast_energy(plan, example$contrast)
-#' signal <- example$truth$signal_measurements
-#' round(c(planted = mean(energy$total[signal]),
-#'         elsewhere = mean(energy$total[-signal])), 3)
+#' round(c(
+#'   pattern_configuration = max(energy$configuration[
+#'     example$truth$pattern_measurements]),
+#'   mean_coherent = max(energy$coherent[example$truth$mean_measurements]),
+#'   elsewhere = max(energy$total[-example$truth$signal_measurements])
+#' ), 3)
 #' @export
 example_fmri_effects <- function(
     seed = 20260814L,
-    dimensions = c(7L, 7L, 5L),
+    dimensions = c(8L, 7L, 5L),
     partitions = 4L,
     trials_per_condition = 8L,
     noise_sd = 0.6,
     spacing = c(3, 3, 3),
-    searchlight_radius = 4) {
+    searchlight_radius = 4,
+    plant = c("pattern", "mean")) {
   if (!is.numeric(dimensions) || length(dimensions) != 3L ||
       anyNA(dimensions) || any(!is.finite(dimensions)) ||
       any(dimensions %% 1 != 0) || any(dimensions < 3) ||
@@ -116,6 +159,7 @@ example_fmri_effects <- function(
     stop("`searchlight_radius` must be one positive finite number.",
       call. = FALSE)
   }
+  plant <- match.arg(plant, c("pattern", "mean"), several.ok = TRUE)
 
   .with_example_seed(seed, {
     conditions <- c("face", "body", "house", "tool")
@@ -125,16 +169,39 @@ example_fmri_effects <- function(
       # every plan built from the otherwise unchanged generated fixture.
       mask, spacing = spacing, id = "crossform:generated-fmri-example"
     )
+    # The two blocks sit one voxel in from either end of the longest axis and
+    # are centered on the other two. At the default dimensions that keeps the
+    # blocks, and the searchlights touching them, disjoint.
     center <- colMeans(domain$coordinates)
-    displacement <- sweep(domain$coordinates, 2L, center, `-`)
-    distance <- sqrt(rowSums(displacement^2))
-    planted <- which(distance <= 1.5 * min(spacing))
+    long_axis <- which.max(dimensions)
+    axis_levels <- sort(unique(domain$coordinates[, long_axis]))
+    block_center <- function(level) {
+      value <- center
+      value[[long_axis]] <- level
+      value
+    }
+    in_ball <- function(origin) {
+      displacement <- sweep(domain$coordinates, 2L, origin, `-`)
+      which(sqrt(rowSums(displacement^2)) <= 1.5 * min(spacing))
+    }
+    pattern_features <- in_ball(
+      block_center(axis_levels[[length(axis_levels) - 1L]])
+    )
+    mean_features <- setdiff(in_ball(block_center(axis_levels[[2L]])),
+      pattern_features)
+    if (!"pattern" %in% plant) pattern_features <- integer(0)
+    if (!"mean" %in% plant) mean_features <- integer(0)
+
+    # Voxel grid positions, used only for the alternating sign pattern.
+    grid <- round(sweep(domain$coordinates, 2L, spacing, `/`))
     profile <- numeric(domain$n_features)
-    local <- displacement[planted, 1L] - 0.7 * displacement[planted, 2L] +
-      0.4 * displacement[planted, 3L]
-    if (all(local == 0)) local <- seq_along(planted) - mean(seq_along(planted))
-    local <- local / sqrt(mean(local^2))
-    profile[planted] <- local
+    # Alternating within each axial slice: the six-neighbor searchlight
+    # average of this profile is -1/7 of the center value, so almost none of
+    # the block's reproducible energy survives into the coherent component.
+    profile[pattern_features] <- (-1)^(grid[pattern_features, 1L] +
+      grid[pattern_features, 2L])
+    # The same amplitude with one sign everywhere: a pure regional mean shift.
+    profile[mean_features] <- 1
 
     contrast_weights <- stats::setNames(
       c(0.5, 0.5, -0.5, -0.5), conditions
@@ -166,8 +233,16 @@ example_fmri_effects <- function(
     frame <- compile_frame(
       searchlights(searchlight_radius, normalization = "local"), domain
     )
-    signal_measurements <- which(
-      Matrix::rowSums(frame$weights[, planted, drop = FALSE]) > 0
+    touching <- function(features) {
+      if (!length(features)) {
+        return(integer(0))
+      }
+      which(Matrix::rowSums(frame$weights[, features, drop = FALSE]) > 0)
+    }
+    pattern_measurements <- touching(pattern_features)
+    mean_measurements <- touching(mean_features)
+    signal_measurements <- sort(
+      union(pattern_measurements, mean_measurements)
     )
     model_rdm <- outer(
       sign(contrast_weights), sign(contrast_weights),
@@ -181,8 +256,12 @@ example_fmri_effects <- function(
       contrast = contrast_weights,
       model_rdm = model_rdm,
       truth = list(
-        planted_features = planted,
-        planted_feature_ids = domain$feature_ids[planted],
+        planted_features = pattern_features,
+        planted_feature_ids = domain$feature_ids[pattern_features],
+        mean_features = mean_features,
+        mean_feature_ids = domain$feature_ids[mean_features],
+        pattern_measurements = pattern_measurements,
+        mean_measurements = mean_measurements,
         signal_measurements = signal_measurements,
         contrast_pattern = profile,
         condition_patterns = true_patterns,

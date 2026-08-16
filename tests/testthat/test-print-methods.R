@@ -141,7 +141,8 @@ test_that("printing the worked example stays inside one screen", {
 
 test_that("the worked example names its parts without expanding them", {
   output <- utils::capture.output(print(example_fmri_effects()))
-  expect_match(paste(output, collapse = "\n"), "planted features")
+  expect_match(paste(output, collapse = "\n"), "pattern voxels")
+  expect_match(paste(output, collapse = "\n"), "mean-shift voxels")
   expect_match(paste(output, collapse = "\n"), "4 x 4 model dissimilarities")
   expect_false(any(grepl("^\\s*\\[1\\]", output)))
 })
@@ -339,7 +340,7 @@ test_that("a metric never prints its matrix", {
     print(neural_metric(diag(domain$n_features), domain))
   )
   expect_lte(length(output), 20L)
-  expect_match(paste(output, collapse = "\n"), "245 x 245 \\(not shown\\)")
+  expect_match(paste(output, collapse = "\n"), "280 x 280 \\(not shown\\)")
 })
 
 # Results, receipts, and sampling --------------------------------------------
@@ -681,4 +682,45 @@ test_that("the package registers a print method for every documented class", {
     "effect_metric_capabilities", "effect_measurement_capabilities"
   )
   expect_setequal(setdiff(expected, printed), character())
+})
+
+# Compiler vocabulary stays behind detail = TRUE ------------------------------
+
+test_that("a geometry plan prints in the words the declaration used", {
+  fixture <- print_fixture()
+  output <- paste(utils::capture.output(print(fixture$plan)), collapse = "\n")
+
+  # The default block is what a scientist is told to keep with an analysis
+  # record, so it carries no compiler vocabulary.
+  expect_false(grepl("lowering", output, fixed = TRUE))
+  expect_false(grepl("additive_contraction", output, fixed = TRUE))
+  expect_false(grepl("dense payload", output, fixed = TRUE))
+  expect_match(output, "execution:\\s+query-first, in memory")
+  expect_match(output, "state:")
+  expect_match(output, "next:\\s+contrast_energy\\(plan, weights\\)")
+  expect_match(output, "measurements: 280")
+
+  detailed <- paste(
+    utils::capture.output(print(fixture$plan, detail = TRUE)), collapse = "\n"
+  )
+  expect_match(detailed, "lowering:\\s+additive_contraction")
+  expect_match(detailed, "dense payload:")
+  expect_identical(format(fixture$plan, detail = TRUE),
+    utils::capture.output(print(fixture$plan, detail = TRUE)))
+
+  inline <- format(fixture$plan)
+  expect_length(inline, 1L)
+  expect_false(grepl("additive_contraction", inline, fixed = TRUE))
+  expect_match(inline, "6 partition pairs")
+})
+
+test_that("a contrast view explains its own missing coherence fractions", {
+  fixture <- print_fixture()
+  view <- contrast_energy(fixture$plan, fixture$example$contrast)
+  output <- paste(utils::capture.output(print(view)), collapse = "\n")
+
+  valid <- sum(view$coherence_fraction_valid)
+  expect_match(output, sprintf("coherence_fraction: %d of %d valid", valid,
+    length(view$coherence_fraction)))
+  expect_match(output, "nonnegative partition")
 })

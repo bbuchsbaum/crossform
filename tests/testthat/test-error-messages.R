@@ -199,3 +199,35 @@ test_that("aligned contrast weights carry the relation's effect names", {
   expect_identical(named$weights, positional$weights)
   expect_equal(named$total, positional$total, tolerance = 0)
 })
+
+test_that("an out-of-range measurement index names the argument and range", {
+  example <- example_fmri_effects()
+  plan <- plan_geometry(
+    example$fit$relation, example$frame,
+    cross_partitions(example$fit$relation, independence = "independent")
+  )
+  measurements <- plan$measurements
+
+  expect_error(
+    rdm_sampling_covariance(plan, example$fit, target = "null", at = 99999),
+    sprintf("`at` = 99999 is outside the plan's 1\\.\\.%d measurements",
+      measurements)
+  )
+  expect_error(
+    rdm_sampling_covariance(plan, example$fit, target = "null", at = 0),
+    sprintf("`at` = 0 is outside the plan's 1\\.\\.%d measurements",
+      measurements)
+  )
+  expect_error(
+    rdm_sampling_covariance(plan, example$fit, target = "null", at = "peak"),
+    sprintf(
+      "`at` must be one measurement index in 1\\.\\.%d; received a character",
+      measurements)
+  )
+
+  # The compiled accessor reports the same way when it is reached directly.
+  read_node <- crossform:::.frame_metric_node_accessor(example$frame)
+  expect_error(read_node(1e6),
+    sprintf("`at` = 1000000 is outside the frame's 1\\.\\.%d measurements",
+      measurements))
+})

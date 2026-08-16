@@ -34,6 +34,32 @@ components form a nonnegative partition, flagged by
 This view never removes a mean pattern or reruns an analysis. It reads the
 exact coherent/configuration decomposition already contained in \code{x}.
 }
+\section{Structure}{
+
+Each value element holds one number per spatial measurement, in \verb{$index}
+order.
+\itemize{
+\item \verb{$signed}: the signed contrast of the local weighted mean. It keeps its
+sign, so it says which way the effect goes; the energies below cannot.
+\item \verb{$coherent}: the part of the energy carried by the measurement's own
+weighted common spatial mode.
+\item \verb{$configuration}: the orthogonal remainder, the pattern part.
+\item \verb{$total}: \verb{$coherent + $configuration}, the crossvalidated energy of the
+contrast. Cross-generalized values may be negative.
+\item \verb{$coherence_fraction}: \verb{$coherent / $total}, and \code{NA} wherever the raw
+components do not form a nonnegative partition.
+\item \verb{$coherence_fraction_valid}: \code{TRUE} exactly where that fraction was
+reported.
+\item \verb{$weights}: the contrast, reordered to the relation's effect order and
+named. Print it to confirm the alignment.
+\item \verb{$index}: the measurement identifiers, one per value, carried from the
+frame's \verb{$index$measurement}.
+\item \verb{$receipt}: the execution receipt for the run that produced the values.
+}
+
+Any element not listed here is internal and may change.
+}
+
 \examples{
 # Where does an animate-versus-inanimate pattern reproduce across runs?
 example <- example_fmri_effects()

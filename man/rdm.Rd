@@ -52,6 +52,24 @@ plan was built from \code{lm_relation_fit()} and its residual error channel is
 still available. Pair rows that share a partition are not independent
 replicates for a spread-across-pairs standard error.
 }
+\section{Structure}{
+
+The distances are one measurement-by-pair matrix; the other elements name
+its axes and record what was read.
+\itemize{
+\item \verb{$values}: one row per spatial measurement, one column per requested
+pair, in \verb{$pairs} row order.
+\item \verb{$pairs}: a data frame whose \code{left} and \code{right} columns name the two
+effects behind each column of \verb{$values}.
+\item \verb{$component}: the geometry component the distances were taken from.
+\item \verb{$index}: the measurement identifiers, one per row of \verb{$values},
+carried from the frame's \verb{$index$measurement}.
+\item \verb{$receipt}: the execution receipt for the run that produced the values.
+}
+
+Any element not listed here is internal and may change.
+}
+
 \section{Refusals}{
 
 \code{normalize} signals an \code{effect_capability_refusal} with capability

@@ -2,7 +2,11 @@
 title: "Failure gallery"
 description: >
   Six realistic analysis errors a conventional pipeline can execute silently, and the classed refusals or absent transformations that stop them.
-output: rmarkdown::html_document
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Failure gallery}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 A contract is persuasive only when it visibly prevents plausible errors. Each
@@ -42,10 +46,11 @@ rdm(plan, normalize = "correlation")
 > zero or negative, so dividing by them is not conventional `1 - Pearson`
 > distance and would silently change the estimand. Conventional correlation
 > distance requires a guaranteed positive-semidefinite self form and its own
-> named view; see the correlation-distance policy article.
+> named view; see the correlation-distance policy vignette.
 
 Refusal capability: `guaranteed_psd`. The full boundary is
-[the correlation-distance policy](correlation-distance-policy.html).
+[the correlation-distance policy](correlation-distance-policy.html)
+(`vignette("correlation-distance-policy", package = "crossform")` offline).
 
 ## 2. "Remove the univariate signal"
 
@@ -144,6 +149,18 @@ Two ways pipelines manufacture error bars, both refused.
 data, so the fixed-metric sampling law does not cover the result:
 
 ```r
+learned_metric_plan <- plan_geometry(
+  example$fit$relation, example$frame,
+  cross_partitions(example$fit$relation, independence = "independent"),
+  metric = neural_metric(
+    diag(example$domain$n_features), example$domain,
+    estimation = "learned_frozen",
+    provenance = list(
+      frozen = TRUE,
+      training_signature = paste0("sha256:", strrep("ab", 32))
+    )
+  )
+)
 rdm_sampling_covariance(learned_metric_plan, example$fit, target = "null")
 ```
 

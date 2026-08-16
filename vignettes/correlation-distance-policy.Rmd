@@ -2,7 +2,11 @@
 title: "Correlation-distance policy"
 description: >
   Why rdm() means squared Euclidean or fixed-Mahalanobis distance and never silently substitutes 1 - Pearson correlation.
-output: rmarkdown::html_document
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Correlation-distance policy}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 **Status:** accepted design decision, 2026-08-14

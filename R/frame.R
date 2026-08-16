@@ -183,6 +183,27 @@ whole_brain <- function(normalization = "local") {
 #'   frame naming each measurement, `$domain` (the domain reference),
 #'   `$domain_kind`, the originating `$specification`, and, for neighborhood
 #'   scopes, a `$support_index`.
+#' @section Structure:
+#' A compiled frame is the spatial operator together with the record of how
+#' it was built.
+#'
+#' - `$weights`: the sparse measurement-by-feature operator. Row `m` holds
+#'   the weight each domain feature contributes to measurement `m`, in domain
+#'   feature order, after normalization was applied.
+#' - `$index`: one row per measurement, in `$weights` row order. Its
+#'   `measurement` column names each measurement: domain feature identifiers
+#'   for [voxelwise()] and [searchlights()], the distinct labels in first
+#'   appearance order for [regions()], and `"whole_brain"` for
+#'   [whole_brain()]. Views carry these identifiers through as their `$index`.
+#' - `$normalization`: the normalization that was applied, which is what
+#'   [frame_conservation()] reports against.
+#' - `$specification`: the `effect_frame_spec` the frame was compiled from,
+#'   so the scope and its arguments travel with the operator.
+#' - `$domain`: the neural domain the columns are bound to, carrying its
+#'   `id`, `n_features`, and `feature_ids`.
+#'
+#' Any element not listed here, including `$support_index` and the
+#' representation flags, is internal and may change.
 #' @family neural domains and frames
 #' @seealso [voxelwise()], [searchlights()], [regions()], [whole_brain()] for
 #'   the specifications, [frame_conservation()] to check normalization, and

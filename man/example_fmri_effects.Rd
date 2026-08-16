@@ -6,19 +6,23 @@
 \usage{
 example_fmri_effects(
   seed = 20260814L,
-  dimensions = c(7L, 7L, 5L),
+  dimensions = c(8L, 7L, 5L),
   partitions = 4L,
   trials_per_condition = 8L,
   noise_sd = 0.6,
   spacing = c(3, 3, 3),
-  searchlight_radius = 4
+  searchlight_radius = 4,
+  plant = c("pattern", "mean")
 )
 }
 \arguments{
 \item{seed}{Nonnegative integer random seed. The caller's random-number state
 is restored on exit.}
 
-\item{dimensions}{Three volume dimensions, each at least three.}
+\item{dimensions}{Three volume dimensions, each at least three. The default
+is the smallest volume in which the two planted blocks, and the
+searchlights that touch them, stay disjoint; smaller volumes still work
+but the blocks crowd each other.}
 
 \item{partitions}{Number of independent runs, at least two.}
 
@@ -29,33 +33,77 @@ is restored on exit.}
 \item{spacing}{Three positive voxel spacings in millimeters.}
 
 \item{searchlight_radius}{Positive searchlight radius in millimeters.}
+
+\item{plant}{Which blocks to plant: \code{"pattern"}, \code{"mean"}, or both (the
+default). Dropping one leaves its feature and measurement sets empty; the
+noise draw is unchanged either way, so the two settings differ only in the
+planted signal.}
 }
 \value{
-An \code{effect_example_effects} list containing \verb{$fit} (an
-\code{\link[=lm_relation_fit]{lm_relation_fit()}} with a residual channel), its full \verb{$domain}, a
-compiled searchlight \verb{$frame}, the animate-versus-inanimate \verb{$contrast}
-weights, a category \verb{$model_rdm}, and \verb{$truth} metadata naming the
-\code{planted_features}, the \code{signal_measurements} that overlap them, the
-noiseless \code{condition_patterns}, and the generating \code{noise_sd} and \code{seed}.
+An \code{effect_example_effects} list.
 }
 \description{
 This is the executable newcomer fixture. Four conditions are observed in
-independent runs over a small volume. A reproducible animate-versus-
-inanimate multivariate pattern is planted near the volume center, and raw
-trial responses are retained through \code{\link[=lm_relation_fit]{lm_relation_fit()}} so both point
-geometry and the admitted fixed-metric uncertainty path are available.
+independent runs over a small volume, and raw trial responses are retained
+through \code{\link[=lm_relation_fit]{lm_relation_fit()}} so both point geometry and the admitted
+fixed-metric uncertainty path are available.
 }
 \details{
+Two animate-versus-inanimate blocks are planted, at opposite ends of the
+longest axis and never overlapping. Both carry the same per-voxel amplitude;
+only the sign structure differs, so the two halves of the energy
+decomposition are each demonstrated by one block:
+\itemize{
+\item the \strong{pattern} block alternates sign between neighboring voxels within
+each axial slice, so its frame-weighted average nearly cancels and its
+reproducible energy is almost entirely \code{configuration};
+\item the \strong{mean} block shifts every voxel the same way, so its energy is
+almost entirely \code{coherent}.
+}
+
 The returned object is generated, not empirical data. Use the Haxby exemplar
 under \code{exemplars/haxby2001} for the public-data parity workflow.
 }
+\section{Structure}{
+
+The returned list has six public elements.
+\itemize{
+\item \verb{$fit}: an \code{\link[=lm_relation_fit]{lm_relation_fit()}} carrying a residual channel, so
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} is admitted. \verb{$fit$relation} is what
+\code{\link[=plan_geometry]{plan_geometry()}} takes.
+\item \verb{$domain}: the full \code{\link[=volume_domain]{volume_domain()}} the fit was made over.
+\item \verb{$frame}: a searchlight \code{\link[=compile_frame]{compile_frame()}} over that domain, one
+measurement per voxel.
+\item \verb{$contrast}: named animate-versus-inanimate weights over the four
+conditions.
+\item \verb{$model_rdm}: a condition-by-condition category model for \code{\link[=rsa]{rsa()}}.
+\item \verb{$truth}: what was planted, listed below.
+}
+
+\verb{$truth} holds feature indices into the domain, measurement indices into the
+frame, and the generating settings.
+\itemize{
+\item \verb{$planted_features}, \verb{$mean_features}: the two disjoint voxel sets, as
+positions in the domain. \verb{$planted_feature_ids} gives the same voxels as
+domain feature identifiers.
+\item \verb{$pattern_measurements}, \verb{$mean_measurements}: the searchlights that
+overlap each block. \verb{$signal_measurements} is their sorted union, which is
+what a map-reading example should highlight.
+\item \verb{$contrast_pattern}: the planted per-voxel contrast profile over the whole
+domain, zero outside the two blocks.
+\item \verb{$condition_patterns}: the noiseless condition-by-voxel means.
+\item \verb{$noise_sd}, \verb{$seed}: the generating settings.
+}
+}
+
 \examples{
 example <- example_fmri_effects()
 
-# The planted contrast and the features it was planted in are carried
+# The planted contrast and the two blocks it was planted in are carried
 # alongside the data, so any result can be checked against ground truth.
 example$contrast
-length(example$truth$planted_features)
+c(pattern = length(example$truth$planted_features),
+  mean = length(example$truth$mean_features))
 
 # Everything a second-moment question needs is already built: a fit with
 # residuals, a compiled searchlight frame, and the cross-run pairing.
@@ -66,12 +114,14 @@ plan <- plan_geometry(
 distances <- rdm(plan)
 dim(distances$values)
 
-# Cross-run energy for the planted contrast is largest inside the planted
-# region, which is what makes this fixture usable as a check.
+# Each block reproduces the half of the decomposition it was built from.
 energy <- contrast_energy(plan, example$contrast)
-signal <- example$truth$signal_measurements
-round(c(planted = mean(energy$total[signal]),
-        elsewhere = mean(energy$total[-signal])), 3)
+round(c(
+  pattern_configuration = max(energy$configuration[
+    example$truth$pattern_measurements]),
+  mean_coherent = max(energy$coherent[example$truth$mean_measurements]),
+  elsewhere = max(energy$total[-example$truth$signal_measurements])
+), 3)
 }
 \seealso{
 \code{\link[=plan_geometry]{plan_geometry()}} for the next step, then \code{\link[=contrast_energy]{contrast_energy()}},

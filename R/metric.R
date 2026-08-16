@@ -677,7 +677,7 @@ coherent_functional <- function(value, domain, support = NULL,
 # boundaries validate the frame once; this function performs only local CSR
 # indexing. Searchlight frames use the support index as the authoritative
 # support order, while row weights are read from a one-time Rsparse view.
-.frame_metric_node_accessor <- function(frame) {
+.frame_metric_node_accessor <- function(frame, argument = "at") {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
     stop("Frame-metric composition requires an additive localization frame.",
@@ -696,12 +696,9 @@ coherent_functional <- function(value, domain, support = NULL,
   }
   support_index <- frame$support_index
   function(position) {
-    if (!is.numeric(position) || length(position) != 1L ||
-        is.na(position) || position %% 1 != 0 || position < 1L ||
-        position > nrow(frame$weights)) {
-      stop("A compiled node position is out of bounds.", call. = FALSE)
-    }
-    position <- as.integer(position)
+    position <- .msg_measurement_index(
+      position, nrow(frame$weights), argument = argument, subject = "frame"
+    )
     if (!is.null(support_index)) {
       support_positions <- .support_index_support_trusted(
         support_index, position
