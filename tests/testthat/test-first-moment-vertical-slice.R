@@ -24,7 +24,7 @@ test_that("semantic relation plans are coding- and route-stable", {
 
 test_that("planned extraction agrees with direct E and legacy lm_relation_fit", {
   fixture <- first_moment_vertical_fixture("treatment", "svd", "fixed_gls")
-  fit <- estimate(fixture$plan)
+  fit <- estimate_relation(fixture$plan)
   direct <- first_moment_direct_blocks(fixture)
   retained_sources <- stats::setNames(lapply(fixture$partitions,
     function(partition) {
@@ -52,7 +52,7 @@ test_that("planned extraction agrees with direct E and legacy lm_relation_fit", 
 
 test_that("geometry, RDM, and RSA agree with independent form oracles", {
   fixture <- first_moment_vertical_fixture()
-  fit <- estimate(fixture$plan)
+  fit <- estimate_relation(fixture$plan)
   plan <- plan_geometry(fit$relation, fixture$frame, fixture$over)
   direct_blocks <- first_moment_direct_blocks(fixture)
   direct_forms <- first_moment_direct_forms(
@@ -65,7 +65,7 @@ test_that("geometry, RDM, and RSA agree with independent form oracles", {
     tolerance = 3e-11)
 
   weights <- c(face = 0.5, body = 0.5, house = -0.5, tool = -0.5)
-  effect <- contrast(plan, weights)
+  effect <- contrast_energy(plan, weights)
   direct_contrast <- vapply(direct_forms, function(form) {
     drop(crossprod(weights, form %*% weights))
   }, numeric(1))
@@ -88,7 +88,7 @@ test_that("geometry, RDM, and RSA agree with independent form oracles", {
 
 test_that("analytic covariance is route-stable when its assumptions are earned", {
   fixture <- first_moment_vertical_fixture()
-  fit <- estimate(fixture$plan)
+  fit <- estimate_relation(fixture$plan)
   retained_sources <- stats::setNames(lapply(fixture$partitions,
     function(partition) {
       fixture$sources[[partition]][fixture$plan$retained_rows[[partition]], ,
@@ -120,8 +120,8 @@ test_that("learned observation models keep points and withhold analytic law", {
   learned <- first_moment_vertical_fixture(
     "cell", "qr", "learned_frozen_gls"
   )
-  fixed_fit <- estimate(fixed$plan)
-  learned_fit <- estimate(learned$plan)
+  fixed_fit <- estimate_relation(fixed$plan)
+  learned_fit <- estimate_relation(learned$plan)
   for (partition in fixed$partitions) {
     expect_equal(
       relation_block(fixed_fit, partition, 1:60),
@@ -145,7 +145,7 @@ test_that("the external fmrireg route reproduces points but not uncertainty", {
     skip("The installed fmrireg version is outside the certified court.")
   }
   fixture <- first_moment_vertical_fixture("cell", "qr", "ols")
-  native <- estimate(fixture$plan)
+  native <- estimate_relation(fixture$plan)
   external <- fmrireg_relation(fixture$plan)
   for (partition in fixture$partitions) {
     expect_equal(
@@ -191,11 +191,13 @@ test_that("vertical-slice ambiguities refuse before scientific execution", {
   expect_match(conditionMessage(alignment), "run-2")
 
   undeclared <- plan_geometry(
-    estimate(fixture$plan)$relation,
+    estimate_relation(fixture$plan)$relation,
     fixture$frame,
     cross_partitions(fixture$partitions, generalizes_over = "run")
   )
-  capability <- sampling_capabilities(undeclared, estimate(fixture$plan))
+  capability <- sampling_capabilities(
+    undeclared, estimate_relation(fixture$plan)
+  )
   expect_false(capability$available)
   expect_true("endpoint_independence_not_declared" %in%
     capability$reasons$reason)

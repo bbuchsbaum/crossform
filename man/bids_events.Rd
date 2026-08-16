@@ -15,10 +15,10 @@ supply these names.}
 \item{units}{Physical onset and duration units.}
 }
 \value{
-An \code{\link[=events]{events()}} fact object.
+An \code{\link[=observation_events]{observation_events()}} fact object.
 }
 \description{
 The adapter preserves arbitrary BIDS columns and adds private partition and
-event-key columns required by the generic \code{\link[=events]{events()}} contract. Partition
-identity is explicit rather than inferred from filenames.
+event-key columns required by the generic \code{\link[=observation_events]{observation_events()}} contract.
+Partition identity is explicit rather than inferred from filenames.
 }

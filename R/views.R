@@ -32,10 +32,10 @@
 #'   energy components. `coherence_fraction` is reported only where the raw
 #'   cross-generalized components form a nonnegative partition.
 #' @export
-contrast <- function(x, weights, remove_univariate = FALSE) {
+contrast_energy <- function(x, weights, remove_univariate = FALSE) {
   if (!isFALSE(remove_univariate)) {
     .capability_refusal(paste0(
-      "`contrast()` does not remove univariate signal: destructive ",
+      "`contrast_energy()` does not remove univariate signal: destructive ",
       "demeaning would change the estimand while leaving voxelwise mean ",
       "effects in the residual subspace. The returned view already reports ",
       "`coherent` (the weighted common spatial mode), `configuration` (its ",

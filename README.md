@@ -42,7 +42,7 @@ reading a neural block.
 Ask where the animate-versus-inanimate contrast reproduces:
 
 ```r
-effect <- contrast(plan, example$contrast)
+effect <- contrast_energy(plan, example$contrast)
 peak <- which.max(effect$total)
 
 c(
@@ -93,7 +93,7 @@ can be planned without hiding the first-level model in an analysis script:
 ```r
 facts <- study(
   observations(response_runs, scan_indexes, native_domain),
-  events(event_table),
+  observation_events(event_table),
   observation_confounds(confound_table, censor = "retained"),
   partition_hierarchy(run_table)
 )
@@ -108,7 +108,7 @@ relation_request <- plan_relation(
     independence = "runs independently acquired conditional on the model"
   )
 )
-fit <- estimate(relation_request)
+fit <- estimate_relation(relation_request)
 ```
 
 `plan_relation()` is the estimand-bearing request. A concrete design matrix,
@@ -163,12 +163,12 @@ Start with these functions:
 
 | Task | Functions |
 |---|---|
-| Bind raw facts | `observations()`, `events()`, `observation_confounds()`, `study()` |
-| Plan and estimate a relation | `condition_space()`, `effect_map()`, `design_model()`, `observation_model()`, `plan_relation()`, `estimate()` |
+| Bind raw facts | `observations()`, `observation_events()`, `observation_confounds()`, `study()` |
+| Plan and estimate a relation | `condition_space()`, `effect_map()`, `design_model()`, `observation_model()`, `plan_relation()`, `estimate_relation()` |
 | Use precomputed effects or a raw `(X, T)` | `relation()`, `lm_relation_fit()`, `raw_design_model()`, `raw_effect_map()` |
 | Define the spatial measurement | `volume_domain()`, `compile_frame()`, `searchlights()` or `regions()` |
 | Declare generalization and compile | `cross_partitions()`, `plan_geometry()` |
-| Read scientific results | `contrast()`, `rdm()`, `rsa()` |
+| Read scientific results | `contrast_energy()`, `rdm()`, `rsa()` |
 | Calibrate an admitted fixed-metric RDM | `rdm_sampling_covariance()`, `sampling_covariance()` |
 
 Beyond the self-form core, the same plan vocabulary reaches the other

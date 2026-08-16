@@ -13,7 +13,7 @@
 #' @param normalization Explicit frame normalization.
 #' @return An additive frame specification.
 #' @export
-voxels <- function(normalization = "conservative") {
+voxelwise <- function(normalization = "conservative") {
   .frame_spec("voxels", normalization)
 }
 
@@ -137,7 +137,7 @@ compile_frame <- function(specification, domain) {
       call. = FALSE)
   }
   rebuilt <- switch(specification$kind,
-    voxels = voxels(specification$normalization),
+    voxels = voxelwise(specification$normalization),
     searchlights = {
       if (!identical(names(specification), c("kind", "normalization", "radius"))) {
         stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
@@ -180,7 +180,7 @@ compile_frame <- function(specification, domain) {
 #'   per-feature mass deviation from one, and the per-feature mass vector.
 #' @examples
 #' domain <- abstract_domain(4, id = "conservation-example")
-#' conservative <- compile_frame(voxels(), domain)
+#' conservative <- compile_frame(voxelwise(), domain)
 #' frame_conservation(conservative)$conserved
 #' @export
 frame_conservation <- function(x, tolerance = 1e-10) {

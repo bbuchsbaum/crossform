@@ -118,9 +118,9 @@ test_that("execution changes preserve the scientific identity promised", {
   path <- tempfile("effect-form-certification-")
   on.exit(unlink(path, recursive = TRUE), add = TRUE)
 
-  memory <- geometry(rel, frame, over,
+  memory <- materialize_geometry(rel, frame, over,
     compute = compute_policy(block_features = 1L))
-  blocked <- geometry(rel, frame, over, storage = "block",
+  blocked <- materialize_geometry(rel, frame, over, storage = "block",
     storage_path = path, compute = compute_policy(block_features = 4L))
 
   expect_identical(memory$receipt$scientific_plan_id,
@@ -149,9 +149,9 @@ test_that("tiling changes stay identity-stable within a declared tolerance", {
   )
   over <- cross_partitions(rel)
 
-  fine <- geometry(rel, frame, over,
+  fine <- materialize_geometry(rel, frame, over,
     compute = compute_policy(block_features = 1L))
-  coarse <- geometry(rel, frame, over,
+  coarse <- materialize_geometry(rel, frame, over,
     compute = compute_policy(block_features = 37L))
   expect_identical(fine$receipt$scientific_plan_id,
     coarse$receipt$scientific_plan_id)
@@ -173,7 +173,8 @@ test_that("tiling changes stay identity-stable within a declared tolerance", {
 
 test_that("the installed namespace exposes the universal public vocabulary", {
   expected <- c(
-    "pair_query", "match_coupling", "control_coupling", "pair_contrast",
+    "pair_query", "match_coupling", "control_coupling",
+    "coupling_contrast",
     "pair_lm_query", "match_control", "measurement_space",
     "measurement_bridge", "reverse_bridge", "inner_product",
     "reduce_partitions", "aggregate_first"

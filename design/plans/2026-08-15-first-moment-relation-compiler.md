@@ -44,7 +44,7 @@ E=T(LX)^+L,
 B=EY.
 \]
 
-The existing `effect_extractor` is the concrete \(E\). `estimate(plan)` emits
+The existing `effect_extractor` is the concrete \(E\). `estimate_relation(plan)` emits
 the existing `effect_relation_fit`, so `plan_geometry()` and every downstream
 view keep their current contract.
 
@@ -92,7 +92,7 @@ or trial-level inputs.
 
 ### Event and confound facts
 
-`events()` records onsets, durations, units, experimental variables, item
+`observation_events()` records onsets, durations, units, experimental variables, item
 identifiers, and partition metadata. Columns carry schema, not permanent model
 roles. A variable may be a target in one design and nuisance in another.
 
@@ -145,7 +145,7 @@ not inherit the fixed-whitener analytic law by string declaration.
 ### Relation plan, receipt, and fit
 
 `plan_relation()` composes the study, design declaration, condition-space
-effect map, and observation model. `estimate()` is the only verb required to
+effect map, and observation model. `estimate_relation()` is the only verb required to
 read neural values; metadata and design compilation may run before it.
 
 The identity ladder is:
@@ -246,7 +246,7 @@ Phases 2A and 2B may proceed independently after the contract lands.
 Mote: `bd-01M03BNCBXY031N8GEJ17MFSSK`
 
 Implement `plan_relation()`, `observation_model()`, design receipts, fit
-identity and `estimate()`. Adapt `lm_relation_fit()` rather than breaking the
+identity and `estimate_relation()`. Adapt `lm_relation_fit()` rather than breaking the
 existing downstream relation contract. Establish route-stable identity and
 fixed-versus-learned capabilities.
 
@@ -281,7 +281,7 @@ when those artifacts and all child work are complete.
 
 The epic is complete only when all of the following are demonstrated:
 
-1. **Algebraic parity:** `estimate(plan_relation(...))` reproduces the existing
+1. **Algebraic parity:** `estimate_relation(plan_relation(...))` reproduces the existing
    fixed-design `lm_relation_fit()` relation, residuals, effect covariance and
    residual degrees of freedom.
 2. **Coding invariance:** two supported codings of one semantic effect have

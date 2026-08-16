@@ -200,7 +200,7 @@
 #' `generalizes_over` axis.
 #'
 #' @param observations An [observations()] object.
-#' @param events Optional [events()] record.
+#' @param events Optional [observation_events()] record.
 #' @param confounds Optional [observation_confounds()] record.
 #' @param hierarchy Optional [partition_hierarchy()]. A leaf-only hierarchy is
 #'   constructed from observation partitions when omitted.

@@ -366,7 +366,7 @@ test_that("coupling() takes the adjoint closure from the plan vocabulary", {
     effects = effect_space("z"), domain = domain
   )
   rectangular <- plan_geometry(
-    relation, compile_frame(voxels(), domain),
+    relation, compile_frame(voxelwise(), domain),
     pairing(c("run1", "run2"), c("other1", "other1"), directed = TRUE,
       independence = "independent"),
     right = other

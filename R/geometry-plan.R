@@ -215,8 +215,9 @@
 #' `plan_geometry()` validates the relation, spatial frame, pairing, source
 #' capabilities, and compute policy without reading relation blocks. The plan
 #' can answer fixed queries with [evaluate_geometry()] or be explicitly
-#' materialized with [geometry()]. Complete packed geometry is therefore an
-#' optional materialization, not the object that every analysis must allocate.
+#' materialized with [materialize_geometry()]. Complete packed geometry is
+#' therefore an optional materialization, not the object that every analysis
+#' must allocate.
 #'
 #' @param x An `effect_relation` supplying the left experimental axis.
 #' @param at A compiled additive `effect_frame`.
@@ -243,7 +244,7 @@
 #' relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
 #' plan <- plan_geometry(
 #'   relation,
-#'   compile_frame(voxels(), domain),
+#'   compile_frame(voxelwise(), domain),
 #'   cross_partitions(relation, independence = "independent")
 #' )
 #' result <- evaluate_geometry(plan, query = bilinear_query(diag(2)))
@@ -439,7 +440,8 @@ print.effect_geometry_plan <- function(x, ...) {
     ", endpoints ", independence, "\n", sep = "")
   cat("  lowering:     ", x$lowering, "\n", sep = "")
   cat("  dense payload:", format(payload, units = "auto"), "\n")
-  cat("  state:        query-first; call geometry(plan) to materialize\n")
+  cat("  state:        query-first;",
+    "call materialize_geometry(plan) to materialize\n")
   invisible(x)
 }
 

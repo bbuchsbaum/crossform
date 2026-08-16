@@ -18,8 +18,8 @@ test_that("the documented first workflow runs through every public layer", {
     domain = domain)
   at <- compile_frame(searchlights(radius = 1.01, normalization = "local"), domain)
   over <- cross_partitions(rel)
-  g <- geometry(rel, at, over)
-  result <- contrast(g, c(face = 1, house = -1, object = 0))
+  g <- materialize_geometry(rel, at, over)
+  result <- contrast_energy(g, c(face = 1, house = -1, object = 0))
 
   expected <- matrix(c(
     0.925, 0.850, 1.250, 2.100,
@@ -60,8 +60,8 @@ test_that("raw extraction and materialized effects compile to equal geometry", {
   at <- compile_frame(whole_brain(), domain)
   over <- cross_partitions(raw_relation)
 
-  from_raw <- geometry(raw_relation, at, over)
-  from_effects <- geometry(effect_relation, at, over)
+  from_raw <- materialize_geometry(raw_relation, at, over)
+  from_effects <- materialize_geometry(effect_relation, at, over)
   for (component in c("total", "coherent", "configuration")) {
     expect_equal(geometry_component(from_raw, component),
       geometry_component(from_effects, component), tolerance = 1e-13)
@@ -77,13 +77,15 @@ test_that("public frame laws preserve point decomposition and global total", {
   )
   rel <- relation(effects, domain = domain)
   over <- cross_partitions(rel)
-  point <- geometry(rel, compile_frame(voxels(), domain), over)
+  point <- materialize_geometry(rel, compile_frame(voxelwise(), domain), over)
   expect_equal(geometry_component(point, "configuration"),
     matrix(0, 5, 3), tolerance = 1e-14)
 
-  local <- geometry(rel,
+  local <- materialize_geometry(rel,
     compile_frame(searchlights(1.01, normalization = "conservative"), domain), over)
-  global <- geometry(rel, compile_frame(whole_brain(normalization = "none"), domain), over)
+  global <- materialize_geometry(
+    rel, compile_frame(whole_brain(normalization = "none"), domain), over
+  )
   expect_equal(colSums(geometry_component(local, "total")),
     drop(geometry_component(global, "total")), tolerance = 1e-13)
 })
@@ -103,12 +105,12 @@ test_that("public geometry is invariant to joint feature permutation and blockin
     feature_ids = original_domain$feature_ids[permutation],
     id = "permutation-law")
   over <- cross_partitions(c("run1", "run2"))
-  original <- geometry(
+  original <- materialize_geometry(
     relation(matrices, domain = original_domain),
     additive_frame(weights, domain = original_domain), over,
     compute = compute_policy(block_features = 1)
   )
-  permuted <- geometry(
+  permuted <- materialize_geometry(
     relation(lapply(matrices, function(value) value[, permutation, drop = FALSE]),
       effects = c("a", "b", "c"), domain = permuted_domain),
     additive_frame(weights[, permutation, drop = FALSE],
@@ -130,8 +132,12 @@ test_that("the cross-null sign distribution is exactly centered publicly", {
   at <- compile_frame(whole_brain(), domain)
   positive_relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
   negative_relation <- relation(list(run1 = run1, run2 = -run2), domain = domain)
-  positive <- geometry(positive_relation, at, cross_partitions(positive_relation))
-  negative <- geometry(negative_relation, at, cross_partitions(negative_relation))
+  positive <- materialize_geometry(
+    positive_relation, at, cross_partitions(positive_relation)
+  )
+  negative <- materialize_geometry(
+    negative_relation, at, cross_partitions(negative_relation)
+  )
 
   expect_equal(
     geometry_component(positive, "total") +

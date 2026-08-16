@@ -54,15 +54,15 @@ leaving voxelwise mean effects inside the residual subspace, and then invites
 the claim that what remains is "purely multivariate."
 
 ```r
-contrast(plan, example$contrast, remove_univariate = TRUE)
+contrast_energy(plan, example$contrast, remove_univariate = TRUE)
 ```
 
-> `contrast()` does not remove univariate signal: destructive demeaning would
-> change the estimand while leaving voxelwise mean effects in the residual
-> subspace. The returned view already reports `coherent` (the weighted common
-> spatial mode), `configuration` (its orthogonal remainder), and `total` as
-> an exact additive partition; select the component you mean instead of
-> deleting one.
+> `contrast_energy()` does not remove univariate signal: destructive
+> demeaning would change the estimand while leaving voxelwise mean effects in
+> the residual subspace. The returned view already reports `coherent` (the
+> weighted common spatial mode), `configuration` (its orthogonal remainder),
+> and `total` as an exact additive partition; select the component you mean
+> instead of deleting one.
 
 Refusal capability: `nondestructive_decomposition`. The accounting it points
 to is exact: `total = coherent + configuration` at every measurement, for

@@ -15,7 +15,7 @@ evaluate_geometry(
 )
 }
 \arguments{
-\item{x, at, over, compute, reporter}{As in \code{\link[=geometry]{geometry()}}.}
+\item{x, at, over, compute, reporter}{As in \code{\link[=materialize_geometry]{materialize_geometry()}}.}
 
 \item{query}{A fixed \code{bilinear_query()} or packed-coordinate query matrix.}
 

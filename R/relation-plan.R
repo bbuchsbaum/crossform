@@ -378,10 +378,12 @@ relation_plan_receipts <- function(x) {
 #' @return An `effect_relation_fit` whose identity binds the relation plan,
 #'   source revisions, realized row lineage, and design receipts.
 #' @export
-estimate <- function(x, ...) {
+estimate_relation <- function(x, ...) {
   if (length(list(...))) {
-    stop("No additional `estimate()` arguments are currently supported.",
-      call. = FALSE)
+    stop(
+      "No additional `estimate_relation()` arguments are currently supported.",
+      call. = FALSE
+    )
   }
   plan <- .validate_relation_plan(x)
   sources <- .planned_observation_sources(plan)

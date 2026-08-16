@@ -44,8 +44,9 @@ An immutable-by-convention \code{effect_geometry_plan}.
 \code{plan_geometry()} validates the relation, spatial frame, pairing, source
 capabilities, and compute policy without reading relation blocks. The plan
 can answer fixed queries with \code{\link[=evaluate_geometry]{evaluate_geometry()}} or be explicitly
-materialized with \code{\link[=geometry]{geometry()}}. Complete packed geometry is therefore an
-optional materialization, not the object that every analysis must allocate.
+materialized with \code{\link[=materialize_geometry]{materialize_geometry()}}. Complete packed geometry is
+therefore an optional materialization, not the object that every analysis
+must allocate.
 }
 \examples{
 domain <- abstract_domain(3, id = "plan-example")
@@ -54,7 +55,7 @@ run2 <- rbind(a = c(1.1, 0.1, 1.9), b = c(0.1, 0.9, 1.2))
 relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
 plan <- plan_geometry(
   relation,
-  compile_frame(voxels(), domain),
+  compile_frame(voxelwise(), domain),
   cross_partitions(relation, independence = "independent")
 )
 result <- evaluate_geometry(plan, query = bilinear_query(diag(2)))

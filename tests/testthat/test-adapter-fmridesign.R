@@ -51,7 +51,7 @@ test_that("fmridesign compiles a study-bound semantic model", {
     observation_model("ols", sampling_unit = "scan")
   )
   expect_true(all(as.matrix(compiler_conformance(plan)[-1L])))
-  expect_s3_class(estimate(plan), "effect_relation_fit")
+  expect_s3_class(estimate_relation(plan), "effect_relation_fit")
 })
 
 test_that("fmridesign compilation refuses a model built from other events", {
@@ -60,7 +60,7 @@ test_that("fmridesign compilation refuses a model built from other events", {
   altered$condition[[1L]] <- "place"
   altered_study <- study(
     fixture$bound$observations,
-    events(altered),
+    observation_events(altered),
     fixture$bound$confounds,
     fixture$bound$hierarchy
   )

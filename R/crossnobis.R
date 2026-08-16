@@ -501,11 +501,11 @@ print.effect_crossnobis_plan <- function(x, ...) {
 #'
 #' @section One estimand, two views:
 #' On a fixed-metric geometry plan, `crossnobis(x, weights)` is the named
-#' Mahalanobis reading of exactly `contrast(x, weights)$total`: the same
+#' Mahalanobis reading of exactly `contrast_energy(x, weights)$total`: the same
 #' compiled estimand, exposed as a single signed value. When the analysis
 #' also needs the signed endpoint marginals or the exact
 #' coherent/configuration decomposition of the same quantity, call
-#' [contrast()] on the same plan; every component it returns inherits the
+#' [contrast_energy()] on the same plan; every component it returns inherits the
 #' plan's fixed metric.
 #' @examples
 #' domain <- abstract_domain(3, id = "crossnobis-example")

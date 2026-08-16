@@ -133,7 +133,7 @@ test_that("public geometry consumers reject mutated result contracts", {
   mutated <- geometry
   mutated$storage <- "memory"
   mutated$total$representation <- "forged"
-  expect_error(contrast(mutated, c(a = 1, b = -1)),
+  expect_error(contrast_energy(mutated, c(a = 1, b = -1)),
     "storage metadata")
 })
 

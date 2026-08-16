@@ -124,7 +124,7 @@ observation_index <- function(observation_id, partition, time = NULL,
 #' Bind raw observation sources to indexes and a neural domain
 #'
 #' The constructor validates only source metadata and axes. Neural values are
-#' read later by [estimate()].
+#' read later by [estimate_relation()].
 #'
 #' @param sources A matrix or named list of matrix, function, or
 #'   `effect_source_descriptor` sources.
@@ -348,9 +348,10 @@ observations <- function(sources, index, domain, source_dims = NULL,
 #' @param provenance Portable event provenance.
 #' @return An `effect_events` fact object. Column roles remain model-relative.
 #' @export
-events <- function(data, partition = "partition", event_id = "event_id",
-                   onset = "onset", duration = "duration", units = "seconds",
-                   provenance = list()) {
+observation_events <- function(data, partition = "partition",
+                               event_id = "event_id", onset = "onset",
+                               duration = "duration", units = "seconds",
+                               provenance = list()) {
   data <- .canonical_fact_table(data, "data")
   identifiers <- c(partition, event_id)
   if (!all(identifiers %in% names(data))) {
@@ -407,7 +408,7 @@ events <- function(data, partition = "partition", event_id = "event_id",
       !identical(names(value), expected)) {
     stop("Event fields are missing or noncanonical.", call. = FALSE)
   }
-  rebuilt <- events(
+  rebuilt <- observation_events(
     value$data,
     partition = value$partition_column,
     event_id = value$event_id_column,

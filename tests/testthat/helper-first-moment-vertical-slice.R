@@ -71,7 +71,7 @@ first_moment_vertical_fixture <- function(
   }
 
   observation_record <- observations(sources, indexes, domain)
-  event_record <- events(do.call(rbind, event_tables))
+  event_record <- observation_events(do.call(rbind, event_tables))
   confound_record <- observation_confounds(
     do.call(rbind, confound_tables), censor = "retained"
   )

@@ -7,7 +7,7 @@ grid_domain <- function() {
 test_that("all spatial scopes compile to one sparse additive representation", {
   domain <- grid_domain()
   frames <- list(
-    point = compile_frame(voxels(), domain),
+    point = compile_frame(voxelwise(), domain),
     searchlight = compile_frame(searchlights(1.01), domain),
     region = compile_frame(regions(rep(c("left", "right", "middle"), each = 3)), domain),
     global = compile_frame(whole_brain(), domain)
@@ -39,7 +39,7 @@ test_that("local normalization produces unit measurement mass", {
 test_that("conservative frames partition global feature mass", {
   domain <- grid_domain()
   specs <- list(
-    voxels(),
+    voxelwise(),
     searchlights(1.5, normalization = "conservative"),
     regions(rep(c("a", "b", "c"), each = 3), normalization = "conservative"),
     whole_brain(normalization = "conservative")

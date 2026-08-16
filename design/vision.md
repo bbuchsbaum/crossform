@@ -88,7 +88,7 @@ rel <- effect_relation(
   domain = volume_domain(mask)
 )
 
-g <- geometry(
+g <- materialize_geometry(
   rel,
   at = searchlights(
     domain(rel),

@@ -1,6 +1,6 @@
 integrity_fixture <- function(domain = NULL,
                               domain_id = "integrity-guard-domain",
-                              frame_spec = voxels()) {
+                              frame_spec = voxelwise()) {
   set.seed(90217)
   if (is.null(domain)) domain <- abstract_domain(6L, id = domain_id)
   features <- domain$n_features
@@ -32,7 +32,7 @@ test_that("univariate removal refuses and points at the decomposition", {
   fixture <- integrity_fixture()
   weights <- c(level = 0, condition = 1, extra = 0)
   refusal <- catch_refusal(
-    contrast(fixture$plan, weights, remove_univariate = TRUE)
+    contrast_energy(fixture$plan, weights, remove_univariate = TRUE)
   )
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_identical(refusal$capability, "nondestructive_decomposition")
@@ -70,7 +70,7 @@ test_that("conservative frames conserve total evidence; local frames do not", {
     domain = domain, frame_spec = searchlights(1.01, "conservative")
   )
   weights <- c(level = 0, condition = 1, extra = 0)
-  local_view <- contrast(conservative$plan, weights)
+  local_view <- contrast_energy(conservative$plan, weights)
   # The conservation comparator is the unnormalized whole-brain operator:
   # `whole_brain()`'s default local normalization divides by the feature
   # count, which is exactly the factor-of-P trap the docs warn about.
@@ -81,7 +81,7 @@ test_that("conservative frames conserve total evidence; local frames do not", {
       conservative$fit$relation, independence = "independent"
     )
   )
-  global_view <- contrast(global_plan, weights)
+  global_view <- contrast_energy(global_plan, weights)
   expect_equal(sum(local_view$total), global_view$total, tolerance = 1e-10)
 
   # The conservation law covers `total` only: coherent components are

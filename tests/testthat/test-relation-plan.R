@@ -61,8 +61,8 @@ test_that("the crossform rename changes receipts but not relation estimands", {
 test_that("estimate emits the existing relation-fit contract with receipt identity", {
   cell <- relation_plan_fixture("qr", "cell")
   treatment <- relation_plan_fixture("svd", "treatment")
-  cell_fit <- estimate(cell$plan)
-  treatment_fit <- estimate(treatment$plan)
+  cell_fit <- estimate_relation(cell$plan)
+  treatment_fit <- estimate_relation(treatment$plan)
 
   expect_s3_class(cell_fit, "effect_relation_fit")
   expect_s3_class(treatment_fit, "effect_relation_fit")
@@ -89,7 +89,7 @@ test_that("planning is metadata-only and neural reads remain behind estimate", {
   fixture <- relation_plan_fixture(use_functions = TRUE)
   expect_identical(fixture$bound$fixture$reads$count, 0L)
 
-  fit <- estimate(fixture$plan)
+  fit <- estimate_relation(fixture$plan)
   expect_identical(fixture$bound$fixture$reads$count, 0L)
   relation_block(fit, "run-1", c(1, 3))
   expect_identical(fixture$bound$fixture$reads$count, 1L)
@@ -97,7 +97,7 @@ test_that("planning is metadata-only and neural reads remain behind estimate", {
 
 test_that("planned estimates agree with a direct censored linear oracle", {
   fixture <- relation_plan_fixture("svd", "cell", "fixed_gls")
-  fit <- estimate(fixture$plan)
+  fit <- estimate_relation(fixture$plan)
 
   for (partition in fixture$plan$partitions) {
     receipt <- fixture$plan$design_receipts[[partition]]
@@ -115,8 +115,8 @@ test_that("planned estimates agree with a direct censored linear oracle", {
 test_that("learned observation models retain point fits but withhold analytic law", {
   fixed <- relation_plan_fixture("qr", "cell", "fixed_gls")
   learned <- relation_plan_fixture("qr", "cell", "learned_frozen_gls")
-  fixed_fit <- estimate(fixed$plan)
-  learned_fit <- estimate(learned$plan)
+  fixed_fit <- estimate_relation(fixed$plan)
+  learned_fit <- estimate_relation(learned$plan)
 
   for (partition in fixed$plan$partitions) {
     expect_equal(
@@ -180,8 +180,8 @@ test_that("raw X and T plans bind parameterization and lack semantic claims", {
   expect_false(identical(raw_cell$relation_plan_id,
     raw_treatment$relation_plan_id))
   expect_equal(
-    relation_block(estimate(raw_cell), "run-1", 1:5),
-    relation_block(estimate(raw_treatment), "run-1", 1:5),
+    relation_block(estimate_relation(raw_cell), "run-1", 1:5),
+    relation_block(estimate_relation(raw_treatment), "run-1", 1:5),
     tolerance = 1e-12
   )
 })

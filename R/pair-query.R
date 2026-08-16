@@ -143,7 +143,7 @@ control_coupling <- function(matches, include_matches = FALSE) {
 #'   subtraction.
 #' @return An axis-bound `pair_query()` with balance diagnostics.
 #' @export
-pair_contrast <- function(matches, controls, normalize = TRUE) {
+coupling_contrast <- function(matches, controls, normalize = TRUE) {
   matches <- .validate_pair_coupling(matches)
   controls <- .validate_pair_coupling(controls)
   if (matches$kind != "match" || controls$kind != "control" ||
@@ -166,7 +166,7 @@ pair_contrast <- function(matches, controls, normalize = TRUE) {
   }
   H <- matched - control
   pair_query(H, matches$left_space, matches$right_space, metadata = list(
-    constructor = "pair_contrast",
+    constructor = "coupling_contrast",
     balance = .pair_balance_diagnostics(H),
     claim = "observed_operator_balance_only"
   ))

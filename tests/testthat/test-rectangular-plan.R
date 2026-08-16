@@ -32,7 +32,7 @@ rectangular_fixture <- function(domain_id = "rectangular-plan-domain") {
   )
   list(
     domain = domain, encoding = encoding, retrieval = retrieval,
-    over = over, frame = compile_frame(voxels(), domain),
+    over = over, frame = compile_frame(voxelwise(), domain),
     encoding_sources = encoding_sources,
     retrieval_sources = retrieval_sources
   )
@@ -95,7 +95,7 @@ test_that("a rectangular plan materializes to a queryable rectangular form", {
     fixture$encoding, fixture$frame, fixture$over,
     right = fixture$retrieval
   )
-  form <- geometry(plan)
+  form <- materialize_geometry(plan)
   expect_s3_class(form, "effect_form")
   expect_false(inherits(form, "effect_geometry"))
   expect_identical(form$codec, "rectangular")

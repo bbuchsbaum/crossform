@@ -152,7 +152,7 @@ test_that("residual pair preflight refuses before reading", {
 test_that("residual pair statistics require an explicit error and support channel", {
   fixture <- residual_statistics_fixture()
   pure <- relation_fit(fixture$fit$relation)
-  unsupported <- compile_frame(voxels(), fixture$domain)
+  unsupported <- compile_frame(voxelwise(), fixture$domain)
 
   expect_error(
     residual_pair_statistics(pure, fixture$frame),

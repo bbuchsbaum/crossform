@@ -30,7 +30,7 @@ view_geometry_fixture <- function() {
 test_that("contrast returns one exact decomposition and signed marginal", {
   fixture <- view_geometry_fixture()
   weights <- c(a = 1, b = -1, c = 0, d = 0)
-  got <- contrast(fixture$geometry, weights)
+  got <- contrast_energy(fixture$geometry, weights)
   expected_total <- vapply(fixture$total,
     function(value) drop(weights %*% value %*% weights), numeric(1))
   expected_coherent <- vapply(fixture$coherent,
@@ -48,10 +48,11 @@ test_that("contrast returns one exact decomposition and signed marginal", {
 
 test_that("contrast names are semantic rather than positional when supplied", {
   fixture <- view_geometry_fixture()
-  ordered <- contrast(fixture$geometry, c(a = 1, b = -1, c = 0, d = 0))
-  permuted <- contrast(fixture$geometry, c(d = 0, b = -1, a = 1, c = 0))
+  ordered <- contrast_energy(fixture$geometry, c(a = 1, b = -1, c = 0, d = 0))
+  permuted <- contrast_energy(fixture$geometry, c(d = 0, b = -1, a = 1, c = 0))
   expect_equal(permuted$total, ordered$total, tolerance = 0)
-  expect_error(contrast(fixture$geometry, c(a = 1, b = -1, c = 0, x = 0)),
+  expect_error(
+    contrast_energy(fixture$geometry, c(a = 1, b = -1, c = 0, x = 0)),
     "identify every effect")
 })
 

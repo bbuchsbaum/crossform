@@ -63,8 +63,8 @@ test_that("compatibility and plan calls execute one identical lowering", {
   fixture <- geometry_plan_fixture()
   plan <- plan_geometry(fixture$relation, fixture$frame, fixture$pairing,
     compute = compute_policy(block_features = 4))
-  planned <- geometry(plan)
-  compatible <- geometry(
+  planned <- materialize_geometry(plan)
+  compatible <- materialize_geometry(
     fixture$relation, fixture$frame, fixture$pairing,
     compute = compute_policy(block_features = 4)
   )
@@ -102,7 +102,7 @@ test_that("query-first execution fuses the query before spatial contraction", {
   )
 
   direct <- evaluate_geometry(plan, query = query)
-  complete <- geometry(plan)
+  complete <- materialize_geometry(plan)
   late <- query_geometry(complete, query)
 
   expect_false(old_route_called)
@@ -129,7 +129,7 @@ test_that("RDM and RSA views execute only their compiled query coordinates", {
   # constant, while its per-block saving scales with the feature block.
   plan <- plan_geometry(fixture$relation, fixture$frame, fixture$pairing,
     compute = compute_policy(block_features = 18))
-  complete <- geometry(plan)
+  complete <- materialize_geometry(plan)
   model <- as.matrix(stats::dist(seq_len(5)))
   effect_names <- fixture$relation$effect_space$coordinates
   dimnames(model) <- list(effect_names, effect_names)
@@ -173,7 +173,7 @@ test_that("structured pair queries remain exact across bounded pair tiles", {
     fixture$relation, fixture$frame, fixture$pairing,
     compute = compute_policy(block_features = 6L)
   )
-  complete <- geometry(plan)
+  complete <- materialize_geometry(plan)
   model <- as.matrix(stats::dist(seq_len(24L)))
   effect_names <- fixture$relation$effect_space$coordinates
   dimnames(model) <- list(effect_names, effect_names)
@@ -201,10 +201,10 @@ test_that("contrast plans fuse energy components and signed marginals in one pas
     compute = compute_policy(block_features = 5))
   weights <- c(effect1 = 1, effect2 = -1, effect3 = 0, effect4 = 0)
 
-  direct <- contrast(plan, weights)
+  direct <- contrast_energy(plan, weights)
   direct_reads <- reads$count
-  complete <- geometry(plan)
-  late <- contrast(complete, weights)
+  complete <- materialize_geometry(plan)
+  late <- contrast_energy(complete, weights)
 
   expect_equal(direct$signed, late$signed, tolerance = 1e-12)
   expect_equal(direct$total, late$total, tolerance = 1e-12)
@@ -265,7 +265,7 @@ test_that("query-only plans cannot silently accept materialization controls", {
     "cannot be combined with raw plan inputs"
   )
   expect_error(
-    geometry(plan, at = fixture$frame),
+    materialize_geometry(plan, at = fixture$frame),
     "cannot be combined with raw plan inputs"
   )
 })
@@ -395,7 +395,7 @@ test_that("fixed dense metrics stream supports without pair materialization", {
     plan, query = bilinear_query(tcrossprod(contrast_weights)),
     component = "total"
   )
-  complete <- geometry(plan)
+  complete <- materialize_geometry(plan)
   late <- query_geometry(
     complete, bilinear_query(tcrossprod(contrast_weights)), "total"
   )

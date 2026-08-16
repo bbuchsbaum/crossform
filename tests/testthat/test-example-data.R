@@ -26,7 +26,7 @@ test_that("the generated fixture supports the complete newcomer workflow", {
     example$fit$relation, example$frame,
     cross_partitions(example$fit$relation, independence = "independent")
   )
-  effect <- contrast(plan, example$contrast)
+  effect <- contrast_energy(plan, example$contrast)
   distances <- rdm(plan)
   model <- rsa(plan, models = list(category = example$model_rdm))
   peak <- which.max(effect$total)

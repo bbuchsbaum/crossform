@@ -27,11 +27,11 @@ estimates are retained.
 \section{One estimand, two views}{
 
 On a fixed-metric geometry plan, \code{crossnobis(x, weights)} is the named
-Mahalanobis reading of exactly \code{contrast(x, weights)$total}: the same
+Mahalanobis reading of exactly \code{contrast_energy(x, weights)$total}: the same
 compiled estimand, exposed as a single signed value. When the analysis
 also needs the signed endpoint marginals or the exact
 coherent/configuration decomposition of the same quantity, call
-\code{\link[=contrast]{contrast()}} on the same plan; every component it returns inherits the
+\code{\link[=contrast_energy]{contrast_energy()}} on the same plan; every component it returns inherits the
 plan's fixed metric.
 }
 

@@ -31,7 +31,7 @@ one for each declared partition \(r\). Its public chain is
 event and observation facts
   -> plan_relation()
   -> design receipt
-  -> estimate()
+  -> estimate_relation()
   -> effect_relation_fit
   -> plan_geometry()
   -> views
@@ -88,7 +88,7 @@ narrow:
   conditional linear claim.
 
 `effect_extractor` remains the concrete representation of \(E\).
-`estimate()` must emit the existing `effect_relation_fit` contract so no
+`estimate_relation()` must emit the existing `effect_relation_fit` contract so no
 second-moment API needs a parallel ingestion-specific relation type.
 
 ## 3. Five disjoint information classes
@@ -127,7 +127,7 @@ be explored, but cannot earn portable fit identity. Timing is a capability:
 already reduced trial-level observations may be valid without a scan clock,
 whereas an event-to-scan compiler may require one and must refuse if absent.
 
-### 4.2 `events()`
+### 4.2 `observation_events()`
 
 An event record contains typed schema and factual values: onset, duration,
 units, experimental variables, item identifiers, and partition membership.
@@ -268,7 +268,7 @@ whose limitations remain visible.
 
 `plan_relation(study, model, effects, observation_model)` is an immutable
 scientific request. Creating it may validate facts and compile metadata, but it
-must not read neural values. `estimate(plan)` is the data-touching verb.
+must not read neural values. `estimate_relation(plan)` is the data-touching verb.
 
 The identity ladder is:
 
@@ -438,7 +438,7 @@ The implementation must satisfy all laws below.
    on a floating-point fixture.
 8. Unequal partition lengths compile and fit independently while preserving
    one shared effect-space identity.
-9. `estimate(plan)` agrees with direct \(T(LX)^+LY\) and with the legacy
+9. `estimate_relation(plan)` agrees with direct \(T(LX)^+LY\) and with the legacy
    `lm_relation_fit()` route for their common fixed-design subset.
 10. Residual and effect-covariance outputs agree with an independent separable
     GLM oracle only when all advertised premises hold.

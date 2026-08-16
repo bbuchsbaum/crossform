@@ -18,7 +18,8 @@ tests, architecture, presentation, scientific positioning.
    domain bounding box; `numerical_agreement("scheduling")` bitwise.
 2. **First hour.** Rename masking exports (`contrast`→`contrast_energy`, `estimate`→
    `estimate_relation`, `events`→`observation_events`, `voxels`→`voxelwise`, `geometry`→
-   `materialize_geometry`, `pair_contrast`→internal); print/format for every user-facing class and
+   `materialize_geometry`, `pair_contrast`→`coupling_contrast`); print/format for every
+   user-facing class and
    the refusal condition; `?crossform` page; `@examples` + `@family` on every export; errors that
    report what was received; `rsa()` intercept message; runnable BYO-data path; README rewrite with
    a diagram; vignette order + neuroim2 article.

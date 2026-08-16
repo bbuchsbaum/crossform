@@ -36,5 +36,5 @@ An \code{effect_observations} fact object.
 }
 \description{
 The constructor validates only source metadata and axes. Neural values are
-read later by \code{\link[=estimate]{estimate()}}.
+read later by \code{\link[=estimate_relation]{estimate_relation()}}.
 }

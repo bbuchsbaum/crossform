@@ -1,7 +1,7 @@
 test_that("first-journey objects print compact summaries", {
   geometry <- result_fixture()
   query <- query_geometry(geometry, matrix(c(1, 0, -1), ncol = 1))
-  contrast_view <- contrast(geometry, c(a = 1, b = -1))
+  contrast_view <- contrast_energy(geometry, c(a = 1, b = -1))
   rdm_view <- rdm(geometry)
   rsa_view <- rsa(geometry, models = list(separation = matrix(
     c(0, 1, 1, 0), 2, 2
@@ -28,7 +28,7 @@ test_that("materialized views coerce losslessly to row-wise data frames", {
   query <- query_geometry(geometry,
     matrix(c(1, 0, -1, 2, 0.5, 1), nrow = 3,
       dimnames = list(NULL, c("first", "second"))))
-  contrast_view <- contrast(geometry, c(a = 1, b = -1))
+  contrast_view <- contrast_energy(geometry, c(a = 1, b = -1))
   rdm_view <- rdm(geometry)
   rsa_view <- rsa(geometry, models = list(separation = matrix(
     c(0, 1, 1, 0), 2, 2
@@ -63,7 +63,7 @@ test_that("crossnobis views print and coerce without losing signs", {
   relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
   plan <- plan_geometry(
     relation,
-    compile_frame(voxels(), domain),
+    compile_frame(voxelwise(), domain),
     cross_partitions(relation, independence = "independent"),
     metric = noise_precision(diag(3), domain)
   )

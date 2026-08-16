@@ -60,7 +60,7 @@ test_that("couplings support unequal axes, missing matches, and eligibility", {
     spaces$left, spaces$right, eligible
   )
   controls <- control_coupling(matches)
-  query <- pair_contrast(matches, controls)
+  query <- coupling_contrast(matches, controls)
 
   expect_identical(dim(matches$value), c(3L, 4L))
   expect_equal(matches$value["e2", "r2"], 2)

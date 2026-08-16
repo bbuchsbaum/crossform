@@ -31,6 +31,6 @@ local coherent values do not sum to the global coherent component.
 }
 \examples{
 domain <- abstract_domain(4, id = "conservation-example")
-conservative <- compile_frame(voxels(), domain)
+conservative <- compile_frame(voxelwise(), domain)
 frame_conservation(conservative)$conserved
 }

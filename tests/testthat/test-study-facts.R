@@ -71,7 +71,7 @@ test_that("event tables carry schema but no permanent model roles", {
     condition = factor(c("face", "place", "face", "object")),
     motion_modulator = c(0.1, -0.2, 0.3, -0.1)
   )
-  record <- events(table)
+  record <- observation_events(table)
 
   expect_s3_class(record, "effect_events")
   expect_true(record$timing)
@@ -79,7 +79,7 @@ test_that("event tables carry schema but no permanent model roles", {
     levels(table$condition))
   expect_false(any(c("target", "nuisance", "role") %in% names(record)))
 
-  untimed <- events(
+  untimed <- observation_events(
     table[, c("partition", "event_id", "condition")],
     onset = NULL, duration = NULL
   )

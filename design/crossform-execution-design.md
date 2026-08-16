@@ -93,7 +93,7 @@ Those are execution capabilities, not analysis identities.
 The scientific plan consists of relation, frame, pairing, and query. Execution adds only resource policy:
 
 ```r
-g <- geometry(
+g <- materialize_geometry(
   rel,
   at = searchlights(6),
   over = cross_partitions(),
@@ -129,7 +129,7 @@ Coordinator-side reporting and checkpoint destinations are separate execution
 attachments:
 
 ```r
-geometry(..., compute = policy, reporter = reporter, checkpoint = checkpoint)
+materialize_geometry(..., compute = policy, reporter = reporter, checkpoint = checkpoint)
 ```
 
 They are excluded from scientific-plan and numerical-policy identity. Reporter
@@ -260,7 +260,7 @@ Use parallelism in this order.
 
 ### First: participants
 
-Participants are independent, have separate native spaces, and produce separate geometry objects. This is the cleanest outer parallel axis. The core should document that cohort workflows parallelize participants outside `geometry()` and avoid nested within-participant process pools.
+Participants are independent, have separate native spaces, and produce separate geometry objects. This is the cleanest outer parallel axis. The core should document that cohort workflows parallelize participants outside `materialize_geometry()` and avoid nested within-participant process pools.
 
 ### Second: feature blocks within one participant
 
@@ -377,7 +377,7 @@ The core owns no global scheduler state.
   shared-input transport, bounded outputs, worker supervision, recycling, and
   memory diagnostics.
 
-The `geometry()` call creates or explicitly receives an execution scope, initializes workers once, and closes only resources it owns. It does not inspect or modify `future::plan()`. A reusable caller-owned `shard` pool may be supported only through an explicit scope object with unambiguous ownership; the default call never attaches to ambient state.
+The `materialize_geometry()` call creates or explicitly receives an execution scope, initializes workers once, and closes only resources it owns. It does not inspect or modify `future::plan()`. A reusable caller-owned `shard` pool may be supported only through an explicit scope object with unambiguous ownership; the default call never attaches to ambient state.
 
 ### Backend-neutral task protocol
 
@@ -636,12 +636,12 @@ This replaces an elaborate logging framework with one durable, inspectable accou
 ## 11. Query-aware execution
 
 Query-aware execution has two explicit public contracts. It is never a hidden
-memory-policy branch inside `geometry()`.
+memory-policy branch inside `materialize_geometry()`.
 
 ### Complete geometry
 
 ```r
-g <- geometry(
+g <- materialize_geometry(
   rel,
   at = frame,
   over = pairing,
@@ -677,7 +677,7 @@ contract \(WU\). Do not materialize the packed geometry field.
 
 ### Many views or nonlinear views
 
-Use `geometry(materialize = "full")`. Materialize packed geometry once. RDM,
+Use `materialize_geometry(materialize = "full")`. Materialize packed geometry once. RDM,
 linear RSA, contrast energy, and later views reuse it without rerunning source
 extraction.
 

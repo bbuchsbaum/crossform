@@ -19,14 +19,14 @@ library(crossform)
 
 Use this guide when you have one scan-by-feature response matrix per run, event
 and confound tables, and a design matrix or design compiler. The goal is to fit
-named condition effects in every run and pass them to `contrast()`, `rdm()`, or
-`rsa()`. The returned `effect_relation_fit` can also retain residuals for
-within-participant uncertainty calculations.
+named condition effects in every run and pass them to `contrast_energy()`,
+`rdm()`, or `rsa()`. The returned `effect_relation_fit` can also retain
+residuals for within-participant uncertainty calculations.
 
 The workflow has five steps: bind observations to their clocks and metadata,
 declare the condition effects, declare the observation model, call
-`plan_relation()`, and fit it with `estimate()`. A separate `plan_geometry()`
-then states what those fitted effects must reproduce across.
+`plan_relation()`, and fit it with `estimate_relation()`. A separate
+`plan_geometry()` then states what those fitted effects must reproduce across.
 
 ## What data does the fit require?
 
@@ -114,7 +114,7 @@ events outside the observation window.
 
 ```{r bind-study}
 neural_record <- observations(response_runs, scan_indexes, domain)
-event_record <- events(event_table)
+event_record <- observation_events(event_table)
 confound_record <- observation_confounds(
   confound_table, censor = "retained"
 )
@@ -232,7 +232,7 @@ The plan, design receipt, and fitted relation have separate identities:
 
 ```{r identity-ladder}
 receipts <- relation_plan_receipts(relation_request)
-fit <- estimate(relation_request)
+fit <- estimate_relation(relation_request)
 data.frame(
   object = c("relation plan", "run-1 design receipt", "fitted relation"),
   identity = substr(c(
@@ -248,12 +248,13 @@ condition-space request. A supported change from cell-means to treatment coding
 does the same. Changing the requested effects, units, observation law, or
 independence declaration changes the relation plan. `fit$signature` binds the
 plan, the realized receipts, and the exact observation revisions used by
-`estimate()`.
+`estimate_relation()`.
 
 ## Ask what reproduces across runs
 
-`estimate()` emits the same `effect_relation_fit` consumed everywhere else in
-the package. `cross_partitions()` requests products between different runs;
+`estimate_relation()` emits the same `effect_relation_fit` consumed everywhere
+else in the package. `cross_partitions()` requests products between different
+runs;
 `generalizes_over = "run"` records that run is the axis across which the effect
 must reproduce.
 
@@ -270,7 +271,7 @@ generalization <- cross_partitions(
 geometry_plan <- plan_geometry(fit$relation, frame, generalization)
 
 face_minus_body <- c(face = 1, body = -1, tool = 0)
-effect <- contrast(geometry_plan, face_minus_body)
+effect <- contrast_energy(geometry_plan, face_minus_body)
 distances <- rdm(geometry_plan)
 
 tool_category <- outer(
@@ -281,7 +282,7 @@ tool_category <- outer(
 model_fit <- rsa(geometry_plan, models = list(tool = tool_category))
 ```
 
-`contrast()` returns the signed regional contrast and its coherent,
+`contrast_energy()` returns the signed regional contrast and its coherent,
 configuration, and total cross-run energies. `rdm()` returns the three pairwise
 condition distances for each region. `rsa()` returns an intercept and the
 coefficient for the named tool-category model.
@@ -364,7 +365,7 @@ that a different coefficient coding represents the same request. If only beta
 matrices remain, use `relation()` for point geometry; analytic uncertainty is
 unavailable because the residual channel is missing.
 
-The next call depends on the result you need. Use `contrast()` for a named
-effect, `rdm()` for condition distances, `rsa()` for a fixed linear model, and
-`rdm_sampling_covariance()` only after `sampling_capabilities()` confirms that
-the fit and plan meet its assumptions.
+The next call depends on the result you need. Use `contrast_energy()` for a
+named effect, `rdm()` for condition distances, `rsa()` for a fixed linear
+model, and `rdm_sampling_covariance()` only after `sampling_capabilities()`
+confirms that the fit and plan meet its assumptions.

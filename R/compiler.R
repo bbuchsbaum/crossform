@@ -273,8 +273,8 @@
     }
     stop(paste0(
       "Rectangular plans execute axis-bound `pair_query()` operators; ",
-      "materialize with `geometry()` and use `query_geometry()` for raw ",
-      "physical view matrices."
+      "materialize with `materialize_geometry()` and use `query_geometry()` ",
+      "for raw physical view matrices."
     ), call. = FALSE)
   }
   packed_width <- q * (q + 1L) / 2L
@@ -1093,10 +1093,11 @@
 
 #' Materialize a complete cross-generalized geometry
 #'
-#' `geometry()` explicitly materializes complete total and coherent packed
-#' geometry. Prefer [plan_geometry()] followed by [evaluate_geometry()] when a
-#' fixed query is sufficient. The relation compatibility form compiles that
-#' same plan first; it does not use a second execution path.
+#' `materialize_geometry()` explicitly materializes complete total and
+#' coherent packed geometry. Prefer [plan_geometry()] followed by
+#' [evaluate_geometry()] when a fixed query is sufficient. The relation
+#' compatibility form compiles that same plan first; it does not use a second
+#' execution path.
 #'
 #' @param x An `effect_geometry_plan` or, for compatibility, an
 #'   `effect_relation`.
@@ -1109,10 +1110,10 @@
 #' @param reporter Optional nonsemantic coordinator-side event reporter.
 #' @return A complete `effect_geometry`.
 #' @export
-geometry <- function(x, at = NULL, over = NULL,
-                     storage = c("memory", "block"),
-                     storage_path = NULL, compute = NULL,
-                     reporter = NULL) {
+materialize_geometry <- function(x, at = NULL, over = NULL,
+                                 storage = c("memory", "block"),
+                                 storage_path = NULL, compute = NULL,
+                                 reporter = NULL) {
   storage <- match.arg(storage)
   .run_geometry_compiler(x, at, over, compute, storage, storage_path,
     query = NULL, component = NULL, reporter = reporter)
@@ -1120,7 +1121,7 @@ geometry <- function(x, at = NULL, over = NULL,
 
 #' Evaluate a fixed query without materializing complete geometry
 #'
-#' @param x,at,over,compute,reporter As in [geometry()].
+#' @param x,at,over,compute,reporter As in [materialize_geometry()].
 #' @param query A fixed `bilinear_query()` or packed-coordinate query matrix.
 #' @param component One of `total`, `coherent`, or `configuration`.
 #' @return A query-only `effect_view`.

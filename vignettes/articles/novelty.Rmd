@@ -185,8 +185,9 @@ The left and right experimental spaces may be different, unequal, and
 directed. An encoding-by-retrieval form, for example, need not be forced into a
 square condition axis. `plan_geometry(x, at, over, right = )` compiles the
 rectangular plan publicly; axis-bound `pair_query()`s execute against it
-query-first, and `geometry()` materializes a rectangular form that satisfies
-the exact algebraic identity `total = coherent + configuration`. The public
+query-first, and `materialize_geometry()` materializes a rectangular form that
+satisfies the exact algebraic identity `total = coherent + configuration`. The
+public
 test verifies that identity numerically to `1e-12`. The engine, independent
 oracles, and public constructor exist. A real scientific analysis with missing
 or unequal items and pair-space covariates has not yet been shipped, so the

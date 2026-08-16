@@ -362,7 +362,7 @@ result.
 
 The lift is a conservative generalization:
 
-- `geometry()` remains the public complete self-form constructor.
+- `materialize_geometry()` remains the public complete self-form constructor.
 - `bilinear_query()` remains the symmetric same-space compatibility
   constructor and compiles to an axis-bound pair query.
 - `cross_partitions()` retains its current unordered public meaning and exact

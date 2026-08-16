@@ -50,7 +50,7 @@ compiler_oracle <- function(fixture) {
 test_that("public geometry compiles relation frame and pairing once", {
   fixture <- compiler_fixture()
   oracle <- compiler_oracle(fixture)
-  got <- geometry(fixture$relation, fixture$at, fixture$over,
+  got <- materialize_geometry(fixture$relation, fixture$at, fixture$over,
     compute = compute_policy(block_features = 2))
 
   expect_s3_class(got, "effect_geometry")
@@ -78,7 +78,7 @@ test_that("public geometry compiles relation frame and pairing once", {
 
 test_that("direct queries equal late queries without claiming full geometry", {
   fixture <- compiler_fixture()
-  full <- geometry(fixture$relation, fixture$at, fixture$over,
+  full <- materialize_geometry(fixture$relation, fixture$at, fixture$over,
     compute = compute_policy(block_features = 3))
   query <- bilinear_query(tcrossprod(c(1, -1)))
 
@@ -147,8 +147,8 @@ test_that("block-backed public geometry remains complete and readable", {
   fixture <- compiler_fixture()
   path <- tempfile("crossform-store-")
   on.exit(unlink(path, recursive = TRUE), add = TRUE)
-  memory <- geometry(fixture$relation, fixture$at, fixture$over)
-  blocked <- geometry(fixture$relation, fixture$at, fixture$over,
+  memory <- materialize_geometry(fixture$relation, fixture$at, fixture$over)
+  blocked <- materialize_geometry(fixture$relation, fixture$at, fixture$over,
     storage = "block", storage_path = path,
     compute = compute_policy(block_features = 2))
 
@@ -171,7 +171,7 @@ test_that("compiler reuses one admitted file handle across feature blocks", {
   domain <- abstract_domain(8)
   rel <- relation(list(run1 = descriptor, run2 = descriptor),
     effects = c("a", "b"), domain = domain)
-  got <- geometry(rel, compile_frame(whole_brain(), domain),
+  got <- materialize_geometry(rel, compile_frame(whole_brain(), domain),
     cross_partitions(rel, independence = "independent"),
     compute = compute_policy(block_features = 2))
 
@@ -202,7 +202,7 @@ test_that("compiler hashes a file source once at session admission", {
   rel <- relation(list(run1 = descriptor, run2 = descriptor),
     effects = c("a", "b"), domain = domain)
 
-  geometry(rel, compile_frame(whole_brain(), domain),
+  materialize_geometry(rel, compile_frame(whole_brain(), domain),
     cross_partitions(rel, independence = "independent"),
     compute = compute_policy(block_features = 1))
 
@@ -219,13 +219,13 @@ test_that("compile and budget failures occur before opaque source reads", {
   rel <- relation(list(run1 = source, run2 = source),
     source_dims = list(c(2, 4), c(2, 4)), effects = c("a", "b"),
     capabilities = source_capabilities(TRUE, stable_revision = revision))
-  at <- compile_frame(voxels(), abstract_domain(4))
+  at <- compile_frame(voxelwise(), abstract_domain(4))
   over <- cross_partitions(rel$partitions, independence = "independent")
 
   expect_error(evaluate_geometry(rel, at, over, matrix(1, 2, 1)),
     "packed-coordinate")
   expect_identical(reads, 0L)
-  expect_error(geometry(rel, at, over,
+  expect_error(materialize_geometry(rel, at, over,
     compute = compute_policy(workspace_bytes = 1)), "exceeding")
   expect_identical(reads, 0L)
 })
@@ -303,7 +303,7 @@ test_that("exact domain mismatches fail before lazy source reads", {
     capabilities = source_capabilities(TRUE, stable_revision = revision))
   at <- additive_frame(diag(4), domain = reversed_domain)
 
-  expect_error(geometry(rel, at,
+  expect_error(materialize_geometry(rel, at,
     cross_partitions(rel, independence = "independent")),
   "exact neural-domain")
   expect_identical(reads, 0L)
@@ -316,7 +316,7 @@ test_that("volume spacing participates in compiler domain identity", {
   matrices <- list(run1 = matrix(1, 2, 4), run2 = matrix(2, 2, 4))
   rel <- relation(matrices, effects = c("a", "b"), domain = first)
 
-  expect_error(geometry(rel, compile_frame(voxels(), changed),
+  expect_error(materialize_geometry(rel, compile_frame(voxelwise(), changed),
     cross_partitions(rel, independence = "independent")),
     "exact neural-domain")
 })
@@ -329,9 +329,9 @@ test_that("opaque sources without revisions fail before reading", {
   }
   rel <- relation(list(run1 = source, run2 = source),
     source_dims = list(c(2, 3), c(2, 3)), effects = c("a", "b"))
-  at <- compile_frame(voxels(), abstract_domain(3))
+  at <- compile_frame(voxelwise(), abstract_domain(3))
 
-  expect_error(geometry(rel, at,
+  expect_error(materialize_geometry(rel, at,
     cross_partitions(rel$partitions, independence = "independent")),
     "explicit `source_capabilities")
   expect_identical(reads, 0L)
@@ -350,7 +350,7 @@ test_that("kernel failure removes only newly created block stores", {
     capabilities = source_capabilities(TRUE, stable_revision = revision))
   path <- tempfile("failed-geometry-")
   condition <- tryCatch(
-    geometry(rel, compile_frame(voxels(), abstract_domain(4)),
+    materialize_geometry(rel, compile_frame(voxelwise(), abstract_domain(4)),
       cross_partitions(rel$partitions, independence = "independent"),
       storage = "block", storage_path = path,
       compute = compute_policy(block_features = 2)),
@@ -365,7 +365,7 @@ test_that("kernel failure removes only newly created block stores", {
 
 test_that("reporters remain nonsemantic at the public compiler boundary", {
   fixture <- compiler_fixture()
-  got <- geometry(fixture$relation, fixture$at, fixture$over,
+  got <- materialize_geometry(fixture$relation, fixture$at, fixture$over,
     reporter = function(event) stop("display failed"))
   expect_s3_class(got, "effect_geometry")
   expect_identical(got$receipt$completion_status, "complete")

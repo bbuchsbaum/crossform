@@ -46,8 +46,8 @@ test_that("cross-run and cross-session estimands differ under generic labels", {
   # The axis names the estimand, not the numbers: values agree exactly.
   weights <- c(level = 0, condition = 1)
   expect_identical(
-    contrast(run_plan, weights)$total,
-    contrast(session_plan, weights)$total
+    contrast_energy(run_plan, weights)$total,
+    contrast_energy(session_plan, weights)$total
   )
 })
 

@@ -107,7 +107,7 @@ run_query_first_worker <- function(repo, result_path, ready_path,
     rsa(plan, models = list(distance = model))
   }
   run_materialized <- function() {
-    rdm(geometry(plan))
+    rdm(materialize_geometry(plan))
   }
   runners <- list(
     selected_100 = run_selected,

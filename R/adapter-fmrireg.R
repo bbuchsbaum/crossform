@@ -23,7 +23,7 @@ fmrireg_relation <- function(x) {
         "`; fmrireg 0.1.2 parity is certified only without whitening."
       ),
       remedies = c(
-        "Execute the plan with `estimate()`.",
+        "Execute the plan with `estimate_relation()`.",
         "Add and certify a GLS-specific external adapter."
       )
     )

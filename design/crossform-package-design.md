@@ -437,7 +437,7 @@ source_capabilities()
 abstract_domain()
 volume_domain()
 compile_frame()
-voxels()
+voxelwise()
 searchlights()
 regions()
 whole_brain()
@@ -452,11 +452,11 @@ pairing_marginals()
 
 # Computation
 compute_policy()
-geometry()
+materialize_geometry()
 evaluate_geometry()
 
 # Views
-contrast()
+contrast_energy()
 geometry_component()
 query_geometry()
 rdm()
@@ -491,7 +491,7 @@ rel <- relation(
 at <- compile_frame(searchlights(radius = 6, normalization = "local"), domain)
 over <- cross_partitions(rel)
 
-g <- geometry(
+g <- materialize_geometry(
   rel,
   at = at,
   over = over,
@@ -499,7 +499,7 @@ g <- geometry(
   compute = compute_policy(workers = 1)
 )
 
-fh <- contrast(g, c(face = 1, house = -1))
+fh <- contrast_energy(g, c(face = 1, house = -1))
 ```
 
 The contrast bundle contains pairing-appropriate signed effects, coherent
@@ -544,7 +544,7 @@ contract may admit syntax such as the following only after it can preserve
 explicit domain identity and role-specific marginals:
 
 ```r
-g_x <- geometry(
+g_x <- materialize_geometry(
   rel,
   at = regions(atlas),
   over = cross_domains(
@@ -690,7 +690,7 @@ prediction table, or per-view result combiner is needed.
 
 These are release gates, not optional tests.
 
-1. **Raw–effect equivalence:** `geometry(Y,E) == geometry(EY,I)`.
+1. **Raw–effect equivalence:** `materialize_geometry(Y,E) == materialize_geometry(EY,I)`.
 2. **Dense–streaming equivalence:** all block sizes equal dense reference.
 3. **Frame equivalence:** sparse contraction equals explicit measurement loops.
 4. **Query equivalence:** `effect_view` from direct evaluation equals the same
@@ -735,7 +735,7 @@ Property-based randomized tests should exercise dimensions, sparsity, weight nor
 - arbitrary normalized edge pairings plus cross-partition/cross-domain constructors;
 - packed total and coherent geometry in memory or block-backed storage, derived
   configuration, and pairing-appropriate marginals;
-- `compute_policy(workers = 1)`, complete `geometry()`, direct
+- `compute_policy(workers = 1)`, complete `materialize_geometry()`, direct
   `evaluate_geometry()`, `effect_view`, and execution receipts;
 - contrast, squared-RDM, linear multiple-regression RSA;
 - signed spectrum and effective-rank only when valid;

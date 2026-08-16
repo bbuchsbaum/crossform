@@ -87,7 +87,7 @@ changes the execution receipt, not this plan identity.
 ## Find the reproducible contrast
 
 ```{r contrast}
-effect <- contrast(plan, example$contrast)
+effect <- contrast_energy(plan, example$contrast)
 peak <- which.max(effect$total)
 c(
   peak_measurement = peak,
@@ -99,9 +99,9 @@ c(
 )
 ```
 
-`contrast()` returns four values at every searchlight. `signed` is the usual
-signed contrast of the local weighted mean. The other three values measure
-cross-run reproducibility:
+`contrast_energy()` returns four values at every searchlight. `signed` is the
+usual signed contrast of the local weighted mean. The other three values
+measure cross-run reproducibility:
 
 - `coherent` is the crossvalidated energy of that local weighted mean;
 - `configuration` is the energy in reproducible spatial departures from the
@@ -125,7 +125,7 @@ stopifnot(
 Crossvalidated energy is centered on zero when no reproducible effect is
 present. Sampling noise can therefore produce negative estimates. Clipping
 them to zero would change the estimator and introduce positive bias, so
-`contrast()` retains them.
+`contrast_energy()` retains them.
 
 The known truth makes that policy visible. Inside the affected searchlights the
 planted multivariate pattern is carried mostly by configuration; outside them,
@@ -275,9 +275,9 @@ plan <- plan_geometry(
 )
 ```
 
-This relation is enough for `contrast()`, `rdm()`, and `rsa()`. It cannot supply
-the analytic standard errors shown above because beta matrices alone do not
-contain residuals or residual degrees of freedom.
+This relation is enough for `contrast_energy()`, `rdm()`, and `rsa()`. It
+cannot supply the analytic standard errors shown above because beta matrices
+alone do not contain residuals or residual degrees of freedom.
 
 When raw observation-by-feature responses and an already compiled design are
 available, the older direct fit remains the compact degenerate route:
@@ -335,5 +335,5 @@ The accepted extension requirements and refusal cases are recorded in the
   statistics it implements.
 
 For the usual workflow, construct one plan from the fitted relation, spatial
-frame, and cross-run pairing. Then pass that plan to `contrast()`, `rdm()`, or
-`rsa()` according to the result you need.
+frame, and cross-run pairing. Then pass that plan to `contrast_energy()`,
+`rdm()`, or `rsa()` according to the result you need.

@@ -259,7 +259,7 @@ administrative work; never buy speed by changing the scientific answer.
 
 | Public result | Estimand | Executed lowering(s) |
 |---|---|---|
-| `geometry()` / `evaluate_geometry()` | symmetric cross-generalized effect form or fixed query under explicit neural metric | additive form/query-fused contraction for diagonal metrics; support-streamed metric form/query contraction for non-diagonal metrics |
+| `materialize_geometry()` / `evaluate_geometry()` | symmetric cross-generalized effect form or fixed query under explicit neural metric | additive form/query-fused contraction for diagonal metrics; support-streamed metric form/query contraction for non-diagonal metrics |
 | `crossnobis()` with fixed `noise_precision()` | signed crossvalidated squared Mahalanobis contrast | geometry query through the same fixed-metric compiler |
 | `plan_crossnobis()` + `crossnobis()` | signed crossvalidated squared Mahalanobis contrast with provenance-frozen learned local precision | `support_streamed_scheduled_metric_query_contraction` |
 | `measurement_form()` | requested neural self/cross blocks under a fixed experimental query | `pull_h`, `forward_k`, low-rank `factorized_h`, rank-one `scalar_stack`, or requested multivariate blocks |

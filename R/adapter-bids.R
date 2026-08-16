@@ -36,14 +36,14 @@
 #' Import BIDS task events as typed event facts
 #'
 #' The adapter preserves arbitrary BIDS columns and adds private partition and
-#' event-key columns required by the generic [events()] contract. Partition
-#' identity is explicit rather than inferred from filenames.
+#' event-key columns required by the generic [observation_events()] contract.
+#' Partition identity is explicit rather than inferred from filenames.
 #'
 #' @param files Character event-TSV paths, one per partition.
 #' @param partitions Explicit ordered partition identifiers. Named `files` may
 #'   supply these names.
 #' @param units Physical onset and duration units.
-#' @return An [events()] fact object.
+#' @return An [observation_events()] fact object.
 #' @export
 bids_events <- function(files, partitions = names(files), units = "seconds") {
   files <- .bids_partition_files(files, partitions, "files")
@@ -69,7 +69,7 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
   })
   data <- do.call(rbind, tables)
   rownames(data) <- NULL
-  events(
+  observation_events(
     data,
     partition = ".bids_partition",
     event_id = ".bids_event_id",

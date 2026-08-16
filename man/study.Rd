@@ -16,7 +16,7 @@ study(
 \arguments{
 \item{observations}{An \code{\link[=observations]{observations()}} object.}
 
-\item{events}{Optional \code{\link[=events]{events()}} record.}
+\item{events}{Optional \code{\link[=observation_events]{observation_events()}} record.}
 
 \item{confounds}{Optional \code{\link[=observation_confounds]{observation_confounds()}} record.}
 

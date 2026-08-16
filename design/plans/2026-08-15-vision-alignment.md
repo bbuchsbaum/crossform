@@ -14,7 +14,7 @@ from those audits.
 ## Verdict
 
 The self-form spine is real and well-built: `plan_geometry()` →
-`contrast()`/`rdm()`/`rsa()` are provably views of one object; `contrast()`
+`contrast_energy()`/`rdm()`/`rsa()` are provably views of one object; `contrast_energy()`
 is genuinely query-first (one fused pass, 27× cheaper than materialization
 at one edge); plan/receipt separation exists with the right shape of test;
 the precomputed-beta uncertainty refusal is exemplary; `novelty.md` and
@@ -32,7 +32,7 @@ not merely unfinished — in specific, measured ways:
    get identical `scientific_plan_id`s when partition labels are generic
    (`p1..pK`) — Γ identity currently rides on free-text strings. Meanwhile
    the *same* estimand gets *different* ids depending on route
-   (`rdm(plan)` vs `rdm(geometry(plan))`). Identity is both too coarse and
+   (`rdm(plan)` vs `rdm(materialize_geometry(plan))`). Identity is both too coarse and
    too fine.
 3. **Executable refusals**: all capability refusals are unclassed
    `stop(<string>)` (1059 stops; zero classed capability conditions).
@@ -81,7 +81,7 @@ behavior falsifies a stated guarantee.
 
 3. **Route-stable `scientific_plan_id`.** Same estimand + query must hash
    identically whether executed fused (`rdm(plan)`) or projected
-   (`rdm(geometry(plan))`). Derive the id from the scientific request
+   (`rdm(materialize_geometry(plan))`). Derive the id from the scientific request
    (task + frame + metric + pairing + query), never from the execution
    route's recompiled component. Add the id-equality assertions the tests
    currently omit (`test-geometry-plan.R:150-152`).
@@ -94,7 +94,7 @@ behavior falsifies a stated guarantee.
    remedies and tests (currently zero test hits for six of eleven reasons).
 
 5. **Make failure-gallery cases 1 and 3 exist.** `rdm(normalize=)` and
-   `contrast(remove_univariate=)` accept-and-refuse stubs that name the
+   `contrast_energy(remove_univariate=)` accept-and-refuse stubs that name the
    capability (`guaranteed_psd` — currently computed but gating nothing)
    and point to `correlation-distance-policy.md` and
    `component = "coherent"|"configuration"|"total"` respectively.
@@ -109,7 +109,7 @@ behavior falsifies a stated guarantee.
      against the plan's effect space (`benchmarks/run-sampling-covariance-scale.R:49-68`,
      `R/evidence-sampling-kernel.R:79-98`).
    - Test exact recomposition (total = coherent + configuration) at the
-     public level for `rdm()` and `rsa()` (currently only `contrast()`;
+     public level for `rdm()` and `rsa()` (currently only `contrast_energy()`;
      `component="coherent"` never passed to rdm/rsa in any test).
 
 7. **Conservation honesty.**
@@ -148,7 +148,7 @@ The claim must become true before Gate 5 can exist.
    validation-memo retention, `R/validation-memo.R:27-41`) to
    `.compiler_memory_plan`'s categories; add one gate comparing
    `planned_workspace_bytes` to a measured peak.
-4. **Cheap wins.** Single-pass `contrast()` on materialized geometry
+4. **Cheap wins.** Single-pass `contrast_energy()` on materialized geometry
    (currently two full store reads, `R/views.R:51-52`); guard the double
    `source_session$close()`; decide the fate of tested-but-unwired
    checkpoint/scheduler/tiled-contraction code (wire or move to attic —
@@ -177,7 +177,7 @@ The claim must become true before Gate 5 can exist.
    Rename or absorb: `connectivity(view=)` duplicating three coupling
    exports; `crossnobis()` gaining the decomposition it currently drops
    (`R/crossnobis.R:524`) or becoming an explicit thin alias of
-   `contrast()$total` with a metric gate.
+   `contrast_energy()$total` with a metric gate.
 4. **Prune dead exports.** `inner_product`, `measurement_bridge`,
    `reverse_bridge`, `measurement_space`, `pairing_marginals`,
    `additive_frame`, metric-plumbing quintet — unexport, wire up, or

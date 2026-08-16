@@ -133,7 +133,7 @@ test_that("raw-response and precomputed-effect crossnobis paths agree", {
 
 test_that("diagonal and support-streamed routes agree on point supports", {
   fixture <- crossnobis_signal_fixture(features = 12L)
-  frame <- compile_frame(voxels(), fixture$domain)
+  frame <- compile_frame(voxelwise(), fixture$domain)
   diagonal <- seq(0.7, 1.8, length.out = fixture$relation$n_features)
   diagonal_metric <- noise_precision(diag(diagonal), fixture$domain)
   dense_value <- diag(diagonal)
@@ -421,10 +421,10 @@ test_that("crossnobis is the named total of the metric-carrying contrast", {
   )
   weights <- c(a = 1, b = -1, c = 0)
   named <- crossnobis(plan, weights)
-  family <- contrast(plan, weights)
+  family <- contrast_energy(plan, weights)
   expect_equal(unname(named$values), unname(family$total),
     tolerance = 1e-12)
-  # The decomposition of the same estimand is available from contrast().
+  # The decomposition of the same estimand is available from contrast_energy().
   expect_equal(family$total, family$coherent + family$configuration,
     tolerance = 1e-12)
 })
