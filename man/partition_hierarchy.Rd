@@ -15,9 +15,45 @@ nested axis.}
 \item{provenance}{Portable hierarchy provenance.}
 }
 \value{
-An \code{effect_partition_hierarchy}.
+An \code{effect_partition_hierarchy}: a list with the canonical \verb{$data},
+the \verb{$leaf} column name, the ordered \verb{$axes}, the distinct \verb{$levels} per
+axis, the child-to-parent \verb{$parent_maps}, \verb{$provenance}, and a
+\verb{$signature}.
 }
 \description{
 Columns are ordered from the leaf partition outward. Each child level must
 map to exactly one parent level.
 }
+\examples{
+# Runs nested in sessions nested in one subject, leaf column first.
+hierarchy <- partition_hierarchy(data.frame(
+  partition = c("run-1", "run-2", "run-3", "run-4"),
+  session = c("ses-1", "ses-1", "ses-2", "ses-2"),
+  subject = "sub-01"
+))
+hierarchy$axes
+hierarchy$parent_maps$partition
+
+# Nesting must be exact: a session that belongs to two subjects is refused
+# rather than quietly flattened.
+crossed <- data.frame(
+  partition = c("run-1", "run-2"),
+  session = c("ses-1", "ses-1"),
+  subject = c("sub-01", "sub-02")
+)
+try(partition_hierarchy(crossed))
+}
+\seealso{
+\code{\link[=study]{study()}}, which binds the hierarchy to observations, and
+\code{\link[=study_axis]{study_axis()}} to select one axis from it.
+
+Other typed observation facts: 
+\code{\link{bids_confounds}()},
+\code{\link{bids_events}()},
+\code{\link{bids_study}()},
+\code{\link{observation_confounds}()},
+\code{\link{observation_events}()},
+\code{\link{observation_index}()},
+\code{\link{observations}()}
+}
+\concept{typed observation facts}

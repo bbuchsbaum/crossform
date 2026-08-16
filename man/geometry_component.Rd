@@ -9,13 +9,71 @@ geometry_component(x, component = "total", rows = NULL)
 \arguments{
 \item{x}{A complete \code{effect_form} (including an \code{effect_geometry}).}
 
-\item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.}
+\item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.
+\code{configuration} is computed exactly as \code{total - coherent}.}
 
-\item{rows}{Optional measurement rows to read.}
+\item{rows}{Optional measurement rows to read. Block-backed stores read
+only the requested rows.}
 }
 \value{
-A packed numeric geometry matrix.
+A numeric matrix with one row per measurement and one column per
+packed geometry coordinate (\code{svec} order for symmetric self forms: the
+lower triangle by column, off-diagonal entries scaled by \code{sqrt(2)}).
 }
 \description{
-Read one component of a complete geometry
+\code{geometry_component()} returns the packed geometry rows themselves, for
+the cases where a view is not enough. Reach for it only after
+\code{\link[=materialize_geometry]{materialize_geometry()}}; a query-only result from \code{\link[=evaluate_geometry]{evaluate_geometry()}}
+has no stored component to read.
 }
+\examples{
+domain <- abstract_domain(4, id = "component-example")
+relation <- relation(
+  list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+       run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+  domain = domain
+)
+geometry <- materialize_geometry(plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(relation, independence = "independent")
+))
+
+# One row per region; three packed coordinates for a 2-effect self form,
+# namely G[1,1], G[2,1], and G[2,2].
+geometry_component(geometry, "total")
+
+# The coherent/configuration split is an exact partition, not a fit.
+all.equal(
+  geometry_component(geometry, "configuration"),
+  geometry_component(geometry, "total") -
+    geometry_component(geometry, "coherent")
+)
+
+# Read a single measurement without touching the rest.
+geometry_component(geometry, "total", rows = 2)
+}
+\seealso{
+\code{\link[=query_geometry]{query_geometry()}} to apply a linear query instead of reading
+packed coordinates, and \code{\link[=rdm]{rdm()}} or \code{\link[=contrast_energy]{contrast_energy()}} for the named
+scientific views.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

@@ -102,3 +102,15 @@ Diedrichsen J, Provost S, Zareamoghaddam H (2016),
 especially Eqs. 10, 13, and 35 and Section 5.1.
 \doi{10.48550/arXiv.1607.01371}
 }
+\seealso{
+\code{\link[=sampling_covariance]{sampling_covariance()}} to query the result,
+\code{\link[=sampling_capabilities]{sampling_capabilities()}} to ask whether the law is available before
+provoking a refusal, and \code{\link[=rdm]{rdm()}} for the point estimates it describes.
+
+Other sampling uncertainty: 
+\code{\link{reconstruct_evidence}()},
+\code{\link{residual_pair_statistics}()},
+\code{\link{sampling_capabilities}()},
+\code{\link{sampling_covariance}()}
+}
+\concept{sampling uncertainty}

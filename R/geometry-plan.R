@@ -236,23 +236,57 @@
 #'   per right effect, is read with axis-bound [pair_query()]s through
 #'   [evaluate_geometry()], and materializes to a rectangular effect form.
 #'   Encoding-retrieval similarity is the canonical use.
-#' @return An immutable-by-convention `effect_geometry_plan`.
+#' @return An `effect_geometry_plan` recording the compiled `$task`,
+#'   `$frame`, `$pairing`, `$metric_schedule`, and `$compute` policy, the
+#'   `$logical_shape` and `$measurements` it will produce, and a
+#'   `$scientific_plan_id` naming the estimand. Changing block size or storage
+#'   changes the execution receipt, not this identity.
+#' @seealso [contrast_energy()], [rdm()], [rsa()], and [crossnobis()] for the
+#'   named views of a plan; [evaluate_geometry()] for an arbitrary fixed
+#'   query and [materialize_geometry()] for complete packed geometry;
+#'   [coupling()] for the adjoint neural-side closure.
+#' @family geometry plans and views
 #' @examples
 #' domain <- abstract_domain(3, id = "plan-example")
 #' run1 <- rbind(a = c(1, 0, 2), b = c(0, 1, 1))
 #' run2 <- rbind(a = c(1.1, 0.1, 1.9), b = c(0.1, 0.9, 1.2))
 #' relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+#'
+#' # The plan validates relation, frame, pairing, and metric agreement
+#' # without reading any neural value.
 #' plan <- plan_geometry(
 #'   relation,
 #'   compile_frame(voxelwise(), domain),
 #'   cross_partitions(relation, independence = "independent")
 #' )
+#' plan
+#'
+#' # One plan answers many fixed queries. Save its identity with the
+#' # analysis record: it names the estimand, not the execution.
+#' plan$scientific_plan_id
 #' result <- evaluate_geometry(plan, query = bilinear_query(diag(2)))
-#' result
 #' as.data.frame(result)
+#'
+#' # The usual next step is a named view of the same plan.
+#' contrast_energy(plan, c(a = 1, b = -1))$total
 #' @export
 plan_geometry <- function(x, at, over, compute = compute_policy(),
                           metric = NULL, right = NULL) {
+  if (missing(at)) {
+    stop(paste0(
+      "`at` is required: pass a compiled frame from `compile_frame()`, for ",
+      "example `compile_frame(searchlights(8), domain)`. It declares where ",
+      "the geometry is measured."
+    ), call. = FALSE)
+  }
+  if (missing(over)) {
+    stop(paste0(
+      "`over` is required: pass a pairing from `cross_partitions()` or ",
+      "`pairing()`, for example ",
+      "`cross_partitions(x, independence = \"independent\")`. It declares ",
+      "which partition products the plan may form."
+    ), call. = FALSE)
+  }
   compute <- .validate_compute_policy(compute)
   .validate_compiler_inputs(x, at, over, right = right)
   if (!is.null(right) && !is.null(metric)) {
@@ -324,6 +358,11 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
 }
 
 .validate_geometry_plan <- function(x, deep = TRUE) {
+  if (!inherits(x, "effect_geometry_plan")) {
+    stop(sprintf(paste0(
+      "Expected an `effect_geometry_plan` from `plan_geometry()`; received %s."
+    ), .msg_value(x)), call. = FALSE)
+  }
   if (.validated_before(x, "geometry_plan", deep)) return(invisible(x))
   expected <- c("task", "frame", "pairing", "metric_schedule", "compute",
     "codec", "logical_shape", "packed_width", "measurements",

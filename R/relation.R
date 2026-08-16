@@ -1,9 +1,27 @@
 # Lazy experimental-neural relations --------------------------------------
 
-.matrix_response_source <- function(value) {
-  if (!is.matrix(value) || !is.numeric(value) || any(dim(value) < 1L) ||
-      any(!is.finite(value))) {
-    stop("Matrix response sources must be finite and nonempty.", call. = FALSE)
+.matrix_response_source <- function(value, label = NULL) {
+  where <- if (is.null(label)) "" else sprintf("Partition `%s`: ", label)
+  if (!is.matrix(value) || !is.numeric(value)) {
+    stop(sprintf("%sa response source must be a numeric matrix; received %s.",
+      where, .msg_value(value)), call. = FALSE)
+  }
+  if (any(dim(value) < 1L)) {
+    stop(sprintf(
+      "%sa response source must be nonempty; received a %d x %d matrix.",
+      where, nrow(value), ncol(value)), call. = FALSE)
+  }
+  if (any(!is.finite(value))) {
+    bad <- !is.finite(value)
+    rows <- which(apply(bad, 1L, any))
+    stop(sprintf(paste0(
+      "%s%d of %d values %s non-finite (NA, NaN, or Inf), in %s %s. ",
+      "crossform never drops or imputes them silently: repair or exclude ",
+      "those features before building the relation."
+    ), where, sum(bad), length(value),
+      if (sum(bad) == 1L) "is" else "are",
+      if (length(rows) == 1L) "row" else "rows",
+      .msg_positions(apply(bad, 1L, any), rownames(value))), call. = FALSE)
   }
   revision <- paste0(
     "sha256:", digest::digest(value, algo = "sha256", serialize = TRUE, serializeVersion = 2L)
@@ -85,15 +103,50 @@
 #' @param domain_id Stable neural-domain identity.
 #' @param capabilities Optional source-capability values, one per partition.
 #' @param provenance Optional provenance metadata.
-#' @return An `effect_relation`.
+#' @return An `effect_relation`: a list with the compiled `$sources`, one
+#'   `$extractors` entry per partition, the shared `$effect_space` and its
+#'   `$effects` labels, `$partitions`, `$n_features`, the `$domain` reference
+#'   and `$domain_id`, optional source `$capabilities`, and `$provenance`. No
+#'   neural values have been read.
+#' @family relation planning and fitting
+#' @seealso [lm_relation_fit()] when raw responses are available and a residual
+#'   channel is needed, [relation_block()] to read one block, and
+#'   [plan_geometry()] for the next step.
+#' @examples
+#' # Precomputed condition betas: one effect-by-feature matrix per run.
+#' set.seed(1)
+#' domain <- abstract_domain(5L, id = "relation-example")
+#' betas <- lapply(c("run-1", "run-2"), function(partition) {
+#'   matrix(rnorm(15), 3L, 5L,
+#'     dimnames = list(c("face", "body", "tool"), NULL))
+#' })
+#' names(betas) <- c("run-1", "run-2")
+#'
+#' point <- relation(betas, domain = domain)
+#' point$effects
+#' point$partitions
+#'
+#' # Betas alone carry no residual information, so anything needing the error
+#' # channel refuses here rather than inventing a standard error.
+#' catch_refusal(residual_df(point, "run-1"))$capability
 #' @export
 relation <- function(sources, extract = NULL, effects = NULL,
                      source_dims = NULL, partitions = NULL,
                      domain = NULL, domain_id = "abstract", capabilities = NULL,
                      provenance = list()) {
+  if (missing(sources)) {
+    stop(paste0(
+      "`sources` is required: pass one effect-by-feature matrix per ",
+      "partition, named by effect, as a named list such as ",
+      "`relation(list(run1 = betas1, run2 = betas2), domain = domain)`."
+    ), call. = FALSE)
+  }
   if (is.matrix(sources)) sources <- list(sources)
   if (!is.list(sources) || length(sources) < 1L) {
-    stop("`sources` must be a matrix or nonempty list.", call. = FALSE)
+    stop(sprintf(paste0(
+      "`sources` must be one effect-by-feature matrix or a nonempty named ",
+      "list with one entry per partition; received %s."
+    ), .msg_value(sources)), call. = FALSE)
   }
   if (is.null(partitions)) partitions <- names(sources)
   if (is.null(partitions) || any(!nzchar(partitions))) {
@@ -101,7 +154,16 @@ relation <- function(sources, extract = NULL, effects = NULL,
   }
   if (!is.character(partitions) || length(partitions) != length(sources) ||
       anyNA(partitions) || any(!nzchar(partitions)) || anyDuplicated(partitions)) {
-    stop("Partitions must have unique nonempty names.", call. = FALSE)
+    stop(sprintf(paste0(
+      "Partitions must have unique nonempty names; received %s for %s%s."
+    ), .msg_count(length(partitions), "name"),
+      .msg_count(length(sources), "source"),
+      if (anyDuplicated(partitions)) {
+        sprintf(", with %s repeated",
+          .msg_names(unique(partitions[duplicated(partitions)])))
+      } else {
+        ""
+      }), call. = FALSE)
   }
   names(sources) <- partitions
   domain_reference <- NULL
@@ -138,7 +200,8 @@ relation <- function(sources, extract = NULL, effects = NULL,
         stop("Non-matrix precomputed sources require an explicit effect space.",
           call. = FALSE)
       }
-      names_first <- .matrix_effect_names(sources[[1L]], required = TRUE)
+      names_first <- .matrix_effect_names(sources[[1L]], required = TRUE,
+        label = partitions[[1L]])
       effects <- effect_space(names_first)
     } else {
       effects <- .as_effect_space(effects, first_dimension)
@@ -153,18 +216,28 @@ relation <- function(sources, extract = NULL, effects = NULL,
       }
       if (!identical(as.integer(source_dimension),
           as.integer(length(effects$coordinates)))) {
-        stop("Precomputed effect sources must share one effect dimension.",
-          call. = FALSE)
+        stop(sprintf(paste0(
+          "Partition `%s` has %s but the effect space declares %s (%s). ",
+          "Every partition must estimate the same effects."
+        ), partition, .msg_count(source_dimension, "row"),
+          .msg_count(length(effects$coordinates), "effect"),
+          .msg_names(effects$coordinates)), call. = FALSE)
       }
       if (is.matrix(source)) {
         source_names <- .matrix_effect_names(source,
-          required = !declared_effect_space)
+          required = !declared_effect_space, label = partition)
         if (!is.null(source_names)) {
           missing <- setdiff(effects$coordinates, source_names)
           extra <- setdiff(source_names, effects$coordinates)
           if (length(missing) || length(extra)) {
-            stop("A precomputed partition has missing or extra effect coordinates.",
-              call. = FALSE)
+            detail <- c(
+              if (length(missing)) sprintf("%s absent", .msg_names(missing)),
+              if (length(extra)) sprintf("%s unexpected", .msg_names(extra))
+            )
+            stop(sprintf(paste0(
+              "Partition `%s` does not carry the declared effects (%s): %s."
+            ), partition, .msg_names(effects$coordinates),
+              paste(detail, collapse = "; ")), call. = FALSE)
           }
           source <- source[match(effects$coordinates, source_names), , drop = FALSE]
         } else {
@@ -175,15 +248,15 @@ relation <- function(sources, extract = NULL, effects = NULL,
     }
   }
 
-  compiled_sources <- Map(function(source, dim) {
+  compiled_sources <- Map(function(source, dim, label) {
     if (is.matrix(source)) {
-      .matrix_response_source(source)
+      .matrix_response_source(source, label)
     } else if (inherits(source, "effect_source_descriptor")) {
       .descriptor_response_source(source)
     } else {
       .function_response_source(source, dim)
     }
-  }, sources, source_dims)
+  }, sources, source_dims, partitions)
   names(compiled_sources) <- partitions
 
   if (is.null(extract)) {
@@ -228,15 +301,22 @@ relation <- function(sources, extract = NULL, effects = NULL,
   }
   feature_counts <- vapply(compiled_sources, function(x) x$dim[[2L]], integer(1))
   if (length(unique(feature_counts)) != 1L) {
-    stop("All relation sources must share one neural feature dimension.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "All relation sources must span the same neural features, but their ",
+      "column counts differ: %s. Every partition must be estimated on one ",
+      "common domain."
+    ), paste(sprintf("`%s` has %d", partitions, feature_counts),
+      collapse = ", ")), call. = FALSE)
   }
   if (is.null(domain_reference)) {
     domain_reference <- .positional_domain_reference(feature_counts[[1L]],
       domain_id)
   } else if (!identical(domain_reference$n_features, feature_counts[[1L]])) {
-    stop("Relation sources must match the exact neural-domain feature count.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "The relation sources have %s but domain `%s` declares %s. The source ",
+      "columns must be exactly the domain's features, in domain order."
+    ), .msg_count(feature_counts[[1L]], "column"), domain_reference$id,
+      .msg_count(domain_reference$n_features, "feature")), call. = FALSE)
   }
   if (is.null(capabilities) && all(vapply(compiled_sources, function(source) {
     !is.null(source$descriptor)
@@ -296,10 +376,31 @@ relation <- function(sources, extract = NULL, effects = NULL,
 
 #' Read one experimental-neural relation block
 #'
-#' @param x An `effect_relation`.
+#' This is where neural values are actually read. Only the requested feature
+#' columns are pulled from the source and mapped through that partition's
+#' extractor, which is what keeps out-of-memory sources bounded.
+#'
+#' @param x An `effect_relation` or `effect_relation_fit`.
 #' @param partition One partition name or index.
 #' @param features Unique neural feature indices.
-#' @return A finite effect-by-feature matrix.
+#' @return A finite effect-by-feature matrix with one row per effect
+#'   coordinate, in effect-space order, and one column per requested feature.
+#' @family relation planning and fitting
+#' @seealso [relation()] and [lm_relation_fit()] for the objects it reads, and
+#'   [residual_block()] for the matching residual read.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(5L, id = "relation-block-example")
+#' betas <- matrix(rnorm(15), 3L, 5L,
+#'   dimnames = list(c("face", "body", "tool"), NULL))
+#' point <- relation(list(`run-1` = betas), domain = domain)
+#'
+#' # Ask for two features only; the source is read for those columns alone.
+#' round(relation_block(point, "run-1", c(1L, 4L)), 3)
+#'
+#' # Partitions may be named or given by index, and rows always come back in
+#' # effect-space order regardless of how the source was stored.
+#' rownames(relation_block(point, 1L, seq_len(5L)))
 #' @export
 relation_block <- function(x, partition, features) {
   if (inherits(x, "effect_relation_fit")) {
@@ -348,6 +449,12 @@ relation_block <- function(x, partition, features) {
 }
 
 .validate_relation <- function(x, deep = TRUE) {
+  if (!inherits(x, "effect_relation")) {
+    stop(sprintf(paste0(
+      "Expected an `effect_relation` from `relation()` or the `$relation` of ",
+      "an `lm_relation_fit()`; received %s."
+    ), .msg_value(x)), call. = FALSE)
+  }
   expected <- c("sources", "extractors", "effect_space", "effects",
     "partitions", "n_features", "domain", "domain_id", "capabilities",
     "provenance")
@@ -561,19 +668,31 @@ relation_block <- function(x, partition, features) {
   invisible(bridge)
 }
 
-.matrix_effect_names <- function(x, required = FALSE) {
+.matrix_effect_names <- function(x, required = FALSE, label = NULL) {
+  where <- if (is.null(label)) "A precomputed partition" else
+    sprintf("Partition `%s`", label)
   value <- rownames(x)
   if (is.null(value)) {
     if (required) {
-      stop("Every inferred precomputed partition requires complete row names.",
-        call. = FALSE)
+      stop(sprintf(paste0(
+        "%s has no row names, so its %s cannot be identified. Name the rows ",
+        "of every beta matrix, or declare the shared space with ",
+        "`effects = effect_space(...)`."
+      ), where, .msg_count(nrow(x), "effect")), call. = FALSE)
     }
     return(NULL)
   }
   if (length(value) != nrow(x) || anyNA(value) || any(!nzchar(value)) ||
       anyDuplicated(value)) {
-    stop("Precomputed partition row names must be complete and unique.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "%s has row names that are incomplete or repeated%s; each row must ",
+      "name one distinct effect."
+    ), where, if (anyDuplicated(value)) {
+      sprintf(" (%s repeated)",
+        .msg_names(unique(value[duplicated(value)])))
+    } else {
+      ""
+    }), call. = FALSE)
   }
   value
 }

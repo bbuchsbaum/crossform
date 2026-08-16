@@ -43,7 +43,31 @@
 #' @param partitions Explicit ordered partition identifiers. Named `files` may
 #'   supply these names.
 #' @param units Physical onset and duration units.
-#' @return An [observation_events()] fact object.
+#' @return An [observation_events()] fact object whose `$data` holds every
+#'   original BIDS column plus the private `.bids_partition` and
+#'   `.bids_event_id` key columns, and whose `$provenance` records each file's
+#'   basename and content revision.
+#' @family typed observation facts
+#' @seealso [observation_events()] for the generic contract,
+#'   [bids_confounds()] for the confound side, and [bids_study()] to bind both
+#'   into a study.
+#' @examples
+#' # Stand in for one run's events.tsv.
+#' path <- tempfile(fileext = ".tsv")
+#' utils::write.table(
+#'   data.frame(
+#'     onset = c(0, 6), duration = 0.5, trial_type = c("face", "body")
+#'   ),
+#'   path, sep = "\t", row.names = FALSE, quote = FALSE
+#' )
+#'
+#' # Partition identity is declared by the caller, never parsed from the
+#' # filename, and every original column survives the import.
+#' record <- bids_events(c(`run-1` = path))
+#' record$timing
+#' names(record$data)
+#' record$data$.bids_event_id
+#' unlink(path)
 #' @export
 bids_events <- function(files, partitions = names(files), units = "seconds") {
   files <- .bids_partition_files(files, partitions, "files")
@@ -95,7 +119,35 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
 #'   numbers are used when omitted.
 #' @param censor Optional logical retain-column name already present in every
 #'   input table.
-#' @return An [observation_confounds()] fact object.
+#' @return An [observation_confounds()] fact object whose `$data` holds every
+#'   original confound column plus the private `.bids_partition` and
+#'   `.bids_observation_id` key columns, with `$censor_column` set only when
+#'   `censor` was supplied.
+#' @family typed observation facts
+#' @seealso [observation_confounds()] for the generic contract,
+#'   [bids_events()] for the event side, and [bids_study()] to bind both.
+#' @examples
+#' # Stand in for one run's fMRIPrep confounds table.
+#' path <- tempfile(fileext = ".tsv")
+#' utils::write.table(
+#'   data.frame(
+#'     framewise_displacement = c(0, 0.1, 0.9, 0.2),
+#'     retained = c(TRUE, TRUE, FALSE, TRUE)
+#'   ),
+#'   path, sep = "\t", row.names = FALSE, quote = FALSE
+#' )
+#'
+#' # Naming the retain column is required: no censor policy is inferred from
+#' # the motion columns, however large they are.
+#' record <- bids_confounds(c(`run-1` = path), censor = "retained")
+#' record$censor_column
+#' sum(record$data$retained)
+#'
+#' # Naming a column that is absent or not logical refuses explicitly.
+#' catch_refusal(
+#'   bids_confounds(c(`run-1` = path), censor = "framewise_displacement")
+#' )$capability
+#' unlink(path)
 #' @export
 bids_confounds <- function(files, partitions = names(files),
                            observation_ids = NULL, censor = NULL) {
@@ -170,7 +222,37 @@ bids_confounds <- function(files, partitions = names(files),
 #' @param censor Optional explicit logical retain-column name.
 #' @param hierarchy Optional [partition_hierarchy()].
 #' @param units Physical event-time unit.
-#' @return A generic [study()] object.
+#' @return A generic [study()] object, identical in structure to one built from
+#'   any other event and confound source, with `$provenance$adapter` recording
+#'   the BIDS route.
+#' @family typed observation facts
+#' @seealso [study()] for the object returned, [bids_events()] and
+#'   [bids_confounds()] for the individual file adapters, and
+#'   [plan_relation()] for the next step.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "bids-study-example")
+#' index <- observation_index(
+#'   1:4, "run-1", time = seq(0, by = 2, length.out = 4L), units = "seconds"
+#' )
+#' record <- observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' )
+#'
+#' path <- tempfile(fileext = ".tsv")
+#' utils::write.table(
+#'   data.frame(
+#'     onset = c(0, 4), duration = 0.5, trial_type = c("face", "body")
+#'   ),
+#'   path, sep = "\t", row.names = FALSE, quote = FALSE
+#' )
+#'
+#' # BIDS stays at the file boundary: what comes back is the ordinary study
+#' # object, with the event clock checked against the acquisition clock.
+#' facts <- bids_study(record, event_files = c(`run-1` = path))
+#' class(facts)
+#' study_capabilities(facts)$timing_resolved
+#' unlink(path)
 #' @export
 bids_study <- function(observations, event_files, confound_files = NULL,
                        partitions = observations$partitions,
@@ -197,6 +279,6 @@ bids_study <- function(observations, event_files, confound_files = NULL,
     confounds = confound_record,
     hierarchy = hierarchy,
     # Frozen because study provenance participates in downstream plan identity.
-    provenance = list(adapter = "effectagram::bids_study")
+    provenance = list(adapter = "crossform::bids_study")
   )
 }

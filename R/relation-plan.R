@@ -216,7 +216,56 @@
 #'   for a raw design.
 #' @param observation_model An [observation_model()].
 #' @param tolerance Positive numerical rank and estimability tolerance.
-#' @return An `effect_relation_plan`.
+#' @return An `effect_relation_plan`: a list with the validated `$study`,
+#'   `$model`, `$effects` and `$observation_model`, the `$partitions`, the
+#'   per-partition `$lowered_effects` and portable `$design_receipts`, the
+#'   `$retained_rows` left by censoring, the resolved `$sampling_unit` and
+#'   `$whiteners`, the `$tolerance`, `$capabilities`, and a
+#'   `$relation_plan_id`.
+#' @family relation planning and fitting
+#' @seealso [estimate_relation()] to execute the plan,
+#'   [relation_plan_receipts()] and [compiler_conformance()] to inspect it, and
+#'   [study()], [design_model()], [effect_map()], [observation_model()] for the
+#'   four inputs.
+#' @examples
+#' # Four scans, two conditions, three neural features.
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "plan-relation-example")
+#' index <- observation_index(paste0("scan-", 1:4), "run-1")
+#' facts <- study(observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' ))
+#'
+#' conditions <- condition_space(c("face", "body"))
+#' design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' coding <- coefficient_parameterization(
+#'   diag(2), conditions,
+#'   coefficients = colnames(design), coding_id = "cell-means"
+#' )
+#' model <- design_model(
+#'   list(target = "condition means"), conditions,
+#'   designs = list(`run-1` = design),
+#'   parameterizations = list(`run-1` = coding)
+#' )
+#' weights <- rbind(`face-body` = c(1, -1))
+#' colnames(weights) <- conditions$coordinates
+#'
+#' # Compilation and estimability are checked without reading neural values.
+#' plan <- plan_relation(
+#'   facts, model, effect_map(weights, conditions),
+#'   observation_model("ols", sampling_unit = "scan")
+#' )
+#' plan
+#' plan$design_receipts$`run-1`$rank
+#'
+#' # Effects and design must bind the same condition space: a different basis
+#' # is a different scientific request, and is refused rather than coerced.
+#' other <- condition_space(c("face", "body"), basis_id = "other-basis")
+#' catch_refusal(plan_relation(
+#'   facts, model, effect_map(weights, other),
+#'   observation_model("ols", sampling_unit = "scan")
+#' ))$capability
 #' @export
 plan_relation <- function(study, model, effects, observation_model,
                           tolerance = sqrt(.Machine$double.eps)) {
@@ -326,8 +375,43 @@ plan_relation <- function(study, model, effects, observation_model,
 
 #' Inspect portable design receipts
 #'
+#' Returns the per-partition record of how each design was actually compiled:
+#' the matrix used, the rows censoring retained, the achieved rank and any
+#' aliased regressors, the solver, and the whitening provenance.
+#'
 #' @param x An [plan_relation()] result.
-#' @return A named list of `effect_design_receipt` values.
+#' @return A named list of `effect_design_receipt` values, one per partition.
+#'   Each carries `$design`, `$coefficient_axis`, `$lowered_target`,
+#'   `$effect_space`, `$row_lineage`, `$censoring`, `$solver`, `$rank`,
+#'   `$aliases`, `$residual_df`, `$observation_whitener`, `$capabilities`, and
+#'   a `$design_receipt_id`.
+#' @family relation planning and fitting
+#' @seealso [plan_relation()] for the plan, [compiler_conformance()] for the
+#'   boolean conformance summary of the same receipts, and
+#'   [estimate_relation()] to execute them.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "receipts-example")
+#' index <- observation_index(paste0("scan-", 1:4), "run-1")
+#' facts <- study(observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' ))
+#' design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' target <- rbind(`face-body` = c(1, -1))
+#' colnames(target) <- colnames(design)
+#'
+#' # Even the raw route, which claims no semantic coding, yields a complete
+#' # receipt: rank, aliases, censoring, solver, and whitening are all recorded.
+#' plan <- plan_relation(
+#'   facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+#'   observation_model("ols", sampling_unit = "scan")
+#' )
+#' receipts <- relation_plan_receipts(plan)
+#' names(receipts)
+#' receipts$`run-1`$rank
+#' receipts$`run-1`$residual_df
+#' receipts$`run-1`$aliases
 #' @export
 relation_plan_receipts <- function(x) {
   x <- .validate_relation_plan(x)
@@ -375,8 +459,38 @@ relation_plan_receipts <- function(x) {
 #'
 #' @param x An [plan_relation()] result.
 #' @param ... Reserved for future execution policies.
-#' @return An `effect_relation_fit` whose identity binds the relation plan,
-#'   source revisions, realized row lineage, and design receipts.
+#' @return An `effect_relation_fit` whose `$signature` binds the relation plan,
+#'   source revisions, realized row lineage, and design receipts, and whose
+#'   `$provenance` records `relation_plan_id`, `design_receipt_ids`,
+#'   `study_id`, and `observation_model_id`.
+#' @family relation planning and fitting
+#' @seealso [plan_relation()] for the plan it executes, [fmrireg_relation()]
+#'   for the external point-parity adapter, and [plan_geometry()] for the
+#'   second-moment question that follows.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "estimate-relation-example")
+#' index <- observation_index(paste0("scan-", 1:4), "run-1")
+#' facts <- study(observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' ))
+#' design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' target <- rbind(`face-body` = c(1, -1))
+#' colnames(target) <- colnames(design)
+#' plan <- plan_relation(
+#'   facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+#'   observation_model("ols", sampling_unit = "scan")
+#' )
+#'
+#' # Reading neural values happens here, and only here.
+#' fit <- estimate_relation(plan)
+#' round(relation_block(fit, "run-1", 1:3), 3)
+#'
+#' # A fixed observation model earns the residual channel, and the fit records
+#' # which plan produced it.
+#' relation_fit_capabilities(fit)$residual_blocks
+#' identical(fit$provenance$relation_plan_id, plan$relation_plan_id)
 #' @export
 estimate_relation <- function(x, ...) {
   if (length(list(...))) {

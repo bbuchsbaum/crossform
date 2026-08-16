@@ -24,8 +24,13 @@ find where an effect reproduces across runs. The input is one
 condition-by-feature matrix per run plus a spatial measurement frame. The
 outputs are a contrast map, a representational dissimilarity matrix (RDM), and
 a linear representational similarity analysis (RSA) coefficient at each
-measurement. If the fitted relation retains the required residual information,
-the same analysis can also return within-participant standard errors.
+measurement. If the relation retains the required residual information, the
+same analysis can also return within-participant standard errors.
+
+One word to fix before starting: a **measurement** is one spatial unit of the
+frame, and every result below has one value per measurement. In this guide the
+measurements are searchlights; anatomical regions, single voxels, and the whole
+brain are the other choices, and they all behave the same way downstream.
 
 The worked question is: **where does an animate-versus-inanimate pattern
 reproduce across independent runs?** The data are generated with known truth,
@@ -90,7 +95,7 @@ changes the execution receipt, not this plan identity.
 effect <- contrast_energy(plan, example$contrast)
 peak <- which.max(effect$total)
 c(
-  peak_measurement = peak,
+  peak_searchlight = peak,
   signed_effect = effect$signed[peak],
   total_energy = effect$total[peak],
   coherent_energy = effect$coherent[peak],
@@ -110,8 +115,8 @@ measure cross-run reproducibility:
 
 The coherent and configuration modes are orthogonal under the weights declared
 by the frame. They need not be orthogonal under an unweighted Euclidean inner
-product. The package checks `total = coherent + configuration` for every
-measurement.
+product. The package checks `total = coherent + configuration` at every
+searchlight.
 
 ```{r contrast-check, include=FALSE}
 stopifnot(
@@ -139,10 +144,12 @@ summarize_region <- function(index) c(
   configuration = mean(effect$configuration[index]),
   fraction_below_zero = mean(effect$total[index] < 0)
 )
-signal_nodes <- example$truth$signal_measurements
+signal_searchlights <- example$truth$signal_measurements
 region_summary <- rbind(
-  signal = summarize_region(signal_nodes),
-  outside = summarize_region(setdiff(seq_along(effect$total), signal_nodes))
+  signal = summarize_region(signal_searchlights),
+  outside = summarize_region(
+    setdiff(seq_along(effect$total), signal_searchlights)
+  )
 )
 round(region_summary, 3)
 ```
@@ -241,10 +248,20 @@ stopifnot(
 )
 ```
 
-`target = "plugin"` evaluates the signal-dependent variance term at the
-estimated mean pattern. Use `target = "null"` to evaluate that term under a
-fixed zero-effect null. The package requires this choice because the two calls
-answer different variance questions.
+`target` is required because the two available choices answer different
+variance questions, and the package will not pick one for you.
+
+- `target = "null"` evaluates the signal-dependent variance term under a fixed
+  zero-effect null. It is exact there, so prefer it whenever the standard error
+  is referenced to a test of no effect.
+- `target = "plugin"`, used above, substitutes the partition mean of the
+  *estimates* for the unknown signal. That substitution biases the signal term
+  upward, by an amount that shrinks like one over the squared number of
+  partitions and is largest when noise dominates the true distances. Use it
+  when reporting uncertainty around an estimated nonzero distance, and read it
+  as mildly conservative.
+
+`?rdm_sampling_covariance` states the bias term exactly.
 
 The result is a within-searchlight covariance under an equal-partition,
 fixed-metric, separable error model. It is not a cross-location random-field
@@ -255,35 +272,124 @@ without constructing the full distance-by-distance matrix.
 
 ## Use your own data
 
-If you have scan-by-feature responses rather than beta matrices, continue with
-`vignette("from-observations", package = "crossform")`. That guide binds scan
-times, events, confounds, named effects, and an observation model before it
-fits the relation used here.
+The three routes below all end at a plan you can pass to `contrast_energy()`,
+`rdm()`, and `rsa()`. They differ only in what you start from, and therefore in
+whether analytic standard errors remain available. Each one runs as written; the
+generated inputs stand in for yours.
 
-If independent runs already contain condition-by-feature estimates, construct a
-point relation directly:
+### From beta matrices
 
-```{r own-betas, eval=FALSE}
+If independent runs already contain condition-by-feature estimates, build a
+point relation directly. The relation needs a named list of matrices with one
+row per condition, a named effect space, and a neural domain.
+
+```{r own-betas}
+set.seed(20260815)
+condition_names <- c("face", "body", "house", "tool")
+native_domain <- abstract_domain(60L, id = "own-betas:v1")
+
+# Substitute your own: one condition-by-feature matrix per run, rows named.
+beta_runs <- lapply(seq_len(3), function(run) matrix(
+  rnorm(length(condition_names) * native_domain$n_features),
+  nrow = length(condition_names),
+  dimnames = list(condition_names, native_domain$feature_ids)
+))
+names(beta_runs) <- paste0("run", seq_len(3))
+
 rel <- relation(
-  list(run1 = beta_run1, run2 = beta_run2),
+  beta_runs,
   effects = effect_space(condition_names, units = "percent-signal"),
   domain = native_domain
 )
-frame <- compile_frame(searchlights(radius = 6), native_domain)
-plan <- plan_geometry(
-  rel, frame, cross_partitions(rel, independence = "independent")
+own_plan <- plan_geometry(
+  rel,
+  compile_frame(whole_brain(), native_domain),
+  cross_partitions(rel, independence = "independent", generalizes_over = "run")
+)
+own_plan
+```
+
+`abstract_domain()` is the right domain when the features are just a list of
+columns. `whole_brain()` reports one measurement over all of them, which is the
+simplest frame to check a pipeline against.
+
+### From beta matrices in a volume
+
+Give the domain a mask and voxel spacing, and searchlights become available.
+Nothing downstream changes: the same relation, pairing, and views apply, and the
+result simply has one row per searchlight instead of one row overall.
+
+```{r own-betas-volume}
+mask <- array(FALSE, c(6L, 6L, 4L))
+mask[2:5, 2:5, 2:3] <- TRUE
+mask_domain <- volume_domain(mask, spacing = c(3, 3, 3))
+
+volume_runs <- lapply(seq_len(3), function(run) matrix(
+  rnorm(length(condition_names) * sum(mask)),
+  nrow = length(condition_names),
+  dimnames = list(condition_names, NULL)
+))
+names(volume_runs) <- paste0("run", seq_len(3))
+
+volume_relation <- relation(
+  volume_runs,
+  effects = effect_space(condition_names, units = "percent-signal"),
+  domain = mask_domain
+)
+volume_plan <- plan_geometry(
+  volume_relation,
+  compile_frame(searchlights(radius = 6), mask_domain),
+  cross_partitions(
+    volume_relation,
+    independence = "independent", generalizes_over = "run"
+  )
+)
+dim(rdm(volume_plan)$values)
+```
+
+```{r own-betas-checks, include=FALSE}
+stopifnot(
+  identical(dim(rdm(volume_plan)$values), c(sum(mask), 6L)),
+  nrow(compile_frame(whole_brain(), native_domain)$index) == 1L
 )
 ```
 
-This relation is enough for `contrast_energy()`, `rdm()`, and `rsa()`. It
-cannot supply the analytic standard errors shown above because beta matrices
-alone do not contain residuals or residual degrees of freedom.
+Either relation is enough for `contrast_energy()`, `rdm()`, and `rsa()`. Neither
+can supply the analytic standard errors shown above, because beta matrices alone
+contain no residuals and no residual degrees of freedom.
 
-When raw observation-by-feature responses and an already compiled design are
-available, the older direct fit remains the compact degenerate route:
+### From raw responses and a compiled design
 
-```{r own-raw, eval=FALSE}
-fit <- lm_relation_fit(
+If you kept the scan-by-feature responses and already have a design matrix,
+`lm_relation_fit()` is the compact route that keeps the error channel. The
+`effects` matrix says which linear combination of design columns each named
+condition is.
+
+```{r own-raw}
+n_scan <- 40L
+scan_condition <- factor(
+  rep(condition_names, length.out = n_scan), levels = condition_names
+)
+design_matrix <- cbind(
+  stats::model.matrix(~ 0 + scan_condition),
+  drift = seq(-1, 1, length.out = n_scan)
+)
+colnames(design_matrix) <- c(condition_names, "drift")
+
+target_matrix <- cbind(diag(length(condition_names)), drift = 0)
+dimnames(target_matrix) <- list(condition_names, colnames(design_matrix))
+
+# Substitute your own: one scan-by-feature response matrix per run.
+signal <- rbind(
+  matrix(rnorm(length(condition_names) * 60L, sd = 0.5), length(condition_names)),
+  rnorm(60L, sd = 0.1)
+)
+response_runs <- lapply(seq_len(3), function(run) {
+  design_matrix %*% signal + matrix(rnorm(n_scan * 60L), n_scan, 60L)
+})
+names(response_runs) <- paste0("run", seq_len(3))
+
+raw_fit <- lm_relation_fit(
   response_runs,
   design = design_matrix,
   effects = target_matrix,
@@ -291,14 +397,50 @@ fit <- lm_relation_fit(
   sampling_unit = "trial",
   domain = native_domain
 )
+raw_plan <- plan_geometry(
+  raw_fit$relation,
+  compile_frame(whole_brain(), native_domain),
+  cross_partitions(
+    raw_fit$relation,
+    independence = "independent", generalizes_over = "run"
+  )
+)
+sampling_capabilities(raw_plan, raw_fit)
 ```
 
-For a fully declared first-moment fit, `plan_relation()` accepts either a
-semantic `design_model()` or the version-checked
-`fmridesign_design_model()` adapter. Crossform records the requested effects,
-design identity, fit receipt, and supported uncertainty operations. It does
-not perform preprocessing, registration, masking, or general hemodynamic
-response modeling.
+Because this fit retained residuals, the analytic law is admitted and the
+standard errors from the previous section are available here too:
+
+```{r own-raw-uncertainty}
+round(sqrt(sampling_covariance(
+  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
+)), 4)
+```
+
+```{r own-raw-checks, include=FALSE}
+raw_se <- sqrt(sampling_covariance(
+  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
+))
+stopifnot(length(raw_se) == 6L, all(is.finite(raw_se)), all(raw_se > 0))
+```
+
+### From events and confounds
+
+If you have scan-by-feature responses but no compiled design — or you want the
+first-level model declared rather than hidden in an analysis script — continue
+with `vignette("from-observations", package = "crossform")`. That guide binds
+scan times, events, confounds, named effects, and an observation model before it
+fits the relation. `plan_relation()` there accepts either a semantic
+`design_model()` or the version-checked `fmridesign_design_model()` adapter.
+
+For `neuroim2` volumes, `neuroim2_volume_domain()` and `neuroim2_searchlights()`
+replace `volume_domain()` and `searchlights()` while preserving stable
+full-volume indices, and `as_neurovol()` maps compact results back to a volume
+without interpolation or smoothing.
+
+Crossform records the requested effects, design identity, fit receipt, and
+supported uncertainty operations. It does not perform preprocessing,
+registration, masking, or general hemodynamic response modeling.
 
 ## Why correlation distance is not an option to `rdm()`
 

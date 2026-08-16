@@ -10,11 +10,60 @@ compiler_conformance(x)
 \item{x}{A \code{\link[=plan_relation]{plan_relation()}} result.}
 }
 \value{
-A data frame with one row per partition and one boolean per required
-conformance field.
+A data frame with one row per partition: \code{partition} plus the
+logical columns \code{semantic_identity}, \code{regressor_axis},
+\code{condition_lowering}, \code{row_lineage}, \code{rank_and_aliases},
+\code{censor_accounting}, \code{solver_diagnostics}, \code{whitening_provenance},
+\code{source_revision}, and \code{portable_receipt}.
 }
 \description{
 The conformance court validates the portable receipt required by
 \code{first-moment-relation-v1}. It reports construction evidence rather than
 trusting an adapter name or package version.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(3L, id = "conformance-example")
+index <- observation_index(paste0("scan-", 1:4), "run-1")
+facts <- study(observations(
+  list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+))
+design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+rownames(design) <- paste0("scan-", 1:4)
+target <- rbind(`face-body` = c(1, -1))
+colnames(target) <- colnames(design)
+plan <- plan_relation(
+  facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+  observation_model("ols", sampling_unit = "scan")
+)
+
+# Every field is evidence read back off the receipt, so this holds for an
+# external compiler exactly as it does for a hand-built design.
+conformance <- compiler_conformance(plan)
+t(conformance)
+all(as.matrix(conformance[-1L]))
+}
+\seealso{
+\code{\link[=relation_plan_receipts]{relation_plan_receipts()}} for the underlying receipts,
+\code{\link[=plan_relation]{plan_relation()}} for the plan, and \code{\link[=study_capabilities]{study_capabilities()}} for the
+equivalent report on the study facts.
+
+Other relation planning and fitting: 
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

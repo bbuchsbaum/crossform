@@ -15,5 +15,43 @@ residual_df(x, partition)
 One positive integer.
 }
 \description{
-Read residual degrees of freedom from a fitted partition
+The divisor for any noise-variance estimate built from
+\code{\link[=residual_block]{residual_block()}}: observations minus the numerical rank of the whitened
+design, not minus the number of design columns.
 }
+\examples{
+example <- example_fmri_effects()
+
+# 32 trials per run minus the four estimated condition means.
+residual_df(example$fit, "run1")
+
+# Each independent run contributes its own degrees of freedom.
+vapply(example$fit$relation$partitions,
+  function(partition) residual_df(example$fit, partition), integer(1))
+
+# A relation built from precomputed betas has none to report.
+catch_refusal(residual_df(example$fit$relation, "run1"))$capability
+}
+\seealso{
+\code{\link[=residual_block]{residual_block()}} and \code{\link[=effect_covariance]{effect_covariance()}} for the rest of the
+error channel, and \code{\link[=relation_fit_capabilities]{relation_fit_capabilities()}} to check availability.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

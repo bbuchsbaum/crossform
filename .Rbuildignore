@@ -16,3 +16,4 @@
 ^Meta$
 ^.*\.tar\.gz$
 ^CRAN-SUBMISSION$
+^figure$

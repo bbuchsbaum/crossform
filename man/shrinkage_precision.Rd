@@ -27,7 +27,10 @@ local covariance scale.}
 until schedule compilation.}
 }
 \value{
-An \code{effect_metric_recipe}.
+An \code{effect_metric_recipe} whose \verb{$hyperparameters} record the
+\code{fixed_shrinkage_to_residual_diagonal} estimator, the fixed
+\code{shrinkage}, and the variance and spectral floors. It is not diagonal,
+so it needs a dense local support.
 }
 \description{
 The local covariance estimator is
@@ -35,3 +38,36 @@ The local covariance estimator is
 variance and spectral floors. \code{shrinkage} is fixed by the recipe; it is not
 tuned on evaluation effects.
 }
+\examples{
+# The default shrinks the local residual covariance 10\% toward its own
+# diagonal, which keeps small searchlights invertible.
+recipe <- shrinkage_precision()
+recipe$hyperparameters$shrinkage
+
+# Shrinkage is fixed by the recipe, never tuned on evaluation effects, so
+# changing it names a different estimand.
+shrinkage_precision(0.3)$hyperparameters$shrinkage
+
+# Unlike a diagonal recipe, this one needs the full local support.
+metric_capabilities(recipe)[c("native_diagonal", "support_dense")]
+
+# Shrinkage must lie in (0, 1]; zero would be an unregularized covariance.
+refused <- try(shrinkage_precision(0), silent = TRUE)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=diagonal_precision]{diagonal_precision()}} for the diagonal-only recipe,
+\code{\link[=metric_training_policy]{metric_training_policy()}} for which partitions may train it, and
+\code{\link[=plan_crossnobis]{plan_crossnobis()}} to compile it.
+
+Other neural metrics: 
+\code{\link{diagonal_precision}()},
+\code{\link{effect_covariance}()},
+\code{\link{gaussian_covariance_model}()},
+\code{\link{identity_metric}()},
+\code{\link{metric_capabilities}()},
+\code{\link{metric_training_policy}()},
+\code{\link{neural_metric}()},
+\code{\link{noise_precision}()}
+}
+\concept{neural metrics}

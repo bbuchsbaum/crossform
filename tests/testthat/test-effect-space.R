@@ -18,7 +18,7 @@ test_that("effect spaces have stable semantic identity", {
 })
 
 test_that("effect-space validators reject ambiguous and mutated identity", {
-  expect_error(effect_space(character()), "at least one")
+  expect_error(effect_space(character()), "nonempty character vector")
   expect_error(effect_space(c("a", "a")), "unique")
   expect_error(effect_space(c("a", "b"), units = c("z", "")), "unit")
   expect_error(effect_space(c("a", "b"), scale = c(1, 0)), "positive")

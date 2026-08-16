@@ -14,8 +14,10 @@ provenance-frozen on-demand metric schedule.}
 \item{weights}{One finite contrast weight per experimental effect.}
 }
 \value{
-An \code{effect_crossnobis_view} with one signed value per spatial
-measurement and the executed plan receipt.
+An \code{effect_crossnobis_view} whose \verb{$values} holds one signed
+crossvalidated squared Mahalanobis value per spatial measurement, with
+the aligned \verb{$contrast}, the named \verb{$estimand}, the \verb{$metric} and
+\verb{$pairing} identities, \verb{$index}, and the executed \verb{$receipt}.
 }
 \description{
 The result is the query-first evidence
@@ -24,6 +26,14 @@ edges. This function is a validating view over the ordinary geometry
 compiler; it does not introduce a second numerical engine. Negative finite
 estimates are retained.
 }
+\section{Refusal}{
+
+A plan carrying the implicit identity metric, or a fixed metric that was not
+built by \code{\link[=noise_precision]{noise_precision()}}, signals an \code{effect_capability_refusal} with
+capability \code{"declared_noise_metric"} in namespace \code{"geometry_views"}.
+Inspect it with \code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
 \section{One estimand, two views}{
 
 On a fixed-metric geometry plan, \code{crossnobis(x, weights)} is the named
@@ -50,3 +60,28 @@ result <- crossnobis(plan, c(a = 1, b = -1))
 result
 as.data.frame(result)
 }
+\seealso{
+\code{\link[=noise_precision]{noise_precision()}} for the fixed metric a geometry plan needs,
+\code{\link[=plan_crossnobis]{plan_crossnobis()}} for the learned-metric route, and
+\code{\link[=contrast_energy]{contrast_energy()}} for the decomposed reading of the same estimand.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

@@ -22,8 +22,51 @@ entries are included.}
 \item{coordinate_units}{One physical coordinate unit or one per axis.}
 }
 \value{
-An \code{effect_domain} with native voxel and physical coordinates.
+An \code{effect_domain} with \verb{$kind} \code{"volume"}, \verb{$feature_ids} giving
+the stable full-volume indices of the included voxels, \verb{$coordinates}
+holding their physical positions, \verb{$metadata} carrying \code{dim}, \code{spacing},
+\code{voxel} indices and the logical \code{mask}, plus the usual
+\verb{$geometry_signature} and \verb{$reference}.
 }
 \description{
-Construct a native volumetric neural feature domain
+Use this when features are the in-mask voxels of a 3D volume. The compact
+feature order follows the full-volume index order of the mask, so results
+can always be written back to the original array positions.
 }
+\examples{
+# A 5 x 5 x 3 volume with one voxel excluded from the mask.
+mask <- array(TRUE, c(5L, 5L, 3L))
+mask[1, 1, 1] <- FALSE
+domain <- volume_domain(mask, spacing = c(3, 3, 3), id = "example-volume")
+domain$n_features
+
+# Coordinates are millimeters, so a searchlight radius is physical too.
+utils::head(domain$coordinates, 3)
+nrow(compile_frame(searchlights(4), domain)$weights)
+
+# feature_ids are full-volume indices, which is how compact results are
+# written back into the original array.
+utils::head(domain$feature_ids, 3)
+}
+\seealso{
+\code{\link[=abstract_domain]{abstract_domain()}} for non-volumetric features,
+\code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}} to build the same object from a \code{NeuroVol}, and
+\code{\link[=compile_frame]{compile_frame()}} to place searchlights on it.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

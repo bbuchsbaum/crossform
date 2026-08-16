@@ -1,0 +1,410 @@
+---
+title: "Bring your own neuroim2 data"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bring your own neuroim2 data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+has_neuroim2 <- requireNamespace("neuroim2", quietly = TRUE)
+knitr::opts_chunk$set(eval = has_neuroim2)
+library(crossform)
+```
+
+```{r no-neuroim2, eval=!has_neuroim2, echo=FALSE, results="asis"}
+cat(
+  "**neuroim2 is not installed, so the code below was not run.**",
+  "Install it to reproduce this vignette:",
+  "`remotes::install_github(\"bbuchsbaum/neuroim2\")`.\n"
+)
+```
+
+You already have per-run condition estimates as
+[neuroim2](https://github.com/bbuchsbaum/neuroim2) images and a brain mask.
+This guide is the shortest correct path from those objects to a contrast map
+written back as a `NeuroVol`. It covers four things that are easy to get
+wrong: the orientation of the matrices `relation()` expects, which searchlight
+provider to use, the difference between a *measurement* and a *feature*, and
+how to expand region results back to voxels.
+
+The `crossform` side is the same as in
+`vignette("introduction", package = "crossform")`; only the input and output
+adapters are new.
+
+```{r libs}
+library(neuroim2)
+```
+
+## A small example volume
+
+Real data would be read with `neuroim2::read_vec()` and
+`neuroim2::read_vol()`. So that this vignette is self-contained and fast, the
+same objects are generated here: a 10-by-10-by-8 volume at 3 mm spacing with a
+boxy mask, and one 4-D image holding 3 runs by 4 conditions with a
+multivariate animacy pattern planted in a small central blob.
+
+```{r data}
+set.seed(11)
+dims <- c(10L, 10L, 8L)
+spacing <- c(3, 3, 3)
+conditions <- c("face", "house", "cat", "chair")
+n_run <- 3L
+n_volume <- n_run * length(conditions)
+
+volume_space <- NeuroSpace(dims, spacing = spacing)
+mask_array <- array(0L, dims)
+mask_array[2:9, 2:9, 2:7] <- 1L
+mask <- NeuroVol(mask_array, volume_space)
+
+# One planted multivariate pattern, present in every run.
+blob <- array(0, dims)
+blob[5:6, 5:6, 4:5] <- 1
+pattern <- array(rnorm(prod(dims)), dims)
+animacy <- c(face = 0.5, house = -0.5, cat = 0.5, chair = -0.5)
+
+estimates <- array(rnorm(prod(dims) * n_volume), c(dims, n_volume))
+k <- 0L
+for (run in seq_len(n_run)) {
+  for (condition in conditions) {
+    k <- k + 1L
+    estimates[, , , k] <- estimates[, , , k] +
+      3 * animacy[[condition]] * blob * pattern
+  }
+}
+
+runs_vec <- DenseNeuroVec(
+  estimates,
+  NeuroSpace(c(dims, n_volume), spacing = spacing)
+)
+runs_vec
+```
+
+The volumes are ordered run-major: volumes 1 to 4 are run 1's four conditions,
+volumes 5 to 8 are run 2's, and so on. Keep that bookkeeping explicit —
+`crossform` will check the condition names but cannot check that you sliced
+the runs correctly.
+
+## The domain fixes the voxel order
+
+```{r domain}
+domain <- neuroim2_volume_domain(mask)
+c(
+  features = domain$n_features,
+  first_voxel_index = domain$feature_ids[1],
+  last_voxel_index = domain$feature_ids[domain$n_features]
+)
+```
+
+`neuroim2_volume_domain()` records the mask's **stable full-volume indices**
+(`domain$feature_ids`), the physical coordinates, the spacing, and a hash of
+the full `NeuroSpace`. Those indices are the contract between every later
+step: they define which column of a response matrix is which voxel, and they
+let `as_neurovol()` put results back without interpolation, smoothing, or any
+reinterpretation of the coordinate frame.
+
+```{r domain-ids}
+identical(domain$feature_ids, which(mask_array != 0))
+```
+
+## Convert images to run-by-condition matrices
+
+`relation()` wants a named list with one matrix per run, each
+**condition-by-feature**: rows are the named conditions, columns are the
+domain's features in `domain$feature_ids` order.
+
+`neuroim2::series(x, i)` extracts the time series at a set of voxel indices
+and returns a **volume-by-voxel** matrix. That is already the orientation
+`crossform` wants, so no transpose is needed — just index the rows for one
+run's volumes and index the columns with the domain's feature ids.
+
+```{r convert}
+run_matrices <- lapply(seq_len(n_run), function(run) {
+  volumes <- ((run - 1L) * length(conditions) + 1L):(run * length(conditions))
+  m <- series(runs_vec, domain$feature_ids)[volumes, , drop = FALSE]
+  rownames(m) <- conditions
+  m
+})
+names(run_matrices) <- paste0("run", seq_len(n_run))
+
+dim(run_matrices$run1)
+rownames(run_matrices$run1)
+```
+
+If your estimates are a *list of `NeuroVol`s* rather than one `NeuroVec`, index
+each volume at the same feature ids and stack the rows. `vol[ids]` returns the
+values at those full-volume indices:
+
+```{r convert-vols}
+condition_vols <- lapply(seq_len(length(conditions)), function(k) {
+  NeuroVol(estimates[, , , k], volume_space)
+})
+
+from_vols <- t(vapply(
+  condition_vols,
+  function(vol) as.numeric(vol[domain$feature_ids]),
+  numeric(domain$n_features)
+))
+rownames(from_vols) <- conditions
+
+isTRUE(all.equal(from_vols, run_matrices$run1))
+```
+
+Both routes go through `domain$feature_ids`, which is what makes them agree.
+Do not use `as.array(vol)[mask_array != 0]` unless you are certain the mask
+you are subsetting with is the same one that built the domain.
+
+With the matrices in hand the relation is ordinary `crossform`:
+
+```{r relation}
+rel <- relation(
+  run_matrices,
+  effects = effect_space(conditions, units = "beta"),
+  domain = domain
+)
+```
+
+## Two searchlight providers, one support index
+
+There are two ways to get spheres over this domain, and they are not
+redundant.
+
+```{r frames}
+frame_neuroim2 <- neuroim2_searchlights(mask, radius = 6, domain = domain)
+frame_grid <- compile_frame(searchlights(radius = 6), domain)
+
+c(
+  neuroim2_measurements = nrow(frame_neuroim2$index),
+  grid_measurements = nrow(frame_grid$index)
+)
+```
+
+- `neuroim2_searchlights(mask, radius)` delegates to
+  `neuroim2::searchlight_indices()`. Use it when the same neighborhoods must
+  be shared with other neuroim2-based tools: the sphere membership is
+  literally the one that provider returns, and the frame records the upstream
+  provider and commit in its specification.
+- `compile_frame(searchlights(radius), domain)` uses `crossform`'s own grid
+  stencil. It needs no neuroim2 at all, so it also works on a `volume_domain()`
+  built from a plain array — which is what the rest of the documentation uses.
+
+Both produce the same kind of object: an additive `effect_frame` carrying a
+**support index** (which features each measurement reads) and a sparse
+measurement-by-feature weight matrix. On a regular grid with a Euclidean ball
+they agree, and you can check it rather than trust it:
+
+```{r frame-agreement}
+identical(
+  as.matrix(frame_neuroim2$weights),
+  as.matrix(frame_grid$weights)
+)
+```
+
+```{r frame-spec}
+frame_neuroim2$specification
+range(Matrix::rowSums(frame_neuroim2$weights != 0))
+```
+
+The radius is in millimeters for both, and both clip spheres at the mask
+edge, so the sphere sizes vary. Use whichever provider matches the rest of
+your pipeline; the plan below does not care which one produced the frame.
+
+## Plan and read the contrast
+
+```{r plan}
+plan <- plan_geometry(
+  rel,
+  at = frame_neuroim2,
+  over = cross_partitions(
+    rel,
+    independence = "independent",
+    generalizes_over = "run"
+  )
+)
+
+effect <- contrast_energy(plan, animacy)
+peak <- which.max(effect$total)
+c(
+  peak_measurement = peak,
+  peak_voxel_index = domain$feature_ids[peak],
+  total_energy = effect$total[peak]
+)
+```
+
+The planted blob is recovered. Searchlights whose support touches a planted
+voxel carry most of the reproducible energy:
+
+```{r recovery}
+planted_features <- which(domain$feature_ids %in% which(blob != 0))
+membership <- frame_neuroim2$weights != 0
+touches_blob <- Matrix::rowSums(membership[, planted_features, drop = FALSE]) > 0
+
+c(
+  searchlights_touching_blob = sum(touches_blob),
+  mean_energy_touching = mean(effect$total[touches_blob]),
+  mean_energy_elsewhere = mean(effect$total[!touches_blob]),
+  peak_touches_blob = unname(touches_blob[peak])
+)
+```
+
+```{r recovery-check, include=FALSE}
+stopifnot(
+  touches_blob[peak],
+  mean(effect$total[touches_blob]) > 10 * abs(mean(effect$total[!touches_blob]))
+)
+```
+
+Away from the blob the estimate is centered near zero and is negative about as
+often as not. That is the crossvalidated estimator behaving correctly, not a
+bug; see `vignette("introduction", package = "crossform")` for why those
+values are kept rather than truncated.
+
+## Measurements are not features
+
+This is the distinction that decides how you write results back.
+
+- A **feature** is a voxel in the domain, addressed by `domain$feature_ids`.
+  There are `domain$n_features` of them.
+- A **measurement** is a row of the frame — one searchlight, one region, one
+  whole-brain summary. Results (`effect$total`, `rdm()$values`,
+  `rsa()$coefficients`) have one row per **measurement**.
+
+`as_neurovol()` takes one finite value per **feature**. With searchlights the
+two coincide: the frame has exactly one measurement per domain feature, in the
+same order, because each sphere is labeled by its center voxel.
+
+```{r measurement-vs-feature}
+c(
+  measurements = nrow(frame_neuroim2$index),
+  features = domain$n_features,
+  index_matches_features =
+    identical(frame_neuroim2$index$measurement, domain$feature_ids)
+)
+```
+
+So a searchlight map can be written straight back:
+
+```{r write-back}
+energy_vol <- as_neurovol(
+  effect$total,
+  mask,
+  domain,
+  label = "animacy total energy"
+)
+energy_vol
+
+# Values land at exactly the domain's voxels; everything else is `fill`.
+isTRUE(all.equal(as.numeric(energy_vol[domain$feature_ids]), effect$total))
+all(is.na(as.array(energy_vol)[mask_array == 0]))
+```
+
+`as_neurovol()` re-derives the domain from `mask` and refuses if the geometry
+does not match the domain that produced the values, so a mask/result mismatch
+is an error rather than a silently misplaced map. It also requires every value
+to be finite: it will not guess what a missing measurement means.
+
+## Regions from an atlas, and expanding them back
+
+`regions()` takes one label per **feature** — a vector as long as
+`domain$feature_ids`, not an image. Read an atlas `NeuroVol` at the domain's
+voxel indices to get it:
+
+```{r regions}
+atlas_array <- array(0L, dims)
+atlas_array[2:4, 2:9, 2:7] <- 1L
+atlas_array[5:7, 2:9, 2:7] <- 2L
+atlas_array[8:9, 2:9, 2:7] <- 3L
+atlas_array[mask_array == 0L] <- 0L
+atlas <- NeuroVol(atlas_array, volume_space)
+
+region_labels <- as.integer(atlas[domain$feature_ids])
+table(region_labels)
+
+frame_regions <- compile_frame(regions(region_labels), domain)
+frame_regions$index
+```
+
+```{r regions-run}
+plan_regions <- plan_geometry(
+  rel,
+  at = frame_regions,
+  over = cross_partitions(
+    rel,
+    independence = "independent",
+    generalizes_over = "run"
+  )
+)
+region_effect <- contrast_energy(plan_regions, animacy)
+round(region_effect$total, 3)
+```
+
+Now there are only 3 measurements but still `domain$n_features` features, so
+`as_neurovol(region_effect$total, ...)` would be an error. Expand the region
+values to voxels first. The general route uses the frame's own membership
+pattern, which works for any additive frame:
+
+```{r regions-expand}
+region_membership <- frame_regions$weights != 0
+voxel_values <- as.numeric(
+  Matrix::crossprod(region_membership, region_effect$total)
+)
+
+length(voxel_values)
+region_vol <- as_neurovol(voxel_values, mask, domain, label = "region energy")
+```
+
+Use the membership pattern (`weights != 0`), not `weights` itself: under the
+default `"local"` normalization the weights are `1/region_size`, so
+`crossprod(weights, values)` would rescale the numbers you are trying to
+display.
+
+For disjoint labels the same thing is a lookup, which is easier to read:
+
+```{r regions-expand-match}
+by_lookup <- region_effect$total[
+  match(region_labels, frame_regions$index$measurement)
+]
+isTRUE(all.equal(by_lookup, voxel_values))
+```
+
+One caveat. If your atlas does not cover the whole mask, `regions()` drops the
+unlabeled features, and the lookup above yields `NA` there — which
+`as_neurovol()` refuses. Build the domain from the atlas coverage
+(`neuroim2_volume_domain(NeuroVol((atlas_array != 0) * 1, volume_space))`) so
+that domain and results describe the same voxels, rather than filling missing
+regions with a number that will later be read as data.
+
+## Tidy output
+
+Every result view has an `as.data.frame()` method. The measurement index is
+carried through, so for a searchlight frame the `measurement` column is the
+center voxel's full-volume index:
+
+```{r tidy}
+head(as.data.frame(effect), 3)
+```
+
+```{r tidy-rdm}
+distances <- rdm(plan)
+head(as.data.frame(distances)[, 1:4], 3)
+```
+
+That frame joins directly to anything else keyed by voxel index, and
+`as_neurovol()` remains available for the map itself.
+
+## Where to go next
+
+- `vignette("introduction", package = "crossform")` for what the energies,
+  RDMs, and RSA coefficients mean.
+- `vignette("from-observations", package = "crossform")` if you have
+  scan-by-feature responses rather than per-run condition estimates, and want
+  the residual channel that analytic standard errors require.
+- `?neuroim2_volume_domain`, `?neuroim2_searchlights`, and `?as_neurovol` for
+  the exact adapter contracts, including what each one refuses.

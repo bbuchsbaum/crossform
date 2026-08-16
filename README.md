@@ -1,258 +1,228 @@
 # crossform
 
-`crossform` asks a concrete task-fMRI question: **where does an experimental
-effect or representational geometry reproduce across independent data
-partitions?**
+`crossform` answers one question about task-fMRI data: **where does an
+experimental effect — or a whole representational geometry — reproduce across
+independent runs?**
 
-You declare the effects, the spatial measurement, and which partitions must
-generalize. The package compiles that scientific request once. Contrasts,
-squared-distance RDMs, and linear RSA then become views of the same fitted
-geometry rather than separate analysis pipelines.
+![Effects, frame, and pairing compile into one geometry plan, which four view functions then read.](man/figures/crossform-overview.svg)
 
-This is an experimental package. It preserves negative crossvalidated
-estimates, runs sequentially, and does not preprocess fMRI, register images, or
-perform group inference.
+You declare the condition effects you fitted, the spatial measurements you want
+answers at, and which runs must generalize. `crossform` compiles those once into
+a **geometry plan**, which records the quantity you are estimating before any
+brain data is read. Contrasts, RDMs, RSA, and crossnobis distances are queries
+against that one plan rather than four separate pipelines.
+
+A **measurement**, used consistently below, is a spatial unit: a searchlight, a
+region, a voxel, or the whole brain. Every result has one row per measurement.
+
+## Install
+
+The repository is not yet public and the package is on neither CRAN nor
+R-universe, so today the route is a local checkout:
+
+```r
+install.packages(".", repos = NULL, type = "source")
+```
+
+Once published, `remotes::install_github("bbuchsbaum/crossform")` and the
+R-universe repository `https://bbuchsbaum.r-universe.dev` become the supported
+routes.
+
+## Why it is different
+
+- **One fitted geometry, many questions.** `contrast_energy()`, `rdm()`,
+  `rsa()` and `crossnobis()` read the same compiled plan, so a contrast map and
+  an RDM at the same searchlights come from the same estimates by
+  construction, and a second question costs a query rather than a refit. With
+  100 conditions, ask for three of the 4,950 pairs and the rest are never
+  computed.
+- **Generalization is part of what you estimated, not a fold count.**
+  `cross_partitions(rel, generalizes_over = "run")` is bound into the plan's
+  identity. Crossvalidating over runs and over sessions are different
+  scientific quantities, and the plan says which one you ran; changing block
+  size or storage changes only the execution record.
+- **Negative estimates are kept; uncertainty is refused when it is not
+  earned.** Crossvalidated energies and distances are centered on zero under
+  the null, so about half go negative where there is no effect, and clipping
+  them would bias the estimator upward. Conversely, if your relation is beta
+  matrices alone, `rdm_sampling_covariance()` refuses to return standard errors
+  and names the missing input instead of substituting the spread across run
+  pairs.
 
 ## A complete first analysis
-
-The generated fixture contains four conditions in four independent runs over a
-small volume. It retains raw trial responses and a known central multivariate
-signal, so both the point estimate and its admitted uncertainty path can run.
 
 ```r
 library(crossform)
 
-example <- example_fmri_effects()
+example <- example_fmri_effects()   # 4 conditions, 4 runs, 245 searchlights
 
 plan <- plan_geometry(
   example$fit$relation,
-  at = example$frame,
+  at   = example$frame,
   over = cross_partitions(
     example$fit$relation,
-    independence = "independent",
+    independence     = "independent",
     generalizes_over = "run"
   )
 )
+plan
+#> <effect_geometry_plan>
+#>   effects:      4 x 4
+#>   measurements: 245
+#>   features:     245
+#>   metric:       implicit identity
+#>   generalizes:  6 partition pairs over run, endpoints independent
+#>   lowering:     additive_contraction
+#>   dense payload: 68.9 Kb
+#>   state:        query-first; call materialize_geometry(plan) to materialize
 ```
 
-`plan` is the estimand-bearing object. It records the named conditions, exact
-neural domain, searchlight frame, partition pairs, metric, and units before
-reading a neural block.
-
-Ask where the animate-versus-inanimate contrast reproduces:
+Save `plan` with the analysis record: it names the conditions, domain, frame,
+run pairs, metric, and units. Now ask where the animate-versus-inanimate
+contrast reproduces:
 
 ```r
 effect <- contrast_energy(plan, example$contrast)
-peak <- which.max(effect$total)
+peak   <- which.max(effect$total)
 
-c(
-  peak_measurement = peak,
-  total_energy = effect$total[peak],
-  planted_signal = peak %in% example$truth$signal_measurements
-)
+round(c(
+  searchlight   = peak,
+  signed        = effect$signed[peak],
+  total         = effect$total[peak],
+  coherent      = effect$coherent[peak],
+  configuration = effect$configuration[peak]
+), 3)
+#>   searchlight        signed         total      coherent configuration
+#>       166.000         1.381         4.223         1.906         2.318
+
+peak %in% example$truth$signal_measurements
+#> [1] TRUE
 ```
 
-`effect$signed` is the familiar signed contrast at each measurement — a
-retained first-moment marginal, not an energy. The three energies decompose
-its reproducibility: `total` is reproducible contrast energy; `coherent` is
-the part carried by the locally averaged contrast (a quadratic quantity, not
-the signed effect itself); `configuration` is reproducible spatial departure
-from that weighted mean, orthogonal in the frame-weighted inner product; and
-they sum to `total` up to floating-point tolerance. These crossvalidated
-quantities can be negative and are not truncated.
+`effect$signed` is the ordinary GLM contrast at that searchlight. The three
+energy columns are what is new. `total` is the contrast energy that reproduces
+across runs; `coherent` is the part carried by the searchlight's average
+pattern — the familiar univariate story; `configuration` is the reproducible
+spatial pattern beyond that mean. Because `coherent + configuration = total`,
+you can say how much of a searchlight's effect survives once its regional mean
+is accounted for. Here configuration carries most of it, as the planted
+multivariate signal should.
 
-Change the question without refitting the geometry:
+Change the question without recompiling the geometry:
 
 ```r
 distances <- rdm(plan)
-category_fit <- rsa(plan, models = list(category = example$model_rdm))
+category  <- rsa(plan, models = list(category = example$model_rdm))
 
-dim(distances$values)       # 245 searchlights by 6 condition pairs
-dim(category_fit$coefficients)
+dim(distances$values)       #> [1] 245   6   — searchlights by condition pairs
+dim(category$coefficients)  #> [1] 245   2   — intercept and category model
 
 # Or ask for exactly the pairs you mean; the rest is never materialized.
 rdm(plan, pairs = rbind(c("face", "house")))
 ```
 
 For conditions `i` and `j`, `rdm()` reports
-
-\[
-d_{ij} = G_{ii} + G_{jj} - 2G_{ij}.
-\]
-
-Under cross-partition pairing this is a signed crossvalidated squared
-Euclidean distance; a fixed neural metric makes it squared Mahalanobis. It is
-not `1 - Pearson correlation`. The deliberate boundary is documented in the
+$d_{ij} = G_{ii} + G_{jj} - 2G_{ij}$: under cross-run pairing a signed
+crossvalidated squared Euclidean distance, and squared Mahalanobis
+(crossnobis) once you supply a fixed neural metric. It is deliberately not
+`1 - Pearson correlation`; see the
 [correlation-distance policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html).
 
-## Start before the beta matrices
-
-When raw observation-by-feature responses are available, the fitted relation
-can be planned without hiding the first-level model in an analysis script:
+## Uncertainty, only when it is earned
 
 ```r
-facts <- study(
-  observations(response_runs, scan_indexes, native_domain),
-  observation_events(event_table),
-  observation_confounds(confound_table, censor = "retained"),
-  partition_hierarchy(run_table)
-)
-
-relation_request <- plan_relation(
-  facts,
-  model = declared_design,
-  effects = named_condition_effects,
-  observation_model = observation_model(
-    "ols",
-    sampling_unit = "scan",
-    independence = "runs independently acquired conditional on the model"
-  )
-)
-fit <- estimate_relation(relation_request)
+round(sqrt(sampling_covariance(
+  rdm_sampling_covariance(plan, example$fit, target = "null", at = peak)
+)), 4)
+#>  face - body face - house  face - tool body - house  body - tool house - tool
+#>       0.0145       0.0145       0.0145       0.0145       0.0145       0.0145
 ```
 
-`plan_relation()` is the estimand-bearing request. A concrete design matrix,
-coding, censor realization, rank, aliases, and solver live in portable design
-receipts; the resulting fit binds those receipts and the exact observation
-source revisions. Effects are declared against named condition coordinates,
-so supported cell-means and treatment codings retain one plan identity while
-their execution receipts remain distinct.
+These are within-searchlight standard errors under a declared equal-partition,
+fixed-metric, separable error model — not a random-field model, a confidence
+interval, or group inference. They need the residual channel that
+`lm_relation_fit()` and `estimate_relation()` retain; beta matrices alone cannot
+supply it. `sampling_capabilities(plan, example$fit)` answers the admission
+question before you provoke it, and `catch_refusal(expr)` returns the unmet
+requirements and their remedies as data. The
+[failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html)
+shows six realistic errors the package guards against.
 
-The complete executable journey—including timed events, scan-level confounds,
-censoring, relation estimation, geometry, RDM, RSA, and admitted uncertainty—is
-in `vignette("from-observations", package = "crossform")`. BIDS,
-`fmridesign`, and `fmrireg` are optional adapters into this typed core; they do
-not define the core object model.
+## Bring your own data
 
-## Add an error bar only when it is earned
-
-The fixture was built with `lm_relation_fit()`, so its residual channel is
-still available. For the selected searchlight:
+If you already have one condition-by-voxel beta matrix per run, this is the
+whole path — it runs as written:
 
 ```r
-distance_covariance <- rdm_sampling_covariance(
-  plan,
-  example$fit,
-  target = "plugin",
-  at = peak
-)
-distance_se <- sqrt(sampling_covariance(distance_covariance))
-distance_se
+set.seed(1)
+conditions <- c("face", "house", "cat", "chair")
+
+mask <- array(TRUE, c(8, 8, 6))                        # substitute your mask
+dom  <- volume_domain(mask, spacing = c(3, 3, 3))
+
+# Substitute your betas: one condition-by-voxel matrix per run, rows named.
+betas <- lapply(1:4, function(run) matrix(
+  rnorm(4 * sum(mask)), 4, sum(mask), dimnames = list(conditions, NULL)
+))
+names(betas) <- paste0("run", 1:4)
+
+rel      <- relation(betas, effects = effect_space(conditions), domain = dom)
+frame    <- compile_frame(searchlights(radius = 6), dom)
+own_plan <- plan_geometry(rel, at = frame, over = cross_partitions(
+  rel, independence = "independent", generalizes_over = "run"
+))
+
+own_effect <- contrast_energy(own_plan, c(face = 1, house = -1, cat = 0, chair = 0))
 ```
 
-This is a within-measurement covariance law under the declared equal-partition,
-fixed-metric, separable plug-in model. It is not a spatial random-field model,
-an automatic confidence interval, or a population analysis. `target = "null"`
-is also available, but no target is chosen silently.
+Swap `searchlights(radius = 6)` for `regions(labels)`, `voxelwise()`, or
+`whole_brain()`; swap `volume_domain()` for `abstract_domain(n_features)` when
+the features are not a volume. For `neuroim2` users,
+`neuroim2_volume_domain()` and `neuroim2_searchlights()` preserve stable
+full-volume indices and `as_neurovol()` maps compact results back without
+interpolation or smoothing — see `vignette("neuroim2-data")`.
 
-A relation made only from precomputed beta matrices remains valid for point
-geometry. It cannot reconstruct discarded residual uncertainty, and
-`crossform` refuses to pretend that edge spread supplies it. Ask before
-provoking: `sampling_capabilities(plan, example$fit)` reports whether the
-analytic law is admitted and, if not, every unmet requirement with its
-remedy. Refusals themselves are classed conditions — `catch_refusal(expr)`
-returns the missing capability and remedies as data. The
-[failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html) shows six realistic errors the package
-guards against. Unsupported callable interpretations return classed refusals;
-other errors are prevented by the absence of a misleading API or by distinct
-estimand identities.
-
-## The small API most analyses need
-
-Start with these functions:
-
-| Task | Functions |
-|---|---|
-| Bind raw facts | `observations()`, `observation_events()`, `observation_confounds()`, `study()` |
-| Plan and estimate a relation | `condition_space()`, `effect_map()`, `design_model()`, `observation_model()`, `plan_relation()`, `estimate_relation()` |
-| Use precomputed effects or a raw `(X, T)` | `relation()`, `lm_relation_fit()`, `raw_design_model()`, `raw_effect_map()` |
-| Define the spatial measurement | `volume_domain()`, `compile_frame()`, `searchlights()` or `regions()` |
-| Declare generalization and compile | `cross_partitions()`, `plan_geometry()` |
-| Read scientific results | `contrast_energy()`, `rdm()`, `rsa()` |
-| Calibrate an admitted fixed-metric RDM | `rdm_sampling_covariance()`, `sampling_covariance()` |
-
-Beyond the self-form core, the same plan vocabulary reaches the other
-closures of the calculus: `plan_geometry(x, at, over, right = )` compiles a
-rectangular cross-axis plan read with `pair_query()`s (encoding-retrieval
-similarity is the canonical use), `coupling(plan, between, by)` takes the
-adjoint neural-side closure between named frame measurements, and
-`cross_partitions(relation, independence = "independent",
-generalizes_over = "run")` binds the declared
-generalization axis into the estimand's identity. Metric learning, bridges,
-source adapters, and execution controls are advanced surfaces. The generated
-reference site groups all exported functions by these roles in
-[`_pkgdown.yml`](_pkgdown.yml).
+If you have scan-by-feature responses rather than betas, start one step earlier
+with `study()`, `plan_relation()`, and `estimate_relation()`.
 
 ## What is actually novel?
 
-Not RSA, crossnobis, or the analytic covariance formula. `crossform` advances
-a broader **evidence-pairing calculus**: self- and cross-experimental forms and
-self- and cross-neural measurements are different boundary closures of one
-typed second-order relation. In that architecture:
+Not RSA, crossnobis, or the analytic covariance formula — those are
+established. The contribution is architectural: contrast energy,
+squared-distance RDMs, fixed linear RSA, and ordered cross-axis hypotheses are
+queries against one typed cross-partition form, and the plan keeps that
+scientific identity separate from how it was executed.
+[What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
+is the ledger separating what is demonstrated from what is still gated.
 
-- crossvalidated contrast energy, squared-distance RDMs, fixed linear RSA, and
-  ordered pair hypotheses are queries against one cross-partition form;
-- coherent spatial level and configuration are additive components inherited
-  by every fixed linear query;
-- square RDMs are optional views, while unequal-axis forms and query-first
-  execution retain structure that an RDM-first workflow may collapse; and
-- generalization is an identity-bound part of the estimand, not a fold count.
+## Where next
 
-The executable estimand contract is the proof mechanism: it separates plan
-identity from execution receipts, keeps the point relation connected to its
-error channel, and uses capabilities and refusals to prevent silent changes of
-interpretation.
+- [Introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.html) — the entry point: a ready relation to contrasts, RDMs, RSA, and standard errors.
+- [Coming from rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html) — how the familiar objects map onto this vocabulary.
+- [Fit condition effects from observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html) — scan responses, events, confounds, censoring.
+- [neuroim2 data](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.html) — `NeuroVol` and `NeuroVec` in, brain maps out.
+- [Evidence pairing](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html) — results that relate two regions, and the contracts each connectivity view requires.
+- [What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html) · [Failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html) · [Correlation-distance policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html)
+- [`design/`](design/) (contracts) · [`exemplars/haxby2001/`](exemplars/haxby2001/) (public-data comparison) · [`benchmarks/`](benchmarks/) (runtime and memory records)
 
-The strongest scientific claims are deliberately gated, and three gates have
-landed: the one-plan coherent/configuration family, the large-condition
-query-first benchmark (at 100 conditions over 1,080 searchlights, one hundred
-selected pairs run in 0.27 s and the fused full RDM in 5.16 s against 13.40 s
-for materialize-then-project, a fused/materialized ratio of 0.39, with a
-`4.4e-16` oracle), and the executable
-[failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html). `rsatoolbox`
-parity, a real rectangular exemplar, and an operational conservation example
-remain work to be earned. The full claim ledger—established precedents,
-current evidence with its machine-checkable artifacts, and promotion gates—is
-in [What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html).
+## Status and scope
 
-## Real-data evidence
+`crossform` is experimental; exported names may still change. It runs
+sequentially, and it does not preprocess fMRI, register images, build
+hemodynamic response models, or perform group inference.
 
-The [Haxby 2001 exemplar](exemplars/haxby2001/) runs the public crossform and
-rMVPA paths on 12 conditions and 577 VT searchlights. On the matched
-crossvalidated squared-Euclidean/crossnobis estimand, crossform agrees with an
-independent reference loop to `1.33e-15` and with rMVPA to `8.88e-16`. Refitting
-the raw responses to retain the error channel reproduces the point RDM to
-`4.44e-16` before analytic covariance is transported to a fixed linear RSA
-coefficient.
+**Demonstrated.** On the [Haxby 2001 exemplar](exemplars/haxby2001/) (12
+conditions, 577 ventral-temporal searchlights), `crossform` agrees with an
+independent reference loop to `1.33e-15` and with `rMVPA` to `8.88e-16` on the
+matched crossvalidated squared-Euclidean/crossnobis estimand; refitting the raw
+responses to retain the error channel reproduces the point RDM to `4.44e-16`.
+At 100 conditions over 1,080 searchlights, one hundred selected pairs run in
+0.27 s and the fused full RDM in 5.16 s against 13.40 s for
+materialize-then-project — a ratio of 0.39, with a `4.4e-16` oracle.
 
-Those results demonstrate numerical parity and an integrated uncertainty path.
-They do **not** demonstrate a matched-estimator speed advantage, and they say
-nothing about correlation-distance RSA. The scripts, assumptions, refusals,
-and timing records live with the exemplar. Map-scale runtime and storage claims
-are qualified separately under [`benchmarks`](benchmarks/).
-
-## Installation and deeper guides
-
-The package is not yet published. Install a local checkout with:
-
-```r
-install.packages(".", repos = NULL, type = "source")
-```
-
-Then read:
-
-- `vignette("from-observations", package = "crossform")` for the complete
-  facts-to-fit-to-geometry journey;
-- `vignette("introduction", package = "crossform")` for the continuous
-  question-first workflow;
-- `vignette("evidence-pairing", package = "crossform")` for measurement
-  forms and coupling views, including one bounded cross-domain contraction
-  and the Parseval reconstruction law;
-- [the effect-form contract](design/effect-form-contract.md) for normative algebra and
-  execution identity;
-- [the evidence-sampling contract](design/evidence-sampling-contract.md) for the exact
-  admitted uncertainty specialization and its refusals.
-
-For neuroim2 volumes, `neuroim2_volume_domain()` and
-`neuroim2_searchlights()` preserve stable full-volume indices, and
-`as_neurovol()` maps compact results back without interpolation or smoothing.
+**Not demonstrated.** Those results show numerical parity and an integrated
+uncertainty path. They do **not** show a matched-estimator speed advantage,
+and say nothing about correlation-distance RSA. `rsatoolbox` parity, a real
+rectangular cross-axis exemplar, and an operational conservation example remain
+to be earned; map-scale runtime and storage claims are qualified under
+[`benchmarks/`](benchmarks/).

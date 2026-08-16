@@ -11,15 +11,19 @@ geometry_spectrum(
 )
 }
 \arguments{
-\item{x}{A complete effect form carrying the symmetric self-form capability.}
+\item{x}{A complete effect form carrying the symmetric self-form
+capability, as returned by \code{\link[=materialize_geometry]{materialize_geometry()}}. A query-only view
+has no geometry to decompose.}
 
 \item{component}{Geometry component to decompose.}
 
 \item{row_block}{Positive number of measurement rows read per block.}
 }
 \value{
-An \code{effect_spectrum_view}. Eigenvalues are ordered from largest to
-smallest and are never truncated at zero.
+An \code{effect_spectrum_view}. \verb{$values} has one row per measurement
+and one column per eigenvalue (\code{root1} largest), with \verb{$component},
+\verb{$index}, \verb{$receipt}, and \verb{$indefinite_estimates_preserved = TRUE}
+recording that negative eigenvalues are never truncated at zero.
 }
 \description{
 Unlike the linear views, eigenvalues are not additive across components:
@@ -27,3 +31,58 @@ the spectra of the \code{coherent} and \code{configuration} components do not su
 to the spectrum of \code{total}, even though the underlying matrices do.
 Compare spectra across components only as separate decompositions.
 }
+\section{Refusal}{
+
+Passing a query-first \code{effect_geometry_plan} signals an
+\code{effect_capability_refusal} with capability \code{"complete_geometry"} in
+namespace \code{"geometry_views"} and remedy \code{materialize_geometry(x)}; a
+non-symmetric form signals capability \code{"symmetric_self_form"}. See
+\code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
+\examples{
+domain <- abstract_domain(4, id = "spectrum-example")
+relation <- relation(
+  list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+       run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+  domain = domain
+)
+geometry <- materialize_geometry(plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(relation, independence = "independent")
+))
+
+# Signed eigenvalues per region, largest first. Small negative roots are
+# retained: a cross-generalized form is not guaranteed positive.
+spectrum <- geometry_spectrum(geometry)
+spectrum
+as.data.frame(spectrum)
+
+# Eigenvalues are not additive across components, so read each spectrum as
+# its own decomposition rather than summing them.
+geometry_spectrum(geometry, component = "coherent")$values
+}
+\seealso{
+\code{\link[=materialize_geometry]{materialize_geometry()}}, which produces the complete geometry
+this view requires, and \code{\link[=rdm]{rdm()}} for the linear distance view.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

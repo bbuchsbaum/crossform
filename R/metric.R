@@ -130,11 +130,34 @@
 #' @param tolerance Positive numerical validation tolerance.
 #' @param provenance Compact metric provenance. Learned-frozen metrics require
 #'   `frozen = TRUE` and a strong `training_signature`.
-#' @return An immutable `effect_neural_metric`.
+#' @return An `effect_neural_metric` carrying the canonicalized `$value`, its
+#'   `$domain` and `$support`, the `$estimation` status, any retained
+#'   `$inverse_representation`, the derived `$capabilities` record, and a
+#'   content-addressed `$signature` bound into every plan that uses it.
+#' @seealso [noise_precision()] for the semantically specific
+#'   inverse-noise-covariance constructor, [metric_capabilities()] to inspect
+#'   what a metric admits, and [plan_geometry()] to compile it into a plan.
+#' @family neural metrics
 #' @examples
+#' # A fixed diagonal metric: each feature is reweighted independently, so
+#' # the metric stays feature-additive and survives searchlight restriction.
 #' domain <- abstract_domain(3, id = "metric-example")
 #' metric <- neural_metric(diag(c(1, 2, 3)), domain)
 #' metric_capabilities(metric)$feature_additive
+#'
+#' # Retaining the inverse lets inverse quadratic forms be read without a
+#' # second factorization.
+#' full <- neural_metric(
+#'   matrix(c(2, 0.5, 0, 0.5, 2, 0.5, 0, 0.5, 2), 3, 3), domain,
+#'   inverse = solve(matrix(c(2, 0.5, 0, 0.5, 2, 0.5, 0, 0.5, 2), 3, 3))
+#' )
+#' full$inverse_representation$kind
+#'
+#' # A same-space metric must be positive semidefinite.
+#' indefinite <- try(
+#'   neural_metric(diag(c(1, -1, 1)), domain), silent = TRUE
+#' )
+#' conditionMessage(attr(indefinite, "condition"))
 #' @export
 neural_metric <- function(value, domain, support = NULL, inverse = NULL,
                           estimation = c("fixed", "learned_frozen"),
@@ -385,10 +408,40 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
 
 #' Inspect exact neural-metric capabilities
 #'
+#' `metric_capabilities()` answers what a metric or recipe admits before a
+#' plan provokes a refusal: whether it is diagonal, feature-additive,
+#' positive definite, already materialized, and whether inverse quadratic
+#' forms are available.
+#'
 #' @param x A `neural_metric()` or an on-demand metric recipe. A
 #'   `measurement_bridge()` is refused because cross-space bridges are not
 #'   same-space metrics.
-#' @return An `effect_metric_capabilities` record.
+#' @return An `effect_metric_capabilities` record of logical flags, including
+#'   `$identity`, `$native_diagonal`, `$feature_additive`, `$support_dense`,
+#'   `$positive_definite`, `$fixed`, `$learned_recipe`, `$materialized`, and
+#'   `$inverse_quadratic`.
+#' @seealso [neural_metric()] and [noise_precision()] for fixed metrics;
+#'   [identity_metric()], [diagonal_precision()], and [shrinkage_precision()]
+#'   for on-demand recipes.
+#' @family neural metrics
+#' @examples
+#' # A materialized diagonal metric is feature-additive, so it restricts
+#' # cleanly to any searchlight support.
+#' domain <- abstract_domain(3, id = "capability-example")
+#' fixed <- metric_capabilities(neural_metric(diag(c(1, 2, 3)), domain))
+#' fixed[c("native_diagonal", "feature_additive", "materialized")]
+#'
+#' # A recipe is not yet a matrix: it promises a local metric per support.
+#' recipe <- metric_capabilities(shrinkage_precision(0.2))
+#' recipe[c("learned_recipe", "materialized", "support_dense")]
+#'
+#' # A cross-space bridge is not a same-space metric and is refused.
+#' bridge <- measurement_bridge(
+#'   rbind(c(1, 0, 0)), rbind(c(1, 0, 0)), domain, domain,
+#'   measurement_space(1, id = "capability-example:common")
+#' )
+#' refused <- try(metric_capabilities(bridge), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 metric_capabilities <- function(x) {
   if (inherits(x, "effect_measurement_bridge")) {

@@ -17,7 +17,9 @@ edge_frame(from, to, frame, to_frame = frame, weight = NULL)
 \item{weight}{Optional finite edge weights recorded as part of edge identity.}
 }
 \value{
-An explicit \code{effect_edge_frame} for the \code{between} argument.
+An \code{effect_edge_frame} for the \code{between} argument, holding the
+\verb{$from_frame} and \verb{$to_frame} it draws nodes from, the requested
+\verb{$edges} table (\code{left}, \code{right}, \code{weight}), and a \verb{$signature}.
 }
 \description{
 Every edge is explicit. The constructor never creates all pairs on the
@@ -25,3 +27,52 @@ user's behalf. \code{from} and \code{to} name neural measurement nodes; the word
 \code{left} and \code{right} are reserved for experimental relation sides in
 \code{\link[=measurement_form]{measurement_form()}}.
 }
+\examples{
+native <- abstract_domain(4, id = "demo:native:v1")
+nodes <- measurement_frame(
+  list(
+    anterior = matrix(c(1, 0, 0, 0), 1),
+    posterior = matrix(c(0, 1, 0, 0), 1)
+  ),
+  domain = native, id = "demo:regional-means:v1"
+)
+
+# Request exactly the edges the question needs. A correlation view also
+# needs the two self-pairs, because they supply its denominator.
+pairs <- expand.grid(
+  from = nodes$node_ids, to = nodes$node_ids, stringsAsFactors = FALSE
+)
+between <- edge_frame(pairs$from, pairs$to, nodes)
+between$edges$edges
+
+# A seed-to-target edge set is just a shorter list; nothing is created on
+# your behalf.
+edge_frame("anterior", "posterior", nodes)$edges$edges
+
+# Node names are checked against the frame, so a typo cannot become a
+# silently missing edge.
+refused <- try(edge_frame("anterior", "postrior", nodes), silent = TRUE)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=measurement_frame]{measurement_frame()}} for the nodes, \code{\link[=measurement_form]{measurement_form()}} which
+consumes this edge set, and \code{\link[=reconstruct_evidence]{reconstruct_evidence()}}, which needs every
+directed pair.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

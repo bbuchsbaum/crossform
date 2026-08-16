@@ -31,9 +31,12 @@ is restored on exit.}
 \item{searchlight_radius}{Positive searchlight radius in millimeters.}
 }
 \value{
-A named list containing \code{fit}, its full \code{domain}, a compiled
-searchlight \code{frame}, the \code{contrast} weights, a category \code{model_rdm}, and
-\code{truth} metadata identifying the planted features and noiseless patterns.
+An \code{effect_example_effects} list containing \verb{$fit} (an
+\code{\link[=lm_relation_fit]{lm_relation_fit()}} with a residual channel), its full \verb{$domain}, a
+compiled searchlight \verb{$frame}, the animate-versus-inanimate \verb{$contrast}
+weights, a category \verb{$model_rdm}, and \verb{$truth} metadata naming the
+\code{planted_features}, the \code{signal_measurements} that overlap them, the
+noiseless \code{condition_patterns}, and the generating \code{noise_sd} and \code{seed}.
 }
 \description{
 This is the executable newcomer fixture. Four conditions are observed in
@@ -48,10 +51,50 @@ under \code{exemplars/haxby2001} for the public-data parity workflow.
 }
 \examples{
 example <- example_fmri_effects()
+
+# The planted contrast and the features it was planted in are carried
+# alongside the data, so any result can be checked against ground truth.
+example$contrast
+length(example$truth$planted_features)
+
+# Everything a second-moment question needs is already built: a fit with
+# residuals, a compiled searchlight frame, and the cross-run pairing.
 plan <- plan_geometry(
   example$fit$relation, example$frame,
   cross_partitions(example$fit$relation, independence = "independent")
 )
 distances <- rdm(plan)
 dim(distances$values)
+
+# Cross-run energy for the planted contrast is largest inside the planted
+# region, which is what makes this fixture usable as a check.
+energy <- contrast_energy(plan, example$contrast)
+signal <- example$truth$signal_measurements
+round(c(planted = mean(energy$total[signal]),
+        elsewhere = mean(energy$total[-signal])), 3)
 }
+\seealso{
+\code{\link[=plan_geometry]{plan_geometry()}} for the next step, then \code{\link[=contrast_energy]{contrast_energy()}},
+\code{\link[=rdm]{rdm()}}, or \code{\link[=rsa]{rsa()}}; and \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, which the retained
+residual channel makes available.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

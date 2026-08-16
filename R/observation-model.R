@@ -34,6 +34,11 @@
 
 #' Declare the first-moment observation model
 #'
+#' States the estimation assumptions the data tables cannot prove: the error
+#' law, the sampling unit, any whitener, and whether independence was asserted.
+#' Nothing here is inferred from events or confounds, and the declaration is
+#' what determines whether analytic uncertainty is later available.
+#'
 #' @param kind `"ols"`, `"fixed_gls"`, or `"learned_frozen_gls"`.
 #' @param sampling_unit One sampling-unit axis name, or a named value per
 #'   partition. It is required and is never inferred from events.
@@ -45,7 +50,36 @@
 #' @param training_provenance Portable learned-model provenance.
 #' @param assumptions Additional portable declared assumptions.
 #' @param provenance Portable model provenance.
-#' @return An `effect_observation_model`.
+#' @return An `effect_observation_model`: a list with `$kind`,
+#'   `$sampling_unit`, the `$whitener` and its `$whitener_revisions`,
+#'   `$independence`, learned-model `$training_revision` and
+#'   `$training_provenance`, `$assumptions`, `$provenance`, an
+#'   `$observation_model_id`, and `$capabilities` with
+#'   `fixed_observation_model`, `learned_observation_model`,
+#'   `separable_glm_law`, `analytic_effect_covariance`, and
+#'   `declared_independence`.
+#' @family studies and effect maps
+#' @seealso [plan_relation()], which consumes this declaration, and
+#'   [rdm_sampling_covariance()], whose analytic route requires
+#'   `analytic_effect_covariance`.
+#' @examples
+#' # OLS with scans as the sampling unit. Independence must be declared; it is
+#' # never read off the event table.
+#' ols <- observation_model(
+#'   "ols", sampling_unit = "scan",
+#'   independence = "runs independently acquired conditional on the model"
+#' )
+#' ols$capabilities$analytic_effect_covariance
+#' ols$capabilities$declared_independence
+#'
+#' # A frozen learned whitener still yields point estimates, but the analytic
+#' # error channel is withheld because its training is not accounted for.
+#' learned <- observation_model(
+#'   "learned_frozen_gls", sampling_unit = "scan", whitener = diag(6),
+#'   training_revision = paste0("sha256:", strrep("a", 64)),
+#'   training_provenance = list(method = "AR1", fitted_on = "held-out runs")
+#' )
+#' learned$capabilities$analytic_effect_covariance
 #' @export
 observation_model <- function(
     kind = c("ols", "fixed_gls", "learned_frozen_gls"), sampling_unit,

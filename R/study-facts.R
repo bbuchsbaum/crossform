@@ -4,11 +4,18 @@
                                       name = "partitions") {
   if (!is.character(value) || length(value) < 1L || anyNA(value) ||
       any(!nzchar(value)) || anyDuplicated(value)) {
-    stop(sprintf("`%s` must contain unique nonempty identifiers.", name),
-      call. = FALSE)
+    stop(sprintf("`%s` must contain unique nonempty identifiers%s.", name,
+      if (is.character(value) && anyDuplicated(value)) {
+        sprintf("; %s appears more than once",
+          .msg_names(unique(value[duplicated(value)])))
+      } else {
+        sprintf("; received %s", .msg_value(value))
+      }), call. = FALSE)
   }
   if (!is.null(expected) && length(value) != expected) {
-    stop(sprintf("`%s` has the wrong length.", name), call. = FALSE)
+    stop(sprintf("`%s` must supply %s; received %s.", name,
+      .msg_count(expected, "name"), .msg_count(length(value), "name")),
+      call. = FALSE)
   }
   unname(value)
 }
@@ -17,8 +24,9 @@
   if (!is.data.frame(value) || nrow(value) < 1L || ncol(value) < 1L ||
       is.null(names(value)) || anyNA(names(value)) || any(!nzchar(names(value))) ||
       anyDuplicated(names(value))) {
-    stop(sprintf("`%s` must be a nonempty data frame with unique column names.",
-      name), call. = FALSE)
+    stop(sprintf(
+      "`%s` must be a nonempty data frame with unique column names; received %s.",
+      name, .msg_value(value)), call. = FALSE)
   }
   bad <- vapply(value, function(column) {
     is.list(column) || is.matrix(column) || is.data.frame(column) ||
@@ -44,12 +52,33 @@
 
 #' Define one partition's observation axis
 #'
+#' Records what was acquired, in what order, and on which clock, for a single
+#' partition such as a run. Build one index per response matrix before calling
+#' [observations()].
+#'
 #' @param observation_id Unique ordered observation identifiers.
 #' @param partition One partition identifier.
 #' @param time Optional strictly increasing finite observation times.
 #' @param units One physical time unit when `time` is supplied.
 #' @param provenance Portable acquisition provenance.
-#' @return An `effect_observation_index`.
+#' @return An `effect_observation_index`: a list with `$observation_id`,
+#'   `$partition`, `$time` and `$units` (both `NULL` when untimed), the
+#'   `$timing` flag, `$provenance`, and a `$signature`.
+#' @family typed observation facts
+#' @seealso [observations()] to bind indexes to response sources, and
+#'   [observation_events()] whose clock must use the same units.
+#' @examples
+#' # One acquisition axis: six scans on a 2 s clock.
+#' index <- observation_index(
+#'   seq_len(6L), partition = "run-1",
+#'   time = seq(0, by = 2, length.out = 6L), units = "seconds"
+#' )
+#' index$partition
+#' index$timing
+#'
+#' # The clock must be strictly increasing, so a repeated acquisition time is
+#' # rejected here rather than silently reordered later.
+#' try(observation_index(1:3, "run-1", time = c(0, 2, 2), units = "seconds"))
 #' @export
 observation_index <- function(observation_id, partition, time = NULL,
                               units = NULL, provenance = list()) {
@@ -135,7 +164,36 @@ observation_index <- function(observation_id, partition, time = NULL,
 #' @param capabilities Optional [source_capabilities()] per partition. Function
 #'   sources require explicit capabilities.
 #' @param provenance Portable observation provenance.
-#' @return An `effect_observations` fact object.
+#' @return An `effect_observations` fact object: a list with the compiled
+#'   `$sources`, `$indexes`, `$partitions`, the `$domain` reference,
+#'   `$n_features`, per-partition `$capabilities`, `$provenance`, and an
+#'   `$observations_id` covering all of them.
+#' @family typed observation facts
+#' @seealso [observation_index()] for the axes, [study()] to bind events and
+#'   confounds to these observations, and [file_matrix_source()] for
+#'   out-of-memory sources.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(4L, id = "observations-example")
+#' indexes <- list(
+#'   `run-1` = observation_index(
+#'     1:6, "run-1", time = seq(0, 10, by = 2), units = "seconds"
+#'   ),
+#'   `run-2` = observation_index(
+#'     1:6, "run-2", time = seq(0, 10, by = 2), units = "seconds"
+#'   )
+#' )
+#' responses <- lapply(indexes, function(index) matrix(rnorm(24), 6L, 4L))
+#'
+#' record <- observations(responses, indexes, domain)
+#' record$partitions
+#' record$n_features
+#'
+#' # No neural values were read: only shapes, axes, and source revisions were
+#' # checked, so a mis-shaped run is caught before any fit is attempted.
+#' short <- responses
+#' short$`run-2` <- short$`run-2`[1:5, , drop = FALSE]
+#' try(observations(short, indexes, domain))
 #' @export
 observations <- function(sources, index, domain, source_dims = NULL,
                          partitions = NULL, capabilities = NULL,
@@ -144,14 +202,27 @@ observations <- function(sources, index, domain, source_dims = NULL,
       is.function(sources)) {
     sources <- list(sources)
   }
+  if (missing(index) || missing(domain)) {
+    stop(paste0(
+      "`index` and `domain` are both required: `observations()` binds one ",
+      "`observation_index()` per source to the neural domain those sources ",
+      "were sampled on."
+    ), call. = FALSE)
+  }
   if (!is.list(sources) || length(sources) < 1L) {
-    stop("`sources` must provide at least one observation source.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "`sources` must provide at least one observation-by-feature source, ",
+      "as a matrix, function, descriptor, or a list of them; received %s."
+    ), .msg_value(sources)), call. = FALSE)
   }
   if (inherits(index, "effect_observation_index")) index <- list(index)
   if (!is.list(index) || length(index) != length(sources)) {
-    stop("`index` must provide one observation index per source.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "`index` must provide one `observation_index()` per source: received ",
+      "%s for %s."
+    ), if (is.list(index)) .msg_count(length(index), "index") else
+      .msg_value(index),
+      .msg_count(length(sources), "source")), call. = FALSE)
   }
   index <- lapply(index, .validate_observation_index)
   if (is.null(partitions)) {
@@ -340,23 +411,65 @@ observations <- function(sources, index, domain, source_dims = NULL,
 
 #' Declare a typed event record
 #'
+#' Records the experimental events as facts, keeping every supplied column. It
+#' assigns no model roles: whether a column is a target, a nuisance term, or
+#' unused is decided later by the design model.
+#'
 #' @param data A nonempty event data frame.
 #' @param partition Column naming the observation partition.
 #' @param event_id Column containing event identifiers.
 #' @param onset,duration Optional timing columns. Supply both or neither.
 #' @param units Physical time unit when timing columns are supplied.
 #' @param provenance Portable event provenance.
-#' @return An `effect_events` fact object. Column roles remain model-relative.
+#' @return An `effect_events` fact object: a list with the canonical `$data`
+#'   and its `$schema`, the `$partition_column`, `$event_id_column`,
+#'   `$onset_column` and `$duration_column` role names, `$units`, the `$timing`
+#'   flag, `$provenance`, and an `$events_id`. Column roles remain
+#'   model-relative.
+#' @family typed observation facts
+#' @seealso [study()] to bind events to observations, [bids_events()] to read
+#'   them from BIDS TSV files, and [observation_confounds()] for the
+#'   observation-level table.
+#' @examples
+#' events <- data.frame(
+#'   partition = rep(c("run-1", "run-2"), each = 2L),
+#'   event_id = paste0("e", 1:4),
+#'   onset = c(0, 6, 0, 6),
+#'   duration = 0.5,
+#'   condition = c("face", "body", "face", "body")
+#' )
+#' record <- observation_events(events)
+#' record$timing
+#' record$units
+#'
+#' # `condition` is preserved but carries no model role yet; the design model,
+#' # not this record, decides what is a target or a nuisance term.
+#' names(record$data)
+#'
+#' # Event ids must be unique within a partition.
+#' duplicated_ids <- events
+#' duplicated_ids$event_id <- c("e1", "e1", "e3", "e4")
+#' try(observation_events(duplicated_ids))
 #' @export
 observation_events <- function(data, partition = "partition",
                                event_id = "event_id", onset = "onset",
                                duration = "duration", units = "seconds",
                                provenance = list()) {
+  if (missing(data)) {
+    stop(paste0(
+      "`data` is required: pass an event table with one row per event and, ",
+      "at minimum, the partition and event-id columns."
+    ), call. = FALSE)
+  }
   data <- .canonical_fact_table(data, "data")
   identifiers <- c(partition, event_id)
   if (!all(identifiers %in% names(data))) {
-    stop("Event data must contain the partition and event-id columns.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "`data` is missing the %s column%s. `observation_events()` reads the ",
+      "partition and event id from columns you name; `data` has %s."
+    ), .msg_names(setdiff(identifiers, names(data))),
+      if (length(setdiff(identifiers, names(data))) == 1L) "" else "s",
+      .msg_names(names(data))), call. = FALSE)
   }
   partition <- .validate_nonempty_id(partition, "partition")
   event_id <- .validate_nonempty_id(event_id, "event_id")
@@ -425,19 +538,59 @@ observation_events <- function(data, partition = "partition",
 
 #' Declare observation-level confounds and censor facts
 #'
+#' Records one row per observation. Censoring is never inferred from motion or
+#' outlier columns: to exclude observations you must name an explicit logical
+#' retain column.
+#'
 #' @param data A nonempty data frame with one row per observation.
 #' @param partition,observation_id Columns binding rows to observation indexes.
 #' @param censor Optional logical censor column. `TRUE` means retained.
 #' @param provenance Portable confound provenance.
-#' @return An `effect_observation_confounds` fact object.
+#' @return An `effect_observation_confounds` fact object: a list with the
+#'   canonical `$data` and its `$schema`, the `$partition_column`,
+#'   `$observation_id_column` and `$censor_column` role names, `$provenance`,
+#'   and a `$confounds_id`.
+#' @family typed observation facts
+#' @seealso [study()], which joins these rows to the observation axis and
+#'   records the resulting row lineage, and [bids_confounds()] for
+#'   fMRIPrep-style TSV input.
+#' @examples
+#' confounds <- data.frame(
+#'   partition = "run-1",
+#'   observation_id = 1:6,
+#'   framewise_displacement = c(0.1, 0.2, 0.9, 0.1, 0.1, 0.3),
+#'   retained = c(TRUE, TRUE, FALSE, TRUE, TRUE, TRUE)
+#' )
+#'
+#' # Naming the censor column is what makes the exclusion a declared fact.
+#' record <- observation_confounds(confounds, censor = "retained")
+#' record$censor_column
+#' sum(record$data$retained)
+#'
+#' # Without `censor`, the motion column is kept but nothing is excluded: no
+#' # censor policy is inferred from it.
+#' is.null(observation_confounds(confounds)$censor_column)
 #' @export
 observation_confounds <- function(
     data, partition = "partition", observation_id = "observation_id",
     censor = NULL, provenance = list()) {
+  if (missing(data)) {
+    stop(paste0(
+      "`data` is required: pass a confound table with one row per ",
+      "observation and, at minimum, the partition and observation-id columns."
+    ), call. = FALSE)
+  }
   data <- .canonical_fact_table(data, "data")
   if (!all(c(partition, observation_id) %in% names(data))) {
-    stop("Confounds must contain partition and observation-id columns.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "`data` is missing the %s column%s. `observation_confounds()` reads the ",
+      "partition and observation id from columns you name; `data` has %s."
+    ), .msg_names(setdiff(c(partition, observation_id), names(data))),
+      if (length(setdiff(c(partition, observation_id), names(data))) == 1L) {
+        ""
+      } else {
+        "s"
+      }, .msg_names(names(data))), call. = FALSE)
   }
   partition <- .validate_nonempty_id(partition, "partition")
   observation_id <- .validate_nonempty_id(observation_id, "observation_id")
@@ -500,7 +653,31 @@ observation_confounds <- function(
 #'   nested axis.
 #' @param leaf Name of the leaf partition column; defaults to the first column.
 #' @param provenance Portable hierarchy provenance.
-#' @return An `effect_partition_hierarchy`.
+#' @return An `effect_partition_hierarchy`: a list with the canonical `$data`,
+#'   the `$leaf` column name, the ordered `$axes`, the distinct `$levels` per
+#'   axis, the child-to-parent `$parent_maps`, `$provenance`, and a
+#'   `$signature`.
+#' @family typed observation facts
+#' @seealso [study()], which binds the hierarchy to observations, and
+#'   [study_axis()] to select one axis from it.
+#' @examples
+#' # Runs nested in sessions nested in one subject, leaf column first.
+#' hierarchy <- partition_hierarchy(data.frame(
+#'   partition = c("run-1", "run-2", "run-3", "run-4"),
+#'   session = c("ses-1", "ses-1", "ses-2", "ses-2"),
+#'   subject = "sub-01"
+#' ))
+#' hierarchy$axes
+#' hierarchy$parent_maps$partition
+#'
+#' # Nesting must be exact: a session that belongs to two subjects is refused
+#' # rather than quietly flattened.
+#' crossed <- data.frame(
+#'   partition = c("run-1", "run-2"),
+#'   session = c("ses-1", "ses-1"),
+#'   subject = c("sub-01", "sub-02")
+#' )
+#' try(partition_hierarchy(crossed))
 #' @export
 partition_hierarchy <- function(data, leaf = names(data)[[1L]],
                                 provenance = list()) {

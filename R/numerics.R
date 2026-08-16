@@ -9,7 +9,26 @@
 #' platforms is deliberately not promised.
 #'
 #' @param atol,rtol Nonnegative finite absolute and relative tolerances.
-#' @return A declarative numerical contract.
+#' @return An `effect_numerical_contract`: the declared `$atol` and `$rtol`
+#'   plus one guarantee record per claim (`$scheduling`, `$block_partition`,
+#'   `$cross_platform`) and the two explicit non-promises
+#'   `$bitwise_across_blocking` and `$bitwise_across_platforms`.
+#' @seealso [numerical_agreement()], which tests two results against one of
+#'   these named guarantees.
+#' @family numerical contracts and receipts
+#' @examples
+#' # The default contract. Read the guarantee you intend to rely on rather
+#' # than assuming bitwise equality everywhere.
+#' contract <- numerical_contract()
+#' contract$scheduling
+#' contract$block_partition
+#'
+#' # Bitwise reproducibility across block partitions is deliberately not
+#' # promised, so a tolerance is the only portable claim.
+#' contract$bitwise_across_blocking
+#'
+#' # Tighten the tolerance when a downstream check needs it.
+#' numerical_contract(atol = 1e-14, rtol = 1e-12)$rtol
 #' @export
 numerical_contract <- function(atol = 1e-12, rtol = 1e-10) {
   if (!is.numeric(atol) || length(atol) != 1L || is.na(atol) ||
@@ -50,8 +69,29 @@ numerical_contract <- function(atol = 1e-12, rtol = 1e-10) {
 #'
 #' @param x,y Numeric objects with identical dimensions.
 #' @param guarantee One of `scheduling`, `block_partition`, or `cross_platform`.
+#'   `scheduling` is checked bitwise; the other two are checked against the
+#'   contract tolerance.
 #' @param contract An `effect_numerical_contract`.
-#' @return A diagnostic `effect_numeric_agreement` value.
+#' @return An `effect_numeric_agreement` with `$passed`, the `$guarantee` and
+#'   `$comparison` used (`"bitwise"` or `"tolerance"`),
+#'   `$max_absolute_error`, `$max_allowed_error`, and the `$atol`/`$rtol` in
+#'   force.
+#' @seealso [numerical_contract()] for the guarantees themselves.
+#' @family numerical contracts and receipts
+#' @examples
+#' # Re-running the same fixed plan under a different feature-block size is a
+#' # `block_partition` change: crossform promises tolerance, not bitwise
+#' # equality.
+#' baseline <- c(1, 2, 3) / 7
+#' reblocked <- baseline + c(0, 1e-15, -2e-15)
+#' agreement <- numerical_agreement(baseline, reblocked, "block_partition")
+#' agreement$passed
+#' agreement$max_absolute_error
+#'
+#' # The same pair fails the strict bitwise scheduling guarantee, which is
+#' # reserved for reordering completion of identical tasks.
+#' numerical_agreement(baseline, reblocked, "scheduling")$passed
+#' numerical_agreement(baseline, baseline, "scheduling")$passed
 #' @export
 numerical_agreement <- function(x, y,
                                 guarantee = c("scheduling", "block_partition",

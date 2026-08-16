@@ -1,15 +1,55 @@
 # Scientific views of complete geometry -----------------------------------
 
-.align_contrast <- function(value, effects) {
-  if (!is.numeric(value) || length(value) != length(effects) ||
-      any(!is.finite(value))) {
-    stop("A contrast must contain one finite numeric weight per effect.",
+.align_contrast <- function(value, effects, label = "weights") {
+  if (!is.numeric(value) || is.matrix(value)) {
+    stop(sprintf(paste0(
+      "`%s` must be a numeric contrast vector with one weight per effect; ",
+      "received %s. The relation declares %s: %s."
+    ), label, .msg_value(value), .msg_count(length(effects), "effect"),
+      .msg_names(effects)), call. = FALSE)
+  }
+  if (length(value) != length(effects)) {
+    stop(sprintf(paste0(
+      "`%s` has %s but the relation declares %s (%s). Supply one weight per ",
+      "effect, or name the weights to have them aligned for you."
+    ), label, .msg_count(length(value), "value"),
+      .msg_count(length(effects), "effect"), .msg_names(effects)),
       call. = FALSE)
   }
+  if (any(!is.finite(value))) {
+    stop(sprintf(paste0(
+      "`%s` must be finite, but the weight%s for %s %s NA, NaN, or Inf. A ",
+      "contrast weight of zero excludes an effect."
+    ), label, if (sum(!is.finite(value)) == 1L) "" else "s",
+      .msg_positions(!is.finite(value),
+        if (is.null(names(value))) effects else names(value)),
+      if (sum(!is.finite(value)) == 1L) "is" else "are"), call. = FALSE)
+  }
   if (!is.null(names(value))) {
-    if (anyNA(names(value)) || any(!nzchar(names(value))) ||
-        anyDuplicated(names(value)) || !setequal(names(value), effects)) {
-      stop("Named contrast weights must identify every effect exactly once.",
+    supplied <- names(value)
+    if (anyNA(supplied) || any(!nzchar(supplied))) {
+      stop(sprintf(paste0(
+        "`%s` is partially named: every weight must be named, or none. The ",
+        "relation declares %s."
+      ), label, .msg_names(effects)), call. = FALSE)
+    }
+    if (anyDuplicated(supplied)) {
+      stop(sprintf(
+        "`%s` names %s more than once; each effect takes exactly one weight.",
+        label, .msg_names(unique(supplied[duplicated(supplied)]))),
+        call. = FALSE)
+    }
+    if (!setequal(supplied, effects)) {
+      unknown <- setdiff(supplied, effects)
+      absent <- setdiff(effects, supplied)
+      detail <- c(
+        if (length(unknown)) sprintf("%s is not a declared effect",
+          .msg_names(unknown)),
+        if (length(absent)) sprintf("%s has no weight", .msg_names(absent))
+      )
+      stop(sprintf(
+        "`%s` does not match the relation's effects (%s): %s.",
+        label, .msg_names(effects), paste(detail, collapse = "; ")),
         call. = FALSE)
     }
     value <- value[effects]
@@ -23,16 +63,66 @@
 #' exact coherent/configuration decomposition already contained in `x`.
 #'
 #' @param x An `effect_geometry_plan` or complete `effect_geometry`.
-#' @param weights One finite contrast weight per named experimental effect.
+#' @param weights One finite contrast weight per experimental effect. Named
+#'   weights are reordered to the relation's declared effect order and must
+#'   name every effect exactly once, so naming them is the safe form. Unnamed
+#'   weights are accepted positionally, in the order given by
+#'   `x$task$left_relation$effects`; the returned `$weights` always carries the
+#'   effect names, so print it to confirm the alignment you intended.
 #' @param remove_univariate Must be omitted or `FALSE`. Destructive demeaning
 #'   is refused: the coherent/configuration/total decomposition already
 #'   reports the common spatial mode and its orthogonal remainder as an
 #'   exact, non-destructive partition.
-#' @return An `effect_contrast_view` containing signed marginals and the three
-#'   energy components. `coherence_fraction` is reported only where the raw
-#'   cross-generalized components form a nonnegative partition.
+#' @return An `effect_contrast_view` with one value per measurement in
+#'   `$signed` (the signed contrast of the local weighted mean), `$coherent`,
+#'   `$configuration`, and `$total = coherent + configuration`, plus
+#'   `$coherence_fraction` (reported only where the raw cross-generalized
+#'   components form a nonnegative partition, flagged by
+#'   `$coherence_fraction_valid`), the aligned `$weights`, `$index`, and
+#'   `$receipt`.
+#' @seealso [plan_geometry()] to build `x`, [rdm()] and [rsa()] for the other
+#'   named views, and [crossnobis()] for the same total under a declared
+#'   noise-precision metric.
+#' @family geometry plans and views
+#' @examples
+#' # Where does an animate-versus-inanimate pattern reproduce across runs?
+#' example <- example_fmri_effects()
+#' plan <- plan_geometry(
+#'   example$fit$relation, example$frame,
+#'   cross_partitions(
+#'     example$fit$relation,
+#'     independence = "independent", generalizes_over = "run"
+#'   )
+#' )
+#' effect <- contrast_energy(plan, example$contrast)
+#'
+#' # The strongest searchlight falls inside the planted signal, and its
+#' # energy splits exactly into coherent and configuration parts.
+#' peak <- which.max(effect$total)
+#' c(
+#'   signed = effect$signed[peak],
+#'   coherent = effect$coherent[peak],
+#'   configuration = effect$configuration[peak],
+#'   total = effect$total[peak],
+#'   planted = peak %in% example$truth$signal_measurements
+#' )
+#'
+#' # Demeaning the univariate signal away is refused: the decomposition
+#' # already separates the common spatial mode from its remainder.
+#' refusal <- catch_refusal(
+#'   contrast_energy(plan, example$contrast, remove_univariate = TRUE)
+#' )
+#' refusal$capability
+#' refusal$remedies
 #' @export
 contrast_energy <- function(x, weights, remove_univariate = FALSE) {
+  if (missing(weights)) {
+    stop(paste0(
+      "`weights` is required: pass one finite weight per experimental ",
+      "effect, for example `contrast_energy(plan, c(face = 1, house = -1))`. ",
+      "Unnamed weights are taken in the relation's declared effect order."
+    ), call. = FALSE)
+  }
   if (!isFALSE(remove_univariate)) {
     .capability_refusal(paste0(
       "`contrast_energy()` does not remove univariate signal: destructive ",
@@ -64,8 +154,10 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
     ))
   }
   if (!inherits(x, "effect_geometry")) {
-    stop("`x` must be a geometry plan or complete effect_geometry.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "`x` must be an `effect_geometry_plan` from `plan_geometry()` or a ",
+      "complete `effect_geometry` from `materialize_geometry()`; received %s."
+    ), .msg_value(x)), call. = FALSE)
   }
   .validate_effect_geometry(x, probe = FALSE)
   weights <- .align_contrast(weights, x$effects)
@@ -120,16 +212,32 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
 .self_geometry_source <- function(x, operation, complete = FALSE) {
   if (inherits(x, "effect_geometry_plan")) {
     if (isTRUE(complete)) {
-      stop(sprintf("%s requires a complete effect form.", operation),
-        call. = FALSE)
+      .capability_refusal(sprintf(paste0(
+        "%s requires a complete effect form, and `x` is a query-first ",
+        "`effect_geometry_plan`: a plan names an estimand but holds no ",
+        "geometry to decompose."
+      ), operation),
+        capability = "complete_geometry",
+        namespace = "geometry_views",
+        reasons = "query_first_plan_has_no_materialized_geometry",
+        remedies = "Call `materialize_geometry(x)` and pass the result."
+      )
     }
     .validate_geometry_plan(x)
     if (identical(x$codec, "rectangular")) {
-      stop(sprintf(paste0(
-        "%s requires a symmetric self form; this plan is rectangular. ",
-        "Read it with axis-bound `pair_query()`s through ",
-        "`evaluate_geometry()` instead."
-      ), operation), call. = FALSE)
+      .capability_refusal(sprintf(paste0(
+        "%s requires a symmetric self form; this plan is rectangular (%d x ",
+        "%d effects across two relations)."
+      ), operation, x$logical_shape[[1L]], x$logical_shape[[2L]]),
+        capability = "symmetric_self_form",
+        namespace = "geometry_views",
+        reasons = "rectangular_cross_axis_plan",
+        remedies = paste0(
+          "Read a rectangular plan with axis-bound `pair_query()`s through ",
+          "`evaluate_geometry()`, or build a self-form plan by omitting ",
+          "`right` in `plan_geometry()`."
+        )
+      )
     }
     space <- x$task$left_relation$effect_space
     return(list(
@@ -140,14 +248,28 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
     ))
   }
   if (!inherits(x, "effect_form")) {
-    stop(sprintf(
-      "%s requires a geometry plan or complete effect form.", operation
-    ), call. = FALSE)
+    stop(sprintf(paste0(
+      "%s requires an `effect_geometry_plan` from `plan_geometry()` or a ",
+      "complete effect form from `materialize_geometry()`; received %s."
+    ), operation, .msg_value(x)), call. = FALSE)
   }
   .validate_effect_form(x, probe = FALSE)
   if (!isTRUE(x$capabilities$self_form) ||
       !isTRUE(x$capabilities$symmetric)) {
-    stop(sprintf("%s requires a symmetric self form.", operation), call. = FALSE)
+    .capability_refusal(sprintf(paste0(
+      "%s requires a symmetric self form; this form declares self_form = %s ",
+      "and symmetric = %s."
+    ), operation, isTRUE(x$capabilities$self_form),
+      isTRUE(x$capabilities$symmetric)),
+      capability = "symmetric_self_form",
+      namespace = "geometry_views",
+      reasons = "form_is_not_a_symmetric_self_form",
+      remedies = paste0(
+        "Materialize a self-form plan (one relation, no `right` argument), ",
+        "or read a cross-axis form with `pair_query()` through ",
+        "`evaluate_geometry()`."
+      )
+    )
   }
   list(
     kind = "form",
@@ -222,9 +344,51 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
 #'   of a signed cross-generalized form is refused: crossvalidated diagonals
 #'   can be zero or negative, so `1 - r` here is not conventional Pearson
 #'   distance. The boundary is documented in the correlation-distance policy.
-#' @return An `effect_rdm_view`; rows are spatial measurements and columns are
-#'   the requested experimental pairs. Cross-generalized distances may be
-#'   negative.
+#' @return An `effect_rdm_view`. `$values` has one row per spatial
+#'   measurement and one column per requested experimental pair, `$pairs` is
+#'   the `left`/`right` table naming those columns, and `$component`,
+#'   `$index`, and `$receipt` record what was read. Cross-generalized
+#'   distances may be negative.
+#' @seealso [rsa()] to regress model RDMs on these distances,
+#'   [contrast_energy()] for a single contrast, and
+#'   [rdm_sampling_covariance()] for the admitted analytic uncertainty law.
+#' @family geometry plans and views
+#'
+#' @section Refusals:
+#' `normalize` signals an `effect_capability_refusal` with capability
+#' `"guaranteed_psd"`, and a rectangular cross-axis plan or a non-symmetric
+#' form signals capability `"symmetric_self_form"`, both in namespace
+#' `"geometry_views"`. Branch on them with [catch_refusal()].
+#' @examples
+#' # Three conditions over two regions, generalizing across two runs.
+#' domain <- abstract_domain(4, id = "rdm-example")
+#' run1 <- rbind(
+#'   face = c(1, 0.2, 0, 0), house = c(0, 1, 0.1, 0), tool = c(0, 0, 1, 0.3)
+#' )
+#' run2 <- rbind(
+#'   face = c(0.9, 0.3, 0, 0), house = c(0.1, 0.9, 0, 0), tool = c(0, 0.1, 1.1, 0.2)
+#' )
+#' relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+#' plan <- plan_geometry(
+#'   relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+#'   cross_partitions(
+#'     relation, independence = "independent", generalizes_over = "run"
+#'   )
+#' )
+#'
+#' # All three unordered pairs, one column each.
+#' distances <- rdm(plan)
+#' distances
+#' distances$pairs
+#'
+#' # Selecting pairs is a narrower view, not a post-hoc subset: the remaining
+#' # geometry is never computed.
+#' rdm(plan, pairs = cbind("face", "house"))$values
+#'
+#' # Correlation-style normalization is refused, because crossvalidated
+#' # diagonals can be zero or negative.
+#' refusal <- catch_refusal(rdm(plan, normalize = "correlation"))
+#' refusal$capability
 #' @export
 rdm <- function(x, component = c("total", "coherent", "configuration"),
                 pairs = NULL, normalize = NULL) {
@@ -276,35 +440,148 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
   if (is.null(models)) return(list())
   if (is.matrix(models)) models <- list(model = models)
   if (!is.list(models) || length(models) < 1L) {
-    stop(sprintf("`%s` must be a matrix or nonempty named list of matrices.",
-      label), call. = FALSE)
+    stop(sprintf(paste0(
+      "`%s` must be one dissimilarity matrix or a nonempty named list of ",
+      "them; received %s."
+    ), label, .msg_value(models)), call. = FALSE)
   }
   if (is.null(names(models)) || anyNA(names(models)) ||
       any(!nzchar(names(models))) || anyDuplicated(names(models))) {
-    stop(sprintf("`%s` must have unique nonempty names.", label), call. = FALSE)
+    stop(sprintf(paste0(
+      "`%s` must be a list with unique nonempty names; the names become the ",
+      "coefficient columns of the fit."
+    ), label), call. = FALSE)
   }
-  lapply(models, function(value) {
-    if (!is.matrix(value) || !is.numeric(value) ||
-        !identical(dim(value), c(q, q)) || any(!is.finite(value)) ||
-        max(abs(value - t(value))) > 1e-12 ||
-        max(abs(diag(value))) > 1e-12) {
-      stop(sprintf("Every `%s` RDM must be finite, symmetric, q-by-q, and zero-diagonal.",
-        label), call. = FALSE)
+  entries <- names(models)
+  out <- lapply(entries, function(entry) {
+    value <- models[[entry]]
+    where <- sprintf("`%s` RDM `%s`", label, entry)
+    if (!is.matrix(value) || !is.numeric(value)) {
+      stop(sprintf("%s must be a numeric matrix; received %s.",
+        where, .msg_value(value)), call. = FALSE)
+    }
+    if (!identical(dim(value), c(q, q))) {
+      stop(sprintf(paste0(
+        "%s is %d x %d; the relation declares %s (%s), so every model RDM ",
+        "must be %d x %d."
+      ), where, nrow(value), ncol(value), .msg_count(q, "effect"),
+        .msg_names(effects), q, q), call. = FALSE)
+    }
+    if (any(!is.finite(value))) {
+      stop(sprintf("%s contains %s non-finite %s.", where,
+        sum(!is.finite(value)),
+        if (sum(!is.finite(value)) == 1L) "entry" else "entries"),
+        call. = FALSE)
+    }
+    asymmetry <- max(abs(value - t(value)))
+    if (asymmetry > 1e-12) {
+      stop(sprintf(paste0(
+        "%s is not symmetric; the largest difference between `m[i, j]` and ",
+        "`m[j, i]` is %g. A dissimilarity between two effects has one value."
+      ), where, asymmetry), call. = FALSE)
+    }
+    if (max(abs(diag(value))) > 1e-12) {
+      stop(sprintf(paste0(
+        "%s has a nonzero diagonal (largest |m[i, i]| is %g). Pass a ",
+        "dissimilarity matrix, not a similarity matrix: an effect is at ",
+        "distance zero from itself."
+      ), where, max(abs(diag(value)))), call. = FALSE)
     }
     row_ids <- rownames(value)
     column_ids <- colnames(value)
     if (!is.null(row_ids) || !is.null(column_ids)) {
-      if (is.null(row_ids) || is.null(column_ids) ||
+      if (is.null(row_ids) || is.null(column_ids)) {
+        stop(sprintf(paste0(
+          "%s names only its %s; name both axes with the relation's effects ",
+          "(%s), or neither."
+        ), where, if (is.null(row_ids)) "columns" else "rows",
+          .msg_names(effects)), call. = FALSE)
+      }
+      if (anyDuplicated(row_ids) || anyDuplicated(column_ids) ||
           anyNA(row_ids) || anyNA(column_ids) ||
-          anyDuplicated(row_ids) || anyDuplicated(column_ids) ||
           !setequal(row_ids, effects) || !setequal(column_ids, effects)) {
-        stop(sprintf("Named `%s` RDM axes must identify every effect exactly once.",
-          label), call. = FALSE)
+        unknown <- setdiff(unique(c(row_ids, column_ids)), effects)
+        absent <- setdiff(effects, intersect(row_ids, column_ids))
+        detail <- c(
+          if (length(unknown)) sprintf("%s is not a declared effect",
+            .msg_names(unknown)),
+          if (length(absent)) sprintf("%s is missing from an axis",
+            .msg_names(absent))
+        )
+        if (!length(detail)) detail <- "an axis repeats an effect"
+        stop(sprintf(
+          "%s axis names do not match the relation's effects (%s): %s.",
+          where, .msg_names(effects), paste(detail, collapse = "; ")),
+          call. = FALSE)
       }
       value <- value[effects, effects, drop = FALSE]
     }
     value
   })
+  names(out) <- entries
+  out
+}
+
+# Name the columns that make an RSA design singular instead of asking the
+# caller to guess. The pivoting QR already separates the retained basis from
+# the dependent columns; regressing each dependent column on that basis says
+# which retained terms reproduce it, which is the sentence a reader can act on.
+.rsa_rank_deficiency_message <- function(design, qr_design, intercept) {
+  labels <- colnames(design)
+  rank <- qr_design$rank
+  pivot <- qr_design$pivot
+  if (rank < 1L) {
+    return(paste0(
+      "The RSA design is rank deficient: every column of the pair-space ",
+      "design is zero, so no coefficient is identified. Supply at least one ",
+      "model RDM with a nonzero off-diagonal entry."
+    ))
+  }
+  retained <- labels[pivot[seq_len(rank)]]
+  dependent <- labels[pivot[seq.int(rank + 1L, length(pivot))]]
+  basis <- design[, retained, drop = FALSE]
+  explanations <- vapply(dependent, function(term) {
+    coefficients <- tryCatch(
+      qr.solve(basis, design[, term], tol = 1e-10),
+      error = function(condition) rep(NA_real_, length(retained))
+    )
+    contributors <- retained[is.finite(coefficients) &
+        abs(coefficients) > 1e-8]
+    if (!length(contributors)) {
+      sprintf("`%s` is zero in pair space", term)
+    } else {
+      sprintf("`%s` is an exact linear combination of %s", term,
+        .msg_names(contributors))
+    }
+  }, character(1))
+  intercept_only <- isTRUE(intercept) &&
+    all(vapply(dependent, function(term) {
+      coefficients <- tryCatch(
+        qr.solve(basis, design[, term], tol = 1e-10),
+        error = function(condition) rep(NA_real_, length(retained))
+      )
+      contributors <- retained[is.finite(coefficients) &
+          abs(coefficients) > 1e-8]
+      length(contributors) > 0L && all(contributors == "(Intercept)")
+    }, logical(1)))
+  remedy <- if (intercept_only) {
+    paste0(
+      "The intercept column is added automatically, so a model RDM that is ",
+      "constant off the diagonal duplicates it. Pass `intercept = FALSE` to ",
+      "fit these RDMs without the constant column, or drop the redundant ",
+      "model."
+    )
+  } else {
+    paste0(
+      "Remove one of the redundant RDMs, or combine the collinear models ",
+      "into a single predictor."
+    )
+  }
+  sprintf(
+    "The RSA design is rank deficient (rank %d of %s): %s. %s",
+    rank, .msg_count(ncol(design), "column"),
+    paste(explanations, collapse = "; "), remedy
+  )
 }
 
 .rdm_vector <- function(value) {
@@ -327,27 +604,88 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
 
 #' Fit multiple-regression RSA as one compiled geometry query
 #'
+#' `rsa()` compiles the RDM transform and the least-squares coefficient map
+#' into a single fixed query, so the regression is executed as one pass over
+#' the plan rather than as a second analysis of a stored RDM. Model rows and
+#' columns are aligned to the relation's effect names before any geometry is
+#' read.
+#'
 #' @param x An `effect_geometry_plan` or a complete effect form carrying the
 #'   symmetric self-form capability.
-#' @param models Named model RDMs, each matching the experimental dimension.
-#' @param nuisance Optional named nuisance RDMs.
-#' @param intercept Whether to include an intercept in RDM space.
+#' @param models Named model RDMs, each a finite symmetric zero-diagonal
+#'   matrix over the experimental effects. Row and column names are optional;
+#'   when supplied they must identify every effect exactly once and are
+#'   reordered to the relation's effect order.
+#' @param nuisance Optional named nuisance RDMs, in the same form.
+#' @param intercept Whether to include an intercept in RDM space. It is `TRUE`
+#'   by default, so a model RDM that is constant off the diagonal is collinear
+#'   with it; the rank-deficiency message names the columns involved and
+#'   `intercept = FALSE` fits the same models without the constant column.
 #' @param component Geometry component to read.
-#' @return An `effect_rsa_view` with one coefficient per requested model,
-#'   nuisance model, and optional intercept.
+#' @return An `effect_rsa_view`. `$coefficients` has one row per measurement
+#'   and one named column per model, nuisance model, and the optional
+#'   intercept; `$component`, `$index`, and `$receipt` record what was read.
+#' @seealso [rdm()] for the distances the regression is fitted to, and
+#'   [plan_geometry()] for the plan.
+#' @family geometry plans and views
+#'
+#' @section Refusal:
+#' A rectangular cross-axis plan or a non-symmetric form signals an
+#' `effect_capability_refusal` with capability `"symmetric_self_form"` in
+#' namespace `"geometry_views"`; see [catch_refusal()].
+#' @examples
+#' domain <- abstract_domain(4, id = "rsa-example")
+#' run1 <- rbind(
+#'   face = c(1, 0.2, 0, 0), house = c(0, 1, 0.1, 0), tool = c(0, 0, 1, 0.3)
+#' )
+#' run2 <- rbind(
+#'   face = c(0.9, 0.3, 0, 0), house = c(0.1, 0.9, 0, 0), tool = c(0, 0.1, 1.1, 0.2)
+#' )
+#' relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+#' plan <- plan_geometry(
+#'   relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' )
+#'
+#' # An animacy model: the two animate-inanimate pairs are far, the rest near.
+#' conditions <- rownames(run1)
+#' animacy <- matrix(
+#'   c(0, 0, 1, 0, 0, 1, 1, 1, 0), 3, 3,
+#'   dimnames = list(conditions, conditions)
+#' )
+#' fit <- rsa(plan, models = list(animacy = animacy))
+#' round(fit$coefficients, 3)
+#' as.data.frame(fit)
+#'
+#' # A model must be a dissimilarity matrix. Passing a similarity matrix,
+#' # whose diagonal is nonzero, is rejected before geometry is read.
+#' similarity <- 1 - animacy
+#' wrong <- try(rsa(plan, models = list(animacy = similarity)), silent = TRUE)
+#' conditionMessage(attr(wrong, "condition"))
 #' @export
 rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
                 component = c("total", "coherent", "configuration")) {
   source <- .self_geometry_source(x, "RSA")
+  if (missing(models)) {
+    stop(paste0(
+      "`models` is required: pass one dissimilarity matrix over the ",
+      "relation's effects, or a named list of them, for example ",
+      "`rsa(plan, models = list(category = m))`."
+    ), call. = FALSE)
+  }
   if (!is.logical(intercept) || length(intercept) != 1L || is.na(intercept)) {
-    stop("`intercept` must be TRUE or FALSE.", call. = FALSE)
+    stop(sprintf("`intercept` must be TRUE or FALSE; received %s.",
+      .msg_value(intercept)), call. = FALSE)
   }
   component <- match.arg(component)
   q <- length(source$effects)
   models <- .validate_rdm_models(models, source$effects, "models")
   nuisance <- .validate_rdm_models(nuisance, source$effects, "nuisance")
   if (any(names(models) %in% names(nuisance))) {
-    stop("Model and nuisance names must be distinct.", call. = FALSE)
+    stop(sprintf(paste0(
+      "Model and nuisance names must be distinct; %s appears in both. Each ",
+      "name becomes one coefficient column."
+    ), .msg_names(intersect(names(models), names(nuisance)))), call. = FALSE)
   }
   predictors <- c(models, nuisance)
   design <- do.call(cbind, lapply(predictors, .rdm_vector))
@@ -359,7 +697,7 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
   }
   qr_design <- qr(design, LAPACK = FALSE)
   if (qr_design$rank != ncol(design)) {
-    stop("The RSA design is rank deficient; remove redundant RDMs.",
+    stop(.rsa_rank_deficiency_message(design, qr_design, intercept),
       call. = FALSE)
   }
   # The OLS coefficient map is a fixed linear readout of pair space: the
@@ -416,11 +754,46 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
 #' to the spectrum of `total`, even though the underlying matrices do.
 #' Compare spectra across components only as separate decompositions.
 #'
-#' @param x A complete effect form carrying the symmetric self-form capability.
+#' @param x A complete effect form carrying the symmetric self-form
+#'   capability, as returned by [materialize_geometry()]. A query-only view
+#'   has no geometry to decompose.
 #' @param component Geometry component to decompose.
 #' @param row_block Positive number of measurement rows read per block.
-#' @return An `effect_spectrum_view`. Eigenvalues are ordered from largest to
-#'   smallest and are never truncated at zero.
+#' @return An `effect_spectrum_view`. `$values` has one row per measurement
+#'   and one column per eigenvalue (`root1` largest), with `$component`,
+#'   `$index`, `$receipt`, and `$indefinite_estimates_preserved = TRUE`
+#'   recording that negative eigenvalues are never truncated at zero.
+#' @seealso [materialize_geometry()], which produces the complete geometry
+#'   this view requires, and [rdm()] for the linear distance view.
+#' @family geometry plans and views
+#'
+#' @section Refusal:
+#' Passing a query-first `effect_geometry_plan` signals an
+#' `effect_capability_refusal` with capability `"complete_geometry"` in
+#' namespace `"geometry_views"` and remedy `materialize_geometry(x)`; a
+#' non-symmetric form signals capability `"symmetric_self_form"`. See
+#' [catch_refusal()].
+#' @examples
+#' domain <- abstract_domain(4, id = "spectrum-example")
+#' relation <- relation(
+#'   list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+#'        run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+#'   domain = domain
+#' )
+#' geometry <- materialize_geometry(plan_geometry(
+#'   relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' ))
+#'
+#' # Signed eigenvalues per region, largest first. Small negative roots are
+#' # retained: a cross-generalized form is not guaranteed positive.
+#' spectrum <- geometry_spectrum(geometry)
+#' spectrum
+#' as.data.frame(spectrum)
+#'
+#' # Eigenvalues are not additive across components, so read each spectrum as
+#' # its own decomposition rather than summing them.
+#' geometry_spectrum(geometry, component = "coherent")$values
 #' @export
 geometry_spectrum <- function(x,
                               component = c("total", "coherent", "configuration"),

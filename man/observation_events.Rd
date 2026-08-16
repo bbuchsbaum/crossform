@@ -28,8 +28,50 @@ observation_events(
 \item{provenance}{Portable event provenance.}
 }
 \value{
-An \code{effect_events} fact object. Column roles remain model-relative.
+An \code{effect_events} fact object: a list with the canonical \verb{$data}
+and its \verb{$schema}, the \verb{$partition_column}, \verb{$event_id_column},
+\verb{$onset_column} and \verb{$duration_column} role names, \verb{$units}, the \verb{$timing}
+flag, \verb{$provenance}, and an \verb{$events_id}. Column roles remain
+model-relative.
 }
 \description{
-Declare a typed event record
+Records the experimental events as facts, keeping every supplied column. It
+assigns no model roles: whether a column is a target, a nuisance term, or
+unused is decided later by the design model.
 }
+\examples{
+events <- data.frame(
+  partition = rep(c("run-1", "run-2"), each = 2L),
+  event_id = paste0("e", 1:4),
+  onset = c(0, 6, 0, 6),
+  duration = 0.5,
+  condition = c("face", "body", "face", "body")
+)
+record <- observation_events(events)
+record$timing
+record$units
+
+# `condition` is preserved but carries no model role yet; the design model,
+# not this record, decides what is a target or a nuisance term.
+names(record$data)
+
+# Event ids must be unique within a partition.
+duplicated_ids <- events
+duplicated_ids$event_id <- c("e1", "e1", "e3", "e4")
+try(observation_events(duplicated_ids))
+}
+\seealso{
+\code{\link[=study]{study()}} to bind events to observations, \code{\link[=bids_events]{bids_events()}} to read
+them from BIDS TSV files, and \code{\link[=observation_confounds]{observation_confounds()}} for the
+observation-level table.
+
+Other typed observation facts: 
+\code{\link{bids_confounds}()},
+\code{\link{bids_events}()},
+\code{\link{bids_study}()},
+\code{\link{observation_confounds}()},
+\code{\link{observation_index}()},
+\code{\link{observations}()},
+\code{\link{partition_hierarchy}()}
+}
+\concept{typed observation facts}

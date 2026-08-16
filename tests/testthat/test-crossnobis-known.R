@@ -323,7 +323,7 @@ test_that("crossnobis refuses undeclared metrics and coordinate identity errors"
     fixture$relation, fixture$frame, biased, metric = fixture$metric
   )
   expect_error(crossnobis(biased_plan, fixture$contrast),
-    "requires cross-partition evaluation")
+    "requires cross-partition edges declared independent")
 })
 
 test_that("known-metric Monte Carlo recovers null and planted targets", {

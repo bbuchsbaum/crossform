@@ -15,10 +15,46 @@ supply these names.}
 \item{units}{Physical onset and duration units.}
 }
 \value{
-An \code{\link[=observation_events]{observation_events()}} fact object.
+An \code{\link[=observation_events]{observation_events()}} fact object whose \verb{$data} holds every
+original BIDS column plus the private \code{.bids_partition} and
+\code{.bids_event_id} key columns, and whose \verb{$provenance} records each file's
+basename and content revision.
 }
 \description{
 The adapter preserves arbitrary BIDS columns and adds private partition and
 event-key columns required by the generic \code{\link[=observation_events]{observation_events()}} contract.
 Partition identity is explicit rather than inferred from filenames.
 }
+\examples{
+# Stand in for one run's events.tsv.
+path <- tempfile(fileext = ".tsv")
+utils::write.table(
+  data.frame(
+    onset = c(0, 6), duration = 0.5, trial_type = c("face", "body")
+  ),
+  path, sep = "\t", row.names = FALSE, quote = FALSE
+)
+
+# Partition identity is declared by the caller, never parsed from the
+# filename, and every original column survives the import.
+record <- bids_events(c(`run-1` = path))
+record$timing
+names(record$data)
+record$data$.bids_event_id
+unlink(path)
+}
+\seealso{
+\code{\link[=observation_events]{observation_events()}} for the generic contract,
+\code{\link[=bids_confounds]{bids_confounds()}} for the confound side, and \code{\link[=bids_study]{bids_study()}} to bind both
+into a study.
+
+Other typed observation facts: 
+\code{\link{bids_confounds}()},
+\code{\link{bids_study}()},
+\code{\link{observation_confounds}()},
+\code{\link{observation_events}()},
+\code{\link{observation_index}()},
+\code{\link{observations}()},
+\code{\link{partition_hierarchy}()}
+}
+\concept{typed observation facts}

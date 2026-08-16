@@ -360,7 +360,7 @@ test_that("coupling() takes the adjoint closure from the plan vocabulary", {
   )
 
   expect_error(coupling(plan, cbind("r1", "nowhere"), by = query),
-    "identify measurements")
+    "not a measurement of the plan's frame")
   other <- relation(
     list(other1 = matrix(rnorm(4), 1, 4, dimnames = list("z", NULL))),
     effects = effect_space("z"), domain = domain

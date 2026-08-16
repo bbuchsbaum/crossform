@@ -22,10 +22,14 @@ test_that("public metric recipes are compact, explicit specifications", {
 test_that("evaluation-residual reuse requires an explicit policy contract", {
   disjoint <- metric_training_policy("exclude_evaluation")
   expect_false(disjoint$includes_evaluation_residuals)
-  expect_error(
-    metric_training_policy("all_partitions_residual_orthogonality"),
-    "requires one explicit justification"
+  refusal <- catch_refusal(
+    metric_training_policy("all_partitions_residual_orthogonality")
   )
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "evaluation_residual_reuse")
+  expect_identical(refusal$namespace, "metric_learning")
+  expect_identical(refusal$reasons, "residual_reuse_justification_absent")
+  expect_match(refusal$remedies, "justification", all = FALSE)
   all_runs <- metric_training_policy(
     "all_partitions_residual_orthogonality",
     justification = paste(

@@ -206,3 +206,136 @@ test_that("the plan print surfaces metric status and generalization", {
   expect_match(printed, "over run")
   expect_match(printed, "independent")
 })
+
+test_that("sequential-only execution refuses as a capability boundary", {
+  refusal <- catch_refusal(compute_policy(workers = 3L))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "parallel_execution")
+  expect_identical(refusal$namespace, "compute_policy")
+  expect_identical(refusal$reasons, "worker_pool_not_implemented")
+  expect_match(conditionMessage(refusal), "received `3`")
+  expect_match(refusal$remedies, "workers = 1", all = FALSE)
+})
+
+test_that("evaluation-residual reuse refuses without its justification", {
+  refusal <- catch_refusal(
+    metric_training_policy("all_partitions_residual_orthogonality")
+  )
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "evaluation_residual_reuse")
+  expect_identical(refusal$namespace, "metric_learning")
+  expect_identical(refusal$reasons, "residual_reuse_justification_absent")
+})
+
+test_that("crossnobis refuses a plan with no declared noise metric", {
+  fixture <- refusal_fixture(domain_id = "refusal-noise-metric-domain")
+  euclidean <- plan_geometry(
+    fixture$fit$relation, fixture$frame,
+    cross_partitions(fixture$fit$relation, independence = "independent")
+  )
+  refusal <- catch_refusal(crossnobis(euclidean, c(level = 1, condition = -1)))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "declared_noise_metric")
+  expect_identical(refusal$namespace, "geometry_views")
+  expect_identical(refusal$reasons,
+    "implicit_identity_metric_is_not_a_noise_model")
+  expect_match(refusal$remedies, "noise_precision", all = FALSE)
+
+  plain <- plan_geometry(
+    fixture$fit$relation, fixture$frame,
+    cross_partitions(fixture$fit$relation, independence = "independent"),
+    metric = neural_metric(diag(7), fixture$domain)
+  )
+  role_refusal <- catch_refusal(
+    crossnobis(plain, c(level = 1, condition = -1))
+  )
+  expect_identical(role_refusal$reasons, "metric_role_is_not_noise_precision")
+})
+
+test_that("self-form views refuse rectangular plans and unmaterialized ones", {
+  fixture <- refusal_fixture(partitions = 2L,
+    domain_id = "refusal-self-form-domain")
+  right <- relation(
+    list(retrieve = matrix(1:14, 2L, 7L,
+      dimnames = list(c("cue", "probe"), NULL))),
+    domain = fixture$domain
+  )
+  rectangular <- plan_geometry(
+    fixture$fit$relation, fixture$frame,
+    pairing(c("run1", "run2"), c("retrieve", "retrieve"), directed = TRUE,
+      independence = "independent"),
+    right = right
+  )
+  for (call in list(
+    function() rdm(rectangular),
+    function() rsa(rectangular, models = list(m = matrix(c(0, 1, 1, 0), 2))),
+    function() coupling(rectangular, cbind(1, 1),
+      by = bilinear_query(diag(2)))
+  )) {
+    refusal <- catch_refusal(call())
+    expect_s3_class(refusal, "effect_capability_refusal")
+    expect_identical(refusal$reasons, "rectangular_cross_axis_plan")
+  }
+
+  self_plan <- plan_geometry(
+    fixture$fit$relation, fixture$frame,
+    cross_partitions(fixture$fit$relation, independence = "independent")
+  )
+  spectrum_refusal <- catch_refusal(geometry_spectrum(self_plan))
+  expect_s3_class(spectrum_refusal, "effect_capability_refusal")
+  expect_identical(spectrum_refusal$capability, "complete_geometry")
+  expect_match(spectrum_refusal$remedies, "materialize_geometry", all = FALSE)
+  expect_null(catch_refusal(
+    geometry_spectrum(materialize_geometry(self_plan))
+  ))
+})
+
+test_that("a missing error channel is reported once, not as three failures", {
+  fixture <- refusal_fixture(domain_id = "refusal-cascade-domain")
+  betas <- relation(
+    stats::setNames(lapply(fixture$fit$relation$partitions, function(partition) {
+      relation_block(fixture$fit$relation, partition, seq_len(7L))
+    }), fixture$fit$relation$partitions),
+    domain = fixture$domain
+  )
+  plan <- plan_geometry(
+    betas, fixture$frame,
+    cross_partitions(betas, independence = "independent",
+      generalizes_over = "run")
+  )
+  capabilities <- sampling_capabilities(plan)
+
+  expect_false(capabilities$available)
+  # The absent error channel is the whole story: an unequal partition error
+  # structure and a missing sampling axis are not separate, independently
+  # actionable failures here.
+  expect_identical(capabilities$reasons$reason, "missing_error_channel")
+  expect_false("heterogeneous_partition_model" %in%
+    capabilities$reasons$reason)
+  expect_false("sampling_axis_missing_or_inconsistent" %in%
+    capabilities$reasons$reason)
+
+  # The header agrees with the reason list rather than contradicting it.
+  expect_identical(capabilities$capabilities$partition_model, "equal")
+  expect_identical(capabilities$capabilities$error_channel, "absent")
+  # A pairing that declares `generalizes_over` has named the sampling axis.
+  expect_identical(capabilities$capabilities$sampling_axis, "run")
+
+  printed <- paste(utils::capture.output(print(capabilities)), collapse = "\n")
+  expect_match(printed, "partitions: equal")
+  expect_no_match(printed, "heterogeneous_partition_model")
+  expect_match(printed, "cannot be")
+})
+
+test_that("a declared heterogeneous partition model is still reported", {
+  fixture <- refusal_fixture(domain_id = "refusal-heterogeneous-domain")
+  plan <- plan_geometry(
+    fixture$fit$relation, fixture$frame,
+    cross_partitions(fixture$fit$relation, independence = "independent")
+  )
+  compiled <- crossform:::.compile_evidence_sampling_plan(
+    plan, fixture$fit, partition_model = "heterogeneous"
+  )
+  expect_true("heterogeneous_partition_model" %in%
+    compiled$unavailable_reasons)
+})

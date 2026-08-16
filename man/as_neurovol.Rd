@@ -13,7 +13,14 @@ as_neurovol(
 )
 }
 \arguments{
-\item{values}{One finite numeric value per compact domain feature.}
+\item{values}{One finite numeric value per compact domain \emph{feature} (voxel),
+in \code{domain$feature_ids} order. crossform result views carry one value per
+\emph{measurement} instead, which coincides with the features only for a
+voxelwise or searchlight frame. For a coarser frame, expand first with the
+frame's membership pattern —
+\code{as.numeric(Matrix::crossprod(frame$weights != 0, values))} — as shown in
+the "Measurements are not features" section of
+\code{vignette("neuroim2-data")}.}
 
 \item{mask}{The three-dimensional neuroim2 \code{NeuroVol} whose geometry defined
 \code{domain}.}
@@ -25,7 +32,8 @@ as_neurovol(
 \item{label}{Optional result-volume label.}
 }
 \value{
-A neuroim2 \code{NeuroVol} with values at \code{domain$feature_ids}.
+A neuroim2 \code{NeuroVol} on the same space as \code{mask}, carrying \code{values}
+at \code{domain$feature_ids} and \code{fill} everywhere else.
 }
 \description{
 The compact values are inserted at the exact full-volume indices carried by
@@ -33,3 +41,45 @@ a crossform volume domain. Features outside the domain receive \code{fill}.
 This is an output adapter only; it performs no interpolation, smoothing, or
 coordinate reinterpretation.
 }
+\examples{
+if (requireNamespace("neuroim2", quietly = TRUE) &&
+    utils::packageVersion("neuroim2") >= "0.19.0") {
+  values <- array(FALSE, c(5L, 5L, 4L))
+  values[2:4, 2:4, 2:3] <- TRUE
+  mask <- neuroim2::LogicalNeuroVol(
+    values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(3, 3, 3))
+  )
+  domain <- neuroim2_volume_domain(mask)
+
+  # One number per compact feature, in domain feature order.
+  statistic <- seq_len(domain$n_features) / domain$n_features
+  volume <- as_neurovol(statistic, mask, domain, label = "example statistic")
+
+  # Values land at exactly the mask indices; everything else stays `fill`.
+  print(dim(volume))
+  print(identical(as.numeric(volume[domain$feature_ids]), statistic))
+  print(all(is.na(as.array(volume)[!values])))
+}
+}
+\seealso{
+\code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}} for the domain whose \code{feature_ids} fix
+the output positions, and \code{\link[=geometry_component]{geometry_component()}} for one source of the
+compact vector.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

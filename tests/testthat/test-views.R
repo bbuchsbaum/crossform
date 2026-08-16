@@ -53,7 +53,7 @@ test_that("contrast names are semantic rather than positional when supplied", {
   expect_equal(permuted$total, ordered$total, tolerance = 0)
   expect_error(
     contrast_energy(fixture$geometry, c(a = 1, b = -1, c = 0, x = 0)),
-    "identify every effect")
+    "`x` is not a declared effect; `d` has no weight")
 })
 
 test_that("RDM view equals explicit squared geometry distances", {

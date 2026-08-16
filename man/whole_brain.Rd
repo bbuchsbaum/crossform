@@ -10,8 +10,48 @@ whole_brain(normalization = "local")
 \item{normalization}{Explicit frame normalization.}
 }
 \value{
-An additive frame specification.
+An \code{effect_frame_spec} with \verb{$kind} \code{"whole_brain"} and the
+requested \verb{$normalization}. Pass it to \code{\link[=compile_frame]{compile_frame()}}.
 }
 \description{
-Specify a whole-brain additive measurement
+Declares a single measurement covering every neural feature in the domain.
+Use \code{normalization = "none"} when this is the global comparator against
+which local measurements are checked, because the default averages instead
+of summing.
 }
+\examples{
+domain <- abstract_domain(6L, id = "whole-brain-example")
+
+# A single measurement row spanning the whole domain.
+frame <- compile_frame(whole_brain(), domain)
+dim(frame$weights)
+
+# The default "local" normalization averages over features (mass 1); the
+# unnormalized operator is the one that sums, and is the correct global
+# comparator when checking local-to-global conservation.
+as.numeric(Matrix::rowSums(frame$weights))
+as.numeric(Matrix::rowSums(
+  compile_frame(whole_brain("none"), domain)$weights
+))
+}
+\seealso{
+\code{\link[=compile_frame]{compile_frame()}}, \code{\link[=frame_conservation]{frame_conservation()}}, and \code{\link[=regions]{regions()}} for
+several measurements instead of one.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()}
+}
+\concept{neural domains and frames}

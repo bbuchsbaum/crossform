@@ -203,14 +203,37 @@
 .require_nondegenerate_variation <- function(x) {
   if (!isTRUE(x$capabilities$repeated_variation) ||
       is.null(x$capabilities$sampling_axis)) {
-    stop("Normalized connectivity requires certified repeated variation.",
-      call. = FALSE)
+    .capability_refusal(paste0(
+      "Normalized connectivity requires certified repeated variation along a ",
+      "named sampling axis: a correlation divides by a variance, and this ",
+      "form has not established that its variation is repeated sampling ",
+      "rather than a single fixed pattern."
+    ),
+      capability = "certified_repeated_variation",
+      namespace = "coupling_views",
+      reasons = "repeated_variation_not_certified",
+      remedies = paste0(
+        "Build the form with a `variation_query()` that declares its ",
+        "sampling axis, over a pairing whose partitions repeat that axis."
+      )
+    )
   }
   if (x$diagnostics$experimental_effective_rank <= 1L) {
-    stop(paste0(
-      "Normalized connectivity requires effective sampling rank above one; ",
-      "a rank-one effect direction is degenerate."
-    ), call. = FALSE)
+    .capability_refusal(sprintf(paste0(
+      "Normalized connectivity requires an effective sampling rank above ",
+      "one; this variation query has effective rank %s. A rank-one variation ",
+      "direction carries no independent repeats to normalize by, so every ",
+      "edge would report a correlation of plus or minus one by construction."
+    ), format(x$diagnostics$experimental_effective_rank)),
+      capability = "nondegenerate_variation",
+      namespace = "coupling_views",
+      reasons = "rank_one_variation_axis",
+      remedies = paste0(
+        "Supply a variation query of rank two or more, for example a ",
+        "centered covariance over several repeated observations, or read the ",
+        "unnormalized block with `effect_coupling()`."
+      )
+    )
   }
   invisible(x)
 }
@@ -594,18 +617,46 @@
     correlation = .pearson_coupling(x, tolerance),
     canonical = {
       if (is.null(regularization)) {
-        stop("Canonical connectivity requires an explicit regularization policy.",
-          call. = FALSE)
+        .capability_refusal(paste0(
+          "Canonical connectivity requires an explicit regularization ",
+          "policy: the canonical correlations invert both self-blocks, and ",
+          "the ridge that makes that inversion well posed changes the ",
+          "numbers, so it is never chosen for you."
+        ),
+          capability = "declared_regularization",
+          namespace = "coupling_views",
+          reasons = "regularization_not_declared",
+          remedies = "Pass `ridge = ` (and `ridge_right = ` when it differs)."
+        )
       }
       .canonical_coupling(x, regularization, tolerance)
     },
     geometry_alignment = .geometry_alignment(x, tolerance),
     gaussian_information = {
       if (is.null(regularization) || is.null(model)) {
-        stop(paste0(
+        missing_parts <- c(
+          if (is.null(regularization)) "`ridge`",
+          if (is.null(model)) "`model`"
+        )
+        .capability_refusal(sprintf(paste0(
           "Gaussian-information connectivity requires explicit ",
-          "regularization and a Gaussian model declaration."
-        ), call. = FALSE)
+          "regularization and an explicit Gaussian model declaration; %s ",
+          "%s missing. Mutual information is a modeling claim about the ",
+          "joint distribution, not a rescaling of the coupling block, so ",
+          "crossform records the declaration instead of assuming it."
+        ), paste(missing_parts, collapse = " and "),
+          if (length(missing_parts) == 1L) "is" else "are"),
+          capability = "declared_gaussian_model",
+          namespace = "coupling_views",
+          reasons = c(
+            if (is.null(model)) "gaussian_model_not_declared",
+            if (is.null(regularization)) "regularization_not_declared"
+          ),
+          remedies = paste0(
+            "Pass `model = gaussian_covariance_model(...)` recording the ",
+            "assumption, together with an explicit `ridge`."
+          )
+        )
       }
       .gaussian_information(
         x, regularization, model, match.arg(units), tolerance

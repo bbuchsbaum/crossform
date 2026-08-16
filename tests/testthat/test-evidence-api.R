@@ -175,10 +175,14 @@ test_that("a rank-one query remains effect coupling but not connectivity", {
   fixture <- public_measurement_fixture(rank_one = TRUE)
   effect <- effect_coupling(fixture$form)
   expect_identical(effect$kind, "effect_coupling")
-  expect_error(connectivity(fixture$form, "correlation"),
-    "rank above one|rank-one effect direction")
+  refusal <- catch_refusal(connectivity(fixture$form, "correlation"))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "nondegenerate_variation")
+  expect_identical(refusal$namespace, "coupling_views")
+  expect_identical(refusal$reasons, "rank_one_variation_axis")
+  expect_match(conditionMessage(refusal), "effective rank 1")
   expect_error(canonical_coupling(fixture$form, ridge = 1e-4),
-    "rank above one|rank-one effect direction")
+    class = "effect_capability_refusal")
 })
 
 test_that("public forms cross independent experimental and neural sides", {

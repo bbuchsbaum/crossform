@@ -10,7 +10,35 @@
 #' @param block_features Optional positive feature-block size.
 #' @param workspace_bytes Optional positive budget for crossform-owned live
 #'   workspace. Baseline and total process RSS are not charged to this budget.
-#' @return An immutable-by-convention declarative compute policy.
+#' @return An `effect_compute_policy` recording `$workers`,
+#'   `$block_features`, `$workspace_bytes`, and the fixed
+#'   `$process_backend`. It is a declaration consumed by [plan_geometry()]
+#'   and friends; it never starts a worker itself.
+#' @seealso [plan_geometry()] and [measurement_form()], which accept this
+#'   policy; [catch_refusal()] for inspecting the refusal below.
+#'
+#' @section Refusal:
+#' Requesting more than one worker signals an `effect_capability_refusal`
+#' carrying capability `"parallel_execution"` in namespace `"compute_policy"`,
+#' with reason `"worker_pool_not_implemented"`. Branch on it with
+#' [catch_refusal()] rather than on the message text.
+#' @family geometry plans and views
+#' @examples
+#' # The default: one worker, no declared block or workspace ceiling.
+#' default <- compute_policy()
+#' c(workers = default$workers, backend = default$process_backend)
+#'
+#' # Bound the feature block and the crossform-owned workspace. Neither
+#' # choice changes the estimand, only the execution receipt.
+#' policy <- compute_policy(block_features = 64L, workspace_bytes = 64 * 1024^2)
+#' policy$block_features
+#'
+#' # Version 0.1 owns no process pool, so more than one worker is refused —
+#' # as a classed capability refusal, not a message to match on.
+#' refusal <- catch_refusal(compute_policy(workers = 4L))
+#' refusal$capability
+#' refusal$reasons
+#' refusal$remedies
 #' @export
 compute_policy <- function(workers = 1L, block_features = NULL,
                            workspace_bytes = NULL) {
@@ -39,8 +67,25 @@ compute_policy <- function(workers = 1L, block_features = NULL,
   workers <- policy$workers
   if (!is.numeric(workers) || length(workers) != 1L || is.na(workers) ||
       !is.finite(workers) || workers != 1) {
-    stop("workers > 1 is not implemented in crossform 0.1; `workers` must be 1.",
-      call. = FALSE)
+    .capability_refusal(sprintf(paste0(
+      "crossform 0.1 owns no process pool, so `workers` must be 1; received ",
+      "%s. Sequential execution is a capability boundary, not a performance ",
+      "default: an executor that spawns workers has to pass memory and ",
+      "determinism gates first."
+    ), if (is.numeric(workers) && length(workers) == 1L && !is.na(workers)) {
+      paste0("`", format(workers), "`")
+    } else {
+      .msg_value(workers)
+    }),
+      capability = "parallel_execution",
+      namespace = "compute_policy",
+      reasons = "worker_pool_not_implemented",
+      remedies = paste0(
+        "Pass `workers = 1` and parallelize across participants outside the ",
+        "geometry call, or bound the work with ",
+        "`compute_policy(block_features = , workspace_bytes = )`."
+      )
+    )
   }
   if (!is.null(policy$block_features) &&
       (!is.numeric(policy$block_features) || length(policy$block_features) != 1L ||

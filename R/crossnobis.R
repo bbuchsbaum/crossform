@@ -14,7 +14,38 @@
 #' @param tolerance Positive numerical validation tolerance.
 #' @param provenance Additional compact provenance. Reserved semantic fields
 #'   cannot be replaced.
-#' @return A fixed `effect_neural_metric` with noise-precision identity.
+#' @return An `effect_neural_metric` whose `$provenance$metric_role` is
+#'   `"noise_precision"`, carrying the canonicalized `$value`, its `$domain`
+#'   and `$support`, `$capabilities`, and a `$signature`. The recorded role is
+#'   what lets [crossnobis()] name the result a Mahalanobis distance.
+#' @seealso [crossnobis()] and [plan_geometry()] (its `metric` argument);
+#'   [shrinkage_precision()] when the precision must instead be learned from
+#'   residuals.
+#' @family neural metrics
+#' @examples
+#' # A precision estimated outside crossform and fixed before evaluation.
+#' domain <- abstract_domain(3, id = "noise-precision-example")
+#' covariance <- matrix(c(1, 0.4, 0.1, 0.4, 1, 0.3, 0.1, 0.3, 1), 3, 3)
+#' metric <- noise_precision(
+#'   solve(covariance), domain, covariance = covariance,
+#'   provenance = list(source = "resting-run residual covariance")
+#' )
+#' metric$provenance$metric_role
+#' metric$capabilities$positive_definite
+#'
+#' # The role is what a crossnobis plan checks for, so a plain
+#' # `neural_metric()` with the same numbers is deliberately not equivalent.
+#' identical(
+#'   neural_metric(solve(covariance), domain)$provenance$metric_role,
+#'   metric$provenance$metric_role
+#' )
+#'
+#' # The semantic provenance fields are reserved and cannot be overwritten.
+#' refused <- try(
+#'   noise_precision(diag(3), domain, provenance = list(metric_role = "other")),
+#'   silent = TRUE
+#' )
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 noise_precision <- function(value, domain, support = NULL,
                             covariance = NULL, tolerance = 1e-10,
@@ -39,17 +70,38 @@ noise_precision <- function(value, domain, support = NULL,
   .validate_geometry_plan(x)
   schedule <- x$metric_schedule
   if (!identical(schedule$kind, "fixed_metric_before_frame")) {
-    stop(paste0(
-      "Crossnobis requires an explicit noise-precision metric schedule; ",
-      "an implicit Euclidean geometry has no declared noise metric."
-    ), call. = FALSE)
+    .capability_refusal(paste0(
+      "Crossnobis is a Mahalanobis reading, so it requires an explicit ",
+      "noise-precision metric; this plan carries the implicit identity ",
+      "metric, which is Euclidean and declares nothing about the noise."
+    ),
+      capability = "declared_noise_metric",
+      namespace = "geometry_views",
+      reasons = "implicit_identity_metric_is_not_a_noise_model",
+      remedies = paste0(
+        "Compile the plan with `plan_geometry(..., metric = ",
+        "noise_precision(...))`, use `plan_crossnobis()` to learn the ",
+        "precision from residuals, or read the same estimand without a ",
+        "noise claim through `contrast_energy()`."
+      )
+    )
   }
   metric <- .validate_neural_metric(schedule$metric, deep = FALSE)
   if (!identical(metric$provenance$metric_role, "noise_precision")) {
-    stop(paste0(
-      "Crossnobis interpretation requires a metric constructed as ",
-      "`noise_precision()` or an admitted learned precision schedule."
-    ), call. = FALSE)
+    .capability_refusal(paste0(
+      "Crossnobis interpretation requires a metric declared as a noise ",
+      "precision; this plan's fixed metric was not constructed by ",
+      "`noise_precision()` and carries no such role, so calling its output a ",
+      "Mahalanobis distance would overstate what the metric means."
+    ),
+      capability = "declared_noise_metric",
+      namespace = "geometry_views",
+      reasons = "metric_role_is_not_noise_precision",
+      remedies = paste0(
+        "Build the metric with `noise_precision()`, or read the plan with ",
+        "`contrast_energy()`, which makes no noise-model claim."
+      )
+    )
   }
   metric
 }
@@ -59,10 +111,19 @@ noise_precision <- function(value, domain, support = NULL,
   if (!identical(attr(over, "independence", exact = TRUE), "independent") ||
       !identical(attr(over, "estimate", exact = TRUE),
         "cross_generalized") || any(over$left == over$right)) {
-    stop(paste0(
-      "Crossnobis requires cross-partition evaluation edges declared ",
-      "independent and containing no self-products."
-    ), call. = FALSE)
+    stop(sprintf(paste0(
+      "Crossnobis requires cross-partition edges declared independent and ",
+      "containing no self-products; this pairing declares independence `%s` ",
+      "with estimate `%s`%s. The crossvalidated distance is unbiased only ",
+      "because the two endpoints carry independent noise."
+    ), attr(over, "independence", exact = TRUE),
+      attr(over, "estimate", exact = TRUE),
+      if (any(over$left == over$right)) {
+        sprintf(" and contains %s",
+          .msg_count(sum(over$left == over$right), "self-product"))
+      } else {
+        ""
+      }), call. = FALSE)
   }
   invisible(TRUE)
 }
@@ -187,7 +248,15 @@ noise_precision <- function(value, domain, support = NULL,
 #' @param residual_workspace_bytes Positive budget used while accumulating
 #'   canonical residual pair sufficient statistics. It changes cache capacity,
 #'   never the canonical numerical tile shape.
-#' @return An `effect_crossnobis_plan` reusable across fixed contrasts.
+#' @return An `effect_crossnobis_plan` reusable across fixed contrasts. It
+#'   carries the frozen `$metric_schedule`, the `$frame`, `$pairing`, and
+#'   `$memory` plan, and a `$scientific_plan_id` that identifies the estimand
+#'   independently of execution choices.
+#' @seealso [crossnobis()] to read a contrast from this plan,
+#'   [shrinkage_precision()] and [metric_training_policy()] for the metric
+#'   declarations it freezes, and [residual_pair_statistics()] for the
+#'   sufficient statistics it compiles.
+#' @family geometry plans and views
 #' @examples
 #' set.seed(7)
 #' domain <- abstract_domain(
@@ -224,6 +293,18 @@ plan_crossnobis <- function(
     } else {
       compute$workspace_bytes
     }) {
+  if (missing(at)) {
+    stop(paste0(
+      "`at` is required: pass a compiled frame from `compile_frame()`, for ",
+      "example `compile_frame(searchlights(8), domain)`."
+    ), call. = FALSE)
+  }
+  if (missing(over)) {
+    stop(paste0(
+      "`over` is required: pass a pairing from `cross_partitions()` or ",
+      "`pairing()` declaring which partition products may be formed."
+    ), call. = FALSE)
+  }
   # Diagnose a missing residual channel before shape validation or any
   # metric-training preflight: a bare relation or a channel-free fit must get
   # the capability refusal, not a field-shape error or a training-partition
@@ -496,8 +577,20 @@ print.effect_crossnobis_plan <- function(x, ...) {
 #'   `noise_precision()` metric, or an `effect_crossnobis_plan` carrying a
 #'   provenance-frozen on-demand metric schedule.
 #' @param weights One finite contrast weight per experimental effect.
-#' @return An `effect_crossnobis_view` with one signed value per spatial
-#'   measurement and the executed plan receipt.
+#' @return An `effect_crossnobis_view` whose `$values` holds one signed
+#'   crossvalidated squared Mahalanobis value per spatial measurement, with
+#'   the aligned `$contrast`, the named `$estimand`, the `$metric` and
+#'   `$pairing` identities, `$index`, and the executed `$receipt`.
+#' @seealso [noise_precision()] for the fixed metric a geometry plan needs,
+#'   [plan_crossnobis()] for the learned-metric route, and
+#'   [contrast_energy()] for the decomposed reading of the same estimand.
+#' @family geometry plans and views
+#'
+#' @section Refusal:
+#' A plan carrying the implicit identity metric, or a fixed metric that was not
+#' built by [noise_precision()], signals an `effect_capability_refusal` with
+#' capability `"declared_noise_metric"` in namespace `"geometry_views"`.
+#' Inspect it with [catch_refusal()].
 #'
 #' @section One estimand, two views:
 #' On a fixed-metric geometry plan, `crossnobis(x, weights)` is the named
@@ -527,7 +620,16 @@ crossnobis <- function(x, weights) {
     return(.execute_learned_crossnobis(x, weights))
   }
   if (!inherits(x, "effect_geometry_plan")) {
-    stop("`x` must be a compiled geometry or crossnobis plan.", call. = FALSE)
+    stop(sprintf(paste0(
+      "`x` must be an `effect_geometry_plan` from `plan_geometry()` or an ",
+      "`effect_crossnobis_plan` from `plan_crossnobis()`; received %s."
+    ), .msg_value(x)), call. = FALSE)
+  }
+  if (missing(weights)) {
+    stop(paste0(
+      "`weights` is required: pass one finite weight per experimental ",
+      "effect, for example `crossnobis(plan, c(face = 1, house = -1))`."
+    ), call. = FALSE)
   }
   metric <- .crossnobis_plan_metric(x)
   .require_crossnobis_pairing(x$pairing)

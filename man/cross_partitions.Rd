@@ -32,8 +32,37 @@ standard error for their all-pairs mean. Under the fixed-metric,
 equal-partition separable model, use \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} for the
 admitted analytic RDM covariance law.
 }
+\examples{
+# Four runs give six unordered pairs, each weighted to unit total mass.
+example <- example_fmri_effects()
+over <- cross_partitions(
+  example$fit$relation,
+  independence = "independent", generalizes_over = "run"
+)
+nrow(over)
+sum(over$weight)
+
+# The declared axis and independence become part of the estimand, so they
+# travel into every plan built from this pairing.
+c(estimate = attr(over, "estimate"),
+  axis = attr(over, "generalizes_over"))
+
+# Leaving independence undeclared still yields a point estimand, but it
+# does not earn cross-generalized capabilities.
+attr(cross_partitions(example$fit$relation), "estimate")
+}
 \references{
 Diedrichsen J, Provost S, Zareamoghaddam H (2016),
 "On the distribution of cross-validated Mahalanobis distances",
 especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
 }
+\seealso{
+\code{\link[=pairing]{pairing()}} for explicit or directed edge sets,
+\code{\link[=plan_geometry]{plan_geometry()}} which consumes this pairing, and
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} for the admitted uncertainty law.
+
+Other generalization pairings: 
+\code{\link{pairing}()},
+\code{\link{reduce_partitions}()}
+}
+\concept{generalization pairings}

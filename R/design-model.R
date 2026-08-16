@@ -111,7 +111,47 @@
 #' @param protocol,protocol_version Semantic compiler protocol identity.
 #' @param package,package_version Compiler implementation receipt fields.
 #' @param provenance Portable semantic model provenance.
-#' @return An `effect_design_model`.
+#' @return An `effect_design_model`: a list with the bound `$condition_space`,
+#'   the `$specification`, `$partitions`, the compiled `$designs`, their
+#'   `$parameterizations`, `$row_ids`, the `$compiler` record, the `$solver`
+#'   route, `$provenance`, a `$design_model_id` covering the semantic request
+#'   only, a `$compilation_route_id` covering the concrete compilation, and
+#'   `$capabilities` with `symbolic_model`, `coding_invariant`, `row_lineage`.
+#' @family studies and effect maps
+#' @seealso [coefficient_parameterization()] for the coding it carries,
+#'   [raw_design_model()] for the route without semantic coding, and
+#'   [plan_relation()], which binds this model to a study.
+#' @examples
+#' conditions <- condition_space(c("face", "body"), basis_id = "cond-mean:v1")
+#' design <- cbind(
+#'   face = c(1, 0, 1, 0, 1, 0), body = c(0, 1, 0, 1, 0, 1),
+#'   drift = seq(-1, 1, length.out = 6L)
+#' )
+#' rownames(design) <- paste0("scan-", 1:6)
+#' map <- cbind(diag(2), drift = 0)
+#' dimnames(map) <- list(conditions$coordinates, colnames(design))
+#' coding <- coefficient_parameterization(
+#'   map, conditions, coding_id = "cell-means-plus-drift"
+#' )
+#' specification <- list(target = "condition means", nuisance = "linear drift")
+#'
+#' model <- design_model(
+#'   specification, conditions,
+#'   designs = list(`run-1` = design), parameterizations = list(`run-1` = coding)
+#' )
+#' model$capabilities$coding_invariant
+#'
+#' # Semantic identity ignores the numerical route: switching solvers changes
+#' # the compilation receipt, not what was scientifically requested.
+#' route <- design_model(
+#'   specification, conditions,
+#'   designs = list(`run-1` = design), parameterizations = list(`run-1` = coding),
+#'   solver = "svd"
+#' )
+#' c(same_request = identical(model$design_model_id, route$design_model_id),
+#'   same_route = identical(
+#'     model$compilation_route_id, route$compilation_route_id
+#'   ))
 #' @export
 design_model <- function(
     specification, conditions, designs, parameterizations, row_ids = NULL,
@@ -218,7 +258,28 @@ design_model <- function(
 #' @param row_ids Ordered observation identifiers per design.
 #' @param solver Numerical route per partition.
 #' @param provenance Portable provenance for the external construction.
-#' @return An `effect_raw_design_model`, also an `effect_design_model`.
+#' @return An `effect_raw_design_model` (also an `effect_design_model`) with
+#'   the same fields as [design_model()], except that `$condition_space` and
+#'   `$parameterizations` are `NULL`, `$design_model_id` includes the design
+#'   values themselves, and `$capabilities` reports `symbolic_model` and
+#'   `coding_invariant` as `FALSE`.
+#' @family studies and effect maps
+#' @seealso [design_model()] for the semantic route, and [raw_effect_map()],
+#'   the effect map this design must be paired with in [plan_relation()].
+#' @examples
+#' design <- cbind(b1 = c(1, 0, 1, 0), b2 = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' model <- raw_design_model(list(`run-1` = design))
+#'
+#' # The honest cost of skipping the condition space: the numeric design is
+#' # part of the identity, so a re-coded design is a different request.
+#' model$capabilities$coding_invariant
+#' model$capabilities$row_lineage
+#'
+#' # A raw design must be paired with a raw target on the same column axis.
+#' target <- rbind(`b1-b2` = c(1, -1))
+#' colnames(target) <- colnames(design)
+#' raw_effect_map(target)
 #' @export
 raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
                              provenance = list()) {

@@ -12,10 +12,52 @@ compile_frame(specification, domain)
 \item{domain}{An \code{effect_domain}.}
 }
 \value{
-An \code{effect_frame} whose weights are a sparse measurement-by-feature
-matrix.
+An \code{effect_frame}: a list whose \verb{$weights} are the sparse
+measurement-by-feature operator, with \verb{$normalization}, an \verb{$index} data
+frame naming each measurement, \verb{$domain} (the domain reference),
+\verb{$domain_kind}, the originating \verb{$specification}, and, for neighborhood
+scopes, a \verb{$support_index}.
 }
 \description{
 Voxel, searchlight, region, and whole-brain scopes all compile to the same
 sparse additive-frame representation.
 }
+\examples{
+domain <- abstract_domain(9L, id = "compile-frame-example")
+
+# Every scope compiles to one sparse measurement-by-feature operator; only
+# the number of measurement rows differs.
+scopes <- list(
+  voxelwise(), regions(rep(c("a", "b", "c"), each = 3L)), whole_brain()
+)
+vapply(scopes, function(scope) nrow(compile_frame(scope, domain)$weights),
+  integer(1))
+
+# The compiled frame remembers how it was built, which is what downstream
+# receipts record.
+frame <- compile_frame(voxelwise(), domain)
+frame$normalization
+frame$index$measurement
+}
+\seealso{
+\code{\link[=voxelwise]{voxelwise()}}, \code{\link[=searchlights]{searchlights()}}, \code{\link[=regions]{regions()}}, \code{\link[=whole_brain]{whole_brain()}} for
+the specifications, \code{\link[=frame_conservation]{frame_conservation()}} to check normalization, and
+\code{\link[=plan_geometry]{plan_geometry()}}, which consumes the compiled frame.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

@@ -2,11 +2,36 @@
 
 #' Declare source execution capabilities
 #'
+#' `source_capabilities()` states what an out-of-memory relation source can
+#' actually do, so the compiler can choose a bounded execution route and
+#' record the source revision in the receipt. Declare it when supplying a
+#' custom source such as [file_matrix_source()].
+#'
 #' @param block_read Whether bounded feature-block reads are supported.
 #' @param reopenable Whether a fresh read-only handle can be opened safely.
 #' @param thread_safe Whether concurrent reads through one handle are supported.
 #' @param stable_revision A strong immutable source revision or checksum.
-#' @return A declarative source-capability value.
+#' @return An `effect_source_capabilities` value with the three logical flags
+#'   `$block_read`, `$reopenable`, `$thread_safe`, and the
+#'   `$stable_revision` identifier bound into the execution receipt.
+#' @seealso [file_matrix_source()], which carries these capabilities, and
+#'   [compute_policy()], which is checked against them before execution.
+#' @family relation planning and fitting
+#' @examples
+#' # A block-readable, reopenable source identified by a content checksum.
+#' revision <- paste0("sha256:", paste(rep("a", 64), collapse = ""))
+#' capabilities <- source_capabilities(
+#'   block_read = TRUE, reopenable = TRUE, stable_revision = revision
+#' )
+#' capabilities$block_read
+#' capabilities$thread_safe
+#'
+#' # The revision must be a strong identifier: a mutable label such as a file
+#' # modification time is refused, because receipts must stay verifiable.
+#' weak <- try(
+#'   source_capabilities(TRUE, stable_revision = "2026-08-15"), silent = TRUE
+#' )
+#' conditionMessage(attr(weak, "condition"))
 #' @export
 source_capabilities <- function(block_read, reopenable = FALSE,
                                 thread_safe = FALSE, stable_revision) {

@@ -15,10 +15,62 @@ compute_policy(workers = 1L, block_features = NULL, workspace_bytes = NULL)
 workspace. Baseline and total process RSS are not charged to this budget.}
 }
 \value{
-An immutable-by-convention declarative compute policy.
+An \code{effect_compute_policy} recording \verb{$workers},
+\verb{$block_features}, \verb{$workspace_bytes}, and the fixed
+\verb{$process_backend}. It is a declaration consumed by \code{\link[=plan_geometry]{plan_geometry()}}
+and friends; it never starts a worker itself.
 }
 \description{
 Version 0.1 deliberately owns no process pool and accepts exactly one
 worker. Participant-level parallelism belongs outside the core geometry
 call until a later executor passes its memory and determinism gates.
 }
+\section{Refusal}{
+
+Requesting more than one worker signals an \code{effect_capability_refusal}
+carrying capability \code{"parallel_execution"} in namespace \code{"compute_policy"},
+with reason \code{"worker_pool_not_implemented"}. Branch on it with
+\code{\link[=catch_refusal]{catch_refusal()}} rather than on the message text.
+}
+
+\examples{
+# The default: one worker, no declared block or workspace ceiling.
+default <- compute_policy()
+c(workers = default$workers, backend = default$process_backend)
+
+# Bound the feature block and the crossform-owned workspace. Neither
+# choice changes the estimand, only the execution receipt.
+policy <- compute_policy(block_features = 64L, workspace_bytes = 64 * 1024^2)
+policy$block_features
+
+# Version 0.1 owns no process pool, so more than one worker is refused —
+# as a classed capability refusal, not a message to match on.
+refusal <- catch_refusal(compute_policy(workers = 4L))
+refusal$capability
+refusal$reasons
+refusal$remedies
+}
+\seealso{
+\code{\link[=plan_geometry]{plan_geometry()}} and \code{\link[=measurement_form]{measurement_form()}}, which accept this
+policy; \code{\link[=catch_refusal]{catch_refusal()}} for inspecting the refusal below.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

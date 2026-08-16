@@ -33,10 +33,66 @@ columns for the respective item axis.}
 \item{sparse}{Return \code{H} as a sparse \code{Matrix} object.}
 }
 \value{
-An axis-bound \code{pair_query()} carrying design and balance diagnostics.
+An axis-bound \code{\link[=pair_query]{pair_query()}} whose \verb{$operator} maps eligible pair
+values to the requested coefficient, with
+\verb{$metadata$coefficient} (the contrast over compiled columns) and
+\verb{$metadata$diagnostics} reporting \code{rank}, \code{columns}, \code{observations},
+\code{unique_pairs}, and operator \code{balance}.
 }
 \description{
 The returned matrix is the exact linear map from eligible pair values to a
 requested weighted least-squares coefficient. Encoding and retrieval
 nuisance effects are ordinary design columns, not a new analysis class.
 }
+\examples{
+# A pair-space regression: how does encoding-retrieval similarity change
+# with study-test lag, adjusting for a match indicator?
+encoding <- effect_space(
+  c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+)
+retrieval <- effect_space(
+  c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+)
+design <- expand.grid(
+  left = encoding$coordinates, right = retrieval$coordinates,
+  stringsAsFactors = FALSE
+)
+design$lag <- abs(
+  match(design$left, encoding$coordinates) -
+    match(design$right, retrieval$coordinates)
+)
+design$match <- as.numeric(design$lag == 0)
+
+# The result is the exact linear map from pair values to the `lag`
+# coefficient, compiled once and reusable as a fixed query.
+query <- pair_lm_query(design, "lag", encoding, retrieval)
+round(as.matrix(query$operator), 3)
+query$metadata$diagnostics[c("rank", "columns", "observations")]
+
+# A collinear predictor makes the coefficient undefined, and the design is
+# rejected before any geometry is read.
+design$lag_copy <- design$lag
+refused <- try(
+  pair_lm_query(design, "lag", encoding, retrieval), silent = TRUE
+)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=match_control]{match_control()}} for the matched-versus-control special case,
+and \code{\link[=pair_query]{pair_query()}} for a hand-written operator.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

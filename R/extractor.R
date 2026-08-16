@@ -10,7 +10,26 @@
 #'   unspecified-basis effect space.
 #' @param estimator Short estimator identity.
 #' @param diagnostics Optional estimator diagnostics.
-#' @return An `effect_extractor`.
+#' @return An `effect_extractor`: a list with the effect-by-observation `$map`,
+#'   its `$effect_space` and `$effects` labels, `$n_observations`, the
+#'   `$estimator` identity, and `$diagnostics`.
+#' @family relation planning and fitting
+#' @seealso [lm_extractor()] to compile one from a design and target, and
+#'   [relation()], which applies one extractor per partition.
+#' @examples
+#' # Average four observations, and contrast the first two with the last two.
+#' map <- rbind(
+#'   mean = c(0.25, 0.25, 0.25, 0.25),
+#'   difference = c(0.5, 0.5, -0.5, -0.5)
+#' )
+#' extractor <- effect_extractor(map, estimator = "hand-specified")
+#' extractor$effects
+#' extractor$n_observations
+#'
+#' # The extractor holds no neural data, so the same map is reused across every
+#' # feature block a relation reads.
+#' set.seed(1)
+#' extractor$map %*% matrix(rnorm(8), 4L, 2L)
 #' @export
 effect_extractor <- function(map, effects = rownames(map),
                              estimator = "explicit", diagnostics = list()) {
@@ -57,7 +76,37 @@ effect_extractor <- function(map, effects = rownames(map),
 #'   an error.
 #' @param solver Numerical factorization route: automatic, pivoted QR, or SVD.
 #'   This changes execution provenance, not the requested effect.
-#' @return An `effect_extractor`.
+#' @return An `effect_extractor` whose `$map` is `T (L X)^+ L`, with
+#'   `$diagnostics` recording `solver`, `solver_policy`, `observations`,
+#'   `coefficients`, `rank`, `rank_deficient`, per-effect
+#'   `estimability_error`, `tolerance`, and the `observation_whitener`
+#'   descriptor.
+#' @family relation planning and fitting
+#' @seealso [effect_extractor()] for a hand-specified map, and
+#'   [lm_relation_fit()], which additionally keeps the residual error channel.
+#' @examples
+#' condition <- factor(rep(c("face", "body"), each = 3L))
+#' design <- cbind(
+#'   stats::model.matrix(~ 0 + condition), drift = seq(-1, 1, length.out = 6L)
+#' )
+#' colnames(design)[1:2] <- c("face", "body")
+#'
+#' # Ask for one contrast on the design's coefficient axis.
+#' target <- rbind(`face-body` = c(1, -1, 0))
+#' colnames(target) <- colnames(design)
+#' extractor <- lm_extractor(design, target)
+#' extractor$diagnostics$solver
+#' round(extractor$map, 3)
+#'
+#' # Adding an intercept aliases the two condition columns, so a request for
+#' # `face` alone is refused and the aliased regressors are named.
+#' aliased <- cbind(intercept = 1, design)
+#' request <- matrix(0, 1L, ncol(aliased),
+#'   dimnames = list("face", colnames(aliased)))
+#' request[, "face"] <- 1
+#' refusal <- catch_refusal(lm_extractor(aliased, request))
+#' refusal$capability
+#' refusal$reasons
 #' @export
 lm_extractor <- function(design, effects, observation_whitener = NULL,
                          effect_names = rownames(effects),
@@ -129,19 +178,33 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
                                   effect_names, tolerance, partition = NULL,
                                   solver = c("auto", "qr", "svd")) {
   solver <- match.arg(solver)
+  where <- if (is.null(partition)) "" else sprintf("Partition `%s`: ", partition)
   if (!is.matrix(design) || !is.numeric(design) || any(dim(design) < 1L) ||
       any(!is.finite(design))) {
-    stop("`design` must be a finite nonempty observation-by-coefficient matrix.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "%s`design` must be a finite nonempty observation-by-coefficient ",
+      "matrix, one row per observation; received %s."
+    ), where, .msg_value(design)), call. = FALSE)
   }
   if (!is.matrix(effects) || !is.numeric(effects) || nrow(effects) < 1L ||
-      ncol(effects) != ncol(design) || any(!is.finite(effects))) {
-    stop("`effects` must be a finite effect-by-coefficient matrix matching the design.",
-      call. = FALSE)
+      any(!is.finite(effects))) {
+    stop(sprintf(paste0(
+      "%s`effects` must be a finite effect-by-coefficient matrix saying which ",
+      "linear combination of design coefficients each effect is; received %s."
+    ), where, .msg_value(effects)), call. = FALSE)
+  }
+  if (ncol(effects) != ncol(design)) {
+    stop(sprintf(paste0(
+      "%s`effects` has %s but the design has %s, and every effect must be a ",
+      "combination of the design's coefficients. Supply one `effects` column ",
+      "per design column, in design column order."
+    ), where, .msg_count(ncol(effects), "column"),
+      .msg_count(ncol(design), "coefficient column")), call. = FALSE)
   }
   if (!is.numeric(tolerance) || length(tolerance) != 1L || is.na(tolerance) ||
       !is.finite(tolerance) || tolerance <= 0) {
-    stop("`tolerance` must be one positive finite number.", call. = FALSE)
+    stop(sprintf("`tolerance` must be one positive finite number; received %s.",
+      .msg_value(tolerance)), call. = FALSE)
   }
   n <- nrow(design)
   if (!inherits(observation_whitener, "effect_observation_whitener") ||
@@ -338,9 +401,27 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
 
 .validate_effect_names <- function(effects, expected) {
   if (is.null(effects)) effects <- paste0("effect", seq_len(expected))
-  if (!is.character(effects) || length(effects) != expected || anyNA(effects) ||
-      any(!nzchar(effects)) || anyDuplicated(effects)) {
-    stop("Effect coordinates must have unique nonempty names.", call. = FALSE)
+  if (!is.character(effects)) {
+    stop(sprintf(
+      "Effect coordinates must be a character vector; received %s.",
+      .msg_value(effects)), call. = FALSE)
+  }
+  if (length(effects) != expected) {
+    stop(sprintf(
+      "Effect coordinates must name %s; received %s (%s).",
+      .msg_count(expected, "coordinate"),
+      .msg_count(length(effects), "name"), .msg_names(effects)),
+      call. = FALSE)
+  }
+  if (anyNA(effects) || any(!nzchar(effects)) || anyDuplicated(effects)) {
+    stop(sprintf(
+      "Effect coordinates must have unique nonempty names%s.",
+      if (anyDuplicated(effects)) {
+        sprintf("; %s appears more than once",
+          .msg_names(unique(effects[duplicated(effects)])))
+      } else {
+        "; some are missing or empty"
+      }), call. = FALSE)
   }
   effects
 }

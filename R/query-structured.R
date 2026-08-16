@@ -15,29 +15,49 @@
   q <- length(effects)
   if (!is.character(effects) || q < 2L || anyNA(effects) ||
       any(!nzchar(effects)) || anyDuplicated(effects)) {
-    stop("Pair-difference queries require at least two named effects.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "Pair-difference views need at least two distinct named effects; the ",
+      "relation declares %s (%s). A distance is a comparison between two ",
+      "effects."
+    ), .msg_count(q, "effect"), .msg_names(effects)), call. = FALSE)
   }
   if (is.null(pairs)) {
     pairs <- t(utils::combn(seq_len(q), 2L))
   }
-  if (is.character(pairs)) {
+  if (is.character(pairs) || is.factor(pairs)) {
+    if (!is.matrix(pairs)) {
+      stop(sprintf(paste0(
+        "`pairs` must be a two-column matrix naming the effect pairs to ",
+        "report, for example `cbind(\"%s\", \"%s\")`; received %s."
+      ), effects[[1L]], effects[[2L]], .msg_value(pairs)), call. = FALSE)
+    }
+    pairs <- matrix(as.character(pairs), nrow(pairs), ncol(pairs))
     resolved <- matrix(match(pairs, effects), nrow(pairs), ncol(pairs))
     if (anyNA(resolved)) {
-      stop("Pair names must identify declared experimental effects.",
-        call. = FALSE)
+      stop(sprintf(paste0(
+        "`pairs` names %s, which %s a declared experimental effect. The ",
+        "relation declares %s."
+      ), .msg_names(unique(pairs[is.na(resolved)])),
+        if (length(unique(pairs[is.na(resolved)])) == 1L) "is not" else
+          "are not",
+        .msg_names(effects)), call. = FALSE)
     }
     pairs <- resolved
   }
   if (!is.matrix(pairs) || ncol(pairs) != 2L || nrow(pairs) < 1L ||
       !is.numeric(pairs) || anyNA(pairs) || any(pairs %% 1 != 0) ||
       any(pairs < 1L) || any(pairs > q)) {
-    stop("`pairs` must be a two-column matrix of effect indices or names.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "`pairs` must be a two-column matrix of effect names or of indices in ",
+      "1:%d; received %s."
+    ), q, .msg_value(pairs)), call. = FALSE)
   }
   storage.mode(pairs) <- "integer"
   if (any(pairs[, 1L] == pairs[, 2L])) {
-    stop("Pair-difference queries require two distinct effects per pair.",
+    stop(sprintf(paste0(
+      "`pairs` asks for the distance from %s to itself, which is zero by ",
+      "construction; every pair must name two distinct effects."
+    ), .msg_names(unique(effects[pairs[pairs[, 1L] == pairs[, 2L], 1L]]))),
       call. = FALSE)
   }
   swapped <- pairs[, 1L] > pairs[, 2L]

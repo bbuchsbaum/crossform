@@ -261,10 +261,14 @@ test_that("diagonal-only blocks and incompatible bases cannot claim tomography",
   expect_false(incomplete$form$capabilities$complete_edge_set)
   expect_error(crossform:::.assemble_measurement_blocks(
     incomplete$form, incomplete$frame, incomplete$frame
-  ), "diagonal-only|incomplete")
-  expect_error(crossform:::.reconstruct_neural_evidence(
+  ), "diagonal-only", class = "effect_capability_refusal")
+  block_refusal <- catch_refusal(crossform:::.reconstruct_neural_evidence(
     incomplete$form, incomplete$frame
-  ), "frame-complete|diagonal-only")
+  ))
+  expect_s3_class(block_refusal, "effect_capability_refusal")
+  expect_identical(block_refusal$capability, "complete_edge_set")
+  expect_identical(block_refusal$namespace, "tomography")
+  expect_identical(block_refusal$reasons, "edge_set_is_not_frame_complete")
 
   q1 <- matrix(c(2, 0.75, 0.75, 3), 2L)
   q2 <- matrix(c(2, -0.75, -0.75, 3), 2L)

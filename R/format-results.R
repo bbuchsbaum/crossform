@@ -24,11 +24,19 @@
     check.names = FALSE, row.names = NULL)
 }
 
-.format_result_preview <- function(x, title, ...) {
+.format_result_preview <- function(x, title, fields = list(), ...) {
   data <- as.data.frame(x)
-  cat("<", title, ">\n", sep = "")
-  cat("  measurements: ", nrow(data), "\n", sep = "")
-  print(utils::head(data), row.names = FALSE, ...)
+  # `.pf_emit()` aligns the header block; `measurements` is the longest key,
+  # so adding a field never shifts the existing columns.
+  .pf_emit(title, c(list(measurements = nrow(data)), fields))
+  # Four significant digits. The default seven prints the last bits of a
+  # LAPACK result, which differ across BLAS implementations and platforms
+  # and would make printed output non-reproducible.
+  arguments <- list(utils::head(data), row.names = FALSE, ...)
+  if (!"digits" %in% names(arguments)) {
+    arguments$digits <- 4L
+  }
+  do.call(print, arguments)
   if (nrow(data) > 6L) {
     cat("  ... ", nrow(data) - 6L, " more measurements\n", sep = "")
   }
@@ -197,7 +205,8 @@ as.data.frame.effect_crossnobis_view <- function(x, row.names = NULL,
 
 #' @export
 print.effect_crossnobis_view <- function(x, ...) {
-  .format_result_preview(x, "effect_crossnobis_view", ...)
+  .format_result_preview(x, "effect_crossnobis_view",
+    fields = list(contrast = .pf_weights(x$contrast)), ...)
 }
 
 #' @export
@@ -223,7 +232,10 @@ as.data.frame.effect_contrast_view <- function(x, row.names = NULL,
 
 #' @export
 print.effect_contrast_view <- function(x, ...) {
-  .format_result_preview(x, "effect_contrast_view", ...)
+  # The contrast is shown because unnamed weights are accepted positionally:
+  # a reader who mis-ordered them sees the alignment that was actually used.
+  .format_result_preview(x, "effect_contrast_view",
+    fields = list(contrast = .pf_weights(x$weights)), ...)
 }
 
 #' @export

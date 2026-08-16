@@ -343,8 +343,13 @@
   if (identical(metric$status, "learned")) {
     reasons <- c(reasons, "learned_metric_law_not_admitted")
   }
+  # Equality of the per-partition error structures is a property of the error
+  # channel. With no channel there is nothing to compare, so reporting it
+  # alongside `missing_error_channel` would state a second, independent-looking
+  # failure that is really the same one, and would contradict the partition
+  # model the capabilities record shows.
   if (!identical(partition$model, "equal") ||
-      !isTRUE(equal_error_structure)) {
+      (isTRUE(error_channel$available) && !isTRUE(equal_error_structure))) {
     reasons <- c(reasons, "heterogeneous_partition_model")
   }
   if (!isTRUE(partition$complete_all_pairs) ||
@@ -417,6 +422,16 @@
   if (is.null(sampling_axis) &&
       length(channel$record$sampling_units) == 1L) {
     sampling_axis <- channel$record$sampling_units[[1L]]
+  }
+  if (is.null(sampling_axis)) {
+    # A pairing that declares `generalizes_over` has already named the axis the
+    # estimand generalizes across. Reading it here means a plan with no error
+    # channel does not additionally report a missing sampling axis it was in
+    # fact given.
+    declared_axis <- attr(
+      descriptor$pairing, "generalizes_over", exact = TRUE
+    )
+    if (!is.null(declared_axis)) sampling_axis <- declared_axis
   }
   if (!is.null(sampling_axis) &&
       (!is.character(sampling_axis) || length(sampling_axis) != 1L ||

@@ -24,7 +24,31 @@
 #'
 #' @param domain Optional exact neural domain. Omitting it defers domain binding
 #'   until schedule compilation.
-#' @return An `effect_metric_recipe`.
+#' @return An `effect_metric_recipe` with `$kind`, the optional bound
+#'   `$domain`, a `$capabilities` record, the fixed `$hyperparameters`
+#'   (estimator, randomness, seed), and a `$signature`. It allocates no
+#'   matrix.
+#' @seealso [diagonal_precision()] and [shrinkage_precision()] for
+#'   residual-derived recipes, [metric_capabilities()] to inspect one, and
+#'   [plan_crossnobis()], which binds a recipe to residual statistics.
+#' @family neural metrics
+#' @examples
+#' # A recipe is a declaration, not a matrix: no domain-wide operator exists
+#' # until a schedule binds it to supports.
+#' recipe <- identity_metric()
+#' recipe$kind
+#' recipe$hyperparameters$estimator
+#' metric_capabilities(recipe)$materialized
+#'
+#' # Bind the domain up front when you want a domain mismatch caught before
+#' # schedule compilation rather than during it.
+#' domain <- abstract_domain(3, id = "identity-metric-example")
+#' identity_metric(domain)$domain$id
+#'
+#' # Unlike the residual-derived recipes, this one estimates nothing, so it
+#' # stays diagonal and needs no residual channel.
+#' c(identity = metric_capabilities(recipe)$native_diagonal,
+#'   shrinkage = metric_capabilities(shrinkage_precision())$native_diagonal)
 #' @export
 identity_metric <- function(domain = NULL) {
   .metric_recipe(
@@ -42,11 +66,36 @@ identity_metric <- function(domain = NULL) {
 
 #' Specify on-demand diagonal residual-variance precision
 #'
+#' The local metric is the inverse of the residual variance of each feature,
+#' floored so that a near-silent feature cannot dominate. Use it for
+#' univariate noise normalization when a full local covariance is not wanted
+#' or not estimable.
+#'
 #' @inheritParams identity_metric
 #' @param relative_variance_floor Positive floor relative to the mean positive
 #'   local residual variance.
 #' @param absolute_variance_floor Nonnegative floor in squared response units.
-#' @return An `effect_metric_recipe`.
+#' @return An `effect_metric_recipe` whose `$hyperparameters` record the
+#'   `residual_diagonal_inverse` estimator and both variance floors, with
+#'   `$capabilities$native_diagonal` true and `$capabilities$materialized`
+#'   false until a schedule binds it.
+#' @seealso [shrinkage_precision()] for a full local covariance shrunk to its
+#'   diagonal, and [plan_crossnobis()], which consumes the recipe.
+#' @family neural metrics
+#' @examples
+#' # The estimator and both floors are fixed by the recipe, so they are part
+#' # of the plan identity rather than a runtime tuning choice.
+#' recipe <- diagonal_precision(relative_variance_floor = 1e-6)
+#' recipe$kind
+#' recipe$hyperparameters[c("estimator", "relative_variance_floor")]
+#'
+#' # The floor is a guard against dividing by a near-zero residual variance.
+#' diagonal_precision(absolute_variance_floor = 0.01)$
+#'   hyperparameters$absolute_variance_floor
+#'
+#' # A nonpositive relative floor would remove that guard, so it is refused.
+#' refused <- try(diagonal_precision(relative_variance_floor = 0), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 diagonal_precision <- function(relative_variance_floor = 1e-8,
                                absolute_variance_floor = 0,
@@ -78,7 +127,30 @@ diagonal_precision <- function(relative_variance_floor = 1e-8,
 #' @param shrinkage Fixed number in `(0, 1]`.
 #' @param relative_spectral_floor Positive minimum eigenvalue relative to the
 #'   local covariance scale.
-#' @return An `effect_metric_recipe`.
+#' @return An `effect_metric_recipe` whose `$hyperparameters` record the
+#'   `fixed_shrinkage_to_residual_diagonal` estimator, the fixed
+#'   `shrinkage`, and the variance and spectral floors. It is not diagonal,
+#'   so it needs a dense local support.
+#' @seealso [diagonal_precision()] for the diagonal-only recipe,
+#'   [metric_training_policy()] for which partitions may train it, and
+#'   [plan_crossnobis()] to compile it.
+#' @family neural metrics
+#' @examples
+#' # The default shrinks the local residual covariance 10% toward its own
+#' # diagonal, which keeps small searchlights invertible.
+#' recipe <- shrinkage_precision()
+#' recipe$hyperparameters$shrinkage
+#'
+#' # Shrinkage is fixed by the recipe, never tuned on evaluation effects, so
+#' # changing it names a different estimand.
+#' shrinkage_precision(0.3)$hyperparameters$shrinkage
+#'
+#' # Unlike a diagonal recipe, this one needs the full local support.
+#' metric_capabilities(recipe)[c("native_diagonal", "support_dense")]
+#'
+#' # Shrinkage must lie in (0, 1]; zero would be an unregularized covariance.
+#' refused <- try(shrinkage_precision(0), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 shrinkage_precision <- function(shrinkage = 0.1,
                                 relative_variance_floor = 1e-8,
@@ -144,13 +216,52 @@ shrinkage_precision <- function(shrinkage = 0.1,
 
 #' Declare which residual partitions may train a metric
 #'
+#' `metric_training_policy()` fixes the partition discipline used when a
+#' metric recipe is estimated from residuals, so metric training cannot
+#' silently borrow the partitions whose products are being evaluated. Pass it
+#' to [plan_crossnobis()].
+#'
 #' @param kind `"exclude_evaluation"` estimates each edge metric without its
 #'   two evaluation partitions. `"all_partitions_residual_orthogonality"`
 #'   admits evaluation-partition GLM residuals under an explicit orthogonality
 #'   justification.
 #' @param justification Required for the all-partitions policy. It records why
 #'   residual reuse is scientifically admitted; it is not treated as proof.
-#' @return An `effect_metric_training_policy`.
+#' @return An `effect_metric_training_policy` recording `$kind`,
+#'   `$includes_evaluation_residuals`, the named `$assumption` it rests on,
+#'   the stored `$justification`, and a `$signature` bound into plan identity.
+#' @seealso [plan_crossnobis()], which enforces this policy, and
+#'   [shrinkage_precision()] for the recipe it governs.
+#' @family neural metrics
+#'
+#' @section Refusal:
+#' Requesting `"all_partitions_residual_orthogonality"` without a
+#' `justification` signals an `effect_capability_refusal` carrying capability
+#' `"evaluation_residual_reuse"` in namespace `"metric_learning"`, with reason
+#' `"residual_reuse_justification_absent"`. Inspect it with [catch_refusal()].
+#' @examples
+#' # The default trains each edge's metric without its two evaluation
+#' # partitions, so the metric and the products stay disjoint.
+#' policy <- metric_training_policy()
+#' policy$kind
+#' c(reuses_evaluation = policy$includes_evaluation_residuals,
+#'   assumption = policy$assumption)
+#'
+#' # Reusing evaluation-partition residuals is admitted only with an explicit
+#' # written justification, which is recorded, not verified.
+#' permissive <- metric_training_policy(
+#'   "all_partitions_residual_orthogonality",
+#'   justification = "GLM residuals are orthogonal to the fitted effects."
+#' )
+#' permissive$includes_evaluation_residuals
+#'
+#' # Omitting that justification is refused, and the refusal is classed, so a
+#' # caller can branch on the capability rather than on the prose.
+#' refusal <- catch_refusal(
+#'   metric_training_policy("all_partitions_residual_orthogonality")
+#' )
+#' refusal$capability
+#' refusal$reasons
 #' @export
 metric_training_policy <- function(
     kind = c("exclude_evaluation",
@@ -160,8 +271,23 @@ metric_training_policy <- function(
   if (identical(kind, "all_partitions_residual_orthogonality")) {
     if (!is.character(justification) || length(justification) != 1L ||
         is.na(justification) || !nzchar(justification)) {
-      stop("All-partitions residual reuse requires one explicit justification.",
-        call. = FALSE)
+      .capability_refusal(paste0(
+        "Reusing evaluation-partition residuals to train a metric requires ",
+        "one explicit written `justification`, which is recorded in the plan ",
+        "identity and never treated as proof. Without it the metric would be ",
+        "estimated from the same residuals whose products are being ",
+        "evaluated, and the resulting distances would be optimistically ",
+        "biased by an amount this package cannot quantify."
+      ),
+        capability = "evaluation_residual_reuse",
+        namespace = "metric_learning",
+        reasons = "residual_reuse_justification_absent",
+        remedies = paste0(
+          "Keep the default `metric_training_policy(\"exclude_evaluation\")`, ",
+          "or pass `justification = ` stating why residual reuse is admitted ",
+          "for this design."
+        )
+      )
     }
   } else if (!is.null(justification) &&
       (!is.character(justification) || length(justification) != 1L ||

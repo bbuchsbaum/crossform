@@ -53,7 +53,11 @@ partition.}
 SVD. The route is recorded in estimator provenance.}
 }
 \value{
-An \code{effect_relation_fit}.
+An \code{effect_relation_fit} whose \verb{$relation} carries the fitted effect
+map and whose \verb{$error_models} carry, per partition, the unscaled
+\code{effect_covariance}, \code{residual_df}, the lazy \code{residual_source}, the
+\code{observation_whitener} descriptor, and \code{estimator_provenance}. Every
+partition reports \code{within_participant_calibration}.
 }
 \description{
 The adapter compiles each supplied design once. Its pure effect map forms the
@@ -67,3 +71,52 @@ capability: it assumes the supplied observation model yields a common
 effect-coordinate covariance structure across neural features and, for the
 equal-partition specialization, across partitions.
 }
+\examples{
+set.seed(20260815)
+domain <- abstract_domain(6L, id = "lm-relation-fit-example")
+condition <- factor(rep(c("face", "body", "tool"), each = 4L))
+design <- stats::model.matrix(~ 0 + condition)
+colnames(design) <- c("face", "body", "tool")
+
+# Ask for the three condition means themselves.
+targets <- diag(3)
+dimnames(targets) <- list(colnames(design), colnames(design))
+runs <- lapply(c("run-1", "run-2"), function(partition) {
+  design \%*\% matrix(rnorm(18), 3L, 6L) + matrix(rnorm(72), 12L, 6L)
+})
+names(runs) <- c("run-1", "run-2")
+
+fit <- lm_relation_fit(
+  runs, design, targets, domain = domain, sampling_unit = "trial"
+)
+relation_fit_capabilities(fit)$within_participant_calibration
+
+# Twelve trials minus three estimated means leaves nine residual df, which
+# is what later analytic uncertainty is calibrated against.
+residual_df(fit, "run-1")
+}
+\seealso{
+\code{\link[=relation]{relation()}} for precomputed effects with no error channel,
+\code{\link[=estimate_relation]{estimate_relation()}} to reach this object from a validated
+\code{\link[=plan_relation]{plan_relation()}}, and \code{\link[=residual_block]{residual_block()}}, \code{\link[=effect_covariance]{effect_covariance()}},
+\code{\link[=residual_df]{residual_df()}} to read the error channel.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

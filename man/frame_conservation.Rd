@@ -31,6 +31,36 @@ local coherent values do not sum to the global coherent component.
 }
 \examples{
 domain <- abstract_domain(4, id = "conservation-example")
+
+# A conservative frame gives every feature total weight mass one, so local
+# `total` geometries sum exactly to the global one.
 conservative <- compile_frame(voxelwise(), domain)
 frame_conservation(conservative)$conserved
+
+# Under "local" each measurement is rescaled instead, and the per-feature
+# mass tells you by how much the accounting is off.
+report <- frame_conservation(compile_frame(whole_brain(), domain))
+report$conserved
+report$max_deviation
 }
+\seealso{
+\code{\link[=compile_frame]{compile_frame()}} and the normalization argument of \code{\link[=voxelwise]{voxelwise()}},
+\code{\link[=searchlights]{searchlights()}}, \code{\link[=regions]{regions()}}, and \code{\link[=whole_brain]{whole_brain()}}.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

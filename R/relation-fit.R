@@ -198,7 +198,27 @@
 #' @param error_models Optional named list of internal error-model values, one
 #'   per relation partition. Omitting it records an explicitly absent channel.
 #' @param provenance Compact fit-level provenance.
-#' @return An `effect_relation_fit`.
+#' @return An `effect_relation_fit`: a list with the untouched `$relation`, one
+#'   `$error_models` entry per partition (`NULL` where absent), the derived
+#'   per-partition `$capabilities`, `$provenance`, and a `$signature` binding
+#'   the relation and every error model.
+#' @family relation planning and fitting
+#' @seealso [lm_relation_fit()], the route that installs a real residual
+#'   channel, and [relation_fit_capabilities()] to inspect the result.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(4L, id = "relation-fit-example")
+#' betas <- matrix(rnorm(8), 2L, 4L,
+#'   dimnames = list(c("face", "body"), NULL))
+#' point <- relation(list(`run-1` = betas), domain = domain)
+#'
+#' # Wrapping a point relation records an explicitly absent error channel,
+#' # which is different from an unstated one.
+#' fit <- relation_fit(point)
+#' relation_fit_capabilities(fit)
+#'
+#' # The relation itself is unchanged, so point geometry still works.
+#' identical(fit$relation, point)
 #' @export
 relation_fit <- function(relation, error_models = NULL, provenance = list()) {
   .validate_relation(relation)
@@ -284,7 +304,12 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
 
 .partition_values <- function(value, partitions, what, allow_null = FALSE) {
   if (is.null(value)) {
-    if (!allow_null) stop(sprintf("`%s` cannot be NULL.", what), call. = FALSE)
+    if (!allow_null) {
+      stop(sprintf(paste0(
+        "`%s` is required: supply one value shared by every partition, or a ",
+        "named list with one entry per partition (%s)."
+      ), what, .msg_names(partitions)), call. = FALSE)
+    }
     return(stats::setNames(rep(list(NULL), length(partitions)), partitions))
   }
   if (!is.list(value) || is.data.frame(value) ||
@@ -292,12 +317,19 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
     return(stats::setNames(rep(list(value), length(partitions)), partitions))
   }
   if (length(value) != length(partitions)) {
-    stop(sprintf("`%s` must supply one value per partition.", what),
+    stop(sprintf(paste0(
+      "`%s` is a list of %d, but there %s %s (%s). Supply one entry per ",
+      "partition, or a single value shared by all of them."
+    ), what, length(value), if (length(partitions) == 1L) "is" else "are",
+      .msg_count(length(partitions), "partition"), .msg_names(partitions)),
       call. = FALSE)
   }
   if (!is.null(names(value))) {
     if (!setequal(names(value), partitions) || anyDuplicated(names(value))) {
-      stop(sprintf("Named `%s` values must exactly match partitions.", what),
+      stop(sprintf(paste0(
+        "Named `%s` entries must match the partitions exactly: %s were ",
+        "supplied for partitions %s."
+      ), what, .msg_names(names(value)), .msg_names(partitions)),
         call. = FALSE)
     }
     value <- value[partitions]
@@ -333,7 +365,39 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
 #' @param whiten Deprecated alias for `observation_whitener`.
 #' @param solver One numerical route, or one per partition: automatic, QR, or
 #'   SVD. The route is recorded in estimator provenance.
-#' @return An `effect_relation_fit`.
+#' @return An `effect_relation_fit` whose `$relation` carries the fitted effect
+#'   map and whose `$error_models` carry, per partition, the unscaled
+#'   `effect_covariance`, `residual_df`, the lazy `residual_source`, the
+#'   `observation_whitener` descriptor, and `estimator_provenance`. Every
+#'   partition reports `within_participant_calibration`.
+#' @family relation planning and fitting
+#' @seealso [relation()] for precomputed effects with no error channel,
+#'   [estimate_relation()] to reach this object from a validated
+#'   [plan_relation()], and [residual_block()], [effect_covariance()],
+#'   [residual_df()] to read the error channel.
+#' @examples
+#' set.seed(20260815)
+#' domain <- abstract_domain(6L, id = "lm-relation-fit-example")
+#' condition <- factor(rep(c("face", "body", "tool"), each = 4L))
+#' design <- stats::model.matrix(~ 0 + condition)
+#' colnames(design) <- c("face", "body", "tool")
+#'
+#' # Ask for the three condition means themselves.
+#' targets <- diag(3)
+#' dimnames(targets) <- list(colnames(design), colnames(design))
+#' runs <- lapply(c("run-1", "run-2"), function(partition) {
+#'   design %*% matrix(rnorm(18), 3L, 6L) + matrix(rnorm(72), 12L, 6L)
+#' })
+#' names(runs) <- c("run-1", "run-2")
+#'
+#' fit <- lm_relation_fit(
+#'   runs, design, targets, domain = domain, sampling_unit = "trial"
+#' )
+#' relation_fit_capabilities(fit)$within_participant_calibration
+#'
+#' # Twelve trials minus three estimated means leaves nine residual df, which
+#' # is what later analytic uncertainty is calibrated against.
+#' residual_df(fit, "run-1")
 #' @export
 lm_relation_fit <- function(sources, design, effects,
                             observation_whitener = NULL,
@@ -370,6 +434,21 @@ lm_relation_fit <- function(sources, design, effects,
     warning("`whiten` is deprecated; use `observation_whitener`.",
       call. = FALSE)
     observation_whitener <- whiten
+  }
+  if (missing(design)) {
+    stop(paste0(
+      "`design` is required: pass the observation-by-coefficient design ",
+      "matrix, or a named list with one design per partition when runs ",
+      "differ in length."
+    ), call. = FALSE)
+  }
+  if (missing(effects)) {
+    stop(paste0(
+      "`effects` is required: pass the effect-by-coefficient matrix saying ",
+      "which linear combination of design coefficients each experimental ",
+      "effect is (`diag(ncol(design))` when the coefficients are the ",
+      "effects)."
+    ), call. = FALSE)
   }
   designs <- .partition_values(design, partitions, "design")
   targets <- .partition_values(effects, partitions, "effects")
@@ -498,8 +577,29 @@ lm_relation_fit <- function(sources, design, effects,
 
 #' Inspect statistical capabilities of a relation or relation fit
 #'
+#' Call this before requesting anything that needs residuals, so a missing
+#' error channel surfaces as an explicit `FALSE` rather than a later refusal.
+#'
 #' @param x An `effect_relation` or `effect_relation_fit`.
-#' @return A data frame with one row per partition and explicit capability flags.
+#' @return A data frame with one row per partition: `partition` plus the
+#'   logical columns `error_model`, `residual_blocks`, `effect_covariance`,
+#'   `residual_df`, `separable_error`, `learned_metric_input`, and
+#'   `within_participant_calibration`.
+#' @family relation planning and fitting
+#' @seealso [lm_relation_fit()] to obtain the capabilities,
+#'   [sampling_capabilities()] for the uncertainty-side report, and
+#'   [catch_refusal()] to inspect the refusal raised when one is missing.
+#' @examples
+#' example <- example_fmri_effects()
+#'
+#' # A fit built from raw responses carries the full error channel.
+#' relation_fit_capabilities(example$fit)[
+#'   , c("partition", "residual_blocks", "within_participant_calibration")
+#' ]
+#'
+#' # The bare relation underneath reports every statistical capability FALSE:
+#' # the point geometry is intact, the uncertainty channel is not there.
+#' relation_fit_capabilities(example$fit$relation)[1L, ]
 #' @export
 relation_fit_capabilities <- function(x) {
   if (inherits(x, "effect_relation")) {
@@ -591,10 +691,32 @@ relation_fit_capabilities <- function(x) {
 
 #' Read fitted residuals for a neural feature block
 #'
+#' Residuals are produced lazily, one feature block at a time, without ever
+#' materializing a dense observation residualizer. This is the input a learned
+#' neural metric or an analytic RDM covariance draws on.
+#'
 #' @param x An `effect_relation_fit` with residual-block capability.
 #' @param partition One partition name or index.
 #' @param features Unique neural feature indices.
-#' @return A whitened residual-observation-by-feature matrix.
+#' @return A whitened residual matrix with one row per observation in the
+#'   partition and one column per requested feature.
+#' @family relation planning and fitting
+#' @seealso [lm_relation_fit()] which installs the residual channel,
+#'   [residual_df()] for the matching degrees of freedom, and
+#'   [noise_precision()], which learns a metric from these blocks.
+#' @examples
+#' example <- example_fmri_effects()
+#'
+#' # Whitened residuals for the first two neural features of one run.
+#' residuals <- residual_block(example$fit, "run1", 1:2)
+#' dim(residuals)
+#'
+#' # They are orthogonal to the fitted design, so the condition means have
+#' # already been projected out.
+#' round(colMeans(residuals), 8)
+#'
+#' # Divide by residual_df(), not nrow(), to estimate the noise variance.
+#' round(colSums(residuals^2) / residual_df(example$fit, "run1"), 3)
 #' @export
 residual_block <- function(x, partition, features) {
   if (inherits(x, "effect_relation")) {
@@ -638,9 +760,29 @@ residual_block <- function(x, partition, features) {
 
 #' Read the unscaled effect-coordinate covariance of a fitted partition
 #'
+#' This is the design-side factor of the separable error model. By convention
+#' the neural residual covariance is excluded, so the value depends on the
+#' design and whitener but not on the data.
+#'
 #' @inheritParams residual_block
-#' @return A symmetric effect-by-effect covariance factor excluding neural
-#'   residual covariance.
+#' @return A symmetric effect-by-effect matrix, with rows and columns named by
+#'   the relation's effect coordinates, excluding the neural residual
+#'   covariance factor.
+#' @family neural metrics
+#' @seealso [residual_df()] and [residual_block()] for the other two pieces of
+#'   the error channel, and [rdm_sampling_covariance()], which combines them.
+#' @examples
+#' example <- example_fmri_effects()
+#'
+#' # Four condition means estimated from eight trials each: the design factor
+#' # is diagonal with entries 1/8, because the conditions are orthogonal.
+#' covariance <- effect_covariance(example$fit, "run1")
+#' round(covariance, 4)
+#'
+#' # Scaling it by a residual variance gives an effect standard error.
+#' residuals <- residual_block(example$fit, "run1", 1L)
+#' variance <- sum(residuals^2) / residual_df(example$fit, "run1")
+#' round(sqrt(diag(covariance) * variance), 3)
 #' @export
 effect_covariance <- function(x, partition) {
   if (inherits(x, "effect_relation")) {
@@ -654,8 +796,27 @@ effect_covariance <- function(x, partition) {
 
 #' Read residual degrees of freedom from a fitted partition
 #'
+#' The divisor for any noise-variance estimate built from
+#' [residual_block()]: observations minus the numerical rank of the whitened
+#' design, not minus the number of design columns.
+#'
 #' @inheritParams residual_block
 #' @return One positive integer.
+#' @family relation planning and fitting
+#' @seealso [residual_block()] and [effect_covariance()] for the rest of the
+#'   error channel, and [relation_fit_capabilities()] to check availability.
+#' @examples
+#' example <- example_fmri_effects()
+#'
+#' # 32 trials per run minus the four estimated condition means.
+#' residual_df(example$fit, "run1")
+#'
+#' # Each independent run contributes its own degrees of freedom.
+#' vapply(example$fit$relation$partitions,
+#'   function(partition) residual_df(example$fit, partition), integer(1))
+#'
+#' # A relation built from precomputed betas has none to report.
+#' catch_refusal(residual_df(example$fit$relation, "run1"))$capability
 #' @export
 residual_df <- function(x, partition) {
   if (inherits(x, "effect_relation")) {

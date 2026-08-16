@@ -255,7 +255,12 @@
   .validate_domain(domain)
   coordinates <- domain$coordinates
   if (is.null(coordinates)) {
-    stop("Euclidean supports require domain coordinates.", call. = FALSE)
+    stop(sprintf(paste0(
+      "Searchlights need feature coordinates, and domain `%s` has none. ",
+      "Build it with `abstract_domain(n, coordinates = )`, `volume_domain()`, ",
+      "or `neuroim2_volume_domain()`; `regions()` and `whole_brain()` need no ",
+      "geometry."
+    ), domain$id), call. = FALSE)
   }
   dimensions <- ncol(coordinates)
   neighbor_cells <- 3^dimensions

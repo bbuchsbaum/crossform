@@ -36,7 +36,7 @@ test_that("volume domains preserve mask order and physical coordinates", {
   expect_identical(domain$feature_ids, c(1L, 4L, 12L))
   expect_equal(domain$coordinates,
     sweep(domain$metadata$voxel - 1, 2, c(2, 3, 4), `*`), tolerance = 0)
-  expect_error(volume_domain(array(FALSE, c(2, 2, 2))), "at least one")
+  expect_error(volume_domain(array(FALSE, c(2, 2, 2))), "selects no voxels")
 })
 
 test_that("mutated domains fail closed", {

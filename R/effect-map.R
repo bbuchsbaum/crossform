@@ -48,7 +48,26 @@
 #' @param scale One positive scale shared by all coordinates, or one per
 #'   coordinate.
 #' @param provenance Portable semantic provenance.
-#' @return An `effect_condition_space`.
+#' @return An `effect_condition_space`: a list with `$coordinates`,
+#'   `$basis_id`, `$units` and `$scale` (named by coordinate), `$provenance`,
+#'   and a `$signature`. Two objects bind the same condition space only when
+#'   their signatures agree.
+#' @family studies and effect maps
+#' @seealso [effect_map()] to declare effects in this vocabulary and
+#'   [coefficient_parameterization()] to bind it to a compiled design.
+#' @examples
+#' # The scientific vocabulary: three condition means in BOLD units.
+#' conditions <- condition_space(
+#'   c("face", "body", "tool"),
+#'   basis_id = "scan-level-condition-mean:v1", units = "arbitrary-BOLD"
+#' )
+#' conditions
+#' conditions$coordinates
+#'
+#' # These coordinates are semantic, not design columns: the same space can be
+#' # reached by cell-means or treatment coding, and the shared signature is
+#' # what lets an effect map and a design model be checked against each other.
+#' substr(conditions$signature, 1, 24)
 #' @export
 condition_space <- function(coordinates, basis_id = "condition-means",
                             units = "arbitrary", scale = 1,
@@ -125,7 +144,31 @@ condition_space <- function(coordinates, basis_id = "condition-means",
 #' @param scale Output scale.
 #' @param component One targeted temporal-basis component.
 #' @param provenance Portable provenance for the declared functional.
-#' @return An `effect_condition_map`.
+#' @return An `effect_condition_map`: a list with the effect-by-condition
+#'   `$weights`, the bound `$condition_space` and derived `$effect_space`, the
+#'   targeted `$component`, and an `$effect_map_id` covering all of them.
+#' @family studies and effect maps
+#' @seealso [condition_space()] for the input vocabulary,
+#'   [coefficient_parameterization()] plus [lower_effect_map()] to reach a
+#'   coefficient axis, and [plan_relation()] to request these effects from a
+#'   study.
+#' @examples
+#' conditions <- condition_space(c("face", "body", "tool"))
+#'
+#' # Request the three condition means and one named contrast at once, so
+#' # later views can form the contrast without refitting the run models.
+#' weights <- rbind(
+#'   face = c(1, 0, 0), body = c(0, 1, 0), tool = c(0, 0, 1),
+#'   `face-body` = c(1, -1, 0)
+#' )
+#' colnames(weights) <- conditions$coordinates
+#' effects <- effect_map(weights, conditions)
+#' effects
+#' effects$weights["face-body", ]
+#'
+#' # The derived effect space inherits the condition units, and its identity
+#' # records the functional rather than any design coding.
+#' effects$effect_space$basis_id
 #' @export
 effect_map <- function(weights, conditions = colnames(weights),
                        effects = rownames(weights), units = NULL, scale = 1,
@@ -245,7 +288,36 @@ effect_map <- function(weights, conditions = colnames(weights),
 #' @param coding_id One coding identifier recorded in the receipt.
 #' @param provenance Portable compiler provenance.
 #' @param tolerance Positive rank tolerance.
-#' @return An `effect_coefficient_parameterization`.
+#' @return An `effect_coefficient_parameterization`: a list with the
+#'   condition-by-coefficient `$map`, the bound `$condition_space`, the
+#'   `$coefficients` axis, the `$coding_id`, the achieved `$semantic_rank`, and
+#'   a `$parameterization_id`.
+#' @family studies and effect maps
+#' @seealso [lower_effect_map()] to apply it to an [effect_map()], and
+#'   [design_model()] which carries one parameterization per partition.
+#' @examples
+#' conditions <- condition_space(c("face", "body", "tool"))
+#'
+#' # The compiled design adds a drift column. This declares that the three
+#' # condition means are the first three coefficients and ignore drift, so the
+#' # effect request survives a change of coding.
+#' map <- cbind(diag(3), drift = 0)
+#' dimnames(map) <- list(
+#'   conditions$coordinates, c(conditions$coordinates, "drift")
+#' )
+#' coding <- coefficient_parameterization(
+#'   map, conditions, coding_id = "cell-means-plus-drift"
+#' )
+#' coding
+#' coding$semantic_rank
+#'
+#' # A coding that cannot identify every condition is refused, not rounded.
+#' collapsed <- map
+#' collapsed["body", ] <- collapsed["face", ]
+#' refusal <- catch_refusal(coefficient_parameterization(
+#'   collapsed, conditions, coding_id = "face-and-body-collapsed"
+#' ))
+#' refusal$capability
 #' @export
 coefficient_parameterization <- function(
     map, conditions, coefficients = colnames(map), coding_id,
@@ -351,8 +423,33 @@ coefficient_parameterization <- function(
 #' @param effects An [effect_map()].
 #' @param parameterization A [coefficient_parameterization()] for the same
 #'   semantic condition space.
-#' @return An axis-bound `effect_lowered_map` containing the concrete target
-#'   matrix and its receipt identity.
+#' @return An `effect_lowered_map`: a list with the effect-by-coefficient
+#'   `$target`, the `$effect_space` and `$condition_space` it came from, the
+#'   `$effect_map_id`, `$parameterization_id`, and `$coding_id` receipt fields,
+#'   `$capabilities` (all `TRUE` on this route), and a `$lowering_id`.
+#' @family studies and effect maps
+#' @seealso [raw_effect_map()] for the degenerate route with no condition
+#'   space, and [plan_relation()] which lowers effects for every partition.
+#' @examples
+#' conditions <- condition_space(c("face", "body"))
+#' weights <- rbind(`face-body` = c(1, -1))
+#' colnames(weights) <- conditions$coordinates
+#' effects <- effect_map(weights, conditions)
+#'
+#' # A design with a drift nuisance column, and the coding that names which
+#' # coefficients carry the condition means.
+#' map <- cbind(diag(2), drift = 0)
+#' dimnames(map) <- list(
+#'   conditions$coordinates, c(conditions$coordinates, "drift")
+#' )
+#' coding <- coefficient_parameterization(
+#'   map, conditions, coding_id = "cell-means-plus-drift"
+#' )
+#'
+#' # Lowering moves the request from condition names onto the design's
+#' # coefficient axis without changing what was asked for.
+#' lowered <- lower_effect_map(effects, coding)
+#' lowered$target
 #' @export
 lower_effect_map <- function(effects, parameterization) {
   effects <- .validate_effect_map(effects)
@@ -485,7 +582,25 @@ lower_effect_map <- function(effects, parameterization) {
 #' @param units,scale Output units and scale when `effects` is a character
 #'   vector.
 #' @param provenance Portable target provenance.
-#' @return An `effect_raw_map`, also an `effect_lowered_map`.
+#' @return An `effect_raw_map` (also an `effect_lowered_map`): a list with the
+#'   effect-by-coefficient `$target`, its `$effect_space`, a `$coding_id` of
+#'   `"raw-X-T"`, `$capabilities` with `symbolic_effects`,
+#'   `valid_effect_lowering`, and `coding_invariant` all `FALSE`, and a
+#'   `$lowering_id` that includes the target values themselves.
+#' @family studies and effect maps
+#' @seealso [lower_effect_map()] for the semantic route, and
+#'   [raw_design_model()], the design model this map must be paired with.
+#' @examples
+#' # Use this when you have a target matrix but no condition-space meaning for
+#' # the coefficient columns it multiplies.
+#' target <- rbind(`face-body` = c(1, -1, 0))
+#' colnames(target) <- c("beta_face", "beta_body", "beta_drift")
+#' raw <- raw_effect_map(target, units = "arbitrary-BOLD")
+#' raw
+#'
+#' # The honest cost: the numeric values are part of the identity, and no
+#' # coding-invariance claim is made, unlike lower_effect_map().
+#' unlist(raw$capabilities)
 #' @export
 raw_effect_map <- function(target, effects = rownames(target),
                            coefficients = colnames(target),

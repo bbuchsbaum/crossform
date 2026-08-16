@@ -25,7 +25,12 @@ geometry_alignment(x, tolerance = 1e-10)
 covariance blocks.}
 }
 \value{
-A typed \code{effect_coupling_result}.
+An \code{effect_coupling_result}. \verb{$values} is one entry per edge (a
+matrix block for \code{effect_coupling()} and \code{covariance_coupling()}, a data
+frame of \code{canonical_correlation} per mode for \code{canonical_coupling()},
+and a data frame of \code{geometry_alignment} for \code{geometry_alignment()}),
+with \verb{$edge_index} naming the edges and \verb{$kind}, \verb{$terminology},
+\verb{$normalization_axis}, and \verb{$regularization} recording what is claimed.
 }
 \description{
 These functions are views over one completed measurement form, not separate
@@ -36,3 +41,79 @@ coherent positive self-covariances. \code{geometry_alignment()} is static linear
 CKA/RV-like alignment and does not redefine established dynamic
 informational-connectivity analyses.
 }
+\examples{
+# Two sessions of six repeated time points over four native features,
+# measured at two multivariate populations.
+native <- abstract_domain(4, id = "demo:native:v1")
+times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+trend <- seq(-1.5, 1.5, length.out = 6)
+session <- function(shift) cbind(
+  trend + shift,
+  -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+  sin(seq(shift, pi, length.out = 6)),
+  cos(seq(shift, pi, length.out = 6))
+)
+signals <- relation(
+  list(session1 = session(0), session2 = session(0.1)),
+  effects = times, domain = native
+)
+populations <- measurement_frame(
+  list(anterior = diag(4)[1:2, , drop = FALSE],
+       posterior = diag(4)[3:4, , drop = FALSE]),
+  domain = native, id = "demo:populations:v1"
+)
+pairs <- expand.grid(
+  from = populations$node_ids, to = populations$node_ids,
+  stringsAsFactors = FALSE
+)
+form <- measurement_form(
+  signals, edge_frame(pairs$from, pairs$to, populations),
+  variation_query(
+    (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+  ),
+  pairing(
+    signals$partitions, signals$partitions, directed = TRUE,
+    self_pairs = "allow_biased", independence = "not_independent"
+  )
+)
+cross <- form$block_index$edge_id[
+  form$block_index$left == "anterior" &
+    form$block_index$right == "posterior"
+]
+
+# The raw block, with no covariance claim attached to it.
+effect_coupling(form)$values[[cross]]
+
+# The same block, now certified as repeated-sample covariance.
+covariance_coupling(form)$kind
+
+# Canonical correlations describe the shared modes in descending order.
+# `ridge` is recorded because changing it changes the reported values.
+canonical <- canonical_coupling(form, ridge = 0.05)
+canonical$values[canonical$values$edge_id == cross, ]
+
+# Geometry alignment asks a different question: do the two populations
+# induce similar geometry over the repeated observations?
+alignment <- geometry_alignment(form)
+alignment$values$geometry_alignment[alignment$values$edge_id == cross]
+}
+\seealso{
+\code{\link[=measurement_form]{measurement_form()}} and \code{\link[=coupling]{coupling()}} to build \code{x};
+\code{\link[=connectivity]{connectivity()}} for the same views behind one capability-checked entry
+point; \code{\link[=measurement_components]{measurement_components()}} for decomposed nodes.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

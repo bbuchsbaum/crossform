@@ -13,8 +13,55 @@ coupling_contrast(matches, controls, normalize = TRUE)
 subtraction.}
 }
 \value{
-An axis-bound \code{pair_query()} with balance diagnostics.
+An axis-bound \code{\link[=pair_query]{pair_query()}} whose \verb{$operator} is the contrast, and
+whose \verb{$metadata$balance} reports the row and column marginals and
+whether the operator is \code{additive_baseline_invariant}.
 }
 \description{
-Contrast matched and control pair couplings
+\code{coupling_contrast()} subtracts the control coupling from the matched one
+to give the matched-versus-control readout as a single fixed pair query.
+Normalizing first makes the two sides comparable when they contain
+different numbers of cells.
 }
+\examples{
+encoding <- effect_space(
+  c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+)
+retrieval <- effect_space(
+  c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+)
+matches <- match_coupling(
+  c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+  encoding, retrieval
+)
+contrast <- coupling_contrast(matches, control_coupling(matches))
+round(as.matrix(contrast$operator), 3)
+
+# Both marginals are zero here, so the readout is unchanged by adding a
+# constant to any item or probe effect.
+contrast$metadata$balance$additive_baseline_invariant
+
+# That balance is an observed property of this operator, not a promise
+# about anything applied downstream.
+contrast$metadata$claim
+}
+\seealso{
+\code{\link[=match_coupling]{match_coupling()}}, \code{\link[=control_coupling]{control_coupling()}}, and \code{\link[=match_control]{match_control()}},
+which instead compiles the same comparison as a regression coefficient
+with item nuisance effects.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

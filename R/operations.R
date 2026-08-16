@@ -20,7 +20,25 @@
 
 #' Declare uncentered inner-product edge geometry
 #'
-#' @return An immutable edge-normalization specification.
+#' `inner_product()` names the default edge normalization: raw uncentered
+#' products, with no centering, scaling, or correlation normalization applied
+#' to an edge before it is reduced. Use it wherever an operation stage must
+#' record that the geometry is the plain bilinear form.
+#'
+#' @return An `effect_edge_normalizer` recording `$kind` and its
+#'   `$zero_policy`. It is a declaration, not a computation.
+#' @seealso [reduce_partitions()] and [aggregate_first()] for the partition
+#'   stage that follows normalization; [connectivity()] for the normalized
+#'   views that are gated behind explicit capabilities.
+#' @family geometry plans and views
+#' @examples
+#' # The normalizer only names the stage; nothing is computed here.
+#' normalizer <- inner_product()
+#' normalizer$kind
+#'
+#' # Because no denominator is involved, there is no zero-norm case to
+#' # resolve at execution time.
+#' normalizer$zero_policy
 #' @export
 inner_product <- function() .new_edge_normalizer("inner_product")
 
@@ -108,18 +126,48 @@ rank_edges <- function(ties = c("average", "first", "last", "min", "max")) {
 #' Reduce normalized and transformed partition edges
 #'
 #' This is the default estimand: normalize each declared edge, transform it,
-#' and only then apply the partition weights.
+#' and only then apply the partition weights. Choose it when the quantity you
+#' mean is the average of per-partition normalized edges.
 #'
-#' @return An immutable partition-reducer specification.
+#' @return An `effect_partition_reducer` recording `$kind`,
+#'   `$weight_convention`, and the stage `$order` (`"edge_first"`).
+#' @seealso [aggregate_first()], the other stage order, and [pairing()],
+#'   which supplies the partition weights this reducer applies.
+#' @family generalization pairings
+#' @examples
+#' # Edge-first: each partition pair is normalized and transformed before the
+#' # pairing weights are applied.
+#' reducer <- reduce_partitions()
+#' reducer$order
+#'
+#' # The two reducers name different estimands, so they are not
+#' # interchangeable defaults.
+#' c(edge_first = reduce_partitions()$order,
+#'   aggregate_first = aggregate_first()$order)
 #' @export
 reduce_partitions <- function() .new_partition_reducer("edge_first")
 
 #' Aggregate edge sufficient statistics before normalization
 #'
 #' This names a distinct estimand. Raw sufficient statistics are combined by
-#' partition weights before normalization and transformation.
+#' partition weights before normalization and transformation. It is the
+#' default for [measurement_form()] and [coupling()], where averaging raw
+#' partition products and normalizing once is the intended estimator.
 #'
-#' @return An immutable partition-reducer specification.
+#' @return An `effect_partition_reducer` recording `$kind`,
+#'   `$weight_convention`, and the stage `$order` (`"aggregate_first"`).
+#' @seealso [reduce_partitions()] for the edge-first order, and
+#'   [measurement_form()], which records this choice in its plan identity.
+#' @family geometry plans and views
+#' @examples
+#' # Aggregate-first: raw partition products are pooled, then normalized once.
+#' reducer <- aggregate_first()
+#' reducer$order
+#' reducer$weight_convention
+#'
+#' # This is the default measurement-pipeline order, so it is what
+#' # `measurement_form()` and `coupling()` record when `reducer` is omitted.
+#' identical(reducer, eval(formals(measurement_form)$reducer))
 #' @export
 aggregate_first <- function() .new_partition_reducer("aggregate_first")
 

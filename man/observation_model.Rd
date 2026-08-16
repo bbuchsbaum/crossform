@@ -36,8 +36,56 @@ records that no independence guarantee was asserted.}
 \item{provenance}{Portable model provenance.}
 }
 \value{
-An \code{effect_observation_model}.
+An \code{effect_observation_model}: a list with \verb{$kind},
+\verb{$sampling_unit}, the \verb{$whitener} and its \verb{$whitener_revisions},
+\verb{$independence}, learned-model \verb{$training_revision} and
+\verb{$training_provenance}, \verb{$assumptions}, \verb{$provenance}, an
+\verb{$observation_model_id}, and \verb{$capabilities} with
+\code{fixed_observation_model}, \code{learned_observation_model},
+\code{separable_glm_law}, \code{analytic_effect_covariance}, and
+\code{declared_independence}.
 }
 \description{
-Declare the first-moment observation model
+States the estimation assumptions the data tables cannot prove: the error
+law, the sampling unit, any whitener, and whether independence was asserted.
+Nothing here is inferred from events or confounds, and the declaration is
+what determines whether analytic uncertainty is later available.
 }
+\examples{
+# OLS with scans as the sampling unit. Independence must be declared; it is
+# never read off the event table.
+ols <- observation_model(
+  "ols", sampling_unit = "scan",
+  independence = "runs independently acquired conditional on the model"
+)
+ols$capabilities$analytic_effect_covariance
+ols$capabilities$declared_independence
+
+# A frozen learned whitener still yields point estimates, but the analytic
+# error channel is withheld because its training is not accounted for.
+learned <- observation_model(
+  "learned_frozen_gls", sampling_unit = "scan", whitener = diag(6),
+  training_revision = paste0("sha256:", strrep("a", 64)),
+  training_provenance = list(method = "AR1", fitted_on = "held-out runs")
+)
+learned$capabilities$analytic_effect_covariance
+}
+\seealso{
+\code{\link[=plan_relation]{plan_relation()}}, which consumes this declaration, and
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, whose analytic route requires
+\code{analytic_effect_covariance}.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

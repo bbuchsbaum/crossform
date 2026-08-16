@@ -38,7 +38,11 @@ per right effect, is read with axis-bound \code{\link[=pair_query]{pair_query()}
 Encoding-retrieval similarity is the canonical use.}
 }
 \value{
-An immutable-by-convention \code{effect_geometry_plan}.
+An \code{effect_geometry_plan} recording the compiled \verb{$task},
+\verb{$frame}, \verb{$pairing}, \verb{$metric_schedule}, and \verb{$compute} policy, the
+\verb{$logical_shape} and \verb{$measurements} it will produce, and a
+\verb{$scientific_plan_id} naming the estimand. Changing block size or storage
+changes the execution receipt, not this identity.
 }
 \description{
 \code{plan_geometry()} validates the relation, spatial frame, pairing, source
@@ -53,12 +57,48 @@ domain <- abstract_domain(3, id = "plan-example")
 run1 <- rbind(a = c(1, 0, 2), b = c(0, 1, 1))
 run2 <- rbind(a = c(1.1, 0.1, 1.9), b = c(0.1, 0.9, 1.2))
 relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+
+# The plan validates relation, frame, pairing, and metric agreement
+# without reading any neural value.
 plan <- plan_geometry(
   relation,
   compile_frame(voxelwise(), domain),
   cross_partitions(relation, independence = "independent")
 )
+plan
+
+# One plan answers many fixed queries. Save its identity with the
+# analysis record: it names the estimand, not the execution.
+plan$scientific_plan_id
 result <- evaluate_geometry(plan, query = bilinear_query(diag(2)))
-result
 as.data.frame(result)
+
+# The usual next step is a named view of the same plan.
+contrast_energy(plan, c(a = 1, b = -1))$total
 }
+\seealso{
+\code{\link[=contrast_energy]{contrast_energy()}}, \code{\link[=rdm]{rdm()}}, \code{\link[=rsa]{rsa()}}, and \code{\link[=crossnobis]{crossnobis()}} for the
+named views of a plan; \code{\link[=evaluate_geometry]{evaluate_geometry()}} for an arbitrary fixed
+query and \code{\link[=materialize_geometry]{materialize_geometry()}} for complete packed geometry;
+\code{\link[=coupling]{coupling()}} for the adjoint neural-side closure.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

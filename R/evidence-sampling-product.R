@@ -357,6 +357,10 @@
 #'   "On the distribution of cross-validated Mahalanobis distances",
 #'   especially Eqs. 10, 13, and 35 and Section 5.1.
 #'   \doi{10.48550/arXiv.1607.01371}
+#' @seealso [sampling_covariance()] to query the result,
+#'   [sampling_capabilities()] to ask whether the law is available before
+#'   provoking a refusal, and [rdm()] for the point estimates it describes.
+#' @family sampling uncertainty
 #' @examples
 #' set.seed(23)
 #' design <- model.matrix(~ 0 + factor(rep(c("a", "b"), each = 4)))
@@ -390,6 +394,12 @@ rdm_sampling_covariance <- function(
     at = 1L,
     residual_strategy = c("node_local", "shared_pair_statistics"),
     residual_workspace_bytes = 512 * 1024^2) {
+  if (missing(fit)) {
+    stop(paste0(
+      "`fit` is required: pass the `lm_relation_fit()` whose `$relation` ",
+      "built `x`, so the analytic law can read its residual error channel."
+    ), call. = FALSE)
+  }
   if (missing(target)) {
     .capability_refusal(paste0(
       "Choose `target = \"plugin\"` for the partition-mean signal policy ",
@@ -468,14 +478,26 @@ rdm_sampling_covariance <- function(
 #' @return An `effect_sampling_capabilities` list: `available`, the full
 #'   `capabilities` record, and a `reasons` data frame with one row per
 #'   unmet requirement (`reason`, `why`, `remedy`).
+#' @seealso [rdm_sampling_covariance()], the call this inspection describes,
+#'   and [catch_refusal()] for branching on a refusal that has already
+#'   happened.
+#' @family sampling uncertainty
 #' @examples
+#' # Ask before provoking: the fixture's fit retains a residual channel, so
+#' # the analytic law is admitted.
 #' example <- example_fmri_effects()
 #' plan <- plan_geometry(
 #'   example$fit$relation, example$frame,
 #'   cross_partitions(example$fit$relation, independence = "independent")
 #' )
-#' sampling_capabilities(plan, example$fit)$available
-#' sampling_capabilities(plan)$reasons$reason
+#' capabilities <- sampling_capabilities(plan, example$fit)
+#' capabilities$available
+#' capabilities
+#'
+#' # Probing the bare relation instead reports every unmet requirement with
+#' # its remedy, rather than failing one refusal at a time.
+#' without_fit <- sampling_capabilities(plan)
+#' without_fit$reasons
 #' @export
 sampling_capabilities <- function(x, fit = NULL) {
   plan <- .compile_evidence_sampling_plan(x, error_channel = fit)
@@ -513,6 +535,10 @@ print.effect_sampling_capabilities <- function(x, ...) {
         cat("      remedy:", x$reasons$remedy[[row]], "\n")
       }
     }
+    if (identical(x$capabilities$error_channel, "absent")) {
+      cat("  note: requirements that describe the error channel itself",
+        "cannot be\n        evaluated until one exists, and are not listed.\n")
+    }
   }
   invisible(x)
 }
@@ -536,10 +562,57 @@ print.effect_sampling_capabilities <- function(x, ...) {
 #'   `quadratic_form`, or an output-by-evidence matrix for `transport`.
 #' @param max_bytes Positive payload/workspace budget used only for explicit
 #'   dense materialization.
-#' @return A named variance vector, selected covariance vector, covariance
-#'   action, scalar quadratic form, transported covariance, or explicitly
-#'   materialized covariance matrix.
-#' @seealso [rdm_sampling_covariance()]
+#' @return A named variance vector (`"diagonal"`), selected covariance vector,
+#'   covariance action, scalar quadratic form, transported covariance, or
+#'   explicitly materialized covariance matrix, according to `operation`.
+#'   Names come from the distance labels carried by `x`.
+#' @seealso [rdm_sampling_covariance()] to build `x`, and
+#'   [sampling_capabilities()] to check the law is available first.
+#' @family sampling uncertainty
+#' @examples
+#' # Three conditions in three runs, with a fixed identity noise metric.
+#' set.seed(11)
+#' conditions <- c("face", "house", "tool")
+#' design <- model.matrix(~ 0 + factor(rep(conditions, each = 3)))
+#' colnames(design) <- conditions
+#' effects <- diag(3)
+#' rownames(effects) <- conditions
+#' truth <- rbind(
+#'   face = c(0.6, 0.1, 0), house = c(0, 0.5, 0.2), tool = c(0.1, 0, 0.6)
+#' )
+#' responses <- setNames(lapply(1:3, function(run) {
+#'   design %*% truth + matrix(rnorm(9 * 3, sd = 0.3), 9, 3)
+#' }), paste0("run", 1:3))
+#' domain <- abstract_domain(3, id = "sampling-covariance-example")
+#' fit <- lm_relation_fit(
+#'   responses, design, effects, effect_names = conditions,
+#'   sampling_unit = "trial", domain = domain
+#' )
+#' plan <- plan_geometry(
+#'   fit$relation, compile_frame(whole_brain(), domain),
+#'   cross_partitions(fit$relation, independence = "independent"),
+#'   metric = noise_precision(diag(3), domain, covariance = diag(3))
+#' )
+#' uncertainty <- rdm_sampling_covariance(plan, fit, target = "null")
+#'
+#' # The diagonal is a vector of variances, so take a square root yourself if
+#' # you want standard errors. No interval is implied.
+#' round(sqrt(sampling_covariance(uncertainty)), 4)
+#'
+#' # Distances that share a condition covary; read one entry without
+#' # building the full matrix.
+#' uncertainty$labels
+#' round(sampling_covariance(
+#'   uncertainty, "selected_entries", query = cbind(1, 2)
+#' ), 6)
+#'
+#' # The variance of a fixed contrast of distances, again without the matrix.
+#' round(sampling_covariance(
+#'   uncertainty, "quadratic_form", query = c(1, -1, 0)
+#' ), 6)
+#'
+#' # Materialization is explicit, never a silent fallback.
+#' round(sampling_covariance(uncertainty, "materialize"), 6)
 #' @export
 sampling_covariance <- function(
     x,

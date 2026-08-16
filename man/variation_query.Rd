@@ -27,7 +27,9 @@ joint covariance.}
 \item{provenance}{Named fixed-construction metadata.}
 }
 \value{
-An axis-bound \code{effect_pair_query} with variation capabilities.
+An \code{effect_pair_query} carrying the \verb{$operator}, its bound
+\verb{$left_space} and \verb{$right_space}, and \verb{$metadata$evidence_capability}
+recording the \code{sampling_axis} and \code{construction} that later views check.
 }
 \description{
 A variation query binds a positive semidefinite operator to one identified
@@ -35,3 +37,59 @@ experimental space and records the sample axis that gives coupling its
 repeated variation. A rank-one operator remains a valid effect query, but
 normalized connectivity views reject it as degenerate.
 }
+\examples{
+# Centering eight repeated time points and dividing by n - 1 is the
+# within-session covariance operation, declared on the time axis.
+times <- effect_space(paste0("time", 1:8), basis_id = "demo:time:v1")
+center <- diag(8) - matrix(1 / 8, 8, 8)
+sample_covariance <- variation_query(
+  center / 7, times,
+  sampling_axis = "time", construction = "joint_covariance",
+  provenance = list(estimator = "centered within session")
+)
+sample_covariance$metadata$evidence_capability$sampling_axis
+sample_covariance$metadata$evidence_capability$construction
+
+# Centering removes one direction, so eight time points leave rank seven:
+# enough repeated variation for a normalized connectivity view.
+qr(as.matrix(sample_covariance$operator))$rank
+
+# A contrast gives the rank-one query `c c'`. It is a valid effect query,
+# but it retains no repeated variation for connectivity to normalize.
+direction <- rep(c(-1, 1), each = 4)
+rank_one <- variation_query(
+  tcrossprod(direction), times, "time", "joint_covariance"
+)
+qr(as.matrix(rank_one$operator))$rank
+
+# The operator must be positive semidefinite to be called variation.
+refused <- try(
+  variation_query(diag(c(1, -1, rep(1, 6))), times, "time"), silent = TRUE
+)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=measurement_form]{measurement_form()}} and \code{\link[=coupling]{coupling()}}, which take this as \code{by};
+\code{\link[=connectivity]{connectivity()}}, which refuses a rank-one variation query;
+\code{\link[=pair_query]{pair_query()}} for a fixed query making no variation claim.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()}
+}
+\concept{geometry plans and views}

@@ -32,9 +32,50 @@ sources require explicit capabilities.}
 \item{provenance}{Portable observation provenance.}
 }
 \value{
-An \code{effect_observations} fact object.
+An \code{effect_observations} fact object: a list with the compiled
+\verb{$sources}, \verb{$indexes}, \verb{$partitions}, the \verb{$domain} reference,
+\verb{$n_features}, per-partition \verb{$capabilities}, \verb{$provenance}, and an
+\verb{$observations_id} covering all of them.
 }
 \description{
 The constructor validates only source metadata and axes. Neural values are
 read later by \code{\link[=estimate_relation]{estimate_relation()}}.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(4L, id = "observations-example")
+indexes <- list(
+  `run-1` = observation_index(
+    1:6, "run-1", time = seq(0, 10, by = 2), units = "seconds"
+  ),
+  `run-2` = observation_index(
+    1:6, "run-2", time = seq(0, 10, by = 2), units = "seconds"
+  )
+)
+responses <- lapply(indexes, function(index) matrix(rnorm(24), 6L, 4L))
+
+record <- observations(responses, indexes, domain)
+record$partitions
+record$n_features
+
+# No neural values were read: only shapes, axes, and source revisions were
+# checked, so a mis-shaped run is caught before any fit is attempted.
+short <- responses
+short$`run-2` <- short$`run-2`[1:5, , drop = FALSE]
+try(observations(short, indexes, domain))
+}
+\seealso{
+\code{\link[=observation_index]{observation_index()}} for the axes, \code{\link[=study]{study()}} to bind events and
+confounds to these observations, and \code{\link[=file_matrix_source]{file_matrix_source()}} for
+out-of-memory sources.
+
+Other typed observation facts: 
+\code{\link{bids_confounds}()},
+\code{\link{bids_events}()},
+\code{\link{bids_study}()},
+\code{\link{observation_confounds}()},
+\code{\link{observation_events}()},
+\code{\link{observation_index}()},
+\code{\link{partition_hierarchy}()}
+}
+\concept{typed observation facts}

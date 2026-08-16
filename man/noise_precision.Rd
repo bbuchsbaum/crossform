@@ -28,7 +28,10 @@ noise_precision(
 cannot be replaced.}
 }
 \value{
-A fixed \code{effect_neural_metric} with noise-precision identity.
+An \code{effect_neural_metric} whose \verb{$provenance$metric_role} is
+\code{"noise_precision"}, carrying the canonicalized \verb{$value}, its \verb{$domain}
+and \verb{$support}, \verb{$capabilities}, and a \verb{$signature}. The recorded role is
+what lets \code{\link[=crossnobis]{crossnobis()}} name the result a Mahalanobis distance.
 }
 \description{
 \code{noise_precision()} is the semantically specific constructor for a known or
@@ -36,3 +39,44 @@ externally estimated precision that is fixed before effect evaluation. It
 uses the same \code{neural_metric()} representation while recording that the
 operator has inverse-noise-covariance meaning.
 }
+\examples{
+# A precision estimated outside crossform and fixed before evaluation.
+domain <- abstract_domain(3, id = "noise-precision-example")
+covariance <- matrix(c(1, 0.4, 0.1, 0.4, 1, 0.3, 0.1, 0.3, 1), 3, 3)
+metric <- noise_precision(
+  solve(covariance), domain, covariance = covariance,
+  provenance = list(source = "resting-run residual covariance")
+)
+metric$provenance$metric_role
+metric$capabilities$positive_definite
+
+# The role is what a crossnobis plan checks for, so a plain
+# `neural_metric()` with the same numbers is deliberately not equivalent.
+identical(
+  neural_metric(solve(covariance), domain)$provenance$metric_role,
+  metric$provenance$metric_role
+)
+
+# The semantic provenance fields are reserved and cannot be overwritten.
+refused <- try(
+  noise_precision(diag(3), domain, provenance = list(metric_role = "other")),
+  silent = TRUE
+)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=crossnobis]{crossnobis()}} and \code{\link[=plan_geometry]{plan_geometry()}} (its \code{metric} argument);
+\code{\link[=shrinkage_precision]{shrinkage_precision()}} when the precision must instead be learned from
+residuals.
+
+Other neural metrics: 
+\code{\link{diagonal_precision}()},
+\code{\link{effect_covariance}()},
+\code{\link{gaussian_covariance_model}()},
+\code{\link{identity_metric}()},
+\code{\link{metric_capabilities}()},
+\code{\link{metric_training_policy}()},
+\code{\link{neural_metric}()},
+\code{\link{shrinkage_precision}()}
+}
+\concept{neural metrics}

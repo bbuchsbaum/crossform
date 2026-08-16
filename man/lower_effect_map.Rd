@@ -13,9 +13,50 @@ lower_effect_map(effects, parameterization)
 semantic condition space.}
 }
 \value{
-An axis-bound \code{effect_lowered_map} containing the concrete target
-matrix and its receipt identity.
+An \code{effect_lowered_map}: a list with the effect-by-coefficient
+\verb{$target}, the \verb{$effect_space} and \verb{$condition_space} it came from, the
+\verb{$effect_map_id}, \verb{$parameterization_id}, and \verb{$coding_id} receipt fields,
+\verb{$capabilities} (all \code{TRUE} on this route), and a \verb{$lowering_id}.
 }
 \description{
 Lower semantic effects into a concrete coefficient basis
 }
+\examples{
+conditions <- condition_space(c("face", "body"))
+weights <- rbind(`face-body` = c(1, -1))
+colnames(weights) <- conditions$coordinates
+effects <- effect_map(weights, conditions)
+
+# A design with a drift nuisance column, and the coding that names which
+# coefficients carry the condition means.
+map <- cbind(diag(2), drift = 0)
+dimnames(map) <- list(
+  conditions$coordinates, c(conditions$coordinates, "drift")
+)
+coding <- coefficient_parameterization(
+  map, conditions, coding_id = "cell-means-plus-drift"
+)
+
+# Lowering moves the request from condition names onto the design's
+# coefficient axis without changing what was asked for.
+lowered <- lower_effect_map(effects, coding)
+lowered$target
+}
+\seealso{
+\code{\link[=raw_effect_map]{raw_effect_map()}} for the degenerate route with no condition
+space, and \code{\link[=plan_relation]{plan_relation()}} which lowers effects for every partition.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

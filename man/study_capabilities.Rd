@@ -10,8 +10,49 @@ study_capabilities(x)
 \item{x}{An \code{\link[=study]{study()}}.}
 }
 \value{
-A one-row data frame of construction guarantees.
+A one-row data frame with logical columns \code{aligned_observations},
+\code{timing_resolved}, \code{partition_hierarchy}, and \code{stable_source_revision}.
 }
 \description{
-Inspect factual study capabilities
+Reports what the binding actually established, so downstream calls can
+require a guarantee instead of assuming it.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(4L, id = "study-capabilities-example")
+index <- observation_index(
+  1:6, "run-1", time = seq(0, 10, by = 2), units = "seconds"
+)
+record <- observations(
+  list(`run-1` = matrix(rnorm(24), 6L, 4L)), list(`run-1` = index), domain
+)
+
+# With no event record there is no timing to resolve, and the report says so
+# rather than defaulting to TRUE.
+study_capabilities(study(record))
+
+# Binding timed events on the same clock earns `timing_resolved`.
+events <- observation_events(data.frame(
+  partition = "run-1", event_id = c("e1", "e2"), onset = c(0, 6),
+  duration = 0.5
+))
+study_capabilities(study(record, events))$timing_resolved
+}
+\seealso{
+\code{\link[=study]{study()}}, and \code{\link[=compiler_conformance]{compiler_conformance()}} for the equivalent report
+on a compiled relation plan.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()}
+}
+\concept{studies and effect maps}

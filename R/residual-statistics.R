@@ -345,10 +345,33 @@
 #' @param partitions Optional relation partitions. They are canonicalized to
 #'   relation order.
 #' @param workspace_bytes Positive crossform-owned workspace budget.
-#' @return An `effect_residual_pair_statistics` object containing one atomic
-#'   residual cross-product vector and residual degrees of freedom per
-#'   partition. Execution diagnostics are excluded from its scientific
-#'   identity.
+#' @return An `effect_residual_pair_statistics` object. `$pair_i`/`$pair_j`
+#'   list the coexisting feature pairs, `$partitions` names the partitions,
+#'   `$atomic` holds one `$cross_products` vector and `$residual_df` per
+#'   partition, and `$numerical_contract` records the fixed tile shape.
+#'   `$execution` diagnostics are excluded from the scientific `$signature`.
+#' @seealso [plan_crossnobis()], which compiles these statistics into a
+#'   learned metric schedule, and [rdm_sampling_covariance()], which can reuse
+#'   them through `residual_strategy = "shared_pair_statistics"`.
+#' @family sampling uncertainty
+#' @examples
+#' # Residual cross-products are accumulated only for feature pairs that
+#' # coexist in some searchlight, so the cost tracks support topology rather
+#' # than the square of the feature count.
+#' example <- example_fmri_effects()
+#' statistics <- residual_pair_statistics(example$fit, example$frame)
+#' length(statistics$pair_i)
+#' statistics$partitions
+#'
+#' # One atomic record per partition, each carrying its own residual df.
+#' statistics$atomic[["run1"]]$residual_df
+#'
+#' # The workspace budget is a cache size, not part of the numerical shape,
+#' # so shrinking it cannot change the accumulated values.
+#' frugal <- residual_pair_statistics(
+#'   example$fit, example$frame, workspace_bytes = 4 * 1024^2
+#' )
+#' identical(frugal$signature, statistics$signature)
 #' @export
 residual_pair_statistics <- function(
     x, at, partitions = NULL, workspace_bytes = 512 * 1024^2) {

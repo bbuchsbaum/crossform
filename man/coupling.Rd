@@ -35,9 +35,10 @@ Each row becomes one ordered measurement edge.}
 \item{route}{Measurement execution route; \code{"auto"} selects one.}
 }
 \value{
-An effect measurement form; read it with \code{\link[=effect_coupling]{effect_coupling()}},
-\code{\link[=connectivity]{connectivity()}}, \code{\link[=measurement_components]{measurement_components()}}, or the other coupling
-views.
+An \code{effect_measurement_form} over the requested node pairs, with
+one block per edge in \verb{$values} once read. Read it with
+\code{\link[=effect_coupling]{effect_coupling()}}, \code{\link[=connectivity]{connectivity()}}, \code{\link[=measurement_components]{measurement_components()}}, or
+the other coupling views.
 }
 \description{
 A geometry plan closes the neural boundary and leaves the experimental
@@ -53,7 +54,18 @@ frames whose dense payload exceeds the admitted ceiling refuse before
 reading data, so searchlight-resolved coupling remains explicitly
 unadmitted rather than silently truncated.
 }
+\section{Refusal}{
+
+A rectangular cross-axis plan signals an \code{effect_capability_refusal} with
+capability \code{"self_form_coupling"} in namespace \code{"coupling_plans"}; branch on
+it with \code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
 \examples{
+# A plan already fixes the relation, the spatial frame, and the pairing.
+# `coupling()` reuses all three and asks the adjoint question: keep two
+# neural measurements open and close the experimental axis instead.
+set.seed(4)
 domain <- abstract_domain(4, id = "coupling-plan-example")
 relation <- relation(
   list(
@@ -66,11 +78,39 @@ plan <- plan_geometry(
   relation, compile_frame(regions(c("r1", "r1", "r2", "r2")), domain),
   cross_partitions(relation, independence = "independent")
 )
+
+# `between` names frame nodes, so no second frame or pairing is declared.
 form <- coupling(
   plan, cbind("r1", "r2"),
   by = variation_query(
     diag(2) - 0.5, relation$effect_space, "trial", "psd_variation"
   )
 )
-effect_coupling(form)
+effect_coupling(form)$values[[1]]
+
+# Node names are resolved against the plan's own frame index.
+unknown <- try(coupling(plan, cbind("r1", "r9"), by = variation_query(
+  diag(2) - 0.5, relation$effect_space, "trial", "psd_variation"
+)), silent = TRUE)
+conditionMessage(attr(unknown, "condition"))
 }
+\seealso{
+\code{\link[=plan_geometry]{plan_geometry()}} for the plan this closes the other way,
+\code{\link[=measurement_form]{measurement_form()}} for the general constructor, and
+\code{\link[=variation_query]{variation_query()}} for the experimental closure.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

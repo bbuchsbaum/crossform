@@ -30,12 +30,25 @@ declare the condition effects, declare the observation model, call
 
 ## What data does the fit require?
 
-The example has three runs, three named conditions, twelve neural features,
-and two censored scans per run. Each response matrix has scans in rows and
-neural features in columns. Event rows use the same clock units as the scan
-index, while confound rows join to scans by `partition` and `observation_id`.
+Three objects, and nothing else:
 
-```{r generate-data, include=FALSE}
+1. **one scan-by-feature response matrix per run**, in a named list — scans in
+   rows, neural features in columns;
+2. **an events table** — one row per event, with `partition`, `onset`,
+   `duration`, and the condition label, on the same clock as the scan index;
+3. **a confounds table** — one row per scan, joined to the responses by
+   `partition` and `observation_id`, carrying nuisance regressors and an
+   optional Boolean censor column.
+
+The example below generates all three so the vignette can check its own
+answers. It has three runs, three named conditions, twelve neural features, and
+two censored scans per run. Read the code as a description of the shape your own
+data must have; substitute your matrices and tables for the generated ones.
+
+The design and the planted signal come first. Each run's responses are the
+condition means plus a linear drift, a motion covariate, and noise.
+
+```{r simulate-responses}
 set.seed(20260815)
 partitions <- paste0("run-", 1:3)
 n_scan <- 18L
@@ -62,13 +75,21 @@ nuisance_truth <- matrix(
   rnorm(2L * domain$n_features, sd = 0.08),
   nrow = 2L
 )
+
+# (1) one scan-by-feature response matrix per run
 response_runs <- stats::setNames(lapply(partitions, function(partition) {
   design[, conditions, drop = FALSE] %*% truth +
     design[, c("drift", "motion"), drop = FALSE] %*% nuisance_truth +
     matrix(rnorm(n_scan * domain$n_features, sd = 0.4),
       nrow = n_scan)
 }), partitions)
+```
 
+Each response matrix needs a clock. `observation_index()` records the scan
+identifiers, their partition, and their acquisition times; the events table then
+speaks the same units.
+
+```{r simulate-tables}
 scan_indexes <- stats::setNames(lapply(partitions, function(partition) {
   observation_index(
     seq_len(n_scan), partition,
@@ -76,6 +97,7 @@ scan_indexes <- stats::setNames(lapply(partitions, function(partition) {
   )
 }), partitions)
 
+# (2) one events table for the whole study
 event_table <- do.call(rbind, lapply(partitions, function(partition) {
   data.frame(
     partition = partition,
@@ -85,6 +107,8 @@ event_table <- do.call(rbind, lapply(partitions, function(partition) {
     condition = as.character(condition)
   )
 }))
+
+# (3) one confounds table, one row per scan, with a censor column
 confound_table <- do.call(rbind, lapply(partitions, function(partition) {
   data.frame(
     partition = partition,
@@ -94,6 +118,8 @@ confound_table <- do.call(rbind, lapply(partitions, function(partition) {
   )
 }))
 ```
+
+That is the whole input. Its shape:
 
 ```{r inspect-inputs}
 data.frame(
@@ -254,9 +280,14 @@ plan, the realized receipts, and the exact observation revisions used by
 
 `estimate_relation()` emits the same `effect_relation_fit` consumed everywhere
 else in the package. `cross_partitions()` requests products between different
-runs;
-`generalizes_over = "run"` records that run is the axis across which the effect
-must reproduce.
+runs; `generalizes_over = "run"` records that run is the axis across which the
+effect must reproduce.
+
+The frame decides where results are reported. This example uses three
+anatomical regions, so every result below has three rows. Searchlights, single
+voxels, and the whole brain are the other choices; the package calls any one of
+them a *measurement*, and nothing downstream changes when you swap one for
+another.
 
 ```{r geometry}
 frame <- compile_frame(
@@ -341,13 +372,25 @@ columns become target or nuisance terms. If censoring is intended, the call
 must name the Boolean censor column. This keeps BIDS at the file boundary; the
 core study object is not BIDS-shaped.
 
+The signature mirrors the `study()` call above: an `observations()` record,
+then one events file and one confounds file per partition, in partition order.
+
 ```{r bids-adapter, eval=FALSE}
-facts <- bids_study(
-  declared_observations,
-  event_files = named_event_tsvs,
-  confound_files = named_confound_tsvs,
-  partitions = names(named_event_tsvs),
-  censor = "retained"
+runs <- paste0("run-", 1:3)
+
+bids_facts <- bids_study(
+  observations(response_runs, scan_indexes, domain),
+  event_files = file.path(
+    "sub-01", "func",
+    sprintf("sub-01_task-objects_%s_events.tsv", runs)
+  ),
+  confound_files = file.path(
+    "sub-01", "func",
+    sprintf("sub-01_task-objects_%s_desc-confounds_timeseries.tsv", runs)
+  ),
+  partitions = runs,
+  censor = "retained",
+  units = "seconds"
 )
 ```
 

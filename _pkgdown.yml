@@ -33,9 +33,18 @@ articles:
   contents:
   - introduction
   - from-observations
+  - neuroim2-data
+
 - title: Advanced evidence forms
   contents:
   - evidence-pairing
+
+- title: Guides
+  desc: Reading the results, and mapping in from another package's vocabulary.
+  contents:
+  - articles/interpreting-results
+  - articles/from-rmvpa
+
 - title: Claims and policies
   desc: What the package claims, what it refuses, and where the boundaries are drawn.
   contents:
@@ -44,6 +53,11 @@ articles:
   - articles/correlation-distance-policy
 
 reference:
+- title: Package overview
+  desc: What crossform is for, and the boundaries it will not cross.
+  contents:
+  - crossform-package
+
 - title: From observations to a fitted relation
   desc: Typed facts, condition-space effects, relation plans, design receipts, and optional compiler adapters.
   contents:
@@ -97,6 +111,7 @@ reference:
   - contrast_energy
   - rdm
   - rsa
+  - plot_views
   - geometry_component
   - geometry_spectrum
   - rdm_sampling_covariance

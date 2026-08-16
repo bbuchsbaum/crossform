@@ -28,9 +28,11 @@ can be zero or negative, so \code{1 - r} here is not conventional Pearson
 distance. The boundary is documented in the correlation-distance policy.}
 }
 \value{
-An \code{effect_rdm_view}; rows are spatial measurements and columns are
-the requested experimental pairs. Cross-generalized distances may be
-negative.
+An \code{effect_rdm_view}. \verb{$values} has one row per spatial
+measurement and one column per requested experimental pair, \verb{$pairs} is
+the \code{left}/\code{right} table naming those columns, and \verb{$component},
+\verb{$index}, and \verb{$receipt} record what was read. Cross-generalized
+distances may be negative.
 }
 \description{
 For effects \code{i} and \code{j}, this view applies the fixed contrast
@@ -50,3 +52,67 @@ plan was built from \code{lm_relation_fit()} and its residual error channel is
 still available. Pair rows that share a partition are not independent
 replicates for a spread-across-pairs standard error.
 }
+\section{Refusals}{
+
+\code{normalize} signals an \code{effect_capability_refusal} with capability
+\code{"guaranteed_psd"}, and a rectangular cross-axis plan or a non-symmetric
+form signals capability \code{"symmetric_self_form"}, both in namespace
+\code{"geometry_views"}. Branch on them with \code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
+\examples{
+# Three conditions over two regions, generalizing across two runs.
+domain <- abstract_domain(4, id = "rdm-example")
+run1 <- rbind(
+  face = c(1, 0.2, 0, 0), house = c(0, 1, 0.1, 0), tool = c(0, 0, 1, 0.3)
+)
+run2 <- rbind(
+  face = c(0.9, 0.3, 0, 0), house = c(0.1, 0.9, 0, 0), tool = c(0, 0.1, 1.1, 0.2)
+)
+relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+plan <- plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(
+    relation, independence = "independent", generalizes_over = "run"
+  )
+)
+
+# All three unordered pairs, one column each.
+distances <- rdm(plan)
+distances
+distances$pairs
+
+# Selecting pairs is a narrower view, not a post-hoc subset: the remaining
+# geometry is never computed.
+rdm(plan, pairs = cbind("face", "house"))$values
+
+# Correlation-style normalization is refused, because crossvalidated
+# diagonals can be zero or negative.
+refusal <- catch_refusal(rdm(plan, normalize = "correlation"))
+refusal$capability
+}
+\seealso{
+\code{\link[=rsa]{rsa()}} to regress model RDMs on these distances,
+\code{\link[=contrast_energy]{contrast_energy()}} for a single contrast, and
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} for the admitted analytic uncertainty law.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

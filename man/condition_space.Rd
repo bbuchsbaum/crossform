@@ -26,10 +26,45 @@ coordinate.}
 \item{provenance}{Portable semantic provenance.}
 }
 \value{
-An \code{effect_condition_space}.
+An \code{effect_condition_space}: a list with \verb{$coordinates},
+\verb{$basis_id}, \verb{$units} and \verb{$scale} (named by coordinate), \verb{$provenance},
+and a \verb{$signature}. Two objects bind the same condition space only when
+their signatures agree.
 }
 \description{
 A condition space identifies the named mean-model coordinates against which
 an \code{\link[=effect_map]{effect_map()}} is declared. It is independent of design-matrix coding and
 column order.
 }
+\examples{
+# The scientific vocabulary: three condition means in BOLD units.
+conditions <- condition_space(
+  c("face", "body", "tool"),
+  basis_id = "scan-level-condition-mean:v1", units = "arbitrary-BOLD"
+)
+conditions
+conditions$coordinates
+
+# These coordinates are semantic, not design columns: the same space can be
+# reached by cell-means or treatment coding, and the shared signature is
+# what lets an effect map and a design model be checked against each other.
+substr(conditions$signature, 1, 24)
+}
+\seealso{
+\code{\link[=effect_map]{effect_map()}} to declare effects in this vocabulary and
+\code{\link[=coefficient_parameterization]{coefficient_parameterization()}} to bind it to a compiled design.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

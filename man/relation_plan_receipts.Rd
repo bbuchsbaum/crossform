@@ -10,8 +10,62 @@ relation_plan_receipts(x)
 \item{x}{An \code{\link[=plan_relation]{plan_relation()}} result.}
 }
 \value{
-A named list of \code{effect_design_receipt} values.
+A named list of \code{effect_design_receipt} values, one per partition.
+Each carries \verb{$design}, \verb{$coefficient_axis}, \verb{$lowered_target},
+\verb{$effect_space}, \verb{$row_lineage}, \verb{$censoring}, \verb{$solver}, \verb{$rank},
+\verb{$aliases}, \verb{$residual_df}, \verb{$observation_whitener}, \verb{$capabilities}, and
+a \verb{$design_receipt_id}.
 }
 \description{
-Inspect portable design receipts
+Returns the per-partition record of how each design was actually compiled:
+the matrix used, the rows censoring retained, the achieved rank and any
+aliased regressors, the solver, and the whitening provenance.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(3L, id = "receipts-example")
+index <- observation_index(paste0("scan-", 1:4), "run-1")
+facts <- study(observations(
+  list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+))
+design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+rownames(design) <- paste0("scan-", 1:4)
+target <- rbind(`face-body` = c(1, -1))
+colnames(target) <- colnames(design)
+
+# Even the raw route, which claims no semantic coding, yields a complete
+# receipt: rank, aliases, censoring, solver, and whitening are all recorded.
+plan <- plan_relation(
+  facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+  observation_model("ols", sampling_unit = "scan")
+)
+receipts <- relation_plan_receipts(plan)
+names(receipts)
+receipts$`run-1`$rank
+receipts$`run-1`$residual_df
+receipts$`run-1`$aliases
+}
+\seealso{
+\code{\link[=plan_relation]{plan_relation()}} for the plan, \code{\link[=compiler_conformance]{compiler_conformance()}} for the
+boolean conformance summary of the same receipts, and
+\code{\link[=estimate_relation]{estimate_relation()}} to execute them.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

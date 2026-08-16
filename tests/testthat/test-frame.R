@@ -62,12 +62,14 @@ test_that("searchlight neighborhoods respect domain geometry", {
 
 test_that("frame compilation rejects mismatches and uncovered conservation", {
   domain <- grid_domain()
-  expect_error(compile_frame(regions(c("a", "b")), domain), "one entry")
+  expect_error(compile_frame(regions(c("a", "b")), domain),
+    "supplied 2 labels but the domain has 9 features")
   expect_error(compile_frame(
     regions(c(rep("a", 8), NA), normalization = "conservative"), domain
   ), "cover every")
   no_coordinates <- abstract_domain(3)
-  expect_error(compile_frame(searchlights(1), no_coordinates), "require domain coordinates")
+  expect_error(compile_frame(searchlights(1), no_coordinates),
+    "Searchlights need feature coordinates")
 
   forged <- searchlights(1)
   forged$invented <- TRUE
@@ -78,4 +80,19 @@ test_that("compiled frames remain fail closed after mutation", {
   compiled <- compile_frame(searchlights(1.5), grid_domain())
   compiled$weights@x[[1]] <- -1
   expect_error(compile_lowering(compiled, bilinear_query(diag(2))), "nonnegative")
+})
+
+test_that("unnormalized searchlight frames carry numeric weights and plan", {
+  example <- example_fmri_effects()
+  frame <- compile_frame(searchlights(6, normalization = "none"), example$domain)
+  expect_s4_class(frame$weights, "dgCMatrix")
+  expect_true(all(frame$weights@x == 1))
+  plan <- plan_geometry(
+    example$fit$relation,
+    at = frame,
+    over = cross_partitions(example$fit$relation,
+      independence = "independent", generalizes_over = "run")
+  )
+  view <- contrast_energy(plan, example$contrast)
+  expect_identical(nrow(as.data.frame(view)), nrow(frame$weights))
 })

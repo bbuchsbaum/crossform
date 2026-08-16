@@ -489,7 +489,8 @@
 
 .canonical_additive_weights <- function(weights) {
   if (inherits(weights, "Matrix")) {
-    value <- methods::as(weights, "CsparseMatrix")
+    value <- methods::as(weights, "dMatrix")
+    value <- methods::as(value, "CsparseMatrix")
     value <- methods::as(value, "generalMatrix")
     return(Matrix::drop0(value))
   }

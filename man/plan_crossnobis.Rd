@@ -37,7 +37,10 @@ canonical residual pair sufficient statistics. It changes cache capacity,
 never the canonical numerical tile shape.}
 }
 \value{
-An \code{effect_crossnobis_plan} reusable across fixed contrasts.
+An \code{effect_crossnobis_plan} reusable across fixed contrasts. It
+carries the frozen \verb{$metric_schedule}, the \verb{$frame}, \verb{$pairing}, and
+\verb{$memory} plan, and a \verb{$scientific_plan_id} that identifies the estimand
+independently of execution choices.
 }
 \description{
 The plan freezes the residual-statistics identity, training policy,
@@ -77,3 +80,29 @@ result <- crossnobis(plan, c(condition = 1))
 result
 as.data.frame(result)
 }
+\seealso{
+\code{\link[=crossnobis]{crossnobis()}} to read a contrast from this plan,
+\code{\link[=shrinkage_precision]{shrinkage_precision()}} and \code{\link[=metric_training_policy]{metric_training_policy()}} for the metric
+declarations it freezes, and \code{\link[=residual_pair_statistics]{residual_pair_statistics()}} for the
+sufficient statistics it compiles.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

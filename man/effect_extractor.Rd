@@ -22,9 +22,49 @@ unspecified-basis effect space.}
 \item{diagnostics}{Optional estimator diagnostics.}
 }
 \value{
-An \code{effect_extractor}.
+An \code{effect_extractor}: a list with the effect-by-observation \verb{$map},
+its \verb{$effect_space} and \verb{$effects} labels, \verb{$n_observations}, the
+\verb{$estimator} identity, and \verb{$diagnostics}.
 }
 \description{
 An extractor is the declared map \code{E} in \verb{B = E Y}. It contains no neural
 data and may therefore be reused across feature blocks.
 }
+\examples{
+# Average four observations, and contrast the first two with the last two.
+map <- rbind(
+  mean = c(0.25, 0.25, 0.25, 0.25),
+  difference = c(0.5, 0.5, -0.5, -0.5)
+)
+extractor <- effect_extractor(map, estimator = "hand-specified")
+extractor$effects
+extractor$n_observations
+
+# The extractor holds no neural data, so the same map is reused across every
+# feature block a relation reads.
+set.seed(1)
+extractor$map \%*\% matrix(rnorm(8), 4L, 2L)
+}
+\seealso{
+\code{\link[=lm_extractor]{lm_extractor()}} to compile one from a design and target, and
+\code{\link[=relation]{relation()}}, which applies one extractor per partition.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

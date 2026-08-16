@@ -162,16 +162,19 @@ and the refusal reports every unmet requirement, not only the first:
 rdm_sampling_covariance(plan, example$fit$relation, target = "null")
 ```
 
-> Sampling covariance is unavailable; 3 requirements of the admitted analytic
+> Sampling covariance is unavailable; 2 requirements of the admitted analytic
 > law are unmet:
 > * this evidence plan has only a precomputed relation and no error channel.
 >   Refit raw observations with `lm_relation_fit()` or supply a validated,
 >   identity-bound external error channel; beta matrices alone cannot recover
 >   residual uncertainty.
-> * the equal-partition analytic law is not valid for this partition model or
->   for partitions with unequal error structure.
 > * no single sampling axis is declared, or the declared axis conflicts with
 >   the error channel's recorded sampling unit.
+
+Both reasons are separately actionable. Requirements that only restate the
+missing channel — such as whether the partitions share one error structure —
+cannot be evaluated without a channel to inspect, so they are not listed as
+extra failures.
 
 Refusal capability: `sampling_covariance`. Ask before provoking with
 `sampling_capabilities(plan, fit)`, which returns the same reasons and

@@ -12,10 +12,56 @@ neuroim2_volume_domain(mask, id = "neuroim2-volume")
 \item{id}{Stable domain identity.}
 }
 \value{
-An \code{effect_domain} whose \code{feature_ids} are full-volume indices.
+An \code{effect_domain} with \verb{$kind} \code{"volume"}, \verb{$feature_ids} giving
+the mask's full-volume indices, \verb{$coordinates} in millimeters, and
+\verb{$metadata} carrying \code{dim}, \code{spacing}, \code{voxel} indices, the logical \code{mask},
+and a \code{neuroim2_space_sha256} hash of the full neuroim2 space.
 }
 \description{
 This conditional adapter records the mask's stable full-volume indices,
 physical coordinates, spacing, and full neuroim2 spatial metadata. It does
 not extract response data or import neuroim2 result types.
 }
+\examples{
+if (requireNamespace("neuroim2", quietly = TRUE) &&
+    utils::packageVersion("neuroim2") >= "0.19.0") {
+  values <- array(FALSE, c(5L, 5L, 4L))
+  values[2:4, 2:4, 2:3] <- TRUE
+  mask <- neuroim2::LogicalNeuroVol(
+    values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(3, 3, 3))
+  )
+  domain <- neuroim2_volume_domain(mask, id = "subject-mask")
+
+  # Compact features, addressed by their stable full-volume indices, so a
+  # result vector can always be placed back in the original array.
+  print(domain$n_features)
+  print(identical(domain$feature_ids, which(values)))
+
+  # Physical spacing and a hash of the full neuroim2 space are recorded;
+  # any frame built later must agree with that geometry.
+  print(domain$metadata$spacing)
+  print(substr(domain$metadata$neuroim2_space_sha256, 1, 24))
+}
+}
+\seealso{
+\code{\link[=volume_domain]{volume_domain()}} for the same object from a plain array,
+\code{\link[=neuroim2_searchlights]{neuroim2_searchlights()}} for matching neighborhoods, and \code{\link[=as_neurovol]{as_neurovol()}}
+to write compact results back out.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

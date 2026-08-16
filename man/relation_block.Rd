@@ -7,15 +7,55 @@
 relation_block(x, partition, features)
 }
 \arguments{
-\item{x}{An \code{effect_relation}.}
+\item{x}{An \code{effect_relation} or \code{effect_relation_fit}.}
 
 \item{partition}{One partition name or index.}
 
 \item{features}{Unique neural feature indices.}
 }
 \value{
-A finite effect-by-feature matrix.
+A finite effect-by-feature matrix with one row per effect
+coordinate, in effect-space order, and one column per requested feature.
 }
 \description{
-Read one experimental-neural relation block
+This is where neural values are actually read. Only the requested feature
+columns are pulled from the source and mapped through that partition's
+extractor, which is what keeps out-of-memory sources bounded.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(5L, id = "relation-block-example")
+betas <- matrix(rnorm(15), 3L, 5L,
+  dimnames = list(c("face", "body", "tool"), NULL))
+point <- relation(list(`run-1` = betas), domain = domain)
+
+# Ask for two features only; the source is read for those columns alone.
+round(relation_block(point, "run-1", c(1L, 4L)), 3)
+
+# Partitions may be named or given by index, and rows always come back in
+# effect-space order regardless of how the source was stored.
+rownames(relation_block(point, 1L, seq_len(5L)))
+}
+\seealso{
+\code{\link[=relation]{relation()}} and \code{\link[=lm_relation_fit]{lm_relation_fit()}} for the objects it reads, and
+\code{\link[=residual_block]{residual_block()}} for the matching residual read.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

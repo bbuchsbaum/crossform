@@ -25,10 +25,56 @@ file_matrix_source(
 omitted it is computed from the file.}
 }
 \value{
-An immutable \code{effect_source_descriptor}.
+An \code{effect_source_descriptor}: a list with \verb{$kind}
+(\code{"file_matrix"}), the integer \verb{$dim}, \verb{$access} (\code{"reopenable"}), the
+\verb{$stable_revision} content hash, and a \verb{$spec} holding the absolute
+\code{path}, \code{offset_bytes}, and \code{endian}. Treat it as immutable.
 }
 \description{
 The file must contain only consecutive IEEE-754 doubles in R column-major
 order. The constructor records an absolute path and verifies a strong content
 revision. It never opens a persistent handle.
 }
+\examples{
+# A 4-observation by 3-feature matrix written as raw column-major doubles.
+path <- tempfile(fileext = ".bin")
+writeBin(as.vector(matrix(as.double(1:12), 4L, 3L)), path, size = 8L)
+
+descriptor <- file_matrix_source(path, dim = c(4L, 3L))
+descriptor$dim
+descriptor$access
+
+# The content hash is recorded now and rechecked whenever the file is
+# reopened, so a silently edited source is caught rather than used.
+substr(descriptor$stable_revision, 1, 24)
+
+# Declaring a revision that no longer matches the bytes is an error.
+try(file_matrix_source(
+  path, dim = c(4L, 3L), stable_revision = paste0("sha256:", strrep("0", 64))
+))
+unlink(path)
+}
+\seealso{
+\code{\link[=source_capabilities]{source_capabilities()}} for the capability value it implies, and
+\code{\link[=observations]{observations()}} or \code{\link[=relation]{relation()}}, which accept descriptors in place of
+in-memory matrices.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

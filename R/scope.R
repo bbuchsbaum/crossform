@@ -11,7 +11,39 @@
 #'   `conservative` (column sums equal one).
 #' @param domain_id Stable identity of the neural feature domain.
 #' @param domain Optional exact `effect_domain` or internal domain reference.
-#' @return A declarative frame value.
+#' @return An `effect_frame` with `representation = "additive_diagonal"`,
+#'   carrying the `$weights` matrix, its `$normalization`, and the `$domain`
+#'   reference the weights are bound to.
+#' @seealso [compile_frame()] with [searchlights()], [regions()], or
+#'   [voxelwise()], which build additive frames from a neural domain;
+#'   [measurement_frame()], which adapts one into oriented measurements.
+#' @family neural domains and frames
+#' @examples
+#' # Two overlapping local averages over four features, declared directly.
+#' # `"local"` asserts that each measurement's weights already sum to one, so
+#' # a frame row is a weighted mean rather than a weighted sum.
+#' domain <- abstract_domain(4, id = "demo:native:v1")
+#' frame <- additive_frame(
+#'   matrix(c(
+#'     1 / 2, 1 / 2, 0, 0,
+#'     0, 1 / 3, 1 / 3, 1 / 3
+#'   ), 2, 4, byrow = TRUE),
+#'   normalization = "local", domain = domain
+#' )
+#' dim(frame$weights)
+#' rowSums(as.matrix(frame$weights))
+#'
+#' # The assertion is checked, not applied: unnormalized rows are refused
+#' # rather than silently rescaled.
+#' unnormalized <- try(
+#'   additive_frame(matrix(1, 1, 4), normalization = "local", domain = domain),
+#'   silent = TRUE
+#' )
+#' conditionMessage(attr(unnormalized, "condition"))
+#'
+#' # The declared width must match the domain it claims.
+#' wrong <- try(additive_frame(matrix(1, 1, 3), domain = domain), silent = TRUE)
+#' conditionMessage(attr(wrong, "condition"))
 #' @export
 additive_frame <- function(weights, normalization = "none",
                            domain_id = "abstract", domain = NULL) {
@@ -104,7 +136,34 @@ factor_frame <- function(factors, locally_estimated = FALSE,
 #'   as shorthand for an unspecified-basis space.
 #' @param metadata Optional compact semantic metadata, used by higher-level
 #'   pair-design constructors for balance and design diagnostics.
-#' @return A fixed axis-bound pair query.
+#' @return An `effect_pair_query` carrying the `$operator`, its bound
+#'   `$left_space` and `$right_space`, and any `$metadata` a higher-level
+#'   constructor attached.
+#' @seealso [pair_lm_query()] and [coupling_contrast()], which compile
+#'   designed pair operators; [bilinear_query()] for the symmetric
+#'   single-space case; [evaluate_geometry()] for reading a rectangular plan
+#'   with one.
+#' @family coupling and connectivity views
+#' @examples
+#' # An encoding-retrieval readout: 2 encoding conditions by 3 retrieval
+#' # conditions, so the query is rectangular and cannot be a square RDM.
+#' encoding <- effect_space(c("encode_a", "encode_b"), basis_id = "demo:enc")
+#' retrieval <- effect_space(
+#'   c("retrieve_a", "retrieve_b", "lure"), basis_id = "demo:ret"
+#' )
+#' query <- pair_query(
+#'   matrix(c(1, -0.5, 0, 0, 0.5, -1), 2, 3, byrow = TRUE),
+#'   encoding, retrieval
+#' )
+#' dim(query$operator)
+#' query$left_space$coordinates
+#'
+#' # Axis identity is checked, not inferred: equal dimensions do not make two
+#' # different experimental spaces interchangeable.
+#' swapped <- try(
+#'   pair_query(matrix(1, 3, 2), encoding, retrieval), silent = TRUE
+#' )
+#' conditionMessage(attr(swapped, "condition"))
 #' @export
 pair_query <- function(H, left_space, right_space, metadata = list()) {
   matrix_like <- (is.matrix(H) && is.numeric(H)) || inherits(H, "Matrix")
@@ -144,7 +203,33 @@ pair_query <- function(H, left_space, right_space, metadata = list()) {
 #' @param operator A finite square symmetric numeric matrix.
 #' @param fixed Whether the query is fixed before local data are inspected.
 #' @param effects Optional `effect_space()` binding for the operator axes.
-#' @return A declarative query value.
+#' @return An `effect_query` with `kind = "bilinear"`, carrying the symmetric
+#'   `$operator`, the `$fixed` flag, and an optional `$effect_space` binding.
+#' @seealso [evaluate_geometry()], which reads a plan with this query, and
+#'   [pair_query()] for distinct or unequal axes.
+#' @family geometry plans and views
+#' @examples
+#' # A contrast read as a rank-one bilinear query: `t(c) G c` for c = a - b.
+#' contrast <- c(1, -1)
+#' query <- bilinear_query(tcrossprod(contrast))
+#' query$operator
+#'
+#' # Evaluate it against a plan without materializing complete geometry.
+#' domain <- abstract_domain(3, id = "bilinear-example")
+#' relation <- relation(
+#'   list(run1 = rbind(a = c(1, 0, 2), b = c(0, 1, 1)),
+#'        run2 = rbind(a = c(1.1, 0.1, 1.9), b = c(0.1, 0.9, 1.2))),
+#'   domain = domain
+#' )
+#' plan <- plan_geometry(
+#'   relation, compile_frame(whole_brain(), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' )
+#' evaluate_geometry(plan, query = query)$values
+#'
+#' # A bilinear query is symmetric by construction; asymmetry is refused.
+#' asymmetric <- try(bilinear_query(matrix(c(1, 2, 3, 4), 2)), silent = TRUE)
+#' conditionMessage(attr(asymmetric, "condition"))
 #' @export
 bilinear_query <- function(operator, fixed = TRUE, effects = NULL) {
   if (!is.matrix(operator) || !is.numeric(operator) ||
@@ -247,7 +332,13 @@ compile_lowering <- function(frame, query) {
 }
 
 .validate_frame_for_compile <- function(frame) {
-  if (!inherits(frame, "effect_frame") || !is.list(frame)) {
+  if (!inherits(frame, "effect_frame")) {
+    stop(sprintf(paste0(
+      "Expected a compiled `effect_frame` from `compile_frame()` (or ",
+      "`neuroim2_searchlights()`); received %s."
+    ), .msg_value(frame)), call. = FALSE)
+  }
+  if (!is.list(frame)) {
     stop("Frame fields are missing or noncanonical.", call. = FALSE)
   }
   expected_names <- if (identical(frame$representation, "additive_diagonal")) {

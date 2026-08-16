@@ -40,7 +40,11 @@ resampling or changing neural features.}
 \item{provenance}{Optional provenance metadata.}
 }
 \value{
-An \code{effect_relation}.
+An \code{effect_relation}: a list with the compiled \verb{$sources}, one
+\verb{$extractors} entry per partition, the shared \verb{$effect_space} and its
+\verb{$effects} labels, \verb{$partitions}, \verb{$n_features}, the \verb{$domain} reference
+and \verb{$domain_id}, optional source \verb{$capabilities}, and \verb{$provenance}. No
+neural values have been read.
 }
 \description{
 Each source is read only by neural feature block. Extractors map its
@@ -53,3 +57,45 @@ metric or \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, sta
 \code{\link[=lm_relation_fit]{lm_relation_fit()}}. Subject-level resampling answers a population question;
 it does not recreate discarded first-level residual information.
 }
+\examples{
+# Precomputed condition betas: one effect-by-feature matrix per run.
+set.seed(1)
+domain <- abstract_domain(5L, id = "relation-example")
+betas <- lapply(c("run-1", "run-2"), function(partition) {
+  matrix(rnorm(15), 3L, 5L,
+    dimnames = list(c("face", "body", "tool"), NULL))
+})
+names(betas) <- c("run-1", "run-2")
+
+point <- relation(betas, domain = domain)
+point$effects
+point$partitions
+
+# Betas alone carry no residual information, so anything needing the error
+# channel refuses here rather than inventing a standard error.
+catch_refusal(residual_df(point, "run-1"))$capability
+}
+\seealso{
+\code{\link[=lm_relation_fit]{lm_relation_fit()}} when raw responses are available and a residual
+channel is needed, \code{\link[=relation_block]{relation_block()}} to read one block, and
+\code{\link[=plan_geometry]{plan_geometry()}} for the next step.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

@@ -31,11 +31,11 @@ test_that("precomputed coordinate ambiguity fails during construction", {
   partial <- matrix(1:6, 2, 3, dimnames = list(c("a", ""), NULL))
 
   expect_error(relation(list(run = missing), effects = space),
-    "missing or extra")
+    "does not carry the declared effects")
   expect_error(relation(list(run = partial), effects = space),
-    "complete and unique")
+    "row names that are incomplete or repeated")
   expect_error(relation(list(run = unname(matrix(1:6, 2, 3)))),
-    "complete row names")
+    "Partition `run` has no row names")
 })
 
 test_that("extractor bases and units must match across partitions", {
@@ -93,7 +93,7 @@ test_that("function-backed sources are lazy and validated", {
 
 test_that("relation construction rejects incompatible partitions", {
   expect_error(relation(list(matrix(1, 2, 3), matrix(1, 2, 4)), effects = c("a", "b")),
-    "feature dimension")
+    "must span the same neural features")
 
   extractor <- effect_extractor(diag(2), c("a", "b"))
   expect_error(relation(list(matrix(1, 3, 4)), extract = extractor),
@@ -137,7 +137,7 @@ test_that("a relation accepts a domain without exposing identity plumbing", {
   expect_identical(rel$domain_id, domain$id)
   expect_identical(rel$domain, domain$reference)
   expect_error(relation(list(run1 = matrix(1, 2, 3)), effects = c("a", "b"),
-    domain = domain), "feature count")
+    domain = domain), "domain `native:s01` declares 4 features")
   expect_error(relation(list(run1 = matrix(1, 2, 4)), effects = c("a", "b"),
     domain = domain, domain_id = "other"), "different neural domains")
 })

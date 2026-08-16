@@ -534,10 +534,48 @@ effect_view <- function(values, query, component, receipt, index = NULL,
 
 #' Read one component of a complete geometry
 #'
+#' `geometry_component()` returns the packed geometry rows themselves, for
+#' the cases where a view is not enough. Reach for it only after
+#' [materialize_geometry()]; a query-only result from [evaluate_geometry()]
+#' has no stored component to read.
+#'
 #' @param x A complete `effect_form` (including an `effect_geometry`).
 #' @param component One of `total`, `coherent`, or `configuration`.
-#' @param rows Optional measurement rows to read.
-#' @return A packed numeric geometry matrix.
+#'   `configuration` is computed exactly as `total - coherent`.
+#' @param rows Optional measurement rows to read. Block-backed stores read
+#'   only the requested rows.
+#' @return A numeric matrix with one row per measurement and one column per
+#'   packed geometry coordinate (`svec` order for symmetric self forms: the
+#'   lower triangle by column, off-diagonal entries scaled by `sqrt(2)`).
+#' @seealso [query_geometry()] to apply a linear query instead of reading
+#'   packed coordinates, and [rdm()] or [contrast_energy()] for the named
+#'   scientific views.
+#' @family geometry plans and views
+#' @examples
+#' domain <- abstract_domain(4, id = "component-example")
+#' relation <- relation(
+#'   list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+#'        run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+#'   domain = domain
+#' )
+#' geometry <- materialize_geometry(plan_geometry(
+#'   relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' ))
+#'
+#' # One row per region; three packed coordinates for a 2-effect self form,
+#' # namely G[1,1], G[2,1], and G[2,2].
+#' geometry_component(geometry, "total")
+#'
+#' # The coherent/configuration split is an exact partition, not a fit.
+#' all.equal(
+#'   geometry_component(geometry, "configuration"),
+#'   geometry_component(geometry, "total") -
+#'     geometry_component(geometry, "coherent")
+#' )
+#'
+#' # Read a single measurement without touching the rest.
+#' geometry_component(geometry, "total", rows = 2)
 #' @export
 geometry_component <- function(x, component = "total", rows = NULL) {
   if (!inherits(x, "effect_form") || !is.list(x) ||
@@ -577,13 +615,50 @@ geometry_component <- function(x, component = "total", rows = NULL) {
 
 #' Apply a linear query to a complete geometry
 #'
+#' `query_geometry()` projects an already materialized geometry through a
+#' fixed linear query. It answers the same question as
+#' [evaluate_geometry()] and carries the same view identity; use this form
+#' when the complete geometry already exists and several queries will be read
+#' from it.
+#'
 #' @param x A complete `effect_form` (including an `effect_geometry`).
 #' @param query An axis-bound `pair_query()`, a compatible
 #'   `bilinear_query()`, or a finite physical-coordinate-by-view matrix.
 #' @param component Geometry component to query.
 #' @param row_block Positive number of measurement rows read at once. This
 #'   bounds packed-geometry memory for block-backed stores.
-#' @return An `effect_view`, not another geometry.
+#' @return An `effect_view`: `$values` has one row per measurement and one
+#'   column per query column, alongside `$query`, `$component`, `$index`, and
+#'   a `$receipt` recording that this view was projected from the parent
+#'   estimand. It is a view, not another geometry.
+#' @seealso [evaluate_geometry()] for the query-first route that never
+#'   materializes geometry, and [geometry_component()] for the packed rows.
+#' @family geometry plans and views
+#' @examples
+#' domain <- abstract_domain(4, id = "query-example")
+#' relation <- relation(
+#'   list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+#'        run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+#'   domain = domain
+#' )
+#' geometry <- materialize_geometry(plan_geometry(
+#'   relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' ))
+#'
+#' # The squared cross-generalized distance between the two effects, one row
+#' # per region.
+#' contrast <- bilinear_query(tcrossprod(c(1, -1)))
+#' distance <- query_geometry(geometry, contrast)
+#' distance
+#' as.data.frame(distance)
+#'
+#' # The same query reads the two orthogonal modes, which sum back exactly.
+#' coherent <- query_geometry(geometry, contrast, component = "coherent")
+#' configuration <- query_geometry(
+#'   geometry, contrast, component = "configuration"
+#' )
+#' all.equal(distance$values, coherent$values + configuration$values)
 #' @export
 query_geometry <- function(x, query, component = "total", row_block = 1024L) {
   validated <- .validate_geometry_query(x, query, component, row_block)

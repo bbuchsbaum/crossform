@@ -32,7 +32,10 @@ compiled plan already owns this choice.}
 \item{reporter}{Optional nonsemantic coordinator-side event reporter.}
 }
 \value{
-A complete \code{effect_geometry}.
+An \code{effect_geometry} holding the packed \verb{$total} and \verb{$coherent}
+stores, the signed endpoint \verb{$marginals}, the \verb{$effects} names, the
+measurement \verb{$index}, and the execution \verb{$receipt}. Read it with
+\code{\link[=geometry_component]{geometry_component()}}, \code{\link[=query_geometry]{query_geometry()}}, or the named views.
 }
 \description{
 \code{materialize_geometry()} explicitly materializes complete total and
@@ -41,3 +44,49 @@ coherent packed geometry. Prefer \code{\link[=plan_geometry]{plan_geometry()}} f
 compatibility form compiles that same plan first; it does not use a second
 execution path.
 }
+\examples{
+domain <- abstract_domain(4, id = "materialize-example")
+relation <- relation(
+  list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+       run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+  domain = domain
+)
+plan <- plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(relation, independence = "independent")
+)
+
+# Materialize only when several different readouts will share the same
+# packed geometry; a single fixed query does not need this step.
+geometry <- materialize_geometry(plan)
+geometry$effects
+geometry_component(geometry, "total")
+
+# The complete object unlocks readouts that a query-only view cannot give,
+# such as the signed eigenvalue spectrum.
+geometry_spectrum(geometry)$values
+}
+\seealso{
+\code{\link[=plan_geometry]{plan_geometry()}} then \code{\link[=evaluate_geometry]{evaluate_geometry()}} for the query-first
+route; \code{\link[=geometry_spectrum]{geometry_spectrum()}}, which requires a complete geometry.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

@@ -1,0 +1,431 @@
+---
+title: "Reading contrast energies, RDMs, and uncertainty"
+description: >
+  What each returned column means, how to read negatives and the coherence fraction, and the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame.
+output: rmarkdown::html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+library(crossform)
+```
+
+This article introduces no new statistics. It is about reading the numbers
+the package already returns, and about three ways a reader can be misled by
+them. Everything below runs on the generated fixture, whose planted truth
+makes the traps visible.
+
+```{r example}
+example <- example_fmri_effects()
+pairing <- cross_partitions(
+  example$fit$relation,
+  independence = "independent",
+  generalizes_over = "run"
+)
+plan <- plan_geometry(example$fit$relation, at = example$frame, over = pairing)
+effect <- contrast_energy(plan, example$contrast)
+peak <- which.max(effect$total)
+```
+
+## The four columns of a contrast view
+
+```{r columns}
+head(as.data.frame(effect), 4)
+```
+
+- **`signed`** is the ordinary signed contrast of the frame-weighted mean
+  pattern. It is a *first moment*: it has the units and the sign of your
+  effect, and it is the only column that answers "which way?". It is not
+  crossvalidated in the reproducibility sense — it is a retained marginal.
+- **`coherent`** is the crossvalidated energy carried by that
+  frame-weighted mean pattern. It is a *second moment* — a squared quantity —
+  so it is not the signed effect and not its square either.
+- **`configuration`** is the crossvalidated energy in reproducible spatial
+  *departures* from the weighted mean, orthogonal to `coherent` under the
+  frame's weights.
+- **`total`** is their exact sum.
+
+```{r partition}
+max(abs(effect$total - (effect$coherent + effect$configuration)))
+```
+
+A large `configuration` with a near-zero `coherent` is the signature of a
+multivariate pattern that a univariate map would miss: the sphere reproduces
+a *shape*, but its average response barely moves.
+
+### Negatives are estimates, not errors
+
+Each energy is a product of estimates from two different runs. Under the null
+its expectation is zero, so roughly half the sampling distribution lies below
+zero.
+
+```{r negatives}
+c(
+  measurements = length(effect$total),
+  total_below_zero = sum(effect$total < 0),
+  coherent_below_zero = sum(effect$coherent < 0),
+  configuration_below_zero = sum(effect$configuration < 0),
+  min_total = min(effect$total)
+)
+```
+
+Do not truncate them. Clipping at zero replaces an unbiased estimator with a
+positively biased one, and the bias is largest exactly where there is no
+effect — which is where a thresholded map does its talking. If you average
+energies over an ROI, over participants, or over searchlights, average the
+signed values. The negatives are what makes the average come out at zero when
+nothing is there.
+
+## The coherence fraction and its validity flag
+
+`coherence_fraction` is `coherent / total`: the share of reproducible energy
+carried by the local mean rather than by pattern shape. It is reported only
+where the raw components actually form a nonnegative partition — that is,
+where `total > 0`, `coherent >= 0`, and `configuration >= 0`. Elsewhere it is
+`NA`, and a companion logical says why you got `NA`.
+
+```{r validity}
+c(
+  measurements = length(effect$total),
+  valid = sum(effect$coherence_fraction_valid),
+  na = sum(is.na(effect$coherence_fraction))
+)
+```
+
+```{r validity-reasons}
+c(
+  total_not_positive = sum(effect$total <= 0),
+  coherent_negative = sum(effect$coherent < 0),
+  configuration_negative = sum(effect$configuration < 0)
+)
+```
+
+The gate is not fussiness. A ratio of two quantities that can each be negative
+is not a share of anything: it can exceed 1, or be negative, or flip sign
+under an arbitrarily small change in the denominator. Rather than print such
+a number, the package withholds it. `NA` here means "this measurement has no
+interpretable coherent share", not "missing data".
+
+The three sections below are the caveats that matter once you start reporting
+those fractions.
+
+## Trap (a): the coherent share shrinks as the sphere grows
+
+The coherent component is the energy of *one* spatial mode — the
+frame-weighted mean. The configuration component spans everything orthogonal
+to it. As a searchlight grows, the configuration subspace gains dimensions
+while the coherent subspace stays one-dimensional. The coherent share
+therefore falls for mechanical reasons, with no change in the underlying
+neural data.
+
+```{r sphere-size}
+radii <- c(2, 3, 4.5, 6)
+sweep <- t(vapply(radii, function(r) {
+  frame_r <- compile_frame(searchlights(radius = r), example$domain)
+  effect_r <- contrast_energy(
+    plan_geometry(example$fit$relation, at = frame_r, over = pairing),
+    example$contrast
+  )
+  c(
+    median_support = median(Matrix::rowSums(frame_r$weights != 0)),
+    valid = sum(effect_r$coherence_fraction_valid),
+    median_fraction = median(effect_r$coherence_fraction, na.rm = TRUE)
+  )
+}, numeric(3)))
+data.frame(radius = radii, round(sweep, 3))
+```
+
+```{r sphere-size-check, include=FALSE}
+stopifnot(
+  sweep[1, "median_fraction"] == 1,
+  all(diff(sweep[, "median_fraction"]) <= 0)
+)
+```
+
+At radius 2 every support is a single voxel, so the weighted mean *is* the
+pattern and the fraction is exactly 1 by construction. It then falls
+monotonically. A sentence such as "roughly 10% of the reproducible signal was
+carried by the mean response" is therefore a statement about your radius as
+much as about the brain. Report the radius and the support sizes alongside the
+fraction, and never compare fractions across analyses with different frames.
+
+## Trap (b): "coherent" means coherent under *your* weights
+
+The decomposition is orthogonal in the frame-weighted inner product, so the
+weights are part of the definition. Reweighting the *same* voxels moves energy
+between the two components — and changes the total.
+
+```{r weighting}
+frame_uniform <- compile_frame(searchlights(radius = 4.5), example$domain)
+
+# Same supports, Gaussian instead of uniform weights.
+coords <- example$domain$coordinates
+uniform_weights <- as.matrix(frame_uniform$weights)
+centers <- match(frame_uniform$index$measurement, example$domain$feature_ids)
+gaussian_weights <- uniform_weights
+for (i in seq_len(nrow(uniform_weights))) {
+  members <- which(uniform_weights[i, ] != 0)
+  offsets <- coords[members, , drop = FALSE] -
+    matrix(coords[centers[i], ], length(members), 3, byrow = TRUE)
+  w <- exp(-rowSums(offsets^2) / (2 * 3^2))
+  gaussian_weights[i, ] <- 0
+  gaussian_weights[i, members] <- w / sum(w)
+}
+frame_gaussian <- additive_frame(
+  gaussian_weights, normalization = "local", domain = example$domain
+)
+
+identical(which(uniform_weights != 0), which(gaussian_weights != 0))
+```
+
+```{r weighting-effect}
+effect_uniform <- contrast_energy(
+  plan_geometry(example$fit$relation, at = frame_uniform, over = pairing),
+  example$contrast
+)
+effect_gaussian <- contrast_energy(
+  plan_geometry(example$fit$relation, at = frame_gaussian, over = pairing),
+  example$contrast
+)
+
+peak_uniform <- which.max(effect_uniform$total)
+round(rbind(
+  uniform = c(
+    total = effect_uniform$total[peak_uniform],
+    coherent = effect_uniform$coherent[peak_uniform],
+    fraction = effect_uniform$coherence_fraction[peak_uniform]
+  ),
+  gaussian = c(
+    total = effect_gaussian$total[peak_uniform],
+    coherent = effect_gaussian$coherent[peak_uniform],
+    fraction = effect_gaussian$coherence_fraction[peak_uniform]
+  )
+), 4)
+```
+
+Identical voxels, identical data, different numbers. This is not instability:
+each frame defines a different, well-specified estimand, and the plan records
+which one you asked for. It does mean that "the coherent component" is not a
+property of the brain region. It is a property of the region *and* the weights
+you chose to average it with.
+
+## Trap (c): reported fractions are a selected sample
+
+Because the fraction exists only where the components form a nonnegative
+partition, the set of measurements that report one is not a random subset of
+the map. The gate depends on the same quantities that appear in the ratio, so
+it is enriched for measurements with real signal — and, among the rest, for
+whichever noise realizations happened to make both components positive.
+
+```{r selection}
+frame_small <- compile_frame(searchlights(radius = 3), example$domain)
+effect_small <- contrast_energy(
+  plan_geometry(example$fit$relation, at = frame_small, over = pairing),
+  example$contrast
+)
+signal <- example$truth$signal_measurements
+valid <- effect_small$coherence_fraction_valid
+
+c(
+  signal_measurements = length(signal),
+  signal_reporting_a_fraction = sum(valid[signal]),
+  other_measurements = length(valid) - length(signal),
+  other_reporting_a_fraction = sum(valid[-signal])
+)
+```
+
+```{r selection-share}
+c(
+  share_of_map_reporting = mean(valid),
+  share_of_reporters_that_are_signal = mean(seq_along(valid)[valid] %in% signal)
+)
+```
+
+```{r selection-check, include=FALSE}
+stopifnot(
+  mean(valid[signal]) > 0.9,
+  mean(valid[-signal]) < 0.25
+)
+```
+
+Almost every planted searchlight reports a fraction; only a small minority of
+the others do. So the average fraction "over the map" is really an average
+over a set that is mostly signal. That is fine if you say so, and misleading
+if you do not. If you want a map-wide summary, define the denominator
+explicitly — for instance the fraction of *all* measurements that report a
+coherent share at all, the first number above — rather than averaging the
+reported values and calling the result a property of the map.
+
+The same warning applies to any post-hoc gate: thresholding on `total > 0`
+and then summarizing `coherent` conditions the summary on the numerator's
+sibling.
+
+## Reading the RDM
+
+```{r rdm}
+distances <- rdm(plan)
+distances$pairs
+round(distances$values[peak, ], 3)
+```
+
+For conditions *i* and *j*, `rdm()` reports
+`d_ij = G_ii + G_jj - 2 G_ij`. Under cross-partition pairing this is a
+**signed crossvalidated squared Euclidean** distance; with a fixed neural
+precision metric it is a squared Mahalanobis distance. Three consequences:
+
+1. **They are squared.** Do not take square roots to "get distances back" —
+   the square root of a negative estimate is undefined, and the square root of
+   a noisy positive one is biased.
+2. **They can be negative**, for the same reason the energies can, and for
+   the same reason they are kept.
+3. **They are not `1 - Pearson correlation`.** Correlation distance divides
+   each pattern by its own norm, which is not a fixed linear operation, so it
+   cannot be a query against this geometry. The package refuses to substitute
+   it silently; the reasoning and the conditions under which the boundary
+   could be crossed are in the
+   [correlation-distance policy](correlation-distance-policy.html).
+
+## Reading RSA coefficients
+
+`rsa()` regresses the measured distances on your model RDMs. It is ordinary
+least squares, not a rank correlation.
+
+```{r rsa}
+category <- rsa(plan, models = list(category = example$model_rdm))
+colnames(category$coefficients)
+round(category$coefficients[peak, ], 4)
+```
+
+There are two columns for one model because an **intercept is fitted by
+default**. Keep it. Crossvalidated distances have an arbitrary additive level
+per measurement; without an intercept the model coefficient absorbs that
+level, and a searchlight with uniformly large distances will look like it
+matches your model when it only has a large mean distance.
+
+```{r rsa-nointercept}
+no_intercept <- rsa(
+  plan, models = list(category = example$model_rdm), intercept = FALSE
+)
+c(
+  with_intercept = category$coefficients[peak, "category"],
+  without_intercept = no_intercept$coefficients[peak, "category"]
+)
+```
+
+Drop the intercept only when you have a reason to believe the level is
+meaningful and shared. Coefficients are in units of distance per unit of model
+RDM, so they are comparable across measurements within one analysis but not
+across analyses with differently scaled model RDMs.
+
+## Uncertainty: two targets, and what "refused" means
+
+`rdm_sampling_covariance()` requires an explicit `target`, because the two
+choices answer different questions:
+
+```{r targets}
+null_se <- sqrt(sampling_covariance(
+  rdm_sampling_covariance(plan, example$fit, target = "null", at = peak)
+))
+plugin_se <- sqrt(sampling_covariance(
+  rdm_sampling_covariance(plan, example$fit, target = "plugin", at = peak)
+))
+round(rbind(distance = distances$values[peak, ],
+            null = null_se, plugin = plugin_se), 4)
+```
+
+- **`target = "null"`** evaluates the signal-dependent variance term at a fixed
+  zero effect. It is **exact** under the declared model, and it is what you
+  want when calibrating a test of no effect. Notice it is the same for every
+  pair: with no signal assumed, the variance depends only on the noise.
+- **`target = "plugin"`** substitutes the estimated partition-mean pattern for
+  the unknown signal. It tracks the actual distances — large where the
+  distance is large — which is what you want when reporting an error bar
+  around a nonzero estimate. It is **biased upward**, by a term that shrinks
+  like 1/M² in the number of features and is largest when noise dominates the
+  true distances, so read it as mildly conservative. See
+  `?rdm_sampling_covariance` for the exact expression.
+
+There is no default. Choosing one silently would mean the same function
+reported two different quantities depending on context.
+
+This is a **within-measurement, within-participant** covariance under an
+equal-partition, fixed-metric, separable error model. It is not a confidence
+interval, not a spatial random-field correction, and not group inference.
+
+### Refusal is an answer
+
+If the relation cannot support the analytic law, the package says so with a
+classed condition rather than returning a plausible-looking number. Ask
+before provoking:
+
+```{r refusal-setup}
+set.seed(3)
+conditions <- c("a", "b", "c")
+domain <- volume_domain(array(1L, c(4, 4, 3)), spacing = c(3, 3, 3))
+beta_runs <- lapply(1:3, function(i) {
+  m <- matrix(rnorm(3 * 48), 3, 48)
+  rownames(m) <- conditions
+  m
+})
+names(beta_runs) <- paste0("run", 1:3)
+beta_only <- relation(beta_runs, effects = effect_space(conditions),
+                      domain = domain)
+beta_plan <- plan_geometry(
+  beta_only,
+  at = compile_frame(searchlights(radius = 3), domain),
+  over = cross_partitions(beta_only, independence = "independent",
+                          generalizes_over = "run")
+)
+
+sampling_capabilities(beta_plan, beta_only)
+```
+
+A relation built only from precomputed beta matrices has no residuals and no
+residual degrees of freedom, so the analytic law is unavailable. Provoking it
+anyway yields a refusal you can inspect as data:
+
+```{r refusal}
+refusal <- catch_refusal(
+  rdm_sampling_covariance(beta_plan, beta_only, target = "null", at = 1)
+)
+class(refusal)
+refusal$capability
+refusal$reasons
+refusal$remedies
+```
+
+"Refused" does not mean "not implemented". It means the specific claim you
+asked for is not supported by the evidence you supplied, and the condition
+carries every unmet requirement with a concrete remedy. The point estimates —
+`contrast_energy()`, `rdm()`, `rsa()` — remain perfectly valid on such a
+relation; only the error bar is withheld.
+
+## Summary
+
+| Reading | Do | Do not |
+|---|---|---|
+| Negative energies or distances | keep and average them | truncate at zero |
+| `signed` | read direction and units | square it and call it energy |
+| `coherence_fraction` | report with radius and support sizes | compare across frames |
+| `NA` fraction | read as "no interpretable share" | impute or drop silently |
+| RDM values | treat as signed squared distances | take square roots, or read as `1 - r` |
+| RSA coefficient | keep the intercept | compare across differently scaled models |
+| `target = "null"` | calibrate a test of no effect | use as an error bar on a nonzero distance |
+| `target = "plugin"` | error bar on an estimate, read as conservative | treat as exact |
+| a refusal | read `$reasons` and `$remedies` | retry until something returns a number |
+
+## See also
+
+- `vignette("introduction", package = "crossform")` — the workflow these
+  results come from.
+- [Correlation-distance policy](correlation-distance-policy.html) — why
+  `rdm()` will not give you `1 - r`.
+- [Failure gallery](failure-gallery.html) — six realistic errors and the
+  refusals that stop them.
+- `?contrast_energy`, `?rdm`, `?rsa`, `?rdm_sampling_covariance` for the exact
+  contracts.

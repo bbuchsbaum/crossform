@@ -32,10 +32,50 @@ row names of \code{weights}.}
 \item{provenance}{Portable provenance for the declared functional.}
 }
 \value{
-An \code{effect_condition_map}.
+An \code{effect_condition_map}: a list with the effect-by-condition
+\verb{$weights}, the bound \verb{$condition_space} and derived \verb{$effect_space}, the
+targeted \verb{$component}, and an \verb{$effect_map_id} covering all of them.
 }
 \description{
 The rows of \code{weights} are named scientific effects and the columns are bound
 semantic condition coordinates. The returned identity never contains a
 compiled design matrix or coefficient coding.
 }
+\examples{
+conditions <- condition_space(c("face", "body", "tool"))
+
+# Request the three condition means and one named contrast at once, so
+# later views can form the contrast without refitting the run models.
+weights <- rbind(
+  face = c(1, 0, 0), body = c(0, 1, 0), tool = c(0, 0, 1),
+  `face-body` = c(1, -1, 0)
+)
+colnames(weights) <- conditions$coordinates
+effects <- effect_map(weights, conditions)
+effects
+effects$weights["face-body", ]
+
+# The derived effect space inherits the condition units, and its identity
+# records the functional rather than any design coding.
+effects$effect_space$basis_id
+}
+\seealso{
+\code{\link[=condition_space]{condition_space()}} for the input vocabulary,
+\code{\link[=coefficient_parameterization]{coefficient_parameterization()}} plus \code{\link[=lower_effect_map]{lower_effect_map()}} to reach a
+coefficient axis, and \code{\link[=plan_relation]{plan_relation()}} to request these effects from a
+study.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

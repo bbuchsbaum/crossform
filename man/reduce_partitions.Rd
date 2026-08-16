@@ -7,9 +7,31 @@
 reduce_partitions()
 }
 \value{
-An immutable partition-reducer specification.
+An \code{effect_partition_reducer} recording \verb{$kind},
+\verb{$weight_convention}, and the stage \verb{$order} (\code{"edge_first"}).
 }
 \description{
 This is the default estimand: normalize each declared edge, transform it,
-and only then apply the partition weights.
+and only then apply the partition weights. Choose it when the quantity you
+mean is the average of per-partition normalized edges.
 }
+\examples{
+# Edge-first: each partition pair is normalized and transformed before the
+# pairing weights are applied.
+reducer <- reduce_partitions()
+reducer$order
+
+# The two reducers name different estimands, so they are not
+# interchangeable defaults.
+c(edge_first = reduce_partitions()$order,
+  aggregate_first = aggregate_first()$order)
+}
+\seealso{
+\code{\link[=aggregate_first]{aggregate_first()}}, the other stage order, and \code{\link[=pairing]{pairing()}},
+which supplies the partition weights this reducer applies.
+
+Other generalization pairings: 
+\code{\link{cross_partitions}()},
+\code{\link{pairing}()}
+}
+\concept{generalization pairings}

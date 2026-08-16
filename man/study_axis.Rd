@@ -12,9 +12,52 @@ study_axis(x, name)
 \item{name}{One hierarchy axis name.}
 }
 \value{
-An \code{effect_study_axis}.
+An \code{effect_study_axis}: a list with the axis \verb{$name}, its distinct
+\verb{$levels}, the enclosing \verb{$parent} axis (\code{NULL} at the outermost axis),
+and a \verb{$signature} tied to the study hierarchy.
 }
 \description{
 This accessor supplies vocabulary only. The returned object does not select
 a generalization target or assert independence.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(4L, id = "study-axis-example")
+partitions <- c("run-1", "run-2")
+indexes <- lapply(partitions, function(partition) {
+  observation_index(1:6, partition)
+})
+names(indexes) <- partitions
+record <- observations(
+  lapply(indexes, function(index) matrix(rnorm(24), 6L, 4L)), indexes, domain
+)
+facts <- study(record, hierarchy = partition_hierarchy(data.frame(
+  partition = partitions, session = c("ses-1", "ses-2")
+)))
+
+# Vocabulary only: naming an axis does not assert independence across it.
+axis <- study_axis(facts, "session")
+axis
+axis$levels
+
+# An axis that was never declared is refused rather than invented.
+catch_refusal(study_axis(facts, "subject"))$capability
+}
+\seealso{
+\code{\link[=partition_hierarchy]{partition_hierarchy()}} which declares the available axes, and
+\code{\link[=cross_partitions]{cross_partitions()}}, where a generalization axis is actually chosen.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

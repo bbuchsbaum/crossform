@@ -26,9 +26,61 @@ it is constructed from \code{mask}.}
 requires \code{TRUE} so every member belongs to the compact domain.}
 }
 \value{
-A sparse additive \code{effect_frame}.
+An \code{effect_frame} whose \verb{$weights} are the sparse
+measurement-by-feature operator, with \verb{$index$measurement} holding the
+full-volume center indices, \verb{$normalization}, a \verb{$specification}
+recording the radius and the pinned \code{upstream_commit}, and a
+\verb{$support_index}.
 }
 \description{
 The function calls only \code{neuroim2::searchlight_indices()} and maps its stable
 full-volume indices to the ordered compact feature columns of \code{domain}.
 }
+\examples{
+if (requireNamespace("neuroim2", quietly = TRUE) &&
+    utils::packageVersion("neuroim2") >= "0.19.0") {
+  values <- array(FALSE, c(5L, 5L, 4L))
+  values[2:4, 2:4, 2:3] <- TRUE
+  mask <- neuroim2::LogicalNeuroVol(
+    values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(3, 3, 3))
+  )
+  domain <- neuroim2_volume_domain(mask)
+
+  # Neighborhoods come from neuroim2; crossform only maps their full-volume
+  # member indices onto the ordered compact feature columns.
+  frame <- neuroim2_searchlights(mask, radius = 4, domain = domain)
+  print(dim(frame$weights))
+  print(identical(frame$index$measurement, domain$feature_ids))
+
+  # The pinned upstream geometry is part of the frame's specification.
+  print(frame$specification$upstream_commit)
+
+  # A mask whose geometry differs from the declared domain is refused.
+  moved <- neuroim2::LogicalNeuroVol(
+    values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(2, 2, 4))
+  )
+  print(try(neuroim2_searchlights(moved, radius = 4, domain = domain)))
+}
+}
+\seealso{
+\code{\link[=searchlights]{searchlights()}} plus \code{\link[=compile_frame]{compile_frame()}} for the built-in
+neighborhood builder, \code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}} for the domain, and
+\code{\link[=frame_conservation]{frame_conservation()}} to check the normalization you chose.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

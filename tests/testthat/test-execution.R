@@ -3,9 +3,17 @@ test_that("version 0.1 accepts exactly one worker", {
 
   expect_identical(policy$workers, 1L)
   expect_identical(policy$process_backend, "sequential")
-  expect_error(compute_policy(workers = 2), "not implemented in crossform 0.1")
-  expect_error(compute_policy(workers = 0), "must be 1")
-  expect_error(compute_policy(workers = Inf), "must be 1")
+  refusal <- catch_refusal(compute_policy(workers = 2))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "parallel_execution")
+  expect_identical(refusal$namespace, "compute_policy")
+  expect_identical(refusal$reasons, "worker_pool_not_implemented")
+  expect_true(nzchar(refusal$remedies[[1L]]))
+  expect_match(conditionMessage(refusal), "received `2`")
+  expect_error(compute_policy(workers = 0), "must be 1",
+    class = "effect_capability_refusal")
+  expect_error(compute_policy(workers = Inf), "must be 1",
+    class = "effect_capability_refusal")
 })
 
 test_that("invalid worker policy fails before source inspection", {
@@ -26,7 +34,7 @@ test_that("invalid worker policy fails before source inspection", {
 
   expect_error(
     crossform:::.execution_preflight(invalid, inspect_source),
-    "not implemented in crossform 0.1"
+    class = "effect_capability_refusal"
   )
   expect_identical(accessed, 0L)
 })

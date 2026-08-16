@@ -23,10 +23,50 @@ numbers are used when omitted.}
 input table.}
 }
 \value{
-An \code{\link[=observation_confounds]{observation_confounds()}} fact object.
+An \code{\link[=observation_confounds]{observation_confounds()}} fact object whose \verb{$data} holds every
+original confound column plus the private \code{.bids_partition} and
+\code{.bids_observation_id} key columns, with \verb{$censor_column} set only when
+\code{censor} was supplied.
 }
 \description{
 All columns are preserved without assigning them target or nuisance roles.
 If \code{censor} is supplied it must name a complete logical retain column; no
 censor policy is inferred from motion or outlier columns.
 }
+\examples{
+# Stand in for one run's fMRIPrep confounds table.
+path <- tempfile(fileext = ".tsv")
+utils::write.table(
+  data.frame(
+    framewise_displacement = c(0, 0.1, 0.9, 0.2),
+    retained = c(TRUE, TRUE, FALSE, TRUE)
+  ),
+  path, sep = "\t", row.names = FALSE, quote = FALSE
+)
+
+# Naming the retain column is required: no censor policy is inferred from
+# the motion columns, however large they are.
+record <- bids_confounds(c(`run-1` = path), censor = "retained")
+record$censor_column
+sum(record$data$retained)
+
+# Naming a column that is absent or not logical refuses explicitly.
+catch_refusal(
+  bids_confounds(c(`run-1` = path), censor = "framewise_displacement")
+)$capability
+unlink(path)
+}
+\seealso{
+\code{\link[=observation_confounds]{observation_confounds()}} for the generic contract,
+\code{\link[=bids_events]{bids_events()}} for the event side, and \code{\link[=bids_study]{bids_study()}} to bind both.
+
+Other typed observation facts: 
+\code{\link{bids_events}()},
+\code{\link{bids_study}()},
+\code{\link{observation_confounds}()},
+\code{\link{observation_events}()},
+\code{\link{observation_index}()},
+\code{\link{observations}()},
+\code{\link{partition_hierarchy}()}
+}
+\concept{typed observation facts}

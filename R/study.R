@@ -206,11 +206,56 @@
 #'   constructed from observation partitions when omitted.
 #' @param clock_tolerance Nonnegative finite tolerance for clock coverage.
 #' @param provenance Portable binding provenance.
-#' @return An `effect_study`.
+#' @return An `effect_study`: a list with the validated `$observations`,
+#'   `$events`, `$confounds` and `$hierarchy`, the ordered `$partitions`, a
+#'   per-partition `$lineage` data frame recording which observations censoring
+#'   retained, `$clock_coverage`, `$clock_tolerance`, `$capabilities`,
+#'   `$provenance`, and a `$study_id`.
+#' @family studies and effect maps
+#' @seealso [observations()], [observation_events()],
+#'   [observation_confounds()], [partition_hierarchy()] for the inputs;
+#'   [study_capabilities()] to inspect what was established; and
+#'   [plan_relation()] for the next step.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(4L, id = "study-example")
+#' indexes <- list(
+#'   `run-1` = observation_index(
+#'     1:6, "run-1", time = seq(0, 10, by = 2), units = "seconds"
+#'   ),
+#'   `run-2` = observation_index(
+#'     1:6, "run-2", time = seq(0, 10, by = 2), units = "seconds"
+#'   )
+#' )
+#' record <- observations(
+#'   lapply(indexes, function(index) matrix(rnorm(24), 6L, 4L)), indexes, domain
+#' )
+#' events <- observation_events(data.frame(
+#'   partition = rep(names(indexes), each = 2L),
+#'   event_id = paste0("e", 1:4), onset = c(0, 6, 0, 6), duration = 0.5,
+#'   condition = c("face", "body", "face", "body")
+#' ))
+#'
+#' # Binding checks correspondence only; it assigns no model roles.
+#' facts <- study(record, events)
+#' facts
+#' study_capabilities(facts)
+#'
+#' # An event outside the acquired window is refused, not silently clipped.
+#' late <- observation_events(data.frame(
+#'   partition = "run-1", event_id = "e5", onset = 40, duration = 1
+#' ))
+#' catch_refusal(study(record, late))$capability
 #' @export
 study <- function(observations, events = NULL, confounds = NULL,
                   hierarchy = NULL, clock_tolerance = 0,
                   provenance = list()) {
+  if (missing(observations)) {
+    stop(paste0(
+      "`observations` is required: pass the `observations()` record whose ",
+      "partitions the events, confounds, and hierarchy are checked against."
+    ), call. = FALSE)
+  }
   observations <- .validate_observations(observations)
   if (!is.null(events)) events <- .validate_events(events)
   if (!is.null(confounds)) {
@@ -378,7 +423,34 @@ study <- function(observations, events = NULL, confounds = NULL,
 #'
 #' @param x An [study()].
 #' @param name One hierarchy axis name.
-#' @return An `effect_study_axis`.
+#' @return An `effect_study_axis`: a list with the axis `$name`, its distinct
+#'   `$levels`, the enclosing `$parent` axis (`NULL` at the outermost axis),
+#'   and a `$signature` tied to the study hierarchy.
+#' @family studies and effect maps
+#' @seealso [partition_hierarchy()] which declares the available axes, and
+#'   [cross_partitions()], where a generalization axis is actually chosen.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(4L, id = "study-axis-example")
+#' partitions <- c("run-1", "run-2")
+#' indexes <- lapply(partitions, function(partition) {
+#'   observation_index(1:6, partition)
+#' })
+#' names(indexes) <- partitions
+#' record <- observations(
+#'   lapply(indexes, function(index) matrix(rnorm(24), 6L, 4L)), indexes, domain
+#' )
+#' facts <- study(record, hierarchy = partition_hierarchy(data.frame(
+#'   partition = partitions, session = c("ses-1", "ses-2")
+#' )))
+#'
+#' # Vocabulary only: naming an axis does not assert independence across it.
+#' axis <- study_axis(facts, "session")
+#' axis
+#' axis$levels
+#'
+#' # An axis that was never declared is refused rather than invented.
+#' catch_refusal(study_axis(facts, "subject"))$capability
 #' @export
 study_axis <- function(x, name) {
   x <- .validate_study(x, deep = FALSE)
@@ -412,8 +484,35 @@ study_axis <- function(x, name) {
 
 #' Inspect factual study capabilities
 #'
+#' Reports what the binding actually established, so downstream calls can
+#' require a guarantee instead of assuming it.
+#'
 #' @param x An [study()].
-#' @return A one-row data frame of construction guarantees.
+#' @return A one-row data frame with logical columns `aligned_observations`,
+#'   `timing_resolved`, `partition_hierarchy`, and `stable_source_revision`.
+#' @family studies and effect maps
+#' @seealso [study()], and [compiler_conformance()] for the equivalent report
+#'   on a compiled relation plan.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(4L, id = "study-capabilities-example")
+#' index <- observation_index(
+#'   1:6, "run-1", time = seq(0, 10, by = 2), units = "seconds"
+#' )
+#' record <- observations(
+#'   list(`run-1` = matrix(rnorm(24), 6L, 4L)), list(`run-1` = index), domain
+#' )
+#'
+#' # With no event record there is no timing to resolve, and the report says so
+#' # rather than defaulting to TRUE.
+#' study_capabilities(study(record))
+#'
+#' # Binding timed events on the same clock earns `timing_resolved`.
+#' events <- observation_events(data.frame(
+#'   partition = "run-1", event_id = c("e1", "e2"), onset = c(0, 6),
+#'   duration = 0.5
+#' ))
+#' study_capabilities(study(record, events))$timing_resolved
 #' @export
 study_capabilities <- function(x) {
   x <- .validate_study(x, deep = FALSE)

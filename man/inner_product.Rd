@@ -7,8 +7,46 @@
 inner_product()
 }
 \value{
-An immutable edge-normalization specification.
+An \code{effect_edge_normalizer} recording \verb{$kind} and its
+\verb{$zero_policy}. It is a declaration, not a computation.
 }
 \description{
-Declare uncentered inner-product edge geometry
+\code{inner_product()} names the default edge normalization: raw uncentered
+products, with no centering, scaling, or correlation normalization applied
+to an edge before it is reduced. Use it wherever an operation stage must
+record that the geometry is the plain bilinear form.
 }
+\examples{
+# The normalizer only names the stage; nothing is computed here.
+normalizer <- inner_product()
+normalizer$kind
+
+# Because no denominator is involved, there is no zero-norm case to
+# resolve at execution time.
+normalizer$zero_policy
+}
+\seealso{
+\code{\link[=reduce_partitions]{reduce_partitions()}} and \code{\link[=aggregate_first]{aggregate_first()}} for the partition
+stage that follows normalization; \code{\link[=connectivity]{connectivity()}} for the normalized
+views that are gated behind explicit capabilities.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

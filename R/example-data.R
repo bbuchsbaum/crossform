@@ -48,17 +48,39 @@
 #' @param noise_sd Positive residual standard deviation.
 #' @param spacing Three positive voxel spacings in millimeters.
 #' @param searchlight_radius Positive searchlight radius in millimeters.
-#' @return A named list containing `fit`, its full `domain`, a compiled
-#'   searchlight `frame`, the `contrast` weights, a category `model_rdm`, and
-#'   `truth` metadata identifying the planted features and noiseless patterns.
+#' @return An `effect_example_effects` list containing `$fit` (an
+#'   [lm_relation_fit()] with a residual channel), its full `$domain`, a
+#'   compiled searchlight `$frame`, the animate-versus-inanimate `$contrast`
+#'   weights, a category `$model_rdm`, and `$truth` metadata naming the
+#'   `planted_features`, the `signal_measurements` that overlap them, the
+#'   noiseless `condition_patterns`, and the generating `noise_sd` and `seed`.
+#' @family geometry plans and views
+#' @seealso [plan_geometry()] for the next step, then [contrast_energy()],
+#'   [rdm()], or [rsa()]; and [rdm_sampling_covariance()], which the retained
+#'   residual channel makes available.
 #' @examples
 #' example <- example_fmri_effects()
+#'
+#' # The planted contrast and the features it was planted in are carried
+#' # alongside the data, so any result can be checked against ground truth.
+#' example$contrast
+#' length(example$truth$planted_features)
+#'
+#' # Everything a second-moment question needs is already built: a fit with
+#' # residuals, a compiled searchlight frame, and the cross-run pairing.
 #' plan <- plan_geometry(
 #'   example$fit$relation, example$frame,
 #'   cross_partitions(example$fit$relation, independence = "independent")
 #' )
 #' distances <- rdm(plan)
 #' dim(distances$values)
+#'
+#' # Cross-run energy for the planted contrast is largest inside the planted
+#' # region, which is what makes this fixture usable as a check.
+#' energy <- contrast_energy(plan, example$contrast)
+#' signal <- example$truth$signal_measurements
+#' round(c(planted = mean(energy$total[signal]),
+#'         elsewhere = mean(energy$total[-signal])), 3)
 #' @export
 example_fmri_effects <- function(
     seed = 20260814L,
@@ -101,7 +123,7 @@ example_fmri_effects <- function(
     domain <- volume_domain(
       # Frozen dataset identity: changing this branding token would change
       # every plan built from the otherwise unchanged generated fixture.
-      mask, spacing = spacing, id = "effectagram:generated-fmri-example"
+      mask, spacing = spacing, id = "crossform:generated-fmri-example"
     )
     center <- colMeans(domain$coordinates)
     displacement <- sweep(domain$coordinates, 2L, center, `-`)
@@ -152,7 +174,7 @@ example_fmri_effects <- function(
       function(left, right) as.numeric(left != right)
     )
     dimnames(model_rdm) <- list(conditions, conditions)
-    list(
+    structure(list(
       fit = fit,
       domain = domain,
       frame = frame,
@@ -167,6 +189,6 @@ example_fmri_effects <- function(
         noise_sd = noise_sd,
         seed = as.integer(seed)
       )
-    )
+    ), class = c("effect_example_effects", "list"))
   })
 }

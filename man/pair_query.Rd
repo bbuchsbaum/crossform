@@ -17,10 +17,54 @@ as shorthand for an unspecified-basis space.}
 pair-design constructors for balance and design diagnostics.}
 }
 \value{
-A fixed axis-bound pair query.
+An \code{effect_pair_query} carrying the \verb{$operator}, its bound
+\verb{$left_space} and \verb{$right_space}, and any \verb{$metadata} a higher-level
+constructor attached.
 }
 \description{
 A pair query is the universal rectangular readout. Its rows are bound to one
 ordered left effect space and its columns to one ordered right effect space;
 equal dimensions or labels do not substitute for identity.
 }
+\examples{
+# An encoding-retrieval readout: 2 encoding conditions by 3 retrieval
+# conditions, so the query is rectangular and cannot be a square RDM.
+encoding <- effect_space(c("encode_a", "encode_b"), basis_id = "demo:enc")
+retrieval <- effect_space(
+  c("retrieve_a", "retrieve_b", "lure"), basis_id = "demo:ret"
+)
+query <- pair_query(
+  matrix(c(1, -0.5, 0, 0, 0.5, -1), 2, 3, byrow = TRUE),
+  encoding, retrieval
+)
+dim(query$operator)
+query$left_space$coordinates
+
+# Axis identity is checked, not inferred: equal dimensions do not make two
+# different experimental spaces interchangeable.
+swapped <- try(
+  pair_query(matrix(1, 3, 2), encoding, retrieval), silent = TRUE
+)
+conditionMessage(attr(swapped, "condition"))
+}
+\seealso{
+\code{\link[=pair_lm_query]{pair_lm_query()}} and \code{\link[=coupling_contrast]{coupling_contrast()}}, which compile
+designed pair operators; \code{\link[=bilinear_query]{bilinear_query()}} for the symmetric
+single-space case; \code{\link[=evaluate_geometry]{evaluate_geometry()}} for reading a rectangular plan
+with one.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

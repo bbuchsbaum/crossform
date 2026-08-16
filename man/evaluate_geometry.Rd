@@ -17,13 +17,66 @@ evaluate_geometry(
 \arguments{
 \item{x, at, over, compute, reporter}{As in \code{\link[=materialize_geometry]{materialize_geometry()}}.}
 
-\item{query}{A fixed \code{bilinear_query()} or packed-coordinate query matrix.}
+\item{query}{A fixed \code{bilinear_query()}, an axis-bound \code{\link[=pair_query]{pair_query()}} for
+rectangular cross-axis plans, or a packed-coordinate query matrix.}
 
 \item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.}
 }
 \value{
-A query-only \code{effect_view}.
+A query-only \code{effect_view}: \verb{$values} has one row per measurement
+and one column per query column, with \verb{$component}, \verb{$index}, and the
+execution \verb{$receipt}. It carries no packed geometry, so
+\code{\link[=geometry_component]{geometry_component()}} does not apply to it.
 }
 \description{
-Evaluate a fixed query without materializing complete geometry
+\code{evaluate_geometry()} is the query-first route: the requested view is
+contracted during execution, so complete packed geometry is never
+allocated. Use it whenever a fixed query answers the question; use
+\code{\link[=materialize_geometry]{materialize_geometry()}} only when several readouts must share one stored
+geometry.
 }
+\examples{
+domain <- abstract_domain(4, id = "evaluate-example")
+relation <- relation(
+  list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+       run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+  domain = domain
+)
+plan <- plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(relation, independence = "independent")
+)
+
+# A fixed contrast read straight off the plan, with no packed geometry.
+view <- evaluate_geometry(plan, query = bilinear_query(tcrossprod(c(1, -1))))
+view
+as.data.frame(view)
+
+# A query is mandatory: query-first execution will not guess one.
+missing_query <- try(evaluate_geometry(plan), silent = TRUE)
+conditionMessage(attr(missing_query, "condition"))
+}
+\seealso{
+\code{\link[=plan_geometry]{plan_geometry()}} to build the plan, \code{\link[=contrast_energy]{contrast_energy()}},
+\code{\link[=rdm]{rdm()}}, and \code{\link[=rsa]{rsa()}} for named views of the same plan.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

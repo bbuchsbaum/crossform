@@ -9,7 +9,12 @@ contrast_energy(x, weights, remove_univariate = FALSE)
 \arguments{
 \item{x}{An \code{effect_geometry_plan} or complete \code{effect_geometry}.}
 
-\item{weights}{One finite contrast weight per named experimental effect.}
+\item{weights}{One finite contrast weight per experimental effect. Named
+weights are reordered to the relation's declared effect order and must
+name every effect exactly once, so naming them is the safe form. Unnamed
+weights are accepted positionally, in the order given by
+\code{x$task$left_relation$effects}; the returned \verb{$weights} always carries the
+effect names, so print it to confirm the alignment you intended.}
 
 \item{remove_univariate}{Must be omitted or \code{FALSE}. Destructive demeaning
 is refused: the coherent/configuration/total decomposition already
@@ -17,11 +22,71 @@ reports the common spatial mode and its orthogonal remainder as an
 exact, non-destructive partition.}
 }
 \value{
-An \code{effect_contrast_view} containing signed marginals and the three
-energy components. \code{coherence_fraction} is reported only where the raw
-cross-generalized components form a nonnegative partition.
+An \code{effect_contrast_view} with one value per measurement in
+\verb{$signed} (the signed contrast of the local weighted mean), \verb{$coherent},
+\verb{$configuration}, and \verb{$total = coherent + configuration}, plus
+\verb{$coherence_fraction} (reported only where the raw cross-generalized
+components form a nonnegative partition, flagged by
+\verb{$coherence_fraction_valid}), the aligned \verb{$weights}, \verb{$index}, and
+\verb{$receipt}.
 }
 \description{
 This view never removes a mean pattern or reruns an analysis. It reads the
 exact coherent/configuration decomposition already contained in \code{x}.
 }
+\examples{
+# Where does an animate-versus-inanimate pattern reproduce across runs?
+example <- example_fmri_effects()
+plan <- plan_geometry(
+  example$fit$relation, example$frame,
+  cross_partitions(
+    example$fit$relation,
+    independence = "independent", generalizes_over = "run"
+  )
+)
+effect <- contrast_energy(plan, example$contrast)
+
+# The strongest searchlight falls inside the planted signal, and its
+# energy splits exactly into coherent and configuration parts.
+peak <- which.max(effect$total)
+c(
+  signed = effect$signed[peak],
+  coherent = effect$coherent[peak],
+  configuration = effect$configuration[peak],
+  total = effect$total[peak],
+  planted = peak \%in\% example$truth$signal_measurements
+)
+
+# Demeaning the univariate signal away is refused: the decomposition
+# already separates the common spatial mode from its remainder.
+refusal <- catch_refusal(
+  contrast_energy(plan, example$contrast, remove_univariate = TRUE)
+)
+refusal$capability
+refusal$remedies
+}
+\seealso{
+\code{\link[=plan_geometry]{plan_geometry()}} to build \code{x}, \code{\link[=rdm]{rdm()}} and \code{\link[=rsa]{rsa()}} for the other
+named views, and \code{\link[=crossnobis]{crossnobis()}} for the same total under a declared
+noise-precision metric.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

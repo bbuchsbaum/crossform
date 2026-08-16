@@ -2,6 +2,11 @@
 
 #' Construct a partition pairing
 #'
+#' `pairing()` declares exactly which partition products a plan may form and
+#' what may be claimed about them. Use it when you need an explicit or
+#' directed edge set; use [cross_partitions()] for the usual all-distinct-pairs
+#' case.
+#'
 #' @param left,right Equal-length vectors naming partition endpoints.
 #' @param weight Optional finite nonnegative edge weights. They are normalized
 #'   to sum to one.
@@ -18,12 +23,49 @@
 #'   reproduction are different quantities even at identical fold counts, so
 #'   the declared axis is bound into every plan identity built from this
 #'   pairing. Leaving it `NULL` records the axis as undeclared.
-#' @return An edge table with explicit endpoint semantics.
+#' @return An `effect_pairing` data frame with `left`, `right`, and unit-mass
+#'   `weight` columns, plus the `directed`, `self_pairs`, `independence`,
+#'   `generalizes_over`, and derived `estimate` attributes that name the
+#'   estimand.
+#' @seealso [cross_partitions()] for all distinct pairs, and [plan_geometry()],
+#'   which binds the pairing into plan identity.
+#' @family generalization pairings
+#' @examples
+#' # Directed cross-session edges, declared independent and named as
+#' # generalizing across sessions.
+#' over <- pairing(
+#'   c("ses1", "ses1"), c("ses2", "ses3"),
+#'   directed = TRUE, independence = "independent",
+#'   generalizes_over = "session"
+#' )
+#' over
+#' attr(over, "estimate")
+#'
+#' # Weights are normalized to unit mass, so they are estimator weights, not
+#' # counts of independent replicates.
+#' sum(over$weight)
+#'
+#' # Self-products are biased and must say so; the default forbids them.
+#' refused <- try(pairing("run1", "run1"), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
+#' attr(
+#'   pairing("run1", "run1", self_pairs = "allow_biased",
+#'     independence = "not_independent"),
+#'   "estimate"
+#' )
 #' @export
 pairing <- function(left, right, weight = NULL, directed = FALSE,
                     self_pairs = c("forbid", "allow_biased"),
                     independence = NULL,
                     generalizes_over = NULL) {
+  if (missing(left) || missing(right)) {
+    stop(paste0(
+      "`left` and `right` are both required: each edge pairs one left ",
+      "partition with one right partition, as in ",
+      "`pairing(c(\"run1\", \"run1\"), c(\"run2\", \"run3\"))`. Use ",
+      "`cross_partitions()` for every distinct pair."
+    ), call. = FALSE)
+  }
   self_pairs <- match.arg(self_pairs)
   independence <- if (is.null(independence)) {
     "undeclared"
@@ -37,7 +79,11 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
       call. = FALSE)
   }
   if (length(left) != length(right) || length(left) < 1L) {
-    stop("`left` and `right` must have the same positive length.", call. = FALSE)
+    stop(sprintf(paste0(
+      "`left` and `right` must name one partition each per edge, so they ",
+      "must have the same positive length; received %s and %s."
+    ), .msg_count(length(left), "left endpoint"),
+      .msg_count(length(right), "right endpoint")), call. = FALSE)
   }
   if (!is.logical(directed) || length(directed) != 1L || is.na(directed)) {
     stop("`directed` must be TRUE or FALSE.", call. = FALSE)
@@ -64,11 +110,18 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
       call. = FALSE)
   }
   if (any(is_self) && self_pairs != "allow_biased") {
-    stop("Self-products require `self_pairs = \"allow_biased\"`.", call. = FALSE)
+    stop(sprintf(paste0(
+      "Edge %s pairs %s with itself, which is a noise-biased estimate rather ",
+      "than a cross-generalized one. Declare it with ",
+      "`self_pairs = \"allow_biased\"` if that is what you mean."
+    ), .msg_positions(is_self), .msg_names(unique(left[is_self]))),
+      call. = FALSE)
   }
   if (any(is_self) && independence != "not_independent") {
-    stop("Self-products must declare `independence = \"not_independent\"`.",
-      call. = FALSE)
+    stop(paste0(
+      "Self-products must declare `independence = \"not_independent\"`: a ",
+      "partition's estimate is not independent of itself."
+    ), call. = FALSE)
   }
 
   key <- if (directed) {
@@ -136,16 +189,62 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 #' @references Diedrichsen J, Provost S, Zareamoghaddam H (2016),
 #'   "On the distribution of cross-validated Mahalanobis distances",
 #'   especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
+#' @seealso [pairing()] for explicit or directed edge sets,
+#'   [plan_geometry()] which consumes this pairing, and
+#'   [rdm_sampling_covariance()] for the admitted uncertainty law.
+#' @family generalization pairings
+#' @examples
+#' # Four runs give six unordered pairs, each weighted to unit total mass.
+#' example <- example_fmri_effects()
+#' over <- cross_partitions(
+#'   example$fit$relation,
+#'   independence = "independent", generalizes_over = "run"
+#' )
+#' nrow(over)
+#' sum(over$weight)
+#'
+#' # The declared axis and independence become part of the estimand, so they
+#' # travel into every plan built from this pairing.
+#' c(estimate = attr(over, "estimate"),
+#'   axis = attr(over, "generalizes_over"))
+#'
+#' # Leaving independence undeclared still yields a point estimand, but it
+#' # does not earn cross-generalized capabilities.
+#' attr(cross_partitions(example$fit$relation), "estimate")
 #' @export
 cross_partitions <- function(partitions, independence = NULL,
                              generalizes_over = NULL) {
+  if (missing(partitions)) {
+    stop(paste0(
+      "`partitions` is required: pass an `effect_relation` (or ",
+      "`fit$relation`), or the partition identifiers to pair."
+    ), call. = FALSE)
+  }
+  if (inherits(partitions, "effect_relation_fit")) {
+    stop(paste0(
+      "`partitions` must be partition identifiers or an `effect_relation`; ",
+      "pass `fit$relation` rather than the fit itself."
+    ), call. = FALSE)
+  }
   if (inherits(partitions, "effect_relation")) {
     .validate_relation(partitions)
     partitions <- partitions$partitions
   }
-  partitions <- unique(as.character(partitions))
-  if (length(partitions) < 2L || anyNA(partitions) || any(partitions == "")) {
-    stop("At least two distinct, non-missing partitions are required.", call. = FALSE)
+  supplied <- as.character(partitions)
+  partitions <- unique(supplied)
+  if (anyNA(partitions) || any(partitions == "")) {
+    stop(paste0(
+      "Partition identifiers must be non-missing and nonempty; ",
+      "cross-generalization needs a name for every fold."
+    ), call. = FALSE)
+  }
+  if (length(partitions) < 2L) {
+    stop(sprintf(paste0(
+      "Cross-generalization needs at least two partitions, and this ",
+      "relation has %s (%s). Split the data into folds that can be paired, ",
+      "for example one partition per run or session."
+    ), .msg_count(length(partitions), "partition"), .msg_names(partitions)),
+      call. = FALSE)
   }
   edges <- utils::combn(partitions, 2L)
   pairing(edges[1L, ], edges[2L, ], directed = FALSE,
@@ -361,6 +460,12 @@ pairing_marginals <- function(local, over, mass = 1) {
 }
 
 .validate_pairing <- function(over) {
+  if (!inherits(over, "effect_pairing")) {
+    stop(sprintf(paste0(
+      "Expected an `effect_pairing` from `cross_partitions()` or ",
+      "`pairing()`; received %s."
+    ), .msg_value(over)), call. = FALSE)
+  }
   if (!inherits(over, "effect_pairing") || !is.data.frame(over) ||
       !identical(names(over), c("left", "right", "weight")) || nrow(over) < 1L) {
     stop("Pairing objects must be nonempty left/right/weight edge tables.",

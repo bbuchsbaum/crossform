@@ -129,7 +129,41 @@
 #'   Construction fails before dense conversion when its estimated frame and
 #'   leg payload exceeds 256 MiB. Brain-scale work should use the support-local
 #'   geometry-plan path until matrix-free measurement frames are qualified.
-#' @return An identified `effect_measurement_frame`.
+#' @return An `effect_measurement_frame` with one oriented `$legs` entry per
+#'   node, the `$node_ids` naming them, the stacked `$frame_operator`, and
+#'   `$coverage`, `$injectivity`, and `$dual` diagnostics used by
+#'   [reconstruct_evidence()].
+#' @seealso [edge_frame()] to request node pairs, [measurement_form()] to
+#'   evaluate them, and [additive_frame()] or [compile_frame()] for the
+#'   additive frames this can adapt.
+#' @family neural domains and frames
+#' @examples
+#' # Two scalar regional measurements, each a fixed oriented row of weights.
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' nodes <- measurement_frame(
+#'   list(
+#'     anterior = matrix(c(1, 0, 0, 0), 1),
+#'     posterior = matrix(c(0, 1, 0, 0), 1)
+#'   ),
+#'   domain = native, id = "demo:regional-means:v1"
+#' )
+#' nodes$node_ids
+#' nodes$legs$anterior$operator
+#'
+#' # An additive frame can be adapted instead. In coherent/configuration
+#' # mode each measurement keeps its weighted-mean direction and the
+#' # orthogonal remainder as separate components.
+#' additive <- additive_frame(
+#'   matrix(c(1, 2, 1, 0, 0, 1, 2, 1), 2, 4, byrow = TRUE), domain = native
+#' )
+#' decomposed <- measurement_frame(additive, mode = "coherent_configuration")
+#' decomposed$node_ids
+#'
+#' # An additive frame already names its domain, so supplying one is refused.
+#' refused <- try(
+#'   measurement_frame(additive, domain = native), silent = TRUE
+#' )
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 measurement_frame <- function(
     x, domain = NULL,
@@ -199,7 +233,39 @@ measurement_frame <- function(
 #' @param to_frame Measurement frame containing `to` nodes. Defaults to
 #'   `frame`.
 #' @param weight Optional finite edge weights recorded as part of edge identity.
-#' @return An explicit `effect_edge_frame` for the `between` argument.
+#' @return An `effect_edge_frame` for the `between` argument, holding the
+#'   `$from_frame` and `$to_frame` it draws nodes from, the requested
+#'   `$edges` table (`left`, `right`, `weight`), and a `$signature`.
+#' @seealso [measurement_frame()] for the nodes, [measurement_form()] which
+#'   consumes this edge set, and [reconstruct_evidence()], which needs every
+#'   directed pair.
+#' @family neural domains and frames
+#' @examples
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' nodes <- measurement_frame(
+#'   list(
+#'     anterior = matrix(c(1, 0, 0, 0), 1),
+#'     posterior = matrix(c(0, 1, 0, 0), 1)
+#'   ),
+#'   domain = native, id = "demo:regional-means:v1"
+#' )
+#'
+#' # Request exactly the edges the question needs. A correlation view also
+#' # needs the two self-pairs, because they supply its denominator.
+#' pairs <- expand.grid(
+#'   from = nodes$node_ids, to = nodes$node_ids, stringsAsFactors = FALSE
+#' )
+#' between <- edge_frame(pairs$from, pairs$to, nodes)
+#' between$edges$edges
+#'
+#' # A seed-to-target edge set is just a shorter list; nothing is created on
+#' # your behalf.
+#' edge_frame("anterior", "posterior", nodes)$edges$edges
+#'
+#' # Node names are checked against the frame, so a typo cannot become a
+#' # silently missing edge.
+#' refused <- try(edge_frame("anterior", "postrior", nodes), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 edge_frame <- function(from, to, frame, to_frame = frame, weight = NULL) {
   frame <- .validate_measurement_frame(frame)
@@ -229,7 +295,43 @@ edge_frame <- function(from, to, frame, to_frame = frame, weight = NULL) {
 #'   `"joint_covariance"` when the later partition construction is a coherent
 #'   joint covariance.
 #' @param provenance Named fixed-construction metadata.
-#' @return An axis-bound `effect_pair_query` with variation capabilities.
+#' @return An `effect_pair_query` carrying the `$operator`, its bound
+#'   `$left_space` and `$right_space`, and `$metadata$evidence_capability`
+#'   recording the `sampling_axis` and `construction` that later views check.
+#' @seealso [measurement_form()] and [coupling()], which take this as `by`;
+#'   [connectivity()], which refuses a rank-one variation query;
+#'   [pair_query()] for a fixed query making no variation claim.
+#' @family geometry plans and views
+#' @examples
+#' # Centering eight repeated time points and dividing by n - 1 is the
+#' # within-session covariance operation, declared on the time axis.
+#' times <- effect_space(paste0("time", 1:8), basis_id = "demo:time:v1")
+#' center <- diag(8) - matrix(1 / 8, 8, 8)
+#' sample_covariance <- variation_query(
+#'   center / 7, times,
+#'   sampling_axis = "time", construction = "joint_covariance",
+#'   provenance = list(estimator = "centered within session")
+#' )
+#' sample_covariance$metadata$evidence_capability$sampling_axis
+#' sample_covariance$metadata$evidence_capability$construction
+#'
+#' # Centering removes one direction, so eight time points leave rank seven:
+#' # enough repeated variation for a normalized connectivity view.
+#' qr(as.matrix(sample_covariance$operator))$rank
+#'
+#' # A contrast gives the rank-one query `c c'`. It is a valid effect query,
+#' # but it retains no repeated variation for connectivity to normalize.
+#' direction <- rep(c(-1, 1), each = 4)
+#' rank_one <- variation_query(
+#'   tcrossprod(direction), times, "time", "joint_covariance"
+#' )
+#' qr(as.matrix(rank_one$operator))$rank
+#'
+#' # The operator must be positive semidefinite to be called variation.
+#' refused <- try(
+#'   variation_query(diag(c(1, -1, rep(1, 6))), times, "time"), silent = TRUE
+#' )
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 variation_query <- function(
     operator, effects, sampling_axis,
@@ -287,7 +389,62 @@ variation_query <- function(
 #' @param compute A `compute_policy()`.
 #' @param route Internal contraction route. `"auto"` chooses an equivalent
 #'   bounded route without changing the scientific plan.
-#' @return A complete `effect_measurement_form` over the requested edge set.
+#' @return An `effect_measurement_form` over the requested edge set:
+#'   `$block_index` names one row per edge (`edge_id`, `left`, `right`, block
+#'   dimensions), `$diagnostics` reports the
+#'   `experimental_effective_rank` that gates the normalized views,
+#'   and `$capabilities`, `$plan`, and `$receipt` record what may be claimed.
+#'   Read the blocks with [effect_coupling()] and the other views.
+#' @seealso [effect_coupling()], [connectivity()],
+#'   [measurement_components()], and [reconstruct_evidence()] for the views;
+#'   [coupling()] to derive the same form from an existing geometry plan.
+#' @family coupling and connectivity views
+#' @examples
+#' # Two sessions of six repeated time points over four native features.
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+#' trend <- seq(-1.5, 1.5, length.out = 6)
+#' session <- function(shift) cbind(
+#'   trend + shift,
+#'   -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+#'   sin(seq(shift, pi, length.out = 6)),
+#'   cos(seq(shift, pi, length.out = 6))
+#' )
+#' signals <- relation(
+#'   list(session1 = session(0), session2 = session(0.1)),
+#'   effects = times, domain = native
+#' )
+#'
+#' # Two scalar node measurements and all four directed node pairs.
+#' nodes <- measurement_frame(
+#'   list(anterior = matrix(c(1, 0, 0, 0), 1),
+#'        posterior = matrix(c(0, 1, 0, 0), 1)),
+#'   domain = native, id = "demo:regional-means:v1"
+#' )
+#' pairs <- expand.grid(
+#'   from = nodes$node_ids, to = nodes$node_ids, stringsAsFactors = FALSE
+#' )
+#'
+#' # `by` closes the experimental axis (within-session covariance over time)
+#' # and `over` says each session multiplies by itself, which is biased and
+#' # must be declared as such.
+#' covariance_over_time <- variation_query(
+#'   (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+#' )
+#' within_session <- pairing(
+#'   signals$partitions, signals$partitions, directed = TRUE,
+#'   self_pairs = "allow_biased", independence = "not_independent"
+#' )
+#' form <- measurement_form(
+#'   signals, edge_frame(pairs$from, pairs$to, nodes),
+#'   covariance_over_time, within_session
+#' )
+#' form$block_index[, c("edge_id", "left", "right")]
+#'
+#' # Centering leaves five directions of repeated variation, which is what
+#' # the normalized views require.
+#' form$diagnostics$experimental_effective_rank
+#' effect_coupling(form)$values[["edge_000002"]]
 #' @export
 measurement_form <- function(
     left, between, by, over, right = left,
@@ -361,7 +518,71 @@ measurement_form <- function(
 #'
 #' @param x A complete `effect_measurement_form`.
 #' @param tolerance Positive numerical tolerance.
-#' @return A typed `effect_coupling_result`.
+#' @return An `effect_coupling_result`. `$values` is one entry per edge (a
+#'   matrix block for `effect_coupling()` and `covariance_coupling()`, a data
+#'   frame of `canonical_correlation` per mode for `canonical_coupling()`,
+#'   and a data frame of `geometry_alignment` for `geometry_alignment()`),
+#'   with `$edge_index` naming the edges and `$kind`, `$terminology`,
+#'   `$normalization_axis`, and `$regularization` recording what is claimed.
+#' @seealso [measurement_form()] and [coupling()] to build `x`;
+#'   [connectivity()] for the same views behind one capability-checked entry
+#'   point; [measurement_components()] for decomposed nodes.
+#' @family coupling and connectivity views
+#' @examples
+#' # Two sessions of six repeated time points over four native features,
+#' # measured at two multivariate populations.
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+#' trend <- seq(-1.5, 1.5, length.out = 6)
+#' session <- function(shift) cbind(
+#'   trend + shift,
+#'   -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+#'   sin(seq(shift, pi, length.out = 6)),
+#'   cos(seq(shift, pi, length.out = 6))
+#' )
+#' signals <- relation(
+#'   list(session1 = session(0), session2 = session(0.1)),
+#'   effects = times, domain = native
+#' )
+#' populations <- measurement_frame(
+#'   list(anterior = diag(4)[1:2, , drop = FALSE],
+#'        posterior = diag(4)[3:4, , drop = FALSE]),
+#'   domain = native, id = "demo:populations:v1"
+#' )
+#' pairs <- expand.grid(
+#'   from = populations$node_ids, to = populations$node_ids,
+#'   stringsAsFactors = FALSE
+#' )
+#' form <- measurement_form(
+#'   signals, edge_frame(pairs$from, pairs$to, populations),
+#'   variation_query(
+#'     (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+#'   ),
+#'   pairing(
+#'     signals$partitions, signals$partitions, directed = TRUE,
+#'     self_pairs = "allow_biased", independence = "not_independent"
+#'   )
+#' )
+#' cross <- form$block_index$edge_id[
+#'   form$block_index$left == "anterior" &
+#'     form$block_index$right == "posterior"
+#' ]
+#'
+#' # The raw block, with no covariance claim attached to it.
+#' effect_coupling(form)$values[[cross]]
+#'
+#' # The same block, now certified as repeated-sample covariance.
+#' covariance_coupling(form)$kind
+#'
+#' # Canonical correlations describe the shared modes in descending order.
+#' # `ridge` is recorded because changing it changes the reported values.
+#' canonical <- canonical_coupling(form, ridge = 0.05)
+#' canonical$values[canonical$values$edge_id == cross, ]
+#'
+#' # Geometry alignment asks a different question: do the two populations
+#' # induce similar geometry over the repeated observations?
+#' alignment <- geometry_alignment(form)
+#' alignment$values$geometry_alignment[alignment$values$edge_id == cross]
 #' @name coupling_views
 NULL
 
@@ -398,13 +619,38 @@ geometry_alignment <- function(x, tolerance = 1e-10) {
 #' transformed into Gaussian mutual information.
 #'
 #' @param provenance Named metadata describing the fixed model assumption.
-#' @return An `effect_gaussian_covariance_model` declaration.
+#' @return An `effect_gaussian_covariance_model` declaration recording its
+#'   `$family`, that it is `$fixed`, the stated `$provenance`, and a
+#'   `$signature` carried into the result identity. It performs no fitting
+#'   and no goodness-of-fit test.
+#' @seealso [connectivity()] with `view = "gaussian_information"`, the only
+#'   place this declaration is used, and [canonical_coupling()] for the
+#'   correlation spectrum the information is computed from.
+#' @family neural metrics
+#' @examples
+#' # The declaration is required so that a Gaussian information number
+#' # cannot be produced without someone stating the model it rests on.
+#' model <- gaussian_covariance_model(
+#'   list(assumption = "joint Gaussian time observations")
+#' )
+#' model$family
+#' model$provenance$assumption
+#'
+#' # It records the assumption; it does not test it, so the signature is a
+#' # provenance trail rather than evidence of fit.
+#' model$fixed
 #' @export
 gaussian_covariance_model <- function(provenance = list()) {
   .gaussian_covariance_model(provenance)
 }
 
 #' Request a validated connectivity view
+#'
+#' `connectivity()` is the one entry point for the normalized views, and it
+#' checks their preconditions before reporting a number: repeated variation of
+#' effective rank above one, valid self-blocks, explicit regularization for
+#' the canonical and Gaussian views, and an explicit model declaration for
+#' Gaussian information.
 #'
 #' @param x A complete `effect_measurement_form`.
 #' @param view One of signed scalar correlation, a canonical spectrum, static
@@ -414,7 +660,83 @@ gaussian_covariance_model <- function(provenance = list()) {
 #' @param model A [gaussian_covariance_model()] for Gaussian information.
 #' @param units Information units, when applicable.
 #' @param tolerance Positive numerical tolerance.
-#' @return A typed `effect_coupling_result`.
+#' @return An `effect_coupling_result` whose `$values` data frame carries one
+#'   row per edge with the view's column (`correlation`,
+#'   `canonical_correlation` per `mode`, `geometry_alignment`, or
+#'   `information` plus `units`), alongside `$kind`, `$normalization_axis`,
+#'   `$regularization`, and `$terminology`.
+#' @seealso [effect_coupling()] for the uninterpreted block,
+#'   [gaussian_covariance_model()] for the declaration Gaussian information
+#'   requires, and [measurement_form()] to build `x`.
+#' @family coupling and connectivity views
+#'
+#' @section Refusals:
+#' Each precondition signals an `effect_capability_refusal` in namespace
+#' `"coupling_views"`, so [catch_refusal()] can branch on the cause instead of
+#' the prose: capability `"certified_repeated_variation"` when the form has not
+#' established repeated variation along a named sampling axis,
+#' `"nondegenerate_variation"` when the variation query has effective rank one,
+#' `"declared_regularization"` for a canonical view without `ridge`, and
+#' `"declared_gaussian_model"` for Gaussian information without `model` or
+#' `ridge`.
+#' @examples
+#' # Two scalar, oriented regional measurements over six repeated time
+#' # points in two sessions.
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+#' trend <- seq(-1.5, 1.5, length.out = 6)
+#' session <- function(shift) cbind(
+#'   trend + shift,
+#'   -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+#'   sin(seq(shift, pi, length.out = 6)),
+#'   cos(seq(shift, pi, length.out = 6))
+#' )
+#' signals <- relation(
+#'   list(session1 = session(0), session2 = session(0.1)),
+#'   effects = times, domain = native
+#' )
+#' nodes <- measurement_frame(
+#'   list(anterior = matrix(c(1, 0, 0, 0), 1),
+#'        posterior = matrix(c(0, 1, 0, 0), 1)),
+#'   domain = native, id = "demo:regional-means:v1"
+#' )
+#' pairs <- expand.grid(
+#'   from = nodes$node_ids, to = nodes$node_ids, stringsAsFactors = FALSE
+#' )
+#' covariance_over_time <- variation_query(
+#'   (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+#' )
+#' within_session <- pairing(
+#'   signals$partitions, signals$partitions, directed = TRUE,
+#'   self_pairs = "allow_biased", independence = "not_independent"
+#' )
+#' form <- measurement_form(
+#'   signals, edge_frame(pairs$from, pairs$to, nodes),
+#'   covariance_over_time, within_session
+#' )
+#'
+#' # Both nodes are scalar and oriented, so the correlation view returns
+#' # ordinary signed Pearson correlations. The generated data are negatively
+#' # related, and the sign is recovered.
+#' connectivity(form, view = "correlation")$values
+#'
+#' # Gaussian mutual information additionally needs an explicit model and
+#' # information units, because it is a modeling claim, not a rescaling.
+#' connectivity(
+#'   form, view = "gaussian_information", ridge = 0.05,
+#'   model = gaussian_covariance_model(
+#'     list(assumption = "joint Gaussian time observations")
+#'   ),
+#'   units = "bits"
+#' )$values
+#'
+#' # Omitting the model declaration is refused rather than defaulted, and the
+#' # refusal names the missing capability.
+#' refusal <- catch_refusal(
+#'   connectivity(form, view = "gaussian_information", ridge = 0.05)
+#' )
+#' refusal$capability
+#' refusal$reasons
 #' @export
 connectivity <- function(
     x, view = c("correlation", "canonical", "geometry_alignment",
@@ -438,8 +760,59 @@ connectivity <- function(
 #' @param x A complete `effect_measurement_form` whose node measurements carry
 #'   decompositions.
 #' @param edge An edge number or edge identifier.
-#' @return A data frame of crossed component dimensions, orientation status,
-#'   Frobenius strengths, and strongest singular values.
+#' @return A data frame with one row per crossed component, carrying
+#'   `left_component`/`right_component`, the block dimensions `d_left` and
+#'   `d_right`, `left_orientation`/`right_orientation`,
+#'   `raw_entries_meaningful` (true only when both sides are oriented),
+#'   `frobenius_strength`, and `strongest_singular_value`.
+#' @seealso [measurement_frame()] with
+#'   `mode = "coherent_configuration"`, which creates the decomposition, and
+#'   [effect_coupling()] for the undecomposed block.
+#' @family coupling and connectivity views
+#' @examples
+#' # Two overlapping additive measurements, each split into its
+#' # weighted-mean (coherent) direction and the orthogonal remainder.
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+#' trend <- seq(-1.5, 1.5, length.out = 6)
+#' session <- function(shift) cbind(
+#'   trend + shift,
+#'   -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+#'   sin(seq(shift, pi, length.out = 6)),
+#'   cos(seq(shift, pi, length.out = 6))
+#' )
+#' signals <- relation(
+#'   list(session1 = session(0), session2 = session(0.1)),
+#'   effects = times, domain = native
+#' )
+#' decomposed <- measurement_frame(
+#'   additive_frame(
+#'     matrix(c(1, 2, 1, 0, 0, 1, 2, 1), 2, 4, byrow = TRUE), domain = native
+#'   ),
+#'   mode = "coherent_configuration"
+#' )
+#' form <- measurement_form(
+#'   signals,
+#'   edge_frame(
+#'     decomposed$node_ids[1], decomposed$node_ids[2], decomposed
+#'   ),
+#'   variation_query(
+#'     (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+#'   ),
+#'   pairing(
+#'     signals$partitions, signals$partitions, directed = TRUE,
+#'     self_pairs = "allow_biased", independence = "not_independent"
+#'   )
+#' )
+#'
+#' # Four crossed components on one edge. Only coherent-to-coherent has a
+#' # fixed orientation on both sides, so only its raw entry is meaningful;
+#' # the others are reported as rotation-invariant strengths.
+#' components <- measurement_components(form, edge = 1)
+#' components[, c(
+#'   "left_component", "right_component", "raw_entries_meaningful",
+#'   "frobenius_strength"
+#' )]
 #' @export
 measurement_components <- function(x, edge) {
   lifted <- .lift_measurement_decomposition(x, edge)
@@ -495,8 +868,82 @@ measurement_components <- function(x, edge) {
 #'   hard 512 MiB ceiling for this explicitly small-node reconstruction path.
 #' @param reference_operator Optional finite reference used only to certify the
 #'   numerical reconstruction residual.
-#' @return An `effect_tomography_result` distinguishing exact, certified, and
-#'   projected reconstruction.
+#' @return An `effect_tomography_result` with the reconstructed `$operator`,
+#'   the `$method` actually used (`"parseval"`, `"canonical_dual"`, or
+#'   `"projected_pseudoinverse"`), a `$status` distinguishing exact,
+#'   certified, and projected reconstruction, the `$lossless` and
+#'   `$certified` flags, `$left_projection`/`$right_projection`, and frame
+#'   `$diagnostics`.
+#' @seealso [measurement_form()] and [edge_frame()], which must supply every
+#'   directed node pair for a lossless claim.
+#' @family sampling uncertainty
+#'
+#' @section Refusal:
+#' A form that is not frame complete — a diagonal-only or requested-edge map —
+#' signals an `effect_capability_refusal` carrying capability
+#' `"complete_edge_set"` in namespace `"tomography"`, with reason
+#' `"edge_set_is_not_frame_complete"`. Inspect it with [catch_refusal()].
+#' @examples
+#' # A Parseval frame: stacking the two node operators gives the identity, so
+#' # the local blocks add back with no correction matrix.
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+#' trend <- seq(-1.5, 1.5, length.out = 6)
+#' session <- function(shift) cbind(
+#'   trend + shift,
+#'   -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+#'   sin(seq(shift, pi, length.out = 6)),
+#'   cos(seq(shift, pi, length.out = 6))
+#' )
+#' signals <- relation(
+#'   list(session1 = session(0), session2 = session(0.1)),
+#'   effects = times, domain = native
+#' )
+#' halves <- measurement_frame(
+#'   list(first_half = diag(4)[1:2, , drop = FALSE],
+#'        second_half = diag(4)[3:4, , drop = FALSE]),
+#'   native, id = "demo:parseval:v1"
+#' )
+#' pairs <- expand.grid(
+#'   from = halves$node_ids, to = halves$node_ids, stringsAsFactors = FALSE
+#' )
+#' between <- edge_frame(pairs$from, pairs$to, halves)
+#' form <- measurement_form(
+#'   signals, between,
+#'   variation_query(
+#'     (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+#'   ),
+#'   pairing(
+#'     signals$partitions, signals$partitions, directed = TRUE,
+#'     self_pairs = "allow_biased", independence = "not_independent"
+#'   )
+#' )
+#'
+#' # Every directed edge is present and the frame has full column rank, so
+#' # the global 4-by-4 neural operator is recovered exactly.
+#' reconstructed <- reconstruct_evidence(form, between)
+#' c(method = reconstructed$method, status = reconstructed$status,
+#'   lossless = reconstructed$lossless)
+#' round(reconstructed$operator, 3)
+#'
+#' # Diagonal node blocks alone are not enough: dropping the cross-edges
+#' # discards the between-node directions, and the lossless claim is refused.
+#' self_only <- edge_frame(
+#'   halves$node_ids, halves$node_ids, halves
+#' )
+#' partial <- measurement_form(
+#'   signals, self_only,
+#'   variation_query(
+#'     (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+#'   ),
+#'   pairing(
+#'     signals$partitions, signals$partitions, directed = TRUE,
+#'     self_pairs = "allow_biased", independence = "not_independent"
+#'   )
+#' )
+#' refusal <- catch_refusal(reconstruct_evidence(partial, self_only))
+#' refusal$capability
+#' refusal$remedies
 #' @export
 reconstruct_evidence <- function(
     x, between,

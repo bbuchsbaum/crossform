@@ -21,8 +21,52 @@ source_capabilities(
 \item{stable_revision}{A strong immutable source revision or checksum.}
 }
 \value{
-A declarative source-capability value.
+An \code{effect_source_capabilities} value with the three logical flags
+\verb{$block_read}, \verb{$reopenable}, \verb{$thread_safe}, and the
+\verb{$stable_revision} identifier bound into the execution receipt.
 }
 \description{
-Declare source execution capabilities
+\code{source_capabilities()} states what an out-of-memory relation source can
+actually do, so the compiler can choose a bounded execution route and
+record the source revision in the receipt. Declare it when supplying a
+custom source such as \code{\link[=file_matrix_source]{file_matrix_source()}}.
 }
+\examples{
+# A block-readable, reopenable source identified by a content checksum.
+revision <- paste0("sha256:", paste(rep("a", 64), collapse = ""))
+capabilities <- source_capabilities(
+  block_read = TRUE, reopenable = TRUE, stable_revision = revision
+)
+capabilities$block_read
+capabilities$thread_safe
+
+# The revision must be a strong identifier: a mutable label such as a file
+# modification time is refused, because receipts must stay verifiable.
+weak <- try(
+  source_capabilities(TRUE, stable_revision = "2026-08-15"), silent = TRUE
+)
+conditionMessage(attr(weak, "condition"))
+}
+\seealso{
+\code{\link[=file_matrix_source]{file_matrix_source()}}, which carries these capabilities, and
+\code{\link[=compute_policy]{compute_policy()}}, which is checked against them before execution.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()}
+}
+\concept{relation planning and fitting}

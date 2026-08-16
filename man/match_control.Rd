@@ -19,10 +19,60 @@ match_control(
 \item{encoding_nuisance, retrieval_nuisance}{Nuisance-effect flags.}
 }
 \value{
-An axis-bound matched-versus-control \code{pair_query()}.
+An axis-bound \code{\link[=pair_query]{pair_query()}} for the matched-versus-control
+coefficient, with \verb{$metadata$constructor} set to \code{"match_control"},
+\verb{$metadata$diagnostics} (design \code{rank}, \code{columns}, operator \code{balance}),
+and a \verb{$metadata$claim} naming exactly what the reported balance covers.
 }
 \description{
 This convenience uses the eligible pair set carried by \code{matches}, includes
 both item nuisance families by default, and reports the balance of the final
 operator. It does not claim invariance after any later external weighting.
 }
+\examples{
+encoding <- effect_space(
+  c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+)
+retrieval <- effect_space(
+  c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+)
+matches <- match_coupling(
+  c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+  encoding, retrieval
+)
+
+# Both item nuisance families are included by default, so item-specific
+# offsets cannot masquerade as a matching effect.
+query <- match_control(matches)
+query$metadata$diagnostics$columns
+round(as.matrix(query$operator), 3)
+
+# The result records what its balance diagnostics actually claim.
+query$metadata$claim
+
+# Dropping both nuisance families gives the simpler unadjusted contrast.
+unadjusted <- match_control(
+  matches, encoding_nuisance = FALSE, retrieval_nuisance = FALSE
+)
+unadjusted$metadata$diagnostics$columns
+}
+\seealso{
+\code{\link[=match_coupling]{match_coupling()}} for the input, \code{\link[=coupling_contrast]{coupling_contrast()}} for the
+plain difference without nuisance effects, and \code{\link[=pair_lm_query]{pair_lm_query()}} for the
+general designed coefficient.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

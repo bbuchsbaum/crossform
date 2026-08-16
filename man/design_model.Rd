@@ -40,10 +40,66 @@ design row names; positional designs are refused.}
 \item{provenance}{Portable semantic model provenance.}
 }
 \value{
-An \code{effect_design_model}.
+An \code{effect_design_model}: a list with the bound \verb{$condition_space},
+the \verb{$specification}, \verb{$partitions}, the compiled \verb{$designs}, their
+\verb{$parameterizations}, \verb{$row_ids}, the \verb{$compiler} record, the \verb{$solver}
+route, \verb{$provenance}, a \verb{$design_model_id} covering the semantic request
+only, a \verb{$compilation_route_id} covering the concrete compilation, and
+\verb{$capabilities} with \code{symbolic_model}, \code{coding_invariant}, \code{row_lineage}.
 }
 \description{
 \code{design_model_id} covers the semantic mean-model request. Concrete design
 matrices, coding maps, row order, compiler build, and solver route are kept
 in \code{compilation_route_id} and later design receipts.
 }
+\examples{
+conditions <- condition_space(c("face", "body"), basis_id = "cond-mean:v1")
+design <- cbind(
+  face = c(1, 0, 1, 0, 1, 0), body = c(0, 1, 0, 1, 0, 1),
+  drift = seq(-1, 1, length.out = 6L)
+)
+rownames(design) <- paste0("scan-", 1:6)
+map <- cbind(diag(2), drift = 0)
+dimnames(map) <- list(conditions$coordinates, colnames(design))
+coding <- coefficient_parameterization(
+  map, conditions, coding_id = "cell-means-plus-drift"
+)
+specification <- list(target = "condition means", nuisance = "linear drift")
+
+model <- design_model(
+  specification, conditions,
+  designs = list(`run-1` = design), parameterizations = list(`run-1` = coding)
+)
+model$capabilities$coding_invariant
+
+# Semantic identity ignores the numerical route: switching solvers changes
+# the compilation receipt, not what was scientifically requested.
+route <- design_model(
+  specification, conditions,
+  designs = list(`run-1` = design), parameterizations = list(`run-1` = coding),
+  solver = "svd"
+)
+c(same_request = identical(model$design_model_id, route$design_model_id),
+  same_route = identical(
+    model$compilation_route_id, route$compilation_route_id
+  ))
+}
+\seealso{
+\code{\link[=coefficient_parameterization]{coefficient_parameterization()}} for the coding it carries,
+\code{\link[=raw_design_model]{raw_design_model()}} for the route without semantic coding, and
+\code{\link[=plan_relation]{plan_relation()}}, which binds this model to a study.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

@@ -76,7 +76,32 @@
 #' @param endian Byte order used by the file.
 #' @param stable_revision Optional expected `sha256:` content revision. When
 #'   omitted it is computed from the file.
-#' @return An immutable `effect_source_descriptor`.
+#' @return An `effect_source_descriptor`: a list with `$kind`
+#'   (`"file_matrix"`), the integer `$dim`, `$access` (`"reopenable"`), the
+#'   `$stable_revision` content hash, and a `$spec` holding the absolute
+#'   `path`, `offset_bytes`, and `endian`. Treat it as immutable.
+#' @family relation planning and fitting
+#' @seealso [source_capabilities()] for the capability value it implies, and
+#'   [observations()] or [relation()], which accept descriptors in place of
+#'   in-memory matrices.
+#' @examples
+#' # A 4-observation by 3-feature matrix written as raw column-major doubles.
+#' path <- tempfile(fileext = ".bin")
+#' writeBin(as.vector(matrix(as.double(1:12), 4L, 3L)), path, size = 8L)
+#'
+#' descriptor <- file_matrix_source(path, dim = c(4L, 3L))
+#' descriptor$dim
+#' descriptor$access
+#'
+#' # The content hash is recorded now and rechecked whenever the file is
+#' # reopened, so a silently edited source is caught rather than used.
+#' substr(descriptor$stable_revision, 1, 24)
+#'
+#' # Declaring a revision that no longer matches the bytes is an error.
+#' try(file_matrix_source(
+#'   path, dim = c(4L, 3L), stable_revision = paste0("sha256:", strrep("0", 64))
+#' ))
+#' unlink(path)
 #' @export
 file_matrix_source <- function(path, dim, offset_bytes = 0,
                                endian = .Platform$endian,

@@ -22,8 +22,11 @@ Encoding: UTF-8
 Language: en-US
 Imports:
     digest,
+    graphics,
+    grDevices,
     Matrix,
     methods,
+    stats,
     utils
 Suggests:
     fmridesign,

@@ -13,8 +13,48 @@ excluded unless conservative normalization is requested.}
 \item{normalization}{Explicit frame normalization.}
 }
 \value{
-An additive frame specification.
+An \code{effect_frame_spec} with \verb{$kind} \code{"regions"}, the supplied
+\verb{$labels}, and \verb{$normalization}. Pass it to \code{\link[=compile_frame]{compile_frame()}}.
 }
 \description{
-Specify region measurements
+Declares one measurement per distinct label, so an atlas or region-label
+vector becomes a set of non-overlapping regional measurements.
 }
+\examples{
+domain <- abstract_domain(12L, id = "region-example")
+labels <- rep(paste0("roi-", 1:3), each = 4L)
+
+# Measurement order follows first appearance of each label.
+frame <- compile_frame(regions(labels), domain)
+frame$index$measurement
+
+# Unlabeled features are dropped: with "none" the row sums are the member
+# counts, so the effect of an NA label is visible.
+as.numeric(Matrix::rowSums(
+  compile_frame(regions(labels, normalization = "none"), domain)$weights
+))
+labels[[1L]] <- NA
+as.numeric(Matrix::rowSums(
+  compile_frame(regions(labels, normalization = "none"), domain)$weights
+))
+}
+\seealso{
+\code{\link[=compile_frame]{compile_frame()}}, and \code{\link[=whole_brain]{whole_brain()}} for the single-region case.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

@@ -7,9 +7,46 @@
 aggregate_first()
 }
 \value{
-An immutable partition-reducer specification.
+An \code{effect_partition_reducer} recording \verb{$kind},
+\verb{$weight_convention}, and the stage \verb{$order} (\code{"aggregate_first"}).
 }
 \description{
 This names a distinct estimand. Raw sufficient statistics are combined by
-partition weights before normalization and transformation.
+partition weights before normalization and transformation. It is the
+default for \code{\link[=measurement_form]{measurement_form()}} and \code{\link[=coupling]{coupling()}}, where averaging raw
+partition products and normalizing once is the intended estimator.
 }
+\examples{
+# Aggregate-first: raw partition products are pooled, then normalized once.
+reducer <- aggregate_first()
+reducer$order
+reducer$weight_convention
+
+# This is the default measurement-pipeline order, so it is what
+# `measurement_form()` and `coupling()` record when `reducer` is omitted.
+identical(reducer, eval(formals(measurement_form)$reducer))
+}
+\seealso{
+\code{\link[=reduce_partitions]{reduce_partitions()}} for the edge-first order, and
+\code{\link[=measurement_form]{measurement_form()}}, which records this choice in its plan identity.
+
+Other geometry plans and views: 
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

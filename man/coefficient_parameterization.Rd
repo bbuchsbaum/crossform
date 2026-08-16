@@ -28,10 +28,55 @@ column names.}
 \item{tolerance}{Positive rank tolerance.}
 }
 \value{
-An \code{effect_coefficient_parameterization}.
+An \code{effect_coefficient_parameterization}: a list with the
+condition-by-coefficient \verb{$map}, the bound \verb{$condition_space}, the
+\verb{$coefficients} axis, the \verb{$coding_id}, the achieved \verb{$semantic_rank}, and
+a \verb{$parameterization_id}.
 }
 \description{
 \code{map} declares \code{mu = map \%*\% beta}, where \code{mu} follows the semantic
 condition coordinates and \code{beta} follows the compiled coefficient axis.
 The object belongs to a design receipt, not scientific plan identity.
 }
+\examples{
+conditions <- condition_space(c("face", "body", "tool"))
+
+# The compiled design adds a drift column. This declares that the three
+# condition means are the first three coefficients and ignore drift, so the
+# effect request survives a change of coding.
+map <- cbind(diag(3), drift = 0)
+dimnames(map) <- list(
+  conditions$coordinates, c(conditions$coordinates, "drift")
+)
+coding <- coefficient_parameterization(
+  map, conditions, coding_id = "cell-means-plus-drift"
+)
+coding
+coding$semantic_rank
+
+# A coding that cannot identify every condition is refused, not rounded.
+collapsed <- map
+collapsed["body", ] <- collapsed["face", ]
+refusal <- catch_refusal(coefficient_parameterization(
+  collapsed, conditions, coding_id = "face-and-body-collapsed"
+))
+refusal$capability
+}
+\seealso{
+\code{\link[=lower_effect_map]{lower_effect_map()}} to apply it to an \code{\link[=effect_map]{effect_map()}}, and
+\code{\link[=design_model]{design_model()}} which carries one parameterization per partition.
+
+Other studies and effect maps: 
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

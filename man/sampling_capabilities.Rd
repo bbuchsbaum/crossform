@@ -24,11 +24,31 @@ the evidence-sampling admission for a plan and error source and reports
 every unmet requirement with its remedy, without computing anything.
 }
 \examples{
+# Ask before provoking: the fixture's fit retains a residual channel, so
+# the analytic law is admitted.
 example <- example_fmri_effects()
 plan <- plan_geometry(
   example$fit$relation, example$frame,
   cross_partitions(example$fit$relation, independence = "independent")
 )
-sampling_capabilities(plan, example$fit)$available
-sampling_capabilities(plan)$reasons$reason
+capabilities <- sampling_capabilities(plan, example$fit)
+capabilities$available
+capabilities
+
+# Probing the bare relation instead reports every unmet requirement with
+# its remedy, rather than failing one refusal at a time.
+without_fit <- sampling_capabilities(plan)
+without_fit$reasons
 }
+\seealso{
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, the call this inspection describes,
+and \code{\link[=catch_refusal]{catch_refusal()}} for branching on a refusal that has already
+happened.
+
+Other sampling uncertainty: 
+\code{\link{rdm_sampling_covariance}()},
+\code{\link{reconstruct_evidence}()},
+\code{\link{residual_pair_statistics}()},
+\code{\link{sampling_covariance}()}
+}
+\concept{sampling uncertainty}

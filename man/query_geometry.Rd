@@ -18,8 +18,65 @@ query_geometry(x, query, component = "total", row_block = 1024L)
 bounds packed-geometry memory for block-backed stores.}
 }
 \value{
-An \code{effect_view}, not another geometry.
+An \code{effect_view}: \verb{$values} has one row per measurement and one
+column per query column, alongside \verb{$query}, \verb{$component}, \verb{$index}, and
+a \verb{$receipt} recording that this view was projected from the parent
+estimand. It is a view, not another geometry.
 }
 \description{
-Apply a linear query to a complete geometry
+\code{query_geometry()} projects an already materialized geometry through a
+fixed linear query. It answers the same question as
+\code{\link[=evaluate_geometry]{evaluate_geometry()}} and carries the same view identity; use this form
+when the complete geometry already exists and several queries will be read
+from it.
 }
+\examples{
+domain <- abstract_domain(4, id = "query-example")
+relation <- relation(
+  list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+       run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+  domain = domain
+)
+geometry <- materialize_geometry(plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(relation, independence = "independent")
+))
+
+# The squared cross-generalized distance between the two effects, one row
+# per region.
+contrast <- bilinear_query(tcrossprod(c(1, -1)))
+distance <- query_geometry(geometry, contrast)
+distance
+as.data.frame(distance)
+
+# The same query reads the two orthogonal modes, which sum back exactly.
+coherent <- query_geometry(geometry, contrast, component = "coherent")
+configuration <- query_geometry(
+  geometry, contrast, component = "configuration"
+)
+all.equal(distance$values, coherent$values + configuration$values)
+}
+\seealso{
+\code{\link[=evaluate_geometry]{evaluate_geometry()}} for the query-first route that never
+materializes geometry, and \code{\link[=geometry_component]{geometry_component()}} for the packed rows.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}
