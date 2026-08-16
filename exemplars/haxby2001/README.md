@@ -84,6 +84,7 @@ estimand* rather than a comparison row.
 | `03-rmvpa-searchlight.R` | the rMVPA arm |
 | `04-compare.R` | center-by-center agreement report, tolerance gates, divergence taxonomy |
 | `05-crossnobis-uncertainty.R` | the error-channel arm (crossform only) |
+| `06-coherent-configuration.R` | the coherent/configuration arm (crossform only) |
 | `models.R` | model RDMs and shared constants (radius, tolerance, seeds) |
 
 Run order is numeric. Every script is idempotent and writes only under
@@ -229,6 +230,84 @@ requested; it was left in place rather than deleted, and needs an explicit
 accept-or-undo. It is load-bearing for the results: the crossnobis arm only
 works on the newer build, and `rsa_model` with `distmethod="spearman"` differs
 between builds by 2.97e-4 (`"pearson"` agrees to 1.11e-16).
+
+### Coherent/configuration arm: the central claim on real data
+
+Added 2026-08-16. `06-coherent-configuration.R` runs the decomposition that
+had previously only been shown on a generated fixture. Same prepared object,
+same VT searchlight frame, same cross-run pairing as `02`; the only new thing
+is what is read off the plan. Two contrasts:
+
+- **face − house**, weights `+1 / −1`;
+- **animate − inanimate**, `(cat, face)` at `+1/2` each against
+  `(bottle, chair, house, scissors, shoe)` at `−1/5` each. `scrambledpix` is a
+  visual control rather than an object category and carries weight 0. The
+  animacy coding is `models.R`'s `ANIMATE`, not a new one.
+
+The partition is exact where it must be: over 577 searchlights,
+`max |total − (coherent + configuration)|` is **5.55e-17** for face − house and
+**1.39e-17** for animate − inanimate.
+
+| face − house | value |
+|---|---|
+| peak searchlight (position 573, centre voxel 77745) | signed **−1.0694**, coherent **1.1390**, configuration **0.0902**, total **1.2292**, coherent share **0.927** |
+| coherent share over VT (536 of 577 searchlights with a valid fraction) | median **0.529**, IQR **[0.278, 0.773]**; above 0.5 at 281 of 536 |
+| total > 0 | **576 / 577** (99.8 %) |
+| configuration > 0 | 553 / 577 (95.8 %) |
+| coherent > 0 | 559 / 577 (96.9 %) |
+| signed < 0 | 568 / 577 |
+
+| animate − inanimate | value |
+|---|---|
+| peak searchlight (position 278, centre voxel 67417) | signed **−0.3786**, coherent **0.1420**, configuration **0.0556**, total **0.1977**, coherent share **0.719** |
+| coherent share over VT (503 of 577 valid) | median **0.442**, IQR **[0.200, 0.659]** |
+| total > 0 | 575 / 577 (99.7 %) |
+| configuration > 0 | 554 / 577 (96.0 %) |
+| coherent > 0 | 526 / 577 (91.2 %) |
+
+Read at a single whole-VT region (`regions()` over all 577 VT voxels), from
+the same relation and pairing:
+
+| contrast | signed | coherent | configuration | total | coherent share |
+|---|---|---|---|---|---|
+| face − house | −0.46292 | 0.21220 | 0.22371 | 0.43592 | 0.4868 |
+| animate − inanimate | −0.16541 | 0.02662 | 0.06287 | 0.08949 | 0.2975 |
+
+Three things are worth reading out of that.
+
+1. **A substantial share of the reproducible energy is coherent.** In this
+   subject's VT, the median searchlight puts about half of the crossvalidated
+   face/house energy in its own weighted common spatial mode. An analysis that
+   demeans each searchlight and reports the remainder would discard it; one
+   that reports only the total would not know it was there.
+2. **The signed marginal carries the direction, and both directions are
+   negative.** For face − house, `signed` is negative at 568 of 577
+   searchlights and at the whole-VT reading, so the common mode runs *house
+   above face*; animate − inanimate is negative at 512 of 577 and at the
+   whole-VT reading, *inanimate above animate*. Energies are squared
+   quantities and cannot say this; keeping the first-moment marginal in the
+   same plan is what makes the coherent part interpretable rather than merely
+   large.
+3. **The coherent part is the crossvalidated version of that mean
+   difference.** Across searchlights, `coherent` correlates with `signed²` at
+   r = 0.9999 (face − house) and 0.9994 (animate − inanimate), with a median
+   ratio of 0.964 and 0.942 — just below one, which is what a bias-free
+   cross-partition product should be relative to a squared average that still
+   contains its own noise.
+
+Cost: 0.41 s for face − house and 0.49 s for animate − inanimate over 577
+searchlights, 0.16 s for both whole-VT region reads, 1.8 s of analysis, and
+3.4 s of wall clock including R startup and reading the mask. Evidence:
+`results/coherent-configuration.rds` and `results/coherent-configuration.png`.
+
+**Caveats, which are not small.** One subject. A block design. Per-run
+condition means, not GLM betas, computed from within-run z-scored time series
+with a 2 TR haemodynamic shift. An identity metric, not a whitened or learned
+one. And **no inference of any kind**: no permutation test, no group model, no
+p-values, no correction. Every number above is a description of one subject's
+ventral temporal cortex, and the claim it supports is that the decomposition
+runs exactly and informatively on real data — not anything about faces,
+houses, or animacy.
 
 ### Not done
 

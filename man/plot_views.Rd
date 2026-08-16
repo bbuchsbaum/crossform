@@ -15,6 +15,7 @@
   highlight = NULL,
   highlight_label = "highlighted",
   main = NULL,
+  top = 200L,
   ...
 )
 
@@ -26,10 +27,18 @@
   highlight = NULL,
   highlight_label = "highlighted",
   main = NULL,
+  top = 200L,
   ...
 )
 
-\method{plot}{effect_crossnobis_view}(x, highlight = NULL, highlight_label = "highlighted", main = NULL, ...)
+\method{plot}{effect_crossnobis_view}(
+  x,
+  highlight = NULL,
+  highlight_label = "highlighted",
+  main = NULL,
+  top = 200L,
+  ...
+)
 
 \method{plot}{effect_rdm_sampling_covariance}(x, estimate = NULL, level = 0.95, sort = TRUE, main = NULL, ...)
 }
@@ -52,6 +61,13 @@ Say what the set means rather than that it was selected.}
 
 \item{main}{Optional title. For a multi-panel figure a character vector is
 recycled across panels.}
+
+\item{top}{How many measurements keep a needle of their own once a profile
+panel holds more than five thousand of them, taken as the \code{top}
+measurements furthest from the reference line in either direction. The
+default is 200, capped at the number of measurements the view has. The
+argument is validated on every call, including views small enough to
+draw every measurement, where it is otherwise unused.}
 
 \item{...}{Further arguments passed to the underlying base-graphics call
 for each panel, such as \code{pch}, \code{cex}, \code{xlim}, or \code{col}.}
@@ -101,6 +117,21 @@ right panel walks the same total along the measurement index. Passing
 \code{example_fmri_effects()$truth$signal_measurements}) fills the
 measurements that overlap the planted signal, so a correct analysis is
 visible rather than asserted.
+
+Glyph size and opacity ease down as a panel fills, so a view of a few
+thousand measurements stays readable; at or below five hundred
+measurements nothing is rescaled. Above five thousand measurements one
+glyph per measurement is no longer a picture of the data, and the contrast
+panels change what they draw rather than overplotting. The profile panel
+shades the central 95\% of the values as a band, rules the median across
+it, and keeps needles only for the \code{top} measurements furthest from the
+reference line in either direction, so the negative half of a
+crossvalidated estimate is still shown. The decomposition panel bins the
+coherent/configuration plane into rectangular cells whose opacity follows
+the log count and whose color is the signed marginal that dominates the
+cell; the binning is a plain count, with no kernel and no smoothing.
+Highlighted measurements are always drawn individually, on top of either
+summary, however many of them there are.
 }
 \examples{
 example <- example_fmri_effects()

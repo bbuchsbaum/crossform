@@ -30,7 +30,7 @@ claims territory only at the strength actually earned.
 
 | | Same neural measurement | Different neural measurements |
 |---|---|---|
-| **Same experimental space** | retained signed marginals; crossvalidated contrast energy; ordinary representational geometry *(demonstrated)* | cross-node effect coupling *(implemented; small-node contract)*; normalized connectivity only when its sampling contract is met |
+| **Same experimental space** | retained signed marginals; crossvalidated contrast energy — a cvMANOVA-class statistic under a fixed metric ([Allefeld and Haynes, 2014](https://doi.org/10.1016/j.neuroimage.2013.11.043)); ordinary representational geometry *(demonstrated)* | cross-node effect coupling *(implemented; small-node contract)*; normalized connectivity only when its sampling contract is met |
 | **Different experimental spaces** | rectangular ER-RSA or cross-task geometry *(implemented; real exemplar pending)* | rectangular cross-domain, cross-region forms *(prospective)* |
 
 Signed activation is a retained first-moment marginal, not a bilinear statistic.
@@ -78,17 +78,58 @@ This is more than saying that one kernel computes several distances. It gives
 one typed construction for self- and cross-forms, square and rectangular
 experimental axes, and local and cross-location neural measurements.
 
+## Relation to cvMANOVA
+
+The closest existing statistic to crossvalidated contrast energy is the
+cross-validated MANOVA of
+[Allefeld and Haynes (2014)](https://doi.org/10.1016/j.neuroimage.2013.11.043).
+Their pattern distinctness is a leave-one-run-out trace that combines a
+contrast estimated from the held-out run with one estimated from the training
+runs, under an error-covariance metric: the same *shape* of object as
+`contrast_energy()`, and it should be read as the direct ancestor rather than
+as a neighbor. The differences are specific. cvMANOVA normalizes the contrast
+by its estimated error term in a Bartlett–Lawley–Hotelling trace, corrects the
+resulting bias with an explicit multiplicative factor, and recommends dividing
+the map by \(\sqrt p\) so that the null variance does not grow with searchlight
+size. `crossform` does none of the three: the metric is declared rather than
+estimated inside the statistic, unbiasedness comes from the pairing itself
+because every product multiplies estimates from two different partitions, and
+frame normalization is a statement about what a measurement is rather than a
+null-variance correction. cvMANOVA also supplies distributional theory and
+permutation inference, which this package does not have at all.
+
+Allefeld and Haynes' Figure 6 already runs the voxel-axis control: cvMANOVA on
+searchlight-mean-only data beside cvMANOVA on mean-removed data. Those are two
+re-analyses of two modified datasets, and their results do not sum to the
+unmodified analysis. That gap is where this package's own voxel-axis claim
+lives; it is stated under *What is distinctive* below. The full
+attribution, including crossnobis, `rsatoolbox`, pattern-component modeling,
+and Framed RSA, is in
+[`design/relation-to-prior-work.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/relation-to-prior-work.md);
+the noise-unbiasedness theorem and its failure modes are §8 of
+[`design/effect-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/effect-form-contract.md).
+
 ## Relationship to RSA and `rsatoolbox`
 
 RSA, crossnobis distance, noise-precision estimation, searchlight RSA, model
 fitting, noise ceilings, and inference over subjects and conditions are
-established work. [`rsatoolbox`](https://rsatoolbox.readthedocs.io/) is a
+established work. Searchlight information mapping
+([Kriegeskorte et al., 2006](https://doi.org/10.1073/pnas.0600244103)), the RSA
+toolbox ([Nili et al., 2014](https://doi.org/10.1371/journal.pcbi.1003553)), the
+reliability advantage of crossvalidated Mahalanobis distances over correlation
+distance and classification accuracy
+([Walther et al., 2016](https://doi.org/10.1016/j.neuroimage.2015.12.012)), and
+whitened unbiased RDM similarity
+([Diedrichsen et al., 2021](https://doi.org/10.51628/001c.27664)) are prior art
+that this package neither reimplements nor claims.
+[`rsatoolbox`](https://rsatoolbox.readthedocs.io/) is a
 sophisticated reference implementation of an RDM-centered workflow: it
 supports multiple dissimilarities including crossnobis, residual-based noise
 precision, searchlights, fixed and flexible models, and inferential procedures
-for different generalization targets. Its methods paper explicitly treats
-generalization over subjects and conditions
-([Schütt et al., 2023](https://doi.org/10.7554/eLife.82566)). `crossform`
+for different generalization targets. The inference it implements is developed
+in "Statistical inference on representational geometries"
+([Schütt et al., 2023](https://doi.org/10.7554/eLife.82566)), which treats
+generalization over subjects and conditions explicitly. `crossform`
 does not claim any of those ingredients as inventions.
 
 Nor is a shared interface across ROIs, searchlights, whole-brain maps, and
@@ -151,40 +192,93 @@ distinctive claim is not ownership of connectivity; it is that neural coupling
 is the adjoint-side materialization of the same identified experimental-neural
 pairing, with stronger normalized views admitted only by their own contracts.
 
-### 2. Exact, non-destructive coherent/configuration accounting
+### 2. An exact voxel-axis partition that every fixed linear query inherits
 
-For an admitted spatial metric, `crossform` partitions the metric into a
-rank-one coherent mode and its configuration complement. Pulling the partition
-through the relation gives
+For a frame row \(w\) with positive mass \(a=\mathbf 1^\top w\), the admitted
+spatial metric splits as
+
+\[
+D(w)=\frac{ww^\top}{a}+\left[D(w)-\frac{ww^\top}{a}\right],
+\]
+
+with both terms positive semidefinite. Pulling the split through the relation
+gives
 
 \[
 G^{\mathrm{total}}
-=G^{\mathrm{coherent}}+G^{\mathrm{configuration}}.
+=G^{\mathrm{coherent}}+G^{\mathrm{configuration}},
 \]
 
-Every fixed linear downstream query inherits the same additive partition. The
-defensible contribution is therefore not the elementary matrix identity, nor a
-claim to have invented the distinction between mean activation and pattern
-structure. It is an exact, crossvalidated, query-preserving accounting that
-keeps both components instead of destructively demeaning the data and calling
-the remainder "purely multivariate." The implementation and numerical laws
-exist, and the one-plan family — signed contrast, the three energies with
-exact recomposition, the RDM, the RSA coefficient, and the admitted analytic
+and because each part is itself a *fixed* metric, every fixed linear query
+\(\langle H,\cdot\rangle\) of the form inherits the same additive partition
+from one execution: the contrast energy, each RDM edge, and a fixed linear RSA
+coefficient all decompose the same way, and each component is separately
+noise-unbiased under the pairing (§8 of the
+[effect-form contract](https://github.com/bbuchsbaum/crossform/blob/main/design/effect-form-contract.md)).
+
+That is the claim, and it is small enough to state at theorem strength: *the
+two pieces are the images of the frame metric under complementary
+\(D(w)\)-orthogonal projectors — \(P=\mathbf 1w^\top/a\) satisfies
+\(P^2=P\) and \(D(w)P=ww^\top/a\), which is symmetric — so the split is exact,
+both parts are PSD, and every fixed linear query of the form inherits it
+additively.* What is not claimed is the distinction between regional-mean and
+pattern structure, which has a substantial literature:
+[Davis et al., 2014](https://doi.org/10.1016/j.neuroimage.2014.04.037),
+pattern-component modeling
+([Diedrichsen et al., 2018](https://doi.org/10.1016/j.neuroimage.2017.08.051)), and
+second-moment accounts of RSA and encoding models
+([Diedrichsen and Kriegeskorte, 2017](https://doi.org/10.1371/journal.pcbi.1005508)) —
+nor the elementary matrix identity itself.
+
+One nearby literature has to be separated rather than absorbed, because it
+concerns a *different axis*.
+[Garrido et al. (2013)](https://doi.org/10.3389/fnins.2013.00174) argue against
+subtracting the cocktail mean — each voxel's mean across conditions — on the
+grounds that it is contaminated by condition-specific signal and introduces
+dependencies between conditions. That mean runs along the condition axis; the
+partition above runs along the voxel axis, and they are different operations.
+`crossform` subtracts neither. A zero-sum contrast cancels any pattern shared
+additively by all conditions exactly, without estimating it, and the voxel-axis
+common mode is retained as `coherent` rather than removed.
+
+The nearest published construction is **Framed RSA**
+([Taylor and Kriegeskorte, 2025](https://doi.org/10.1101/2025.07.10.664257)),
+which restores the population-mean information ordinary RSA discards by
+augmenting the pattern set with two reference patterns, the origin and a
+uniform constant pattern. It is a genuine treatment of the same problem, and
+it differs from the partition here in kind: augmentation changes the analyzed
+set and the model comparison, whereas the split above changes nothing, sums
+exactly, is computed once, and travels into every downstream fixed linear
+query. [Allefeld and Haynes' (2014)](https://doi.org/10.1016/j.neuroimage.2013.11.043)
+Figure 6 reaches the same scientific question by re-analyzing mean-only and
+mean-removed data, two results that do not sum to the original. A search of
+this literature did not find the exact partition, with PSD components and
+inheritance by every fixed linear query, published in this form. That is
+recorded as *apparently unpublished* — the strength a literature search can
+actually support — rather than as a priority claim.
+
+The one-plan family — signed contrast, the three energies with exact
+recomposition, the RDM, the RSA coefficient, and the admitted analytic
 standard error — is demonstrated on a generated planted-truth fixture in the
 [introduction vignette](introduction.html)
 (`vignette("introduction", package = "crossform")` offline). That is Gate 2 in
 the ledger below.
-No real-data decomposition narrative has shipped, so the empirical reading of
-the accounting is still weaker than its algebraic one.
 
-This claim sits beside a substantial literature on differences between
-univariate and multivoxel analyses
-([Davis et al., 2014](https://doi.org/10.1016/j.neuroimage.2014.04.041)),
-[mean-pattern subtraction](https://pmc.ncbi.nlm.nih.gov/articles/PMC3786542/),
-pattern-component modeling
-([Diedrichsen et al., 2018](https://pubmed.ncbi.nlm.nih.gov/28843540/)), and
-second-moment accounts of RSA and encoding models
-([Diedrichsen and Kriegeskorte, 2017](https://doi.org/10.1371/journal.pcbi.1005508)).
+It now also runs on real data. On Haxby 2001 subject 1 — 12 runs, 8 categories,
+577 ventral-temporal searchlights at 11.25 mm — the face minus house contrast
+recomposes to `5.6e-17`, its total is positive at 576 of 577 searchlights, and
+at the peak searchlight the three numbers are coherent 1.139, configuration
+0.090, total 1.229. Over the 536 searchlights where the components form a
+nonnegative partition, the coherent share has median 0.53 and interquartile
+range [0.28, 0.77]: in this subject's VT, roughly half of the reproducible
+face/house energy is carried by the searchlight's own common spatial mode.
+Read at one whole-VT region from the same plan, coherent is 0.212 and
+configuration 0.224. The retained signed marginal is what makes those energies
+interpretable — it is negative at 568 of 577 searchlights, so the common mode
+runs *house above face*, a direction no energy can report. This is one
+subject, condition means rather than GLM betas, and no inference; it is a
+decomposition narrative, not a result about faces. See
+[`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001).
 
 ### 3. Rectangular, identified cross-domain forms
 
@@ -296,7 +390,7 @@ be audited rather than believed.
 | Crossnobis point parity | **Demonstrated** | The Haxby 2001 exemplar agrees with an independent loop to `1.33e-15` and rMVPA to `8.88e-16` over 577 VT searchlights: [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001). Matched crossvalidated squared-Euclidean/crossnobis estimand, not correlation distance. |
 | Error-bearing refit and linear uncertainty transport | **Demonstrated under an admitted model** | Refit reproduces the point RDM to `4.44e-16`; a fixed linear RSA coefficient consumes factorized analytic covariance: [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001), [`test-evidence-sampling-kernel.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-kernel.R), [`test-evidence-sampling-generative.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-generative.R). Boundary: the declared equal-partition, fixed-metric, separable plug-in model. |
 | Query-first execution at scale | **Demonstrated** | Recorded gate artifact at q = 100 over 1,080 searchlights: selected 100 pairs 0.27 s, full fused RDM 5.16 s vs 13.40 s materialize-then-project, oracle error `4.4e-16`, and a maximum fresh-worker incremental R heap of 291 MB (277 MiB): [`benchmarks/run-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-query-first-scale.R), [`benchmark-results/query-first-scale-gate.rds`](https://github.com/bbuchsbaum/crossform/tree/main/benchmark-results), [`test-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-query-first-scale.R). The materialized comparator remains in the timing court but outside the query-first memory claim; the heap receipt is not presented as OS RSS. |
-| Coherent/configuration family | **Demonstrated** | One plan yields the signed contrast, the three energies with exact recomposition, the RDM, the RSA coefficient, and the admitted analytic SE, with planted-effect recovery (signal carried by configuration; null regions centered on zero): the [introduction vignette](introduction.html) (`vignette("introduction", package = "crossform")` offline) with executable checks, plus [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R) and [`test-measurement-decomposition.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-measurement-decomposition.R). A real-data decomposition narrative on Haxby remains desirable but is no longer the gate. |
+| Coherent/configuration family | **Demonstrated** | One plan yields the signed contrast, the three energies with exact recomposition, the RDM, the RSA coefficient, and the admitted analytic SE, with planted-effect recovery (signal carried by configuration; null regions centered on zero): the [introduction vignette](introduction.html) (`vignette("introduction", package = "crossform")` offline) with executable checks, plus [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R) and [`test-measurement-decomposition.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-measurement-decomposition.R). The real-data narrative has now run too: [`exemplars/haxby2001/06-coherent-configuration.R`](https://github.com/bbuchsbaum/crossform/blob/main/exemplars/haxby2001/06-coherent-configuration.R) decomposes face minus house and animate minus inanimate at 577 VT searchlights and at one whole-VT region, recomposing to `5.6e-17`, with a median coherent share of 0.53. Boundary: one subject, condition means rather than GLM betas, and no inference. |
 | Rectangular cross-domain analysis | **Implemented** | Public constructor, query-first pair queries, oracle parity, and materialized recomposition: [`test-rectangular-plan.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-rectangular-plan.R). A real match/control, pair-covariate analysis is Gate 3. |
 | Adjoint coupling from the plan vocabulary | **Implemented** | `coupling(plan, between, by)` compiles the adjoint closure against the plan's own frame and pairing, small-node contract enforced: [`test-coupling-views.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-coupling-views.R). |
 | Generalization axis in estimand identity | **Implemented** | Typed `generalizes_over` bound into task and metric-pairing identity; cross-run vs cross-session distinct under identical generic labels: [`test-generalization-axis.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-generalization-axis.R). |
@@ -350,9 +444,10 @@ structure the square RDM view has already collapsed.
 
 ## What is not claimed
 
-`crossform` does not claim to have invented RSA, crossnobis, analytic RDM
-covariance, searchlights, noise ceilings, condition/subject generalization, or
-connectivity. It does not yet claim empirical superiority to `rsatoolbox`, a
+`crossform` does not claim to have invented RSA, crossnobis, cross-validated
+MANOVA, analytic RDM covariance, searchlights, noise ceilings,
+condition/subject generalization, the regional-mean versus pattern
+distinction, or connectivity. It does not yet claim empirical superiority to `rsatoolbox`, a
 matched-estimator speed advantage, or a complete population-inference layer.
 Nor does it claim that every nonlinear RDM comparison belongs in the bilinear
 core.

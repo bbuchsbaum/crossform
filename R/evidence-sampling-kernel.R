@@ -95,6 +95,93 @@
     diag(sqrt(spectrum$values[retained]), sum(retained))
 }
 
+# The signal-independent term of the sampling law is QUADRATIC in the
+# whitened residual covariance, through tr(Sigma_w^2). A caller that supplies
+# the true Sigma_w may use that trace directly, but a caller that supplies the
+# pooled sample residual covariance S_w must not: for S_w ~ W_P(nu, Sigma_w)/nu,
+#
+#   E tr(S_w^2) = ((nu + 1) / nu) tr(Sigma_w^2) + tr(Sigma_w)^2 / nu,
+#
+# which overstates tr(Sigma_w^2) by a factor that grows with the ratio of the
+# support size to the residual degrees of freedom. On the standard-error scale
+# the inflation is sqrt(1 + (1 + P_eff) / nu) with
+# P_eff = tr(Sigma_w)^2 / tr(Sigma_w^2), so a 50-voxel searchlight at nu = 168
+# reports standard errors 14% too large and an 800-voxel one more than twice
+# too large. The Wishart-unbiased estimator of the quadratic functional is
+#
+#   trhat(Sigma_w^2) = nu^2 / ((nu - 1)(nu + 2)) (tr(S_w^2) - tr(S_w)^2 / nu),
+#
+# and `residual_df` is how a caller declares that its residual covariance is a
+# plug-in with nu degrees of freedom. `NULL` means "this is the covariance
+# itself", which is what an oracle or a known-Sigma caller supplies. The
+# signal term is LINEAR in Sigma_w and needs no correction.
+.sampling_unbiased_noise_trace <- function(residual_covariance,
+                                           residual_df = NULL) {
+  raw <- sum(residual_covariance * residual_covariance)
+  total <- sum(diag(residual_covariance))
+  # tr(Sigma_w)^2 / tr(Sigma_w^2) is the participation ratio: the number of
+  # residual directions the support actually spends its variance on. It, not
+  # the raw support size, is what the sufficiency check compares against nu,
+  # and it is read off whichever estimator of tr(Sigma_w^2) is in force.
+  if (is.null(residual_df)) {
+    return(list(
+      value = raw, corrected = FALSE, raw = raw,
+      residual_df = NA_integer_,
+      effective_dimension = if (raw > 0) total^2 / raw else 0
+    ))
+  }
+  if (!is.numeric(residual_df) || length(residual_df) != 1L ||
+      is.na(residual_df) || !is.finite(residual_df) ||
+      residual_df %% 1 != 0 || residual_df < 2L) {
+    stop(paste0(
+      "Residual degrees of freedom must be one integer of at least two when ",
+      "the residual covariance is a plug-in estimate."
+    ), call. = FALSE)
+  }
+  nu <- as.double(residual_df)
+  value <- (nu^2 / ((nu - 1) * (nu + 2))) * (raw - total^2 / nu)
+  list(
+    value = max(value, 0), corrected = TRUE, raw = raw,
+    residual_df = as.integer(residual_df),
+    effective_dimension = if (value > 0) total^2 / value else Inf
+  )
+}
+
+# nu residual degrees of freedom buy information about at most nu residual
+# directions. When the support spends its variance on more directions than
+# that, no correction rescues tr(Sigma_w^2): the corrected estimator's own
+# sampling error is of the same order as the quantity, and its clamp at zero
+# turns an unusable estimate into a confidently small standard error. crossform
+# refuses rather than reporting one.
+.require_sufficient_residual_df <- function(quadratic) {
+  if (!isTRUE(quadratic$corrected)) return(invisible(NULL))
+  nu <- quadratic$residual_df
+  effective <- quadratic$effective_dimension
+  if (is.finite(effective) && effective <= nu) return(invisible(NULL))
+  .capability_refusal(sprintf(paste0(
+    "This measurement's residual covariance spreads over %s effective ",
+    "directions but only %d residual degrees of freedom estimate it, so the ",
+    "noise term tr(Sigma^2) of the sampling law cannot be estimated here. ",
+    "The reported standard error would be dominated by its own estimation ",
+    "error."
+  ),
+    if (is.finite(effective)) sprintf("%.1f", effective) else "more than nu",
+    nu
+  ),
+    capability = "sufficient_residual_df",
+    namespace = "evidence_sampling",
+    reasons = "residual_df_below_effective_dimension",
+    remedies = c(
+      "Use a smaller support, so fewer residual directions carry variance.",
+      paste0(
+        "Regularize the metric (`shrinkage_precision()` or a diagonal ",
+        "metric), which concentrates the whitened residual covariance."
+      ),
+      "Fit more partitions or observations, which raises the residual df."
+    )
+  )
+}
+
 # Exact sampling law of the equal-weight all-partition-pairs crossvalidated
 # distance estimator, in the coordinates crossform already whitens into.
 # Write mu_r = c_r U L' for the whitened contrast pattern of distance r
@@ -108,10 +195,14 @@
 # `normalization` is nu: the divisor already applied to every distance. Both
 # terms carry 1 / nu^2 because both are quadratic in the estimate. The
 # product path folds its frame weights into the metric and passes nu = 1.
+#
+# `residual_df` declares that `residual_covariance` is a plug-in estimate with
+# that many degrees of freedom, which the quadratic noise term corrects for;
+# see `.sampling_unbiased_noise_trace()`.
 .sampling_covariance_from_components <- function(
     plan, contrasts, signal_patterns, effect_covariance,
     residual_covariance, normalization = ncol(signal_patterns),
-    labels = NULL, source = list()) {
+    residual_df = NULL, labels = NULL, source = list()) {
   .validate_evidence_sampling_plan(plan, deep = FALSE)
   .require_sampling_covariance(plan)
   plan_coordinates <-
@@ -172,8 +263,11 @@
     residual_covariance, "Residual covariance", empty = "zero"
   )
   features <- ncol(signal_patterns)
-  noise_trace <- sum(residual_covariance * residual_covariance) /
-    normalization^2
+  quadratic <- .sampling_unbiased_noise_trace(
+    residual_covariance, residual_df
+  )
+  .require_sufficient_residual_df(quadratic)
+  noise_trace <- quadratic$value / normalization^2
   signal_factor <- (contrasts %*% signal_patterns %*% residual_root) /
     normalization
   xi_factor <- contrasts %*% effect_root
@@ -189,7 +283,13 @@
       signal_rank = ncol(signal_factor),
       effect_covariance_rank = ncol(xi_factor),
       residual_dimension = as.integer(features),
-      normalization = as.double(normalization)
+      normalization = as.double(normalization),
+      noise_trace_estimator = if (quadratic$corrected) {
+        "wishart_unbiased_quadratic"
+      } else {
+        "known_residual_covariance"
+      },
+      residual_effective_dimension = quadratic$effective_dimension
     ))
   )
 }

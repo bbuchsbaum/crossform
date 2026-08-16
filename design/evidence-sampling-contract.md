@@ -264,6 +264,127 @@ Reference: Diedrichsen, J., Provost, S., and Zareamoghaddam, H. (2016),
 distances*](https://arxiv.org/abs/1607.01371), especially Eqs. 10, 13, and 35
 and Sections 3.4 and 5.1.
 
+### Correction, 2026-08-16: the noise term is a quadratic functional of an estimate
+
+The law above is written in terms of the true \(\Sigma_R\). The compiler does
+not have it. It substitutes the partition-pooled sample residual covariance
+\(S_R\) with
+
+\[
+\nu=\sum_m\operatorname{df}_m
+\]
+
+degrees of freedom. That substitution is *not* neutral, because the
+signal-independent term depends on \(\Sigma_R\) through the quadratic
+functional \(\operatorname{tr}(\Sigma_R^2)\). For
+\(S_R\sim W_P(\nu,\Sigma_R)/\nu\),
+
+\[
+E\operatorname{tr}(S_R^2)
+=
+\frac{\nu+1}{\nu}\operatorname{tr}(\Sigma_R^2)
++
+\frac{\operatorname{tr}(\Sigma_R)^2}{\nu},
+\]
+
+so a plug-in \(\operatorname{tr}(S_R^2)\) overstates the functional, and the
+reported *standard error* by
+
+\[
+\sqrt{1+\frac{1+P_{\mathrm{eff}}}{\nu}},
+\qquad
+P_{\mathrm{eff}}
+=
+\frac{\operatorname{tr}(\Sigma_R)^2}{\operatorname{tr}(\Sigma_R^2)} .
+\]
+
+\(P_{\mathrm{eff}}\) is the participation ratio of the whitened residual
+covariance: the number of residual directions the support actually spends
+variance on, which equals the support size only for spherical \(\Sigma_R\).
+The consequence is not a rounding artifact. At \(\nu=168\) (six runs of a
+32-trial, four-condition design), the reported standard error was too large by
+a factor of
+
+```text
+P_eff =   1  (voxelwise)     1.006
+P_eff =  50  (radius ~3 SL)  1.142
+P_eff = 120                  1.311
+P_eff = 800  (large ROI)     2.40
+```
+
+Voxelwise frames were therefore never materially wrong; searchlight and
+region frames were, in the conservative direction.
+
+The corrected estimator is the Wishart-unbiased form of the same functional,
+
+\[
+\boxed{
+\widehat{\operatorname{tr}}(\Sigma_R^2)
+=
+\frac{\nu^2}{(\nu-1)(\nu+2)}
+\left(
+\operatorname{tr}(S_R^2)
+-
+\frac{\operatorname{tr}(S_R)^2}{\nu}
+\right),
+}
+\]
+
+clamped at zero, and it is applied **only** where the residual covariance is a
+plug-in. Three points are normative:
+
+1. The signal term \(\mu_r\Sigma_R\mu_s^\top\) is *linear* in \(\Sigma_R\) and
+   receives no correction. Plugging an unbiased \(S_R\) into a linear
+   functional is unbiased; plugging it into a quadratic one is not. Any future
+   term of the law must be classified this way before an estimate is
+   substituted into it.
+2. A caller that supplies the true \(\Sigma_R\) — an oracle, a known-covariance
+   test, a simulation with a declared truth — must *not* receive the
+   correction. The distinction is carried explicitly by a `residual_df`
+   argument whose `NULL` default means "this is the covariance itself".
+3. \(\nu\) buys information about at most \(\nu\) residual directions. When
+   \(\nu<P_{\mathrm{eff}}\) the corrected estimator's own sampling error is of
+   the order of the quantity and its clamp at zero converts an unusable
+   estimate into a confidently small standard error. The compiler refuses with
+   capability `sufficient_residual_df` rather than reporting one, and both
+   \(\nu\) and \(P_{\mathrm{eff}}\) are reported on every result.
+
+The defect survived the court in §11 because the court's own oracles
+recomputed \(\operatorname{tr}(S_R^2)\) from the same plug-in, and because the
+Monte Carlo tests supplied the *true* \(\Sigma_R\) to both sides. That is the
+same failure mode as the 2026-08-15 correction in a different disguise: an
+oracle sharing an assumption with the implementation. §11 now requires an
+end-to-end Monte Carlo test in which \(\Sigma_R\) is re-estimated from
+residuals on every replication.
+
+Reference for the estimator: Srivastava, M. S. (2005), "Some tests concerning
+the covariance matrix in high dimensional data", *Journal of the Japan
+Statistical Society* 35(2), 251–272.
+
+### Independent observations within a partition
+
+Both the effect covariance \(\Xi\) and the residual degrees of freedom \(\nu\)
+are computed as if the observations within a partition were independent given
+the design. fMRI residuals are not. Without an observation whitener the
+reported standard error can err in either direction, and by a large factor.
+Monte Carlo under AR(1) errors (\(\rho=0.75\), 32 trials, four conditions, six
+runs, 50 features, corrected noise term), reporting the ratio of the true
+spread of the estimator to the reported standard error:
+
+```text
+randomly interleaved order              0.50
+blocked order                           5.10
+blocked order, correct whitener         1.03
+randomly interleaved, correct whitener  1.00
+```
+
+Supplying \(L\) with \(L^\top L=\Sigma_t^{-1}\) to `lm_relation_fit()`
+restores calibration, because the whitened problem satisfies the assumption.
+crossform applies and records the \(L\) it is given; it cannot verify that
+\(L\) matches the data's autocorrelation. This is a documented assumption of
+the specialization, not a defect, but it must be stated wherever the law is
+offered.
+
 ## 5. Partition endpoints are independent; pair products are not
 
 `cross_partitions()` declares that distinct partition estimates may be used in
@@ -369,6 +490,21 @@ distance by \(\max(\widehat d,0)\) is a named plug-in convention. It is not the
 same as evaluating the covariance under the null \(d=0\), and it must not be
 presented as the unique interpretation of Diedrichsen et al.'s Section 5.1.
 
+Two distinct plug-ins occur in this law and they must not be conflated:
+
+- the **signal** plug-in, which is a *calibration target* the caller chooses
+  (`target = "plugin"` or `"null"`); and
+- the **residual-covariance** plug-in, which is unavoidable — \(\Sigma_R\) is
+  never known — and is therefore not a choice but a correction obligation. Its
+  quadratic contribution carries the finite-sample correction of §4, so
+  `target = "null"` is exact on the variance scale rather than merely
+  centered: the signal term vanishes and the surviving term is an unbiased
+  estimate of the true variance, not an upper bound on it.
+
+Every result must report \(\nu\) and \(P_{\mathrm{eff}}\) so a reader can see
+how much residual information stands behind the second term, and must refuse
+when \(\nu<P_{\mathrm{eff}}\).
+
 The plug-in policy implemented here, `partition_mean_plugin`, substitutes the
 partition mean of the *estimates* \(\bar B\) for the unknown signal. Since
 \(\operatorname{Cov}(\widehat\mu_r,\widehat\mu_s)=\Xi_{rs}\Sigma_R/M\),
@@ -387,7 +523,9 @@ defect: the inflation is \(O(M^{-2})\), is largest when noise dominates the
 true distances, and makes plug-in intervals mildly conservative rather than
 anticonservative. It must be disclosed wherever the policy is offered, and
 `target = "null"` remains the exact choice for calibrating a test of no
-effect.
+effect. Since 2026-08-16 this is the *only* remaining bias of the plug-in
+policy; the separate noise-trace inflation that used to accompany it is
+corrected in §4.
 
 An analytic z-test, confidence interval, contrast test, LD-t, bootstrap,
 permutation distribution, and population resampling are different calibration
@@ -447,9 +585,31 @@ must cover:
 8. refusal when the error channel is absent;
 9. refusal or qualification for learned metric uncertainty;
 10. unequal-partition negative fixtures;
-11. direct-query versus full-materialization equivalence; and
+11. direct-query versus full-materialization equivalence;
 12. runtime and peak-memory gates at realistic \(q\), frame, and feature
-    sizes.
+    sizes; and
+13. **an end-to-end Monte Carlo test of the exported path in which the
+    residual covariance is re-estimated from residuals on every replication**
+    (added 2026-08-16). The fit must be recomputed per replication, not
+    reused; the configuration must reach \(P_{\mathrm{eff}}/\nu\ge 0.3\), the
+    regime in which a plug-in quadratic functional is visibly biased; the
+    acceptance band must be pre-registered in the test file in units of the
+    Monte Carlo standard error of a ratio of standard deviations,
+    \(1/\sqrt{2(N-1)}\); and the test must assert both that the corrected
+    estimator falls inside that band **and** that the uncorrected one falls
+    outside it, so the correction is pinned rather than merely present.
+
+    Requirements 2 and 3 are not substitutes for 13. An oracle that is handed
+    the true \(\Sigma_R\), or that recomputes \(\operatorname{tr}(S_R^2)\)
+    from the same plug-in the implementation uses, cannot see a bias that
+    lives in the substitution itself. Where a test oracle is handed a plug-in
+    residual covariance it must apply the §4 correction independently, and
+    where it is handed the truth it must not.
+
+The court is implemented in `tests/testthat/test-evidence-sampling-laws.R`
+(1, 2, 4), `-nonspherical.R` (2, 3, 7), `-generative.R` (6, 7),
+`-product.R` (5, 8, 9, 11), `-df-correction.R` (13), `-scale.R` (12), and
+`test-capability-refusals.R` (10).
 
 Verification claims use four levels:
 

@@ -8,7 +8,7 @@ rdm_sampling_covariance(
   x,
   fit,
   target,
-  at = 1L,
+  at,
   residual_strategy = c("node_local", "shared_pair_statistics"),
   residual_workspace_bytes = 512 * 1024^2
 )
@@ -33,7 +33,10 @@ dominates the true distances. Prefer \code{"null"} for calibrating a test of
 no effect, where it is exact; use \code{"plugin"} when reporting uncertainty
 around an estimated nonzero distance and read it as mildly conservative.}
 
-\item{at}{One measurement position or identifier in the compiled frame.}
+\item{at}{One measurement position or identifier in the compiled frame.
+Required, with no default: the analytic law is local, so a covariance
+without a named measurement would be a covariance of nothing in
+particular. One measurement per call.}
 
 \item{residual_strategy}{\code{"node_local"} reads residual blocks only for the
 requested measurement. \code{"shared_pair_statistics"} explicitly compiles
@@ -46,7 +49,9 @@ for shared residual pair statistics.}
 \value{
 An \code{effect_rdm_sampling_covariance}, queryable by
 \code{\link[=sampling_covariance]{sampling_covariance()}}. It contains within-measurement uncertainty only;
-it does not imply covariance between spatial locations.
+it does not imply covariance between spatial locations. Its \verb{$source}
+records \code{residual_df} (\eqn{\nu}), \code{residual_effective_dimension}
+(\eqn{P_{\mathrm{eff}}}), and \code{noise_trace_estimator}.
 }
 \description{
 Builds the local sampling-covariance form from Diedrichsen, Provost, and
@@ -69,6 +74,67 @@ The residual covariance enters the signal term as a metric on the whitened
 patterns, so the law is correct for a general anisotropic \eqn{\Sigma_w}
 and not only for the spherical case.
 }
+\section{What is exact and what is estimated}{
+
+Under \code{target = "null"} the law is exact \emph{on the variance scale}: the
+signal term vanishes and the remaining expression is the true variance of
+the estimator, not an approximation to it.
+
+What is estimated is \eqn{\Sigma_w} itself. crossform substitutes the
+partition-pooled sample residual covariance \eqn{S_w}, a plug-in with
+\eqn{\nu=\sum_m \mathrm{df}_m} degrees of freedom. That matters because the
+signal-independent term is \emph{quadratic} in \eqn{\Sigma_w}. For
+\eqn{S_w\sim W_P(\nu,\Sigma_w)/\nu},
+\deqn{E\,\mathrm{tr}(S_w^2)
+  = \frac{\nu+1}{\nu}\mathrm{tr}(\Sigma_w^2)
+    + \frac{\mathrm{tr}(\Sigma_w)^2}{\nu},}
+so taking \eqn{\mathrm{tr}(S_w^2)} at face value overstates the reported
+standard error by \eqn{\sqrt{1+(1+P_{\mathrm{eff}})/\nu}}, where
+\eqn{P_{\mathrm{eff}}=\mathrm{tr}(\Sigma_w)^2/\mathrm{tr}(\Sigma_w^2)} is
+the number of residual directions the support actually spends its variance
+on. Since 2026-08-16 the quadratic term therefore uses the
+Wishart-unbiased estimator
+\deqn{\widehat{\mathrm{tr}}(\Sigma_w^2)
+  = \frac{\nu^2}{(\nu-1)(\nu+2)}
+    \left(\mathrm{tr}(S_w^2)-\frac{\mathrm{tr}(S_w)^2}{\nu}\right).}
+The signal term is linear in \eqn{\Sigma_w} and needs no correction.
+Voxelwise frames, where \eqn{P_{\mathrm{eff}}=1}, were never materially
+affected; a 50-voxel searchlight at \eqn{\nu=168} was reporting standard
+errors 14\% too large and an 800-voxel one more than twice too large.
+
+Both numbers are reported: \eqn{\nu} is \verb{$source$residual_df} and
+\eqn{P_{\mathrm{eff}}} is \verb{$source$residual_effective_dimension}, and the
+\code{print()} method shows them. When \eqn{\nu<P_{\mathrm{eff}}} there is no
+usable estimate of the quadratic term at all, and the call refuses with
+capability \code{"sufficient_residual_df"} rather than returning a confidently
+small number.
+}
+
+\section{Independence within a partition}{
+
+The sampling law assumes the observations within a partition are
+independent given the design. fMRI residuals are not: they are temporally
+autocorrelated. Fitting without \code{lm_relation_fit(observation_whitener = )}
+leaves \eqn{\Xi} as the plain OLS factor \eqn{(X^\top X)^{-1}}, which does
+not describe the covariance of the estimates under correlated errors, and
+leaves \eqn{\nu} counting observations rather than independent ones, so
+\eqn{\nu} overstates the residual information. The reported standard error
+can then err in \emph{either} direction, and the size is not small. Under AR(1)
+errors with \eqn{\rho=0.75}, 32 trials, four conditions, six runs and 50
+features, the ratio of the true spread to the reported standard error is
+
+\if{html}{\out{<div class="sourceCode text">}}\preformatted{randomly interleaved order   0.50   (SE twice too large)
+blocked order                5.10   (SE five times too small)
+blocked order, whitened      1.03
+}\if{html}{\out{</div>}}
+
+Passing a whitener \eqn{L} with \eqn{L^\top L=\Sigma_t^{-1}} makes the
+whitened problem satisfy the assumption and restores calibration; crossform
+cannot check that the \eqn{L} you supply matches the autocorrelation
+actually present in your data. See \code{\link[=lm_relation_fit]{lm_relation_fit()}}, \code{\link[=observation_model]{observation_model()}}, and
+\code{vignette("from-observations")}.
+}
+
 \examples{
 set.seed(23)
 design <- model.matrix(~ 0 + factor(rep(c("a", "b"), each = 4)))
@@ -93,14 +159,24 @@ plan <- plan_geometry(
   cross_partitions(fit$relation, independence = "independent"),
   metric = metric
 )
-uncertainty <- rdm_sampling_covariance(plan, fit, target = "null")
+uncertainty <- rdm_sampling_covariance(plan, fit, target = "null", at = 1L)
 sqrt(sampling_covariance(uncertainty))
+
+# The residual channel behind the quadratic noise term is reported, not
+# assumed: nu degrees of freedom against P_eff effective directions.
+uncertainty$source$residual_df
+round(uncertainty$source$residual_effective_dimension, 3)
 }
 \references{
 Diedrichsen J, Provost S, Zareamoghaddam H (2016),
 "On the distribution of cross-validated Mahalanobis distances",
 especially Eqs. 10, 13, and 35 and Section 5.1.
 \doi{10.48550/arXiv.1607.01371}
+
+Srivastava MS (2005), "Some tests concerning the covariance matrix in
+high dimensional data", \emph{Journal of the Japan Statistical Society}
+35(2), 251--272, for the unbiased estimator of
+\eqn{\mathrm{tr}(\Sigma^2)} used here.
 }
 \seealso{
 \code{\link[=sampling_covariance]{sampling_covariance()}} to query the result,

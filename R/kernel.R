@@ -68,6 +68,27 @@
   )
 }
 
+# First moments, flat and named ----------------------------------------------
+#
+# A partition family of effect-by-feature blocks contracts against the frame
+# one partition at a time only if the code asks it to. Stacking the
+# transposed blocks side by side gives a feature-by-(effect within partition)
+# panel, so the whole family contracts in one product against a measurement
+# tile of the frame. The stacking order matches the column-major storage of
+# the measurement-by-effect-by-partition array the kernel returns, so the
+# accumulator can be a flat matrix and become that array by relabelling.
+
+.first_moment_feature_panel <- function(relations) {
+  if (length(relations) == 1L) return(t(relations[[1L]]))
+  do.call(cbind, lapply(relations, t))
+}
+
+.named_first_moment_array <- function(flat, measurements, effects,
+                                      partitions) {
+  array(flat, dim = c(measurements, length(effects), length(partitions)),
+    dimnames = list(NULL, effects, partitions))
+}
+
 # Stream the universal total effect form. The feature task owns ordered
 # products and optional direct querying; this coordinator owns only bounded
 # reads and spatial contraction.
@@ -164,21 +185,38 @@
   } else {
     NULL
   }
+  # First moments accumulate in a flat measurement-by-(effect within
+  # partition) matrix and are reshaped to the named three-way array once, at
+  # the end. The flat layout is the same storage the array uses (measurement
+  # fastest, then effect, then partition), so the reshape is a relabelling;
+  # what it buys is that the per-tile update is a matrix subassignment
+  # rather than a three-way array subassignment, which duplicated the whole
+  # durable array on every tile.
   left_first <- if (retain_first_moments) {
-    array(0, dim = c(measurements, q_left, length(left_partitions)),
-      dimnames = list(NULL, left_effects, left_partitions))
+    matrix(0, measurements, q_left * length(left_partitions))
   } else {
     NULL
   }
   right_first <- if (retain_first_moments && !same_relation) {
-    array(0, dim = c(measurements, q_right, length(right_partitions)),
-      dimnames = list(NULL, right_effects, right_partitions))
+    matrix(0, measurements, q_right * length(right_partitions))
   } else {
     NULL
   }
   max_features <- min(feature_block, features)
   max_rows <- min(row_tile, measurements)
   max_coordinates <- min(coordinate_tile, output_width)
+  # Two-index subsetting of a column-compressed frame scans the whole row
+  # axis on every call, so `weights[rows, features]` costs the same whether
+  # one measurement tile is asked for or all of them. Taking the feature
+  # block's columns once and slicing measurement tiles out of that block is
+  # the identical submatrix at a fraction of the cost; it is worth one block
+  # copy only when more than one measurement tile reads it.
+  hoist_feature_columns <- length(.tile_starts(measurements, row_tile)) > 1L
+  frame_block_bytes <- if (hoist_feature_columns) {
+    as.double(utils::object.size(frame$weights))
+  } else {
+    0
+  }
   relation_bytes <- 8 * max_features * (
     length(left_partitions) * q_left +
       if (same_relation) 0 else length(right_partitions) * q_right
@@ -203,13 +241,22 @@
   } else {
     0
   }
-  left_first_bytes <- if (retain_first_moments) 8 * max_rows * q_left else 0
-  right_first_bytes <- if (retain_first_moments && !same_relation) {
-    8 * max_rows * q_right
+  # One fused product per side covers every partition at once, so the live
+  # product is measurement-tile by (effect within partition) and the feature
+  # panel it multiplies is one transposed copy of the relation blocks.
+  left_first_bytes <- if (retain_first_moments) {
+    8 * max_rows * q_left * length(left_partitions)
   } else {
     0
   }
-  base_live_bytes <- relation_bytes + atom_bytes + atom_work_bytes
+  right_first_bytes <- if (retain_first_moments && !same_relation) {
+    8 * max_rows * q_right * length(right_partitions)
+  } else {
+    0
+  }
+  first_panel_bytes <- if (retain_first_moments) relation_bytes else 0
+  base_live_bytes <- frame_block_bytes + relation_bytes + atom_bytes +
+    atom_work_bytes
   total_live_bytes <- if (form_total) {
     base_live_bytes + weight_slice_bytes + atom_slice_bytes +
       product_bytes + 2 * replacement_bytes
@@ -217,7 +264,7 @@
     0
   }
   first_live_bytes <- if (retain_first_moments) {
-    base_live_bytes + weight_slice_bytes + 3 * max(
+    base_live_bytes + first_panel_bytes + weight_slice_bytes + 3 * max(
       left_first_bytes, right_first_bytes
     )
   } else {
@@ -232,6 +279,7 @@
     max_atom_bytes = if (is.null(query)) atom_bytes else 0,
     max_query_atom_bytes = if (is.null(query)) 0 else atom_bytes,
     max_atom_work_bytes = atom_work_bytes,
+    max_frame_block_bytes = frame_block_bytes,
     max_weight_slice_bytes = weight_slice_bytes,
     max_atom_slice_bytes = atom_slice_bytes,
     max_product_bytes = product_bytes,
@@ -287,35 +335,41 @@
     })
 
     tryCatch({
+      # The feature panel is the transposed relation family for this block,
+      # built once per block rather than once per measurement tile. Its
+      # column order is effect within partition, which is exactly the
+      # storage order of the three-way first-moment array, so one fused
+      # product per side replaces one product per partition and the fill is
+      # a plain matrix subassignment.
+      left_panel <- if (retain_first_moments) {
+        .first_moment_feature_panel(task$left_relations)
+      } else {
+        NULL
+      }
+      right_panel <- if (retain_first_moments && !same_relation) {
+        .first_moment_feature_panel(task$right_relations)
+      } else {
+        NULL
+      }
+      feature_weights <- if (hoist_feature_columns) {
+        frame$weights[, feature_ids, drop = FALSE]
+      } else {
+        NULL
+      }
       for (row_start in .tile_starts(measurements, row_tile)) {
         rows <- row_start:min(row_start + row_tile - 1L, measurements)
-        weight_slice <- frame$weights[rows, feature_ids, drop = FALSE]
-
-        accumulate_first_family <- function(state, relations, partitions,
-                                             effects) {
-          for (partition_index in seq_along(partitions)) {
-            product <- as.matrix(
-              weight_slice %*% t(relations[[partition_index]])
-            )
-            existing <- matrix(
-              state[rows, , partition_index, drop = FALSE],
-              nrow = length(rows), ncol = length(effects)
-            )
-            replacement <- existing + product
-            state[rows, , partition_index] <- replacement
-          }
-          state
+        weight_slice <- if (hoist_feature_columns) {
+          feature_weights[rows, , drop = FALSE]
+        } else {
+          frame$weights[rows, feature_ids, drop = FALSE]
         }
 
         if (retain_first_moments) {
-          left_first <- accumulate_first_family(
-            left_first, task$left_relations, left_partitions, left_effects
-          )
+          left_first[rows, ] <- left_first[rows, , drop = FALSE] +
+            as.matrix(weight_slice %*% left_panel)
           if (!same_relation) {
-            right_first <- accumulate_first_family(
-              right_first, task$right_relations, right_partitions,
-              right_effects
-            )
+            right_first[rows, ] <- right_first[rows, , drop = FALSE] +
+              as.matrix(weight_slice %*% right_panel)
           }
         }
 
@@ -355,7 +409,18 @@
     if (!is.null(task_observer)) task_observer("completed", feature_ids)
   }
 
-  if (retain_first_moments && same_relation) right_first <- left_first
+  if (retain_first_moments) {
+    left_first <- .named_first_moment_array(
+      left_first, measurements, left_effects, left_partitions
+    )
+    right_first <- if (same_relation) {
+      left_first
+    } else {
+      .named_first_moment_array(
+        right_first, measurements, right_effects, right_partitions
+      )
+    }
+  }
   list(
     value = output,
     first_moments = if (retain_first_moments) {

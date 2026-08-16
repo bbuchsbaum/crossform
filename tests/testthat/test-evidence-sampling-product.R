@@ -77,7 +77,7 @@ test_that("relation-fit product agrees with an independent direct oracle", {
       )
     )
     covariance <- rdm_sampling_covariance(
-      evidence, fixture$fit, target = "plugin"
+      evidence, fixture$fit, target = "plugin", at = 1L
     )
     observed <- sampling_covariance(covariance, "materialize")
     estimates <- lapply(fixture$fit$relation$partitions, function(partition) {
@@ -109,9 +109,13 @@ test_that("relation-fit product agrees with an independent direct oracle", {
     components <- sampling_oracle_components(
       whitened_signal, sigma_k, residual_whitened
     )
+    # `residual_whitened` is the pooled plug-in with `total_df` degrees of
+    # freedom, so the oracle corrects the quadratic noise term exactly as the
+    # package does; the signal term is linear and is left alone.
     expected <- sampling_oracle_eq13(
       components$differences, components$xi, residual_whitened,
-      length(fixture$fit$relation$partitions)
+      length(fixture$fit$relation$partitions),
+      residual_df = total_df
     )$covariance
 
     expect_equal(unname(observed), unname(expected), tolerance = 4e-12,
@@ -145,7 +149,7 @@ test_that("beta-only and learned-metric product paths refuse honestly", {
     )
   )
   learned_refusal <- catch_refusal(
-    rdm_sampling_covariance(learned, fixture$fit, target = "null")
+    rdm_sampling_covariance(learned, fixture$fit, target = "null", at = 1L)
   )
   expect_s3_class(learned_refusal, "effect_capability_refusal")
   expect_identical(learned_refusal$capability, "fixed_metric_sampling_law")
@@ -229,7 +233,7 @@ test_that("one-node sampling queries do not compile whole-frame residual state",
 test_that("public RDM sampling covariance is explicit and exactly queryable", {
   fixture <- sampling_product_fixture()
   covariance <- rdm_sampling_covariance(
-    fixture$evidence, fixture$fit, target = "plugin"
+    fixture$evidence, fixture$fit, target = "plugin", at = 1L
   )
   dense <- sampling_covariance(covariance, "materialize")
   vector <- seq_len(nrow(dense)) / 10
@@ -264,7 +268,7 @@ test_that("public RDM sampling covariance is explicit and exactly queryable", {
 
   beta_only <- catch_refusal(
     rdm_sampling_covariance(
-      fixture$evidence, fixture$fit$relation, target = "null"
+      fixture$evidence, fixture$fit$relation, target = "null", at = 1L
     )
   )
   expect_s3_class(beta_only, "effect_capability_refusal")

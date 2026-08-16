@@ -135,7 +135,8 @@ test_that("learned observation models retain point fits but withhold analytic la
       cross_partitions(learned_fit$relation)
     ),
     learned_fit,
-    target = "null"
+    target = "null",
+    at = 1L
   ))
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_match(conditionMessage(refusal), "no error channel")

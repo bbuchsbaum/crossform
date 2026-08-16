@@ -303,9 +303,21 @@ test_that("exact domain mismatches fail before lazy source reads", {
     capabilities = source_capabilities(TRUE, stable_revision = revision))
   at <- additive_frame(diag(4), domain = reversed_domain)
 
-  expect_error(materialize_geometry(rel, at,
-    cross_partitions(rel, independence = "independent")),
-  "exact neural-domain")
+  message <- tryCatch(
+    materialize_geometry(rel, at,
+      cross_partitions(rel, independence = "independent")),
+    error = conditionMessage
+  )
+  # Same label, different feature order. The message has to show the
+  # identities, because the ids alone look identical.
+  expect_match(message, "different neural domains")
+  expect_match(message, "The relation carries domain `same-label`")
+  expect_match(message, "the frame carries `same-label`")
+  digests <- regmatches(message,
+    gregexpr("sha256:[0-9a-f]{12}\\.\\.\\.", message))[[1L]]
+  expect_length(digests, 2L)
+  expect_false(identical(digests[[1L]], digests[[2L]]))
+  expect_match(message, "compile_frame\\(<frame>, <relation>\\$domain\\)")
   expect_identical(reads, 0L)
 })
 
@@ -316,9 +328,18 @@ test_that("volume spacing participates in compiler domain identity", {
   matrices <- list(run1 = matrix(1, 2, 4), run2 = matrix(2, 2, 4))
   rel <- relation(matrices, effects = c("a", "b"), domain = first)
 
-  expect_error(materialize_geometry(rel, compile_frame(voxelwise(), changed),
-    cross_partitions(rel, independence = "independent")),
-    "exact neural-domain")
+  message <- tryCatch(
+    materialize_geometry(rel, compile_frame(voxelwise(), changed),
+      cross_partitions(rel, independence = "independent")),
+    error = conditionMessage
+  )
+  # Same id, same feature count, different voxel spacing: only the identities
+  # separate them, so only the identities can explain the refusal.
+  expect_match(message, "different neural domains")
+  digests <- regmatches(message,
+    gregexpr("sha256:[0-9a-f]{12}\\.\\.\\.", message))[[1L]]
+  expect_length(digests, 2L)
+  expect_false(identical(digests[[1L]], digests[[2L]]))
 })
 
 test_that("opaque sources without revisions fail before reading", {

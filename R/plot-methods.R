@@ -36,6 +36,54 @@
   c(defaults, dots[!named])
 }
 
+# Above this many measurements one glyph per measurement stops being a
+# picture of the data: the profile panel fills in as a solid slab and the
+# decomposition panel as an undifferentiated blob. Beyond it the panels
+# summarize what they cannot draw rather than drawing it badly.
+.dense_measurements <- 5000L
+
+# Below this many measurements nothing is rescaled at all, so the small
+# figures the package documents are exactly what they were.
+.sparse_measurements <- 500L
+
+# Glyph size and opacity as functions of how many glyphs share one panel. The
+# cube root is the compromise a two-dimensional panel wants: total ink grows
+# slowly enough that a few thousand measurements stay separable, and the
+# floors keep a crowded panel from fading to nothing. At or below
+# `.sparse_measurements` both factors are exactly one, so the scaling is a
+# no-op for the sizes the vignettes and README draw.
+.measurement_scale <- function(n) {
+  n <- max(as.integer(n), 1L)
+  if (n <= .sparse_measurements) return(list(cex = 1, alpha = 1))
+  ratio <- (.sparse_measurements / n)^(1 / 3)
+  list(cex = max(0.45, ratio), alpha = max(0.25, ratio))
+}
+
+# Apply an opacity to one or many colors. `adjustcolor()` takes only a scalar
+# `alpha.f`, and it would rewrite an opaque request as "#C8C8C8FF" rather
+# than leaving it alone; returning the color untouched at alpha 1 keeps the
+# small-measurement path byte-identical to what it drew before.
+.fade <- function(color, alpha) {
+  if (length(alpha) == 1L && alpha >= 1) return(color)
+  channels <- grDevices::col2rgb(color)
+  grDevices::rgb(
+    channels[1L, ], channels[2L, ], channels[3L, ],
+    alpha = round(255 * pmax(0, pmin(1, alpha))), maxColorValue = 255
+  )
+}
+
+# Blue where the signed marginal is positive, vermillion where it is
+# negative, neutral where it is zero or missing. NA in the condition of
+# `ifelse()` would propagate, so the missing case is tested first.
+.signed_colors <- function(signed) {
+  ifelse(
+    !is.finite(signed) | signed == 0,
+    .geometry_colors[["neutral"]],
+    ifelse(signed > 0, .geometry_colors[["blue"]],
+      .geometry_colors[["vermillion"]])
+  )
+}
+
 .measurement_ids <- function(index) {
   if (is.data.frame(index)) {
     if ("measurement" %in% names(index)) {
@@ -110,6 +158,26 @@
   highlight_label
 }
 
+# How many measurements keep a needle of their own once a profile panel is
+# too crowded to draw them all. Checked on every call, not only the crowded
+# ones, so a typo surfaces on the small view the reader is developing against
+# rather than on the large view they finally run.
+.validate_top <- function(top) {
+  if (!is.numeric(top) || length(top) != 1L || is.na(top) ||
+      !is.finite(top)) {
+    stop(sprintf(paste0(
+      "`top` must be one positive whole number of measurements to draw ",
+      "individually; received %s."
+    ), .msg_value(top)), call. = FALSE)
+  }
+  if (top %% 1 != 0 || top < 1) {
+    stop(sprintf(paste0(
+      "`top` = %s must be a positive whole number of measurements."
+    ), format(top, scientific = FALSE)), call. = FALSE)
+  }
+  as.integer(top)
+}
+
 .finite_range <- function(...) {
   value <- unlist(list(...), use.names = FALSE)
   value <- value[is.finite(value)]
@@ -134,38 +202,146 @@
   main[[((panel - 1L) %% length(main)) + 1L]]
 }
 
+# The bulk of a crowded profile, drawn once instead of once per measurement:
+# a shaded polygon spanning the central 95% of the values with the median
+# ruled across it, and needles kept only for the `top` measurements furthest
+# from the reference line. Extremity is measured in both directions on
+# purpose. These are crossvalidated estimates, about half of which fall below
+# zero where there is no effect, and a summary that kept only the largest
+# positive values would quietly flatter the analysis.
+#
+# Returns the positions that kept a needle, so a caller can say how many
+# measurements it drew.
+.plot_profile_band <- function(values, reference, top) {
+  n <- length(values)
+  baseline <- if (is.finite(reference)) reference else 0
+  finite <- values[is.finite(values)]
+  if (length(finite)) {
+    band <- stats::quantile(finite, c(0.025, 0.975), names = FALSE)
+    graphics::polygon(
+      c(1, n, n, 1),
+      c(band[[1L]], band[[1L]], band[[2L]], band[[2L]]),
+      col = .fade(.geometry_colors[["faint"]], 0.55), border = NA
+    )
+    center <- stats::median(finite)
+    graphics::segments(1, center, n, center,
+      col = .geometry_colors[["neutral"]])
+  }
+  ranked <- order(abs(values - baseline), decreasing = TRUE, na.last = NA)
+  keep <- ranked[seq_len(min(as.integer(top), length(ranked)))]
+  if (length(keep)) {
+    scale <- .measurement_scale(length(keep))
+    graphics::segments(keep, baseline, keep, values[keep],
+      col = .fade(.geometry_colors[["faint"]], scale$alpha))
+    graphics::points(keep, values[keep], pch = 20, cex = 0.5 * scale$cex,
+      col = .fade(.geometry_colors[["neutral"]], scale$alpha))
+  }
+  keep
+}
+
 # One measurement-index panel, shared by the contrast profile, the RSA
-# coefficients, and the crossnobis statistic.
+# coefficients, and the crossnobis statistic. Returns, invisibly, whether the
+# panel summarized the bulk and which measurements it drew individually.
 .plot_measurement_profile <- function(values, highlight, xlab, ylab, main,
                                       color, dots = list(),
                                       reference = 0, headroom = 0,
-                                      legend_label = NULL) {
+                                      legend_label = NULL, top = 200L) {
   positions <- seq_along(values)
+  dense <- length(values) > .dense_measurements
+  scale <- .measurement_scale(length(values))
   ylim <- .finite_range(values, reference)
   ylim[[2L]] <- ylim[[2L]] + headroom * diff(ylim)
   defaults <- list(
-    x = positions, y = values, type = "h",
-    col = .geometry_colors[["faint"]], cex.main = 1,
+    x = positions, y = values, type = if (dense) "n" else "h",
+    col = .fade(.geometry_colors[["faint"]], scale$alpha), cex.main = 1,
     xlab = xlab, ylab = ylab, main = main, ylim = ylim
   )
   do.call(graphics::plot.default, .merge_graphics_args(defaults, dots))
   if (is.finite(reference)) {
     graphics::abline(h = reference, lty = 3, col = .geometry_colors[["black"]])
   }
-  graphics::points(positions, values, pch = 20, cex = 0.5,
-    col = .geometry_colors[["neutral"]])
-  if (length(highlight)) {
-    graphics::segments(highlight, reference, highlight, values[highlight],
-      col = color, lwd = 2)
-    graphics::points(highlight, values[highlight], pch = 19, cex = 0.9,
-      col = color)
-    if (!is.null(legend_label)) {
-      graphics::legend("topleft", bty = "n", cex = 0.8, pch = 19, col = color,
-        legend = sprintf("%s (%d measurements)", legend_label,
-          length(highlight)))
-    }
+  if (dense) {
+    drawn <- .plot_profile_band(values, reference, top)
+  } else {
+    drawn <- positions
+    graphics::points(positions, values, pch = 20, cex = 0.5 * scale$cex,
+      col = .fade(.geometry_colors[["neutral"]], scale$alpha))
   }
-  invisible(NULL)
+  if (length(highlight)) {
+    # Every highlighted measurement is drawn whatever the panel's size: the
+    # highlight set is the reader's question, so it is never summarized away.
+    marked <- .measurement_scale(length(highlight))
+    graphics::segments(highlight, reference, highlight, values[highlight],
+      col = .fade(color, marked$alpha), lwd = 2)
+    graphics::points(highlight, values[highlight], pch = 19,
+      cex = 0.9 * marked$cex, col = .fade(color, marked$alpha))
+  }
+  named <- length(highlight) && !is.null(legend_label)
+  if (dense) {
+    graphics::legend(
+      "topleft", bty = "n", cex = 0.8,
+      pch = c(15L, 20L, if (named) 19L),
+      col = c(.fade(.geometry_colors[["faint"]], 0.55),
+        .geometry_colors[["neutral"]], if (named) color),
+      legend = c(
+        sprintf("central 95%% of %s", .msg_count(length(values),
+          "measurement")),
+        sprintf("%s furthest from the reference",
+          .msg_count(length(drawn), "measurement")),
+        if (named) {
+          sprintf("%s (%d measurements)", legend_label, length(highlight))
+        }
+      )
+    )
+  } else if (named) {
+    graphics::legend("topleft", bty = "n", cex = 0.8, pch = 19, col = color,
+      legend = sprintf("%s (%d measurements)", legend_label,
+        length(highlight)))
+  }
+  invisible(list(dense = dense, drawn = drawn))
+}
+
+# Density shading for a panel holding more measurements than it has room for
+# glyphs. Plain rectangular binning over the panel's own limits, drawn with
+# `rect()`: no kernel, no smoothing parameter, and no new dependency, so the
+# picture is a count of the measurements that fall in each cell and nothing
+# else. Opacity follows the log count, which keeps one crowded cell near the
+# origin from erasing the sparse tail, and each cell takes the color of the
+# sign that dominates it so the signed reading of the panel survives.
+#
+# Returns the number of cells that held at least one measurement.
+.plot_density_bins <- function(x, y, signed, xlim, ylim, bins = 64L) {
+  usable <- is.finite(x) & is.finite(y)
+  if (!any(usable)) return(invisible(0L))
+  if (length(signed) != length(x)) signed <- rep(NA_real_, length(x))
+  x <- x[usable]
+  y <- y[usable]
+  signed <- signed[usable]
+  x_edges <- seq(xlim[[1L]], xlim[[2L]], length.out = bins + 1L)
+  y_edges <- seq(ylim[[1L]], ylim[[2L]], length.out = bins + 1L)
+  column <- findInterval(x, x_edges, rightmost.closed = TRUE,
+    all.inside = TRUE)
+  row <- findInterval(y, y_edges, rightmost.closed = TRUE, all.inside = TRUE)
+  cell <- (row - 1L) * bins + column
+  cells <- bins * bins
+  count <- tabulate(cell, cells)
+  positive <- tabulate(cell[is.finite(signed) & signed > 0], cells)
+  negative <- tabulate(cell[is.finite(signed) & signed < 0], cells)
+  filled <- which(count > 0L)
+  color <- ifelse(
+    positive[filled] > negative[filled], .geometry_colors[["blue"]],
+    ifelse(negative[filled] > positive[filled],
+      .geometry_colors[["vermillion"]], .geometry_colors[["neutral"]])
+  )
+  intensity <- log1p(count[filled]) / log1p(max(count))
+  filled_column <- ((filled - 1L) %% bins) + 1L
+  filled_row <- ((filled - 1L) %/% bins) + 1L
+  graphics::rect(
+    x_edges[filled_column], y_edges[filled_row],
+    x_edges[filled_column + 1L], y_edges[filled_row + 1L],
+    col = .fade(color, 0.15 + 0.85 * intensity), border = NA
+  )
+  invisible(length(filled))
 }
 
 # `signed` is a plain vector for a self view and a named list of endpoint
@@ -202,6 +378,21 @@
 #' measurements that overlap the planted signal, so a correct analysis is
 #' visible rather than asserted.
 #'
+#' Glyph size and opacity ease down as a panel fills, so a view of a few
+#' thousand measurements stays readable; at or below five hundred
+#' measurements nothing is rescaled. Above five thousand measurements one
+#' glyph per measurement is no longer a picture of the data, and the contrast
+#' panels change what they draw rather than overplotting. The profile panel
+#' shades the central 95% of the values as a band, rules the median across
+#' it, and keeps needles only for the `top` measurements furthest from the
+#' reference line in either direction, so the negative half of a
+#' crossvalidated estimate is still shown. The decomposition panel bins the
+#' coherent/configuration plane into rectangular cells whose opacity follows
+#' the log count and whose color is the signed marginal that dominates the
+#' cell; the binning is a plain count, with no kernel and no smoothing.
+#' Highlighted measurements are always drawn individually, on top of either
+#' summary, however many of them there are.
+#'
 #' @param x A view object: `effect_contrast_view`, `effect_rdm_view`,
 #'   `effect_rsa_view`, `effect_crossnobis_view`, or
 #'   `effect_rdm_sampling_covariance`.
@@ -235,6 +426,12 @@
 #' @param sort Whether to order the distance rows by their plotted center.
 #' @param main Optional title. For a multi-panel figure a character vector is
 #'   recycled across panels.
+#' @param top How many measurements keep a needle of their own once a profile
+#'   panel holds more than five thousand of them, taken as the `top`
+#'   measurements furthest from the reference line in either direction. The
+#'   default is 200, capped at the number of measurements the view has. The
+#'   argument is validated on every call, including views small enough to
+#'   draw every measurement, where it is otherwise unused.
 #' @param ... Further arguments passed to the underlying base-graphics call
 #'   for each panel, such as `pch`, `cex`, `xlim`, or `col`.
 #' @return The view `x`, invisibly. Called for the picture it draws.
@@ -244,8 +441,8 @@
 #' @family geometry plans and views
 #' @name plot_views
 #' @importFrom graphics abline axis box image layout lcm legend mtext par
-#'   plot.default points rect segments text
-#' @importFrom grDevices adjustcolor colorRampPalette
+#'   plot.default points polygon rect segments text
+#' @importFrom grDevices adjustcolor col2rgb colorRampPalette rgb
 #' @examples
 #' example <- example_fmri_effects()
 #' plan <- plan_geometry(
@@ -293,7 +490,7 @@ plot.effect_contrast_view <- function(x,
                                         "profile"),
                                       highlight = NULL,
                                       highlight_label = "highlighted",
-                                      main = NULL, ...) {
+                                      main = NULL, top = 200L, ...) {
   which <- match.arg(which)
   dots <- list(...)
   total <- as.numeric(x$total)
@@ -302,6 +499,8 @@ plot.effect_contrast_view <- function(x,
   signed <- .contrast_signed(x)
   highlight <- .resolve_highlight(highlight, x$index, length(total))
   highlight_label <- .validate_highlight_label(highlight_label)
+  top <- .validate_top(top)
+  dense <- length(total) > .dense_measurements
 
   op <- graphics::par(no.readonly = TRUE)
   on.exit(graphics::par(op), add = TRUE)
@@ -311,22 +510,8 @@ plot.effect_contrast_view <- function(x,
   graphics::par(mar = c(4.4, 4.4, 3.2, 1.1))
 
   if (which %in% c("both", "decomposition")) {
-    sign_color <- ifelse(
-      !is.finite(signed$values) | signed$values == 0,
-      .geometry_colors[["neutral"]],
-      ifelse(signed$values > 0, .geometry_colors[["blue"]],
-        .geometry_colors[["vermillion"]])
-    )
     marked <- logical(length(total))
     marked[highlight] <- TRUE
-    # Every point keeps its sign color. Highlighting is carried by weight and
-    # a ring, not by a color of its own: unhighlighted measurements, which
-    # pile up near the origin, are simply drawn lighter and smaller.
-    fill <- sign_color
-    sign_color[!marked] <- grDevices::adjustcolor(
-      sign_color[!marked], alpha.f = if (length(highlight)) 0.35 else 0.7
-    )
-    sign_color[marked] <- .geometry_colors[["black"]]
     # A line of constant total has slope -1 only when the two axes share a
     # scale, so the panel is drawn square with one common range and `asp = 1`.
     # The guides are then visually true rather than merely labeled as such.
@@ -336,14 +521,39 @@ plot.effect_contrast_view <- function(x,
     ylim <- limits
     defaults <- list(
       x = coherent, y = configuration,
-      col = sign_color, bg = fill, pch = ifelse(marked, 21L, 19L),
-      cex = ifelse(marked, 1.05, 0.65),
       xlim = xlim, ylim = ylim, asp = 1, cex.main = 1,
       xlab = "Coherent energy (region-average contrast)",
       ylab = "Configuration energy (pattern beyond that mean)",
       main = .panel_main(main, 1L, "Coherent versus configuration energy")
     )
-    do.call(graphics::plot.default, .merge_graphics_args(defaults, dots))
+    if (dense) {
+      # The cloud is drawn as counts below, so the panel opens empty.
+      defaults$type <- "n"
+    } else {
+      scale <- .measurement_scale(length(total))
+      # Every point keeps its sign color. Highlighting is carried by weight
+      # and a ring, not by a color of its own: unhighlighted measurements,
+      # which pile up near the origin, are simply drawn lighter and smaller.
+      sign_color <- .signed_colors(signed$values)
+      fill <- sign_color
+      sign_color[!marked] <- grDevices::adjustcolor(
+        sign_color[!marked],
+        alpha.f = (if (length(highlight)) 0.35 else 0.7) * scale$alpha
+      )
+      sign_color[marked] <- .geometry_colors[["black"]]
+      defaults$col <- sign_color
+      defaults$bg <- fill
+      defaults$pch <- ifelse(marked, 21L, 19L)
+      defaults$cex <- ifelse(marked, 1.05, 0.65) * scale$cex
+    }
+    merged <- .merge_graphics_args(defaults, dots)
+    do.call(graphics::plot.default, merged)
+    if (dense) {
+      # Bin over the limits the panel was actually drawn with, so a caller's
+      # `xlim` moves the cells with the points they stand for.
+      .plot_density_bins(coherent, configuration, signed$values,
+        .finite_range(merged$xlim), .finite_range(merged$ylim))
+    }
     graphics::abline(h = 0, v = 0, lty = 3, col = .geometry_colors[["black"]])
 
     # coherent + configuration = total exactly, so a constant total is a
@@ -363,6 +573,15 @@ plot.effect_contrast_view <- function(x,
       graphics::text(label_x, guide - label_x, labels = format(guide),
         adj = c(-0.1, -0.4), cex = 0.7, col = .geometry_colors[["neutral"]])
     }
+    if (dense && length(highlight)) {
+      # The density cells stand for the cloud; the highlight set is the
+      # reader's question and is drawn measurement by measurement over it.
+      ringed <- .measurement_scale(length(highlight))
+      graphics::points(coherent[highlight], configuration[highlight],
+        pch = 21L, cex = 1.05 * ringed$cex,
+        col = .geometry_colors[["black"]],
+        bg = .fade(.signed_colors(signed$values[highlight]), ringed$alpha))
+    }
     graphics::legend(
       "topright", bty = "n", cex = 0.75,
       legend = c(
@@ -374,12 +593,20 @@ plot.effect_contrast_view <- function(x,
       col = c(.geometry_colors[["blue"]], .geometry_colors[["vermillion"]],
         if (length(highlight)) .geometry_colors[["black"]]),
       pt.bg = .geometry_colors[["neutral"]],
-      pch = c(19L, 19L, if (length(highlight)) 21L),
+      pch = c(if (dense) c(15L, 15L) else c(19L, 19L),
+        if (length(highlight)) 21L),
       pt.cex = c(0.9, 0.9, if (length(highlight)) 1.05)
     )
     # The dashed guides no longer need a legend row of their own.
-    graphics::mtext("dashed lines: constant total energy", side = 3,
-      line = 0.2, cex = 0.75, col = .geometry_colors[["neutral"]])
+    graphics::mtext(
+      if (dense) {
+        sprintf("dashed lines: constant total energy; %s as density bins",
+          .msg_count(length(total), "measurement"))
+      } else {
+        "dashed lines: constant total energy"
+      },
+      side = 3, line = 0.2, cex = 0.75, col = .geometry_colors[["neutral"]]
+    )
   }
 
   if (which %in% c("both", "profile")) {
@@ -391,7 +618,7 @@ plot.effect_contrast_view <- function(x,
         "Total energy across measurements"),
       color = .geometry_colors[["vermillion"]], dots = dots,
       headroom = if (length(highlight)) 0.12 else 0,
-      legend_label = highlight_label
+      legend_label = highlight_label, top = top
     )
   }
   invisible(x)
@@ -513,7 +740,7 @@ plot.effect_rdm_view <- function(x, measurement = NULL, annotate = NULL,
 #' @export
 plot.effect_rsa_view <- function(x, terms = NULL, highlight = NULL,
                                  highlight_label = "highlighted",
-                                 main = NULL, ...) {
+                                 main = NULL, top = 200L, ...) {
   coefficients <- as.matrix(x$coefficients)
   labels <- colnames(coefficients)
   if (is.null(labels)) {
@@ -530,6 +757,7 @@ plot.effect_rsa_view <- function(x, terms = NULL, highlight = NULL,
   }
   highlight <- .resolve_highlight(highlight, x$index, nrow(coefficients))
   highlight_label <- .validate_highlight_label(highlight_label)
+  top <- .validate_top(top)
   panels <- ncol(coefficients)
   roles <- stats::setNames(x$terms$role, x$terms$term)
 
@@ -558,7 +786,8 @@ plot.effect_rsa_view <- function(x, terms = NULL, highlight = NULL,
       headroom = if (length(highlight) && panel == 1L) 0.12 else 0,
       # One legend for the figure: repeating it on every model panel would
       # say the same thing four times.
-      legend_label = if (panel == 1L) highlight_label else NULL
+      legend_label = if (panel == 1L) highlight_label else NULL,
+      top = top
     )
   }
   invisible(x)
@@ -568,10 +797,11 @@ plot.effect_rsa_view <- function(x, terms = NULL, highlight = NULL,
 #' @export
 plot.effect_crossnobis_view <- function(x, highlight = NULL,
                                         highlight_label = "highlighted",
-                                        main = NULL, ...) {
+                                        main = NULL, top = 200L, ...) {
   values <- as.numeric(x$values)
   highlight <- .resolve_highlight(highlight, x$index, length(values))
   highlight_label <- .validate_highlight_label(highlight_label)
+  top <- .validate_top(top)
   op <- graphics::par(no.readonly = TRUE)
   on.exit(graphics::par(op), add = TRUE)
   graphics::par(mar = c(4.4, 4.4, 3.2, 1.1))
@@ -583,7 +813,7 @@ plot.effect_crossnobis_view <- function(x, highlight = NULL,
       "Crossnobis contrast along the measurement index")[[1L]],
     color = .geometry_colors[["vermillion"]], dots = list(...),
     headroom = if (length(highlight)) 0.12 else 0,
-    legend_label = highlight_label
+    legend_label = highlight_label, top = top
   )
   graphics::mtext(
     "Signed estimate; about half fall below zero where there is no effect",

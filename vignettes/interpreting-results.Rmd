@@ -594,17 +594,40 @@ round(rbind(distance = distances$values[peak, ],
 ```
 
 - **`target = "null"`** evaluates the signal-dependent variance term at a fixed
-  zero effect. It is **exact** under the declared model, and it is what you
-  want when calibrating a test of no effect. Notice it is the same for every
-  pair: with no signal assumed, the variance depends only on the noise.
+  zero effect. It is **exact on the variance scale** under the declared model,
+  and it is what you want when calibrating a test of no effect. Notice it is
+  the same for every pair: with no signal assumed, the variance depends only
+  on the noise.
 - **`target = "plugin"`** substitutes the estimated partition-mean pattern for
   the unknown signal. It tracks the actual distances — large where the
   distance is large, and back down toward the null value for the two
   within-category pairs — which is what you want when reporting an error bar
   around a nonzero estimate. It is **biased upward**, by a term that shrinks
-  like 1/M² in the number of features and is largest when noise dominates the
-  true distances, so read it as mildly conservative. See
+  like 1/M² in the number of partitions and is largest when noise dominates
+  the true distances, so read it as mildly conservative. See
   `?rdm_sampling_covariance` for the exact expression.
+
+Both targets share one estimated ingredient: the residual covariance
+\(\Sigma_w\). "Exact" above means exact *given* that covariance — and because
+the noise term is quadratic in it, a raw plug-in would inflate every standard
+error by \(\sqrt{1+(1+P_{\text{eff}})/\nu}\). crossform applies the
+Wishart-unbiased correction and reports the two numbers that govern it: the
+residual degrees of freedom \(\nu\), and \(P_{\text{eff}}\), the number of
+residual directions this measurement's support actually spends variance on.
+
+```{r residual-diagnostics}
+covariance <- rdm_sampling_covariance(
+  plan, example$fit, target = "null", at = peak
+)
+c(residual_df = covariance$source$residual_df,
+  effective_dimension = round(
+    covariance$source$residual_effective_dimension, 2
+  ))
+```
+
+A large support bought with few runs runs out of residual information, and
+when \(\nu\) falls below \(P_{\text{eff}}\) the call refuses rather than
+reporting a confidently small number.
 
 There is no default. Choosing one silently would mean the same function
 reported two different quantities depending on context.

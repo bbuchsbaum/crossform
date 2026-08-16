@@ -20,6 +20,25 @@
   out
 }
 
+# Show a content hash as its algorithm plus first `chars` hex digits. A whole
+# digest is never printed: the point of quoting one in an error is to let the
+# reader see that two identities differ, and twelve digits does that.
+.msg_signature <- function(x, chars = 12L) {
+  if (is.null(x) || !is.character(x) || length(x) != 1L || is.na(x) ||
+      !nzchar(x)) {
+    return("none")
+  }
+  if (grepl("^[A-Za-z0-9_-]+:[[:xdigit:]]{16,}$", x)) {
+    algorithm <- sub(":.*$", "", x)
+    digits <- sub("^[A-Za-z0-9_-]+:", "", x)
+    if (nchar(digits) > chars) {
+      return(paste0(algorithm, ":", substr(digits, 1L, chars), "..."))
+    }
+    return(x)
+  }
+  if (nchar(x) > chars * 2L) paste0(substr(x, 1L, chars * 2L), "...") else x
+}
+
 # "1 effect" / "3 effects", so messages do not read "1 effects".
 .msg_count <- function(n, singular, plural = paste0(singular, "s")) {
   n <- as.integer(n)

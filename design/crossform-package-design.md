@@ -245,6 +245,20 @@ Configuration is derived, not stored. A point frame has zero configuration.
 
 The word “coherent” means coherent under the effective nonnegative metric weights. If diagonal noise precision is folded into the weights, this is a precision-weighted common mode, not necessarily an arithmetic regional mean. Metadata and printing must say which.
 
+Prior art for this split, and the exact boundary of what is claimed for it, is
+recorded in `design/relation-to-prior-work.md`. Two neighbors matter most.
+Allefeld and Haynes (2014, <https://doi.org/10.1016/j.neuroimage.2013.11.043>)
+run the mean-versus-pattern comparison by re-analyzing mean-only and
+mean-removed data, so their two maps do not sum to the unmodified analysis.
+Framed RSA (Taylor and Kriegeskorte, 2025,
+<https://doi.org/10.1101/2025.07.10.664257>) recovers population-mean
+sensitivity by augmenting the pattern set with an origin and a uniform
+constant pattern. The construction above is neither: it splits the metric with
+complementary \(D(w_j)\)-orthogonal projectors, so the components are PSD, sum
+exactly, and are inherited by every fixed linear query without recomputation. Each component is
+separately noise-unbiased under the conditions in
+`design/effect-form-contract.md` §8.
+
 ### 1.6 Pairing marginals and signed effects
 
 A pairing graph does not generally determine one signed effect. For an

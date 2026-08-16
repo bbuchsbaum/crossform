@@ -40,7 +40,16 @@ automatic confidence interval.
 The values returned inherit the calibration target chosen when \code{x} was
 built. Under \code{target = "plugin"} they carry the documented upward bias of
 the partition-mean plug-in policy; see the \code{target} argument of
-\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}.
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Under \code{target = "null"} the law is exact on
+the variance scale.
+
+In both cases the residual covariance behind the law is a plug-in with
+\eqn{\nu} degrees of freedom, so its \emph{quadratic} contribution carries the
+Wishart finite-sample correction described under
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Read \code{x$source$residual_df} and
+\code{x$source$residual_effective_dimension} to see \eqn{\nu} and
+\eqn{P_{\mathrm{eff}}} for the measurement you queried; \code{print(x)} shows
+both.
 }
 \examples{
 # Three conditions in three runs, with a fixed identity noise metric.
@@ -66,7 +75,7 @@ plan <- plan_geometry(
   cross_partitions(fit$relation, independence = "independent"),
   metric = noise_precision(diag(3), domain, covariance = diag(3))
 )
-uncertainty <- rdm_sampling_covariance(plan, fit, target = "null")
+uncertainty <- rdm_sampling_covariance(plan, fit, target = "null", at = 1L)
 
 # The diagonal is a vector of variances, so take a square root yourself if
 # you want standard errors. No interval is implied.

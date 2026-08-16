@@ -231,3 +231,89 @@ test_that("an out-of-range measurement index names the argument and range", {
     sprintf("`at` = 1000000 is outside the frame's 1\\.\\.%d measurements",
       measurements))
 })
+
+test_that("`at` is required rather than silently defaulting to measurement 1", {
+  example <- example_fmri_effects()
+  plan <- plan_geometry(
+    example$fit$relation, example$frame,
+    cross_partitions(example$fit$relation, independence = "independent")
+  )
+
+  expect_error(
+    rdm_sampling_covariance(plan, example$fit, target = "null"),
+    "`at` is required: name the measurement"
+  )
+  expect_error(
+    rdm_sampling_covariance(plan, example$fit, target = "null"),
+    "which.max\\(effect\\$total\\)"
+  )
+  # The calibration target is still the first thing asked for, because it
+  # names the estimand and `at` only names where to evaluate it.
+  target_first <- catch_refusal(rdm_sampling_covariance(plan, example$fit))
+  expect_identical(target_first$capability, "calibration_target_declared")
+})
+
+test_that("a domain mismatch names both domains and the call that fixes it", {
+  relation_domain <- abstract_domain(4L, id = "relation-domain")
+  frame_domain <- abstract_domain(4L, id = "frame-domain")
+  point <- relation(
+    list(
+      run1 = matrix(rnorm(8L), 2L, 4L),
+      run2 = matrix(rnorm(8L), 2L, 4L)
+    ),
+    effects = c("x", "y"), domain = relation_domain
+  )
+
+  message <- tryCatch(
+    plan_geometry(
+      point, compile_frame(whole_brain(), frame_domain),
+      cross_partitions(point, independence = "independent")
+    ),
+    error = conditionMessage
+  )
+
+  # Says what differs, on both sides, with an identity short enough to read.
+  expect_match(message, "different neural domains")
+  expect_match(message, "`relation-domain` \\(4 features, sha256:[0-9a-f]{12}\\.\\.\\.\\)")
+  expect_match(message, "`frame-domain` \\(4 features, sha256:[0-9a-f]{12}\\.\\.\\.\\)")
+  # And says how to fix it.
+  expect_match(message, "compile_frame\\(<frame>, <relation>\\$domain\\)",
+    fixed = FALSE)
+  # A whole digest is never printed.
+  expect_false(grepl("[0-9a-f]{20}", message))
+})
+
+test_that("an unbound error channel names both relation identities", {
+  domain <- abstract_domain(4L, id = "channel-identity")
+  plan_relation <- relation(
+    list(
+      run1 = matrix(rnorm(8L), 2L, 4L),
+      run2 = matrix(rnorm(8L), 2L, 4L)
+    ),
+    effects = c("x", "y"), domain = domain
+  )
+  other_relation <- relation(
+    list(
+      run1 = matrix(rnorm(8L), 2L, 4L),
+      run2 = matrix(rnorm(8L), 2L, 4L)
+    ),
+    effects = c("p", "q"), domain = domain
+  )
+  plan <- plan_geometry(
+    plan_relation, compile_frame(whole_brain(), domain),
+    cross_partitions(plan_relation, independence = "independent")
+  )
+
+  message <- tryCatch(
+    rdm_sampling_covariance(plan, other_relation, target = "null", at = 1L),
+    error = conditionMessage
+  )
+
+  expect_match(message, "not the relation the evidence plan was built from")
+  expect_match(message,
+    "The plan's relation has identity sha256:[0-9a-f]{12}\\.\\.\\. \\(2 effects, 2 partitions\\)")
+  expect_match(message,
+    "the one supplied has sha256:[0-9a-f]{12}\\.\\.\\. \\(2 effects, 2 partitions\\)")
+  expect_match(message, "the same object the plan was built from")
+  expect_false(grepl("[0-9a-f]{20}", message))
+})

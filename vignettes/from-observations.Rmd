@@ -368,6 +368,66 @@ as separate factors. They are not population-level uncertainty. A learned
 whitener would still permit the point estimates but would not receive this
 analytic uncertainty capability.
 
+### The assumption those standard errors rest on
+
+The analytic law assumes the observations *within a run* are independent given
+the design. fMRI residuals are not — they are temporally autocorrelated — and
+the consequence is not a rounding error. Under AR(1) errors with
+\(\rho = 0.75\) (32 trials, four conditions, six runs, 50 features), the true
+spread of the distance estimator divided by the standard error crossform
+reports is:
+
+```text
+randomly interleaved trial order   0.50   (standard error twice too large)
+blocked trial order                5.10   (standard error five times too small)
+blocked, with a correct whitener   1.03
+```
+
+A blocked design without a whitener is the dangerous case: the reported
+standard error is anticonservative by a factor of five, because the estimates
+in a block share the same slow drift. The direction flips for rapid
+event-related designs, where neighboring trials belong to different
+conditions and the same autocorrelation *removes* variance from a contrast.
+
+The remedy is a whitener \(L\) with \(L^\top L = \Sigma_t^{-1}\), so the fit
+is carried out on the whitened design \(L X\) and the whitened responses
+\(L y\). For a known AR(1) coefficient that is one
+line, and it is declared the same way as every other assumption --- as part of
+the observation model, which changes the relation's identity:
+
+```{r whitener}
+ar1_whitener <- function(observations, rho) {
+  covariance <- rho^abs(outer(
+    seq_len(observations), seq_len(observations), "-"
+  ))
+  t(backsolve(chol(covariance), diag(observations)))
+}
+
+gls_model <- observation_model(
+  "fixed_gls",
+  sampling_unit = "scan",
+  whitener = ar1_whitener(n_scan, 0.3),
+  independence = "runs independently acquired conditional on the model"
+)
+gls_fit <- estimate_relation(
+  plan_relation(study_facts, declared_design, named_effects, gls_model)
+)
+
+# A different observation model is a different relation, not a variant of the
+# same one, and the fit says so.
+c(ols = substr(fit$signature, 1, 24),
+  gls = substr(gls_fit$signature, 1, 24))
+```
+
+`lm_relation_fit()` takes the same matrix as `observation_whitener = L` on the
+short route below. crossform applies the \(L\) you supply and records its
+revision in the observation model's identity; it cannot check that \(L\)
+matches the autocorrelation actually present in your data, and estimating
+\(\rho\) from the same residuals you are about to calibrate against is a
+different procedure that this package does not validate. See `?lm_relation_fit` and
+[the evidence-sampling contract](https://github.com/bbuchsbaum/crossform/blob/main/design/evidence-sampling-contract.md)
+for the full statement.
+
 ## Shorter routes: a compiled design, or beta matrices
 
 The ladder above declares the first-level model so that the request survives a

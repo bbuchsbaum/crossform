@@ -133,7 +133,7 @@ test_that("learned observation models keep points and withhold analytic law", {
     learned_fit$relation, learned$frame, learned$over
   )
   refusal <- catch_refusal(rdm_sampling_covariance(
-    learned_plan, learned_fit, target = "plugin"
+    learned_plan, learned_fit, target = "plugin", at = 1L
   ))
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_match(conditionMessage(refusal), "no error channel")
@@ -158,7 +158,7 @@ test_that("the external fmrireg route reproduces points but not uncertainty", {
     external$relation, fixture$frame, fixture$over
   )
   refusal <- catch_refusal(rdm_sampling_covariance(
-    external_plan, external, target = "null"
+    external_plan, external, target = "null", at = 1L
   ))
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_match(conditionMessage(refusal), "no error channel")

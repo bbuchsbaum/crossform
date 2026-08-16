@@ -48,7 +48,7 @@
 #'   rdm_sampling_covariance(
 #'     plan_geometry(relation, compile_frame(whole_brain(), domain),
 #'       cross_partitions(relation, independence = "independent")),
-#'     relation, target = "null"
+#'     relation, target = "null", at = 1L
 #'   )
 #' )
 #' refusal$capability

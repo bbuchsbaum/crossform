@@ -306,7 +306,110 @@ properties under arbitrary weighting: `diag(a) Q` retains zero row sums but
 generally loses zero column sums. Constructors must diagnose the final `H` and
 must not overclaim baseline invariance.
 
-## 8. Algebraic laws required of implementations
+## 8. Noise-unbiasedness of cross-partition products
+
+Unbiasedness is a consequence of the pairing, not a property the analyst
+confers. `independence = "independent"` records that the precondition below is
+*asserted*; it never establishes it. This section states the precondition, what
+follows from it, and where it breaks.
+
+### Model
+
+Write the relation estimated within partition `r` as
+
+\[
+\widehat B_r=B+\Xi_r,
+\]
+
+with `B` the common latent target, shared by every partition, and \(\Xi_r\) the
+partition's estimation error. Assume
+
+- **(A1)** \(\mathbb E[\Xi_r]=0\) for every partition contributing to the
+  pairing;
+- **(A2)** \(\mathbb E[\Xi_rM\Xi_s^\top]=0\) for every fixed feature-space `M`
+  and every
+  ordered pair with \(\Gamma_{rs}\neq0\) — the estimation errors at the two
+  endpoints of each paired edge are uncorrelated. Independence of the two
+  errors implies this; the theorem needs only the weaker statement; and
+- **(A3)** the metric `K` and the frame weights are fixed: neither is a
+  function of the data entering the products.
+
+The pairing satisfies \(\Gamma_{rr}=0\) and \(\sum_{r\neq s}\Gamma_{rs}=1\).
+
+### Theorem
+
+Under (A1)–(A3),
+
+\[
+\mathbb E\!\left[\widehat G\right]
+=\mathbb E\!\left[\sum_{r\neq s}\Gamma_{rs}\widehat B_rK\widehat B_s^\top\right]
+=BKB^\top=G .
+\]
+
+*Proof.* Expand one edge:
+\(\widehat B_rK\widehat B_s^\top
+=BKB^\top+BK\Xi_s^\top+\Xi_rKB^\top+\Xi_rK\Xi_s^\top\).
+The two first-order terms have zero expectation by (A1) and the fixity of `K`
+and `B`; the second-order term has zero expectation by (A2), which applies
+because \(r\neq s\) on every edge. Summing with weights that total one gives
+`G`. No \(\Xi_rK\Xi_r^\top\) term — the one term whose expectation is a
+noise variance rather than zero — is ever formed, which is why no
+multiplicative bias correction is required. ∎
+
+### Corollary: the components inherit it
+
+For a frame row `w` with mass `a`, the coherent and configuration results are
+the same cross-products read under two different **fixed** metrics,
+\(ww^\top/a\) and \(D(w)-ww^\top/a\). Both depend only on the declared frame,
+so (A3) holds for each, and the theorem applies to each separately:
+
+\[
+\mathbb E[\widehat G^{\mathrm{coherent}}]=G^{\mathrm{coherent}},\qquad
+\mathbb E[\widehat G^{\mathrm{configuration}}]=G^{\mathrm{configuration}},
+\]
+
+and their sum is the unbiased total. The same argument covers every fixed pair
+query, since \(\langle H,\cdot\rangle\) is linear:
+\(\mathbb E[\langle H,\widehat G\rangle]=\langle H,G\rangle\). It does **not**
+cover nonlinear readouts. `coherence_fraction` is a ratio of two unbiased
+estimates and is not itself unbiased; that is one reason it is reported only
+where the components form a nonnegative partition.
+
+### Where it fails
+
+- **Run-shared nuisance regressors.** A confound, baseline, or drift basis
+  estimated jointly across partitions correlates \(\Xi_r\) with \(\Xi_s\), so (A2)
+  fails and the residual bias is the \(\Gamma\)-weighted sum of
+  \(\mathbb E[\Xi_rK\Xi_s^\top]\), which is not zero.
+- **Temporal autocorrelation spanning partitions.** Noise correlated across a
+  partition boundary breaks (A2) at exactly the edges the estimator uses.
+  Partition boundaries must be chosen so that this correlation is negligible;
+  the declaration does not make it so.
+- **An extractor sharing `X` across partitions.** A design, filter, or
+  whitening matrix fitted on pooled data and then applied per partition leaves
+  a shared fitted object inside every \(\Xi_r\). Partition-wise estimation from
+  disjoint data is the requirement.
+- **A learned or estimated metric.** If `K` is estimated from the paired data,
+  (A3) fails and \(\mathbb E[\widehat B_r\widehat K\widehat B_s^\top]\neq
+  BKB^\top\) in general. Under a training-excluded policy, with \(\widehat K\)
+  estimated from data disjoint from both endpoints, the theorem holds
+  conditionally: \(\mathbb E[\widehat G\mid\widehat K]=B\widehat KB^\top\).
+  That is unbiased for the estimand *defined by the realized metric*, not for a
+  fixed-metric estimand, and the two differ whenever the metric is random.
+- **Unequal partitions.** Unequal partition sizes do not break the theorem —
+  it needs only weights summing to one — but the sampling-covariance laws in
+  `evidence-sampling-v1` additionally assume the equal-partition model and are
+  not licensed by this section.
+
+### What this section does not claim
+
+Unbiasedness of a point estimate is not a standard error, a calibration, or a
+test. It also implies that individual estimates may be negative: negative
+crossvalidated values are the visible cost of removing the noise term, and
+clipping them at zero reintroduces exactly the bias the pairing removed. That
+is why no clipping option exists.
+
+## 9. Algebraic laws required of implementations
 
 All production paths must preserve these laws within the declared numerical
 contract:
@@ -333,7 +436,7 @@ Negative fixtures are equally normative: correlation and Fisher
 transformation do not commute with partition reduction, and covariate-weighted
 `diag(a) Q` can lose column balance.
 
-## 9. Identity and receipts
+## 10. Identity and receipts
 
 The scientific plan identity is a canonical hash of all semantic inputs:
 
@@ -361,7 +464,7 @@ execution change can therefore change receipt identity without changing the
 scientific estimand. A receipt cannot repair or broaden the capabilities of its
 result.
 
-## 10. Public compatibility and deprecation
+## 11. Public compatibility and deprecation
 
 The lift is a conservative generalization:
 

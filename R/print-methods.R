@@ -40,21 +40,9 @@
 }
 
 # Show a content hash as its first 12 hex digits. Never print a whole digest.
-.pf_sig <- function(x, chars = 12L) {
-  if (is.null(x) || !is.character(x) || length(x) != 1L || is.na(x) ||
-      !nzchar(x)) {
-    return("none")
-  }
-  if (grepl("^[A-Za-z0-9_-]+:[[:xdigit:]]{16,}$", x)) {
-    algorithm <- sub(":.*$", "", x)
-    digits <- sub("^[A-Za-z0-9_-]+:", "", x)
-    if (nchar(digits) > chars) {
-      return(paste0(algorithm, ":", substr(digits, 1L, chars), "..."))
-    }
-    return(x)
-  }
-  if (nchar(x) > chars * 2L) paste0(substr(x, 1L, chars * 2L), "...") else x
-}
+# The same shortening errors use, so a printed identity and a quoted one in a
+# refusal are comparable by eye.
+.pf_sig <- function(x, chars = 12L) .msg_signature(x, chars)
 
 # Show a set as `a, b, c (+k more)`.
 .pf_set <- function(x, max = 3L, empty = "none") {
@@ -982,10 +970,28 @@ print.effect_sampling_covariance <- function(x, ...) {
       .pf_or(x$plan$target$policy)),
     factors = paste0("signal ", .pf_dim(x$signal_factor), ", xi ",
       .pf_dim(x$xi_factor)),
+    "residual noise" = .pf_residual_noise(x$source),
     storage = "exact factorized covariance",
     signature = .pf_sig(x$signature)
   ))
   invisible(x)
+}
+
+# The quadratic noise term is only as good as the residual covariance behind
+# it, so the two numbers that decide that -- the residual degrees of freedom
+# and the effective dimension the support spends its variance on -- are
+# printed rather than left in `$source` for the curious.
+.pf_residual_noise <- function(source) {
+  estimator <- source$noise_trace_estimator
+  if (is.null(estimator)) return("unrecorded")
+  if (!identical(estimator, "wishart_unbiased_quadratic")) {
+    return("known residual covariance; no plug-in correction")
+  }
+  paste0(
+    source$residual_df, " residual df, ",
+    .pf_num(source$residual_effective_dimension), " effective dimensions",
+    " (Wishart-corrected tr(Sigma^2))"
+  )
 }
 
 #' @export

@@ -274,20 +274,28 @@ test_that("the null target is exact and the plug-in target is algebraic", {
     whitened_residual <- setup$root %*% residual %*% t(setup$root)
     differences <- setup$truth$contrasts %*% partition_mean %*% t(setup$root)
 
+    # `whitened_residual` here is the POOLED PLUG-IN, not the true Sigma_w, so
+    # the oracle applies the same Wishart correction to the quadratic noise
+    # term that the package applies: an oracle that took tr(S^2) at face value
+    # would be pinning the bias rather than the law.
     null_law <- sampling_oracle_scalar_law(
       0 * differences, setup$xi, whitened_residual,
-      setup$truth$partitions, normalization = 1
+      setup$truth$partitions, normalization = 1,
+      residual_df = residual_df_total
     )
     plugin_law <- sampling_oracle_scalar_law(
       differences, setup$xi, whitened_residual,
-      setup$truth$partitions, normalization = 1
+      setup$truth$partitions, normalization = 1,
+      residual_df = residual_df_total
     )
     null_package <- sampling_covariance(
-      rdm_sampling_covariance(setup$evidence, setup$fit, target = "null"),
+      rdm_sampling_covariance(setup$evidence, setup$fit, target = "null",
+        at = 1L),
       "materialize"
     )
     plugin_package <- sampling_covariance(
-      rdm_sampling_covariance(setup$evidence, setup$fit, target = "plugin"),
+      rdm_sampling_covariance(setup$evidence, setup$fit, target = "plugin",
+        at = 1L),
       "materialize"
     )
 
@@ -327,11 +335,13 @@ test_that("the plug-in target is biased upward by a stated amount", {
   # the signal term, because for M partitions
   #
   #   E[mu-hat_r Sigma_w mu-hat_s'] = mu_r Sigma_w mu_s'
-  #                                   + Xi_rs tr(Sigma_w^2) / M,
+  #                                   + Xi_rs tr(Sigma_w^2) / M.
   #
-  # and the pooled residual covariance inflates the noise trace by
-  # E[tr(S-hat^2)] = tr(Sigma_w^2)(1 + 1/df) + tr(Sigma_w)^2 / df. Both terms
-  # are exactly predictable, so the policy is disclosed rather than hidden.
+  # That is the whole remaining bias. Since 2026-08-16 the noise term uses the
+  # Wishart-unbiased estimator of tr(Sigma_w^2), so the pooled residual
+  # covariance contributes no bias of its own; before that correction it added
+  # tr(Sigma_w^2)/df + tr(Sigma_w)^2/df on top, which is pinned as the
+  # uncorrected alternative below.
   configuration <- sampling_nonspherical_configurations()[[1L]]
   setup <- sampling_nonspherical_setup(configuration)
   partitions <- setup$truth$partitions
@@ -342,7 +352,7 @@ test_that("the plug-in target is biased upward by a stated amount", {
     function(partition) residual_df(setup$fit, partition), integer(1)
   ))
   noise_trace <- sum(sigma_w * sigma_w)
-  expected_noise_trace <- noise_trace * (1 + 1 / residual_df_total) +
+  uncorrected_noise_trace <- noise_trace * (1 + 1 / residual_df_total) +
     sum(diag(sigma_w))^2 / residual_df_total
   exact <- sampling_oracle_scalar_law(
     differences, setup$xi, sigma_w, partitions, normalization = 1
@@ -350,7 +360,12 @@ test_that("the plug-in target is biased upward by a stated amount", {
   predicted <- 4 * setup$xi *
     (differences %*% sigma_w %*% t(differences) +
       setup$xi * noise_trace / partitions) / partitions +
-    2 * setup$xi^2 * expected_noise_trace /
+    2 * setup$xi^2 * noise_trace /
+      (partitions * (partitions - 1))
+  uncorrected <- 4 * setup$xi *
+    (differences %*% sigma_w %*% t(differences) +
+      setup$xi * noise_trace / partitions) / partitions +
+    2 * setup$xi^2 * uncorrected_noise_trace /
       (partitions * (partitions - 1))
 
   replications <- 20L
@@ -358,7 +373,8 @@ test_that("the plug-in target is biased upward by a stated amount", {
     replicate_setup <- sampling_nonspherical_setup(configuration, index)
     diag(sampling_covariance(
       rdm_sampling_covariance(
-        replicate_setup$evidence, replicate_setup$fit, target = "plugin"
+        replicate_setup$evidence, replicate_setup$fit, target = "plugin",
+        at = 1L
       ),
       "materialize"
     ))
@@ -373,4 +389,16 @@ test_that("the plug-in target is biased upward by a stated amount", {
   expect_lt(
     max(abs(observed_mean - diag(predicted)) / (4 * standard_error)), 1
   )
+  # The pre-2026-08-16 noise trace is a strictly larger prediction, inflated
+  # by exactly (1 + P_eff) / df with P_eff = tr(Sigma_w)^2 / tr(Sigma_w^2).
+  # Twenty datasets at df = 135 and P_eff < 3 cannot separate a 2% difference,
+  # so the size is pinned algebraically here and by Monte Carlo at a realistic
+  # P / df ratio in test-evidence-sampling-df-correction.R.
+  effective_dimension <- sum(diag(sigma_w))^2 / noise_trace
+  expect_equal(
+    uncorrected_noise_trace / noise_trace,
+    1 + (1 + effective_dimension) / residual_df_total,
+    tolerance = 1e-12
+  )
+  expect_true(all(diag(uncorrected) > diag(predicted)))
 })

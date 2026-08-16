@@ -196,8 +196,21 @@
   }
   .validate_relation(x, deep = FALSE)
   if (!identical(.relation_family_identity(x), relation_id)) {
-    stop("The bare relation differs from the evidence-plan relation.",
-      call. = FALSE)
+    stop(sprintf(paste0(
+      "The relation passed as the error channel is not the relation the ",
+      "evidence plan was built from, so its residual information does not ",
+      "describe these estimates. The plan's relation has identity %s (%s, ",
+      "%s); the one supplied has %s (%s, %s). Pass the same object the plan ",
+      "was built from -- for a fit, that is `fit` itself, whose ",
+      "`fit$relation` built the plan."
+    ),
+      .msg_signature(relation_id),
+      .msg_count(length(relation$effects), "effect"),
+      .msg_count(length(relation$partitions), "partition"),
+      .msg_signature(.relation_family_identity(x)),
+      .msg_count(length(x$effects), "effect"),
+      .msg_count(length(x$partitions), "partition")
+    ), call. = FALSE)
   }
   record <- .sampling_record("error_channel", list(
     channel = "absent",

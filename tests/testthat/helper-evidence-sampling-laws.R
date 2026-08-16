@@ -70,6 +70,27 @@ sampling_oracle_partitions <- function(partitions, minimum = 2L) {
   as.integer(partitions)
 }
 
+# tr(Sigma^2) is a QUADRATIC functional, so an oracle handed a plug-in sample
+# residual covariance S with nu degrees of freedom must not take tr(S^2) at
+# face value: E tr(S^2) = ((nu + 1) / nu) tr(Sigma^2) + tr(Sigma)^2 / nu. This
+# is the Wishart-unbiased estimator of the same functional, written here
+# independently of the package. `residual_df = NULL` means the caller supplied
+# the true Sigma and no correction applies.
+sampling_oracle_noise_trace <- function(sigma_r, residual_df = NULL) {
+  sigma_r <- sampling_oracle_matrix(sigma_r, "residual covariance",
+    symmetric = TRUE)
+  raw <- sum(sigma_r * sigma_r)
+  if (is.null(residual_df)) return(raw)
+  if (!is.numeric(residual_df) || length(residual_df) != 1L ||
+      is.na(residual_df) || !is.finite(residual_df) ||
+      residual_df %% 1 != 0 || residual_df < 2L) {
+    stop("residual df must be one integer of at least two")
+  }
+  nu <- as.double(residual_df)
+  total <- sum(diag(sigma_r))
+  max((nu^2 / ((nu - 1) * (nu + 2))) * (raw - total^2 / nu), 0)
+}
+
 sampling_oracle_normalization <- function(normalization) {
   if (!is.numeric(normalization) || length(normalization) != 1L ||
       is.na(normalization) || !is.finite(normalization) ||
@@ -115,7 +136,8 @@ sampling_oracle_eq13_terms <- function(signal_gram, xi, noise_trace,
 }
 
 sampling_oracle_eq13 <- function(differences, xi, sigma_r, partitions,
-                                 normalization = ncol(differences)) {
+                                 normalization = ncol(differences),
+                                 residual_df = NULL) {
   differences <- sampling_oracle_matrix(
     differences, "whitened contrast differences"
   )
@@ -130,7 +152,8 @@ sampling_oracle_eq13 <- function(differences, xi, sigma_r, partitions,
     signal_gram = differences %*% sigma_r %*% t(differences) /
       normalization^2,
     xi = xi,
-    noise_trace = sum(sigma_r * sigma_r) / normalization^2,
+    noise_trace = sampling_oracle_noise_trace(sigma_r, residual_df) /
+      normalization^2,
     partitions = partitions
   )
 }
@@ -208,7 +231,7 @@ sampling_oracle_components <- function(patterns, sigma_k, sigma_r) {
 # code path with `sampling_oracle_eq13()`. Slow on purpose: it exists so an
 # exact algebraic comparison has somewhere independent to stand.
 sampling_oracle_scalar_law <- function(differences, xi, sigma_r, partitions,
-                                       normalization) {
+                                       normalization, residual_df = NULL) {
   differences <- sampling_oracle_matrix(
     differences, "whitened contrast differences"
   )
@@ -229,6 +252,18 @@ sampling_oracle_scalar_law <- function(differences, xi, sigma_r, partitions,
     for (j in seq_len(features)) {
       noise_trace <- noise_trace + sigma_r[i, j] * sigma_r[j, i]
     }
+  }
+  # When `sigma_r` is a plug-in with nu degrees of freedom rather than the
+  # true residual covariance, the quadratic functional tr(Sigma^2) is
+  # estimated by its Wishart-unbiased form, transcribed here in the same
+  # scalar style as the rest of this law.
+  if (!is.null(residual_df)) {
+    nu <- as.double(sampling_oracle_partitions(residual_df))
+    total <- 0
+    for (i in seq_len(features)) total <- total + sigma_r[i, i]
+    noise_trace <- max(
+      (nu * nu / ((nu - 1) * (nu + 2))) * (noise_trace - total * total / nu), 0
+    )
   }
   value <- matrix(0, dimension, dimension)
   for (row in seq_len(dimension)) {

@@ -33,7 +33,7 @@ test_that("the README fixed-metric uncertainty journey runs end to end", {
   )
   distance_estimate <- rdm(fixed_plan)
   distance_covariance <- rdm_sampling_covariance(
-    fixed_plan, fit, target = "plugin"
+    fixed_plan, fit, target = "plugin", at = 1L
   )
   distance_variance <- sampling_covariance(distance_covariance)
 

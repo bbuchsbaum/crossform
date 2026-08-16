@@ -21,7 +21,9 @@ test_that("capability refusals are classed conditions with structured fields", {
     cross_partitions(fixture$fit$relation, independence = "independent")
   )
   refusal <- catch_refusal(
-    rdm_sampling_covariance(plan, fixture$fit$relation, target = "null")
+    rdm_sampling_covariance(
+      plan, fixture$fit$relation, target = "null", at = 1L
+    )
   )
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_identical(refusal$capability, "sampling_covariance")
@@ -101,7 +103,7 @@ test_that("a learned-frozen metric is refused by admission, not by accident", {
   expect_identical(descriptor$record$metric_status, "learned")
 
   refusal <- catch_refusal(
-    rdm_sampling_covariance(plan, fixture$fit, target = "null")
+    rdm_sampling_covariance(plan, fixture$fit, target = "null", at = 1L)
   )
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_identical(refusal$capability, "fixed_metric_sampling_law")

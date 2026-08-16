@@ -177,6 +177,7 @@ print.effect_rdm_sampling_covariance <- function(x, ...) {
   cat("  target:       ", x$plan$target$target, " / ",
     x$plan$target$policy, "\n", sep = "")
   cat("  metric:       fixed\n", sep = "")
+  cat("  residual:     ", .pf_residual_noise(x$source), "\n", sep = "")
   cat("  storage:      exact factorized covariance\n", sep = "")
   cat("  spatial law:  local marginal only\n", sep = "")
   invisible(x)

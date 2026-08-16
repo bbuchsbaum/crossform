@@ -130,7 +130,7 @@ undeclared_plan <- plan_geometry(
   cross_partitions(example$fit$relation)
 )
 rdm_sampling_covariance(
-  undeclared_plan, example$fit, target = "null"
+  undeclared_plan, example$fit, target = "null", at = 1L
 )
 ```
 
@@ -161,7 +161,9 @@ learned_metric_plan <- plan_geometry(
     )
   )
 )
-rdm_sampling_covariance(learned_metric_plan, example$fit, target = "null")
+rdm_sampling_covariance(
+  learned_metric_plan, example$fit, target = "null", at = 1L
+)
 ```
 
 > Analytic RDM sampling covariance is unavailable because this plan's neural
@@ -176,7 +178,7 @@ cannot recover the error channel that was discarded when they were exported —
 and the refusal reports every unmet requirement, not only the first:
 
 ```r
-rdm_sampling_covariance(plan, example$fit$relation, target = "null")
+rdm_sampling_covariance(plan, example$fit$relation, target = "null", at = 1L)
 ```
 
 > Sampling covariance is unavailable; 2 requirements of the admitted analytic

@@ -52,7 +52,7 @@ print_fixture <- local({
     pairing <- cross_partitions(relation, independence = "independent")
     plan <- plan_geometry(relation, example$frame, pairing)
     geometry <- materialize_geometry(plan)
-    covariance <- rdm_sampling_covariance(plan, example$fit, target = "null")
+    covariance <- rdm_sampling_covariance(plan, example$fit, target = "null", at = 1L)
     cached <<- list(
       example = example,
       relation = relation,
@@ -122,7 +122,7 @@ refusal_fixture <- function() {
   catch_refusal(rdm_sampling_covariance(
     plan_geometry(relation, compile_frame(whole_brain(), domain),
       cross_partitions(relation, independence = "independent")),
-    relation, target = "null"
+    relation, target = "null", at = 1L
   ))
 }
 

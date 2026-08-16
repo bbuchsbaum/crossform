@@ -23,6 +23,18 @@ instead of discovering refusals one at a time. This inspection compiles
 the evidence-sampling admission for a plan and error source and reports
 every unmet requirement with its remedy, without computing anything.
 }
+\section{What this cannot answer in advance}{
+
+Every requirement reported here is a property of the plan and its error
+channel, so it can be checked without touching neural values. One
+requirement of \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} is not: whether a \emph{particular}
+measurement has enough residual degrees of freedom for the number of
+residual directions its own support spends variance on
+(capability \code{"sufficient_residual_df"}). That depends on the local residual
+spectrum and can only be known once it is computed, so \code{available = TRUE}
+here does not promise that every measurement will be answerable.
+}
+
 \examples{
 # Ask before provoking: the fixture's fit retains a residual channel, so
 # the analytic law is admitted.

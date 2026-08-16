@@ -158,10 +158,33 @@
   if (!identical(at$representation, "additive_diagonal")) {
     stop("crossform 0.1 executes only additive diagonal frames.", call. = FALSE)
   }
-  if (!.same_domain_reference(at$domain, x$domain) ||
-      (!is.null(right) && !.same_domain_reference(at$domain, right$domain))) {
-    stop("Relation and frame exact neural-domain identities must agree.",
-      call. = FALSE)
+  mismatched <- if (!.same_domain_reference(at$domain, x$domain)) {
+    x$domain
+  } else if (!is.null(right) &&
+      !.same_domain_reference(at$domain, right$domain)) {
+    right$domain
+  } else {
+    NULL
+  }
+  if (!is.null(mismatched)) {
+    side <- if (is.null(right) || identical(mismatched, x$domain)) {
+      "relation"
+    } else {
+      "right relation"
+    }
+    stop(sprintf(paste0(
+      "The %s and the frame were built on different neural domains, so a ",
+      "feature index does not mean the same location on both sides. The %s ",
+      "carries domain `%s` (%s, %s), the frame carries `%s` (%s, %s). ",
+      "Compile the frame on the relation's own domain: ",
+      "`compile_frame(<frame>, <relation>$domain)`."
+    ),
+      side, side,
+      mismatched$id, .msg_count(mismatched$n_features, "feature"),
+      .msg_signature(mismatched$signature),
+      at$domain$id, .msg_count(at$domain$n_features, "feature"),
+      .msg_signature(at$domain$signature)
+    ), call. = FALSE)
   }
   if (ncol(at$weights) != x$n_features ||
       (!is.null(right) && ncol(at$weights) != right$n_features)) {

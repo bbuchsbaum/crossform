@@ -336,12 +336,16 @@ round(sqrt(sampling_covariance(
   rdm_sampling_covariance(plan, example$fit, target = "null", at = peak)
 )), 4)
 #>  face - body face - house  face - tool body - house  body - tool house - tool
-#>       0.0147       0.0147       0.0147       0.0147       0.0147       0.0147
+#>       0.0142       0.0142       0.0142       0.0142       0.0142       0.0142
 ```
 
 These are within-searchlight standard errors under a declared equal-partition,
 fixed-metric, separable error model, not a random-field model, a confidence
-interval, or group inference.
+interval, or group inference. The residual covariance behind them is estimated,
+not known, so `print()` on the covariance object reports the residual degrees
+of freedom and the number of residual directions the searchlight actually
+spends variance on — and the call refuses outright when there are too few of
+the first for the second.
 
 Ask the same of the betas-only relation above and the answer is an object that
 names what is missing and how to earn it.
@@ -437,6 +441,20 @@ the point RDM to `4.44e-16`. At 100 conditions over 1,080 searchlights, one
 hundred selected pairs run in 0.27 s and the fused full RDM in 5.16 s against
 13.40 s for materialize-then-project — a ratio of 0.39, with a `4.4e-16`
 oracle.
+
+On the same exemplar, the coherent/configuration decomposition runs on real
+data: [`06-coherent-configuration.R`](exemplars/haxby2001/) reads face − house
+at all 577 VT searchlights and at one whole-VT region from a single plan, and
+`total = coherent + configuration` recomposes to `5.55e-17`. The total is
+positive at 576 of 577 searchlights, and over the 536 with a valid coherence
+fraction the coherent share has median 0.53 (IQR 0.28–0.77): about half of the
+reproducible face/house energy in this subject's VT is carried by the
+searchlight's own weighted common spatial mode, which a demeaning analysis
+would discard and a total-only analysis would never see. The retained signed
+marginal supplies the direction the energies cannot: it is negative at 568 of
+577 searchlights, so the common mode runs house above face. One subject,
+condition means rather than GLM betas, an identity metric, and no inference —
+this demonstrates the decomposition, not a result about faces.
 
 **Not demonstrated.** Those results show numerical parity and an integrated
 uncertainty path. They do **not** show a matched-estimator speed advantage,
