@@ -96,11 +96,16 @@ test_that("mutated receipt internals fail result certification", {
 
   bad_compute <- geometry$receipt
   bad_compute$compute$workers <- 2
-  expect_error(effect_geometry(
+  compute_refusal <- catch_refusal(effect_geometry(
     geometry_component(geometry, "total"),
     geometry_component(geometry, "coherent"), geometry$marginals,
     effects = geometry$effects, receipt = bad_compute, index = geometry$index
-  ), "workers")
+  ))
+  expect_s3_class(compute_refusal, "effect_capability_refusal")
+  expect_identical(compute_refusal$capability, "parallel_execution")
+  expect_identical(compute_refusal$namespace, "compute_policy")
+  expect_identical(compute_refusal$reasons, "worker_pool_not_implemented")
+  expect_match(conditionMessage(compute_refusal), "workers")
 
   bad_memory <- geometry$receipt
   bad_memory$memory$modeled_workspace_bytes <- 999

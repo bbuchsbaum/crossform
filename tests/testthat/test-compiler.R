@@ -36,11 +36,11 @@ compiler_oracle <- function(fixture) {
       cross <- outer(b1[, v], b2[, v])
       total_matrix <- total_matrix + weights[j, v] * 0.5 * (cross + t(cross))
     }
-    total[j, ] <- crossform:::.svec_symmetric(total_matrix)
+    total[j, ] <- oracle_svec(total_matrix)
     local[j, , 1] <- b1 %*% weights[j, ]
     local[j, , 2] <- b2 %*% weights[j, ]
     local_cross <- outer(local[j, , 1], local[j, , 2])
-    coherent[j, ] <- crossform:::.svec_symmetric(
+    coherent[j, ] <- oracle_svec(
       0.5 * (local_cross + t(local_cross)) / sum(weights[j, ])
     )
   }

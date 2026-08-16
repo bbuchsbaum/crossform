@@ -45,7 +45,33 @@ test_that("rdm and rsa recompose exactly at the public surface", {
   total <- rdm(fixture$plan, component = "total")$values
   coherent <- rdm(fixture$plan, component = "coherent")$values
   configuration <- rdm(fixture$plan, component = "configuration")$values
-  expect_equal(total, coherent + configuration, tolerance = 1e-12)
+
+  # Each component is checked against an independent first-principles oracle.
+  # The compiler defines `configuration` as `total - coherent`, so asserting
+  # only that the three sum correctly would hold however wrong they were.
+  oracle <- geometry_component_oracle(
+    relation_values = geometry_oracle_relation_values(fixture$fit$relation),
+    frame_weights = compile_frame(voxelwise(), fixture$domain)$weights,
+    partition_edges = cross_partitions(
+      fixture$fit$relation, independence = "independent"
+    )
+  )
+  pairs <- utils::combn(3L, 2L)
+  oracle_rdm <- function(component) {
+    t(vapply(oracle[[component]], function(value) {
+      vapply(seq_len(ncol(pairs)), function(pair) {
+        delta <- numeric(3L)
+        delta[pairs[, pair]] <- c(1, -1)
+        drop(delta %*% value %*% delta)
+      }, numeric(1))
+    }, numeric(ncol(pairs))))
+  }
+  expect_equal(total, oracle_rdm("total"), tolerance = 1e-11,
+    ignore_attr = TRUE)
+  expect_equal(coherent, oracle_rdm("coherent"), tolerance = 1e-11,
+    ignore_attr = TRUE)
+  expect_equal(configuration, oracle_rdm("configuration"),
+    tolerance = 1e-11, ignore_attr = TRUE)
 
   model <- matrix(c(0, 1, 2, 1, 0, 3, 2, 3, 0), 3, 3,
     dimnames = list(

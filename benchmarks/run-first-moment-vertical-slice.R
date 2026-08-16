@@ -22,6 +22,10 @@ output_dir <- if (length(arguments) >= 2L) arguments[[2L]] else {
 }
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 suppressPackageStartupMessages(devtools::load_all(repo, quiet = TRUE))
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(
+  repo, "run-first-moment-vertical-slice.R"
+)
 source(file.path(repo, "tests", "testthat",
   "helper-relation-plan-fixtures.R"), local = TRUE)
 source(file.path(repo, "tests", "testthat",
@@ -216,6 +220,7 @@ result <- list(
   schema_version = 1L,
   fixture_version = cell$version,
   generated_at = format(Sys.time(), tz = "UTC", usetz = TRUE),
+  provenance = provenance,
   package_version = as.character(utils::packageVersion("crossform")),
   adapter_versions = c(
     fmridesign = as.character(utils::packageVersion("fmridesign")),

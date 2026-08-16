@@ -13,15 +13,23 @@
   x,
   which = c("both", "decomposition", "profile"),
   highlight = NULL,
+  highlight_label = "highlighted",
   main = NULL,
   ...
 )
 
 \method{plot}{effect_rdm_view}(x, measurement = NULL, annotate = NULL, main = NULL, ...)
 
-\method{plot}{effect_rsa_view}(x, terms = NULL, highlight = NULL, main = NULL, ...)
+\method{plot}{effect_rsa_view}(
+  x,
+  terms = NULL,
+  highlight = NULL,
+  highlight_label = "highlighted",
+  main = NULL,
+  ...
+)
 
-\method{plot}{effect_crossnobis_view}(x, highlight = NULL, main = NULL, ...)
+\method{plot}{effect_crossnobis_view}(x, highlight = NULL, highlight_label = "highlighted", main = NULL, ...)
 
 \method{plot}{effect_rdm_sampling_covariance}(x, estimate = NULL, level = 0.95, sort = TRUE, main = NULL, ...)
 }
@@ -37,6 +45,10 @@ plane alone, or \code{"profile"} for the total-energy index plot alone.}
 \item{highlight}{Optional measurements to mark: positions, a logical mask
 with one value per measurement, or measurement identifiers. Measurements
 outside the view are an error rather than a silent drop.}
+
+\item{highlight_label}{What the highlighted measurements are, named in the
+legend alongside their count, as in \code{"planted signal (57 measurements)"}.
+Say what the set means rather than that it was selected.}
 
 \item{main}{Optional title. For a multi-panel figure a character vector is
 recycled across panels.}
@@ -104,7 +116,7 @@ planted <- example$truth$signal_measurements
 # Where does the animate-versus-inanimate contrast reproduce, and how does
 # its energy split? The planted measurements fill in.
 energy <- contrast_energy(plan, example$contrast)
-plot(energy, highlight = planted)
+plot(energy, highlight = planted, highlight_label = "planted signal")
 
 # The signed squared distances at the strongest measurement.
 distances <- rdm(plan)

@@ -112,11 +112,27 @@ test_that("a rectangular plan materializes to a queryable rectangular form", {
   projected <- query_geometry(form, query)
   expect_equal(direct$values, projected$values, tolerance = 1e-12)
 
-  # Check the exact algebraic recomposition to floating-point tolerance.
+  # Check each component against an independent first-principles oracle.
+  # `configuration` is computed as `total - coherent`, so their sum is not
+  # evidence about any of the three.
   total <- geometry_component(form, "total")
   coherent <- geometry_component(form, "coherent")
   configuration <- geometry_component(form, "configuration")
-  expect_equal(total, coherent + configuration, tolerance = 1e-12)
+  oracle <- geometry_component_oracle(
+    relation_values = fixture$encoding_sources,
+    right_values = fixture$retrieval_sources,
+    frame_weights = fixture$frame$weights,
+    partition_edges = fixture$over,
+    symmetrize = FALSE
+  )
+  pack <- function(component) {
+    do.call(rbind, lapply(oracle[[component]], as.vector))
+  }
+  expect_equal(total, pack("total"), tolerance = 1e-12, ignore_attr = TRUE)
+  expect_equal(coherent, pack("coherent"), tolerance = 1e-12,
+    ignore_attr = TRUE)
+  expect_equal(configuration, pack("configuration"), tolerance = 1e-12,
+    ignore_attr = TRUE)
 })
 
 test_that("rectangular plans refuse what their contract does not cover", {
@@ -143,7 +159,13 @@ test_that("rectangular plans refuse what their contract does not cover", {
     fixture$encoding, fixture$frame, fixture$over,
     right = fixture$retrieval
   )
-  expect_error(rdm(plan), "symmetric self form|self-form")
+  rdm_refusal <- catch_refusal(rdm(plan))
+  expect_s3_class(rdm_refusal, "effect_capability_refusal")
+  expect_identical(rdm_refusal$capability, "symmetric_self_form")
+  expect_identical(rdm_refusal$namespace, "geometry_views")
+  expect_identical(rdm_refusal$reasons, "rectangular_cross_axis_plan")
+  expect_match(conditionMessage(rdm_refusal),
+    "symmetric self form|self-form")
   expect_error(
     evaluate_geometry(plan, query = bilinear_query(diag(3L))),
     "pair_query"

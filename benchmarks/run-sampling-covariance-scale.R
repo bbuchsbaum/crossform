@@ -7,6 +7,11 @@
 # covariance is formed.
 
 suppressPackageStartupMessages(devtools::load_all(quiet = TRUE))
+repo <- normalizePath(getwd(), mustWork = TRUE)
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(
+  repo, "run-sampling-covariance-scale.R"
+)
 
 measure <- function(expression) {
   garbage <- gc()
@@ -141,6 +146,7 @@ operations <- data.frame(
 
 artifact <- list(
   schema_version = 1L,
+  provenance = provenance,
   numerical_contract = "exact_factorized_hadamard_gram",
   generated_at = format(Sys.time(), tz = "UTC", usetz = TRUE),
   dimensions = list(

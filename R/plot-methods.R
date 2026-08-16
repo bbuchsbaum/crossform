@@ -360,7 +360,7 @@ plot.effect_contrast_view <- function(x,
         adj = c(-0.1, -0.4), cex = 0.7, col = .geometry_colors[["neutral"]])
     }
     graphics::legend(
-      "topright", bty = "n", cex = 0.8,
+      "topright", bty = "n", cex = 0.75,
       legend = c(
         paste0(signed$label, " > 0"), paste0(signed$label, " < 0"),
         if (length(highlight)) {
@@ -462,7 +462,7 @@ plot.effect_rdm_view <- function(x, measurement = NULL, annotate = NULL,
   drawn <- t(matrix_values)[, rev(seq_len(q)), drop = FALSE]
   defaults <- list(
     x = seq_len(q), y = seq_len(q), z = drawn, zlim = limits,
-    col = colors, axes = FALSE, asp = 1, xlab = "", ylab = "",
+    col = colors, axes = FALSE, asp = 1, xlab = "", ylab = "", cex.main = 1,
     main = .panel_main(main, 1L,
       sprintf("Signed squared distances at %s", label))
   )

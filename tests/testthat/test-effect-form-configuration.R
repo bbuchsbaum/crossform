@@ -305,7 +305,10 @@ test_that("packed self coherent specialization remains exact", {
       form <- form + over$weight[[edge]] *
         0.5 * (outer(left, right) + outer(right, left)) / mass[[measurement]]
     }
-    oracle[measurement, ] <- crossform:::.svec_symmetric(form)
+    # Packed with the independent oracle codec rather than with the
+    # package's own `.svec_symmetric()`, so the assertion cannot be satisfied
+    # by a codec error that both sides share.
+    oracle[measurement, ] <- oracle_svec(form)
   }
 
   expect_equal(got$value, oracle, tolerance = 1e-14)

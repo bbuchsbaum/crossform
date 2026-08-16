@@ -10,6 +10,8 @@ if (!requireNamespace("processx", quietly = TRUE) ||
     !requireNamespace("ps", quietly = TRUE)) {
   stop("processx and ps are required")
 }
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(repo, "run-shard-admission.R")
 
 tree_rss <- function(process) {
   handle <- tryCatch(ps::ps_handle(process$get_pid()), error = function(error) NULL)
@@ -140,6 +142,7 @@ admit <- all(summary$total_parity & summary$coherent_parity) &&
 
 artifact <- list(
   schema_version = 1L,
+  provenance = provenance,
   benchmark_date = as.character(Sys.Date()),
   shard_version = as.character(utils::packageVersion("shard", lib.loc = library_path)),
   crossform_version = as.character(utils::packageVersion(

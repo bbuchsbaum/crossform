@@ -31,6 +31,8 @@ repetitions <- if (length(arguments) >= 3L) {
 if (is.na(repetitions) || repetitions < 3L) {
   stop("The query-first gate requires at least three repetitions.")
 }
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(repo, "run-query-first-scale.R")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 result_path <- file.path(output_dir, "query-first-scale-gate.rds")
 summary_path <- file.path(output_dir, "query-first-scale-gate-summary.csv")
@@ -341,6 +343,7 @@ timing_process <- processx::process$new(
 )
 timing <- monitor_process(timing_process, result_path, ready_path)
 result <- timing$result
+result$provenance <- provenance
 unlink(c(timing_stdout, timing_stderr, ready_path))
 
 # Process-level RSS is allocator-sensitive across routes. Certify each public

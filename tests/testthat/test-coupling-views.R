@@ -145,7 +145,12 @@ test_that("effect coupling is the unrestricted algebraic measurement form", {
     expect_equal(result$values[[edge]], expected, tolerance = 1e-12)
   }
   expect_silent(crossform:::.validate_coupling_result(result))
-  expect_error(crossform:::.pearson_coupling(fixture$form),
+  refusal <- catch_refusal(crossform:::.pearson_coupling(fixture$form))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "nondegenerate_variation")
+  expect_identical(refusal$namespace, "coupling_views")
+  expect_identical(refusal$reasons, "rank_one_variation_axis")
+  expect_match(conditionMessage(refusal),
     "rank above one|rank-one effect direction")
 })
 
@@ -316,12 +321,24 @@ test_that("partition-pair and aggregate-first normalization are distinct estiman
 
 test_that("connectivity convenience validates view-specific declarations", {
   fixture <- coupling_test_fixture(multivariate = TRUE)
-  expect_error(crossform:::.connectivity_view(fixture$form, "canonical"),
-    "regularization")
-  expect_error(crossform:::.connectivity_view(
+  ridge_refusal <- catch_refusal(
+    crossform:::.connectivity_view(fixture$form, "canonical")
+  )
+  expect_s3_class(ridge_refusal, "effect_capability_refusal")
+  expect_identical(ridge_refusal$capability, "declared_regularization")
+  expect_identical(ridge_refusal$namespace, "coupling_views")
+  expect_identical(ridge_refusal$reasons, "regularization_not_declared")
+  expect_match(conditionMessage(ridge_refusal), "regularization")
+
+  model_refusal <- catch_refusal(crossform:::.connectivity_view(
     fixture$form, "gaussian_information",
     regularization = crossform:::.measurement_regularization("ridge", 0.1)
-  ), "Gaussian model")
+  ))
+  expect_s3_class(model_refusal, "effect_capability_refusal")
+  expect_identical(model_refusal$capability, "declared_gaussian_model")
+  expect_identical(model_refusal$namespace, "coupling_views")
+  expect_identical(model_refusal$reasons, "gaussian_model_not_declared")
+  expect_match(conditionMessage(model_refusal), "Gaussian model")
   expect_false(exists("informational_connectivity",
     envir = asNamespace("crossform"), inherits = FALSE))
 })
@@ -371,6 +388,10 @@ test_that("coupling() takes the adjoint closure from the plan vocabulary", {
       independence = "independent"),
     right = other
   )
-  expect_error(coupling(rectangular, cbind(1, 2), by = query),
-    "self-form plan")
+  refusal <- catch_refusal(coupling(rectangular, cbind(1, 2), by = query))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "self_form_coupling")
+  expect_identical(refusal$namespace, "coupling_plans")
+  expect_identical(refusal$reasons, "rectangular_cross_axis_plan")
+  expect_match(conditionMessage(refusal), "self-form plan")
 })

@@ -1,5 +1,6 @@
-learned_crossnobis_oracle <- function(fit, frame, over, contrast, recipe,
+learned_crossnobis_oracle <- function(fixture, frame, over, contrast, recipe,
                                       training) {
+  fit <- fixture$fit
   weights <- as.matrix(frame$weights)
   partitions <- fit$relation$partitions
   vapply(seq_len(nrow(weights)), function(node) {
@@ -18,7 +19,7 @@ learned_crossnobis_oracle <- function(fit, frame, over, contrast, recipe,
         partitions
       }
       raw <- oracle_local_residual_covariance(
-        fit, metric_partitions, support
+        fixture, metric_partitions, support
       )
       covariance <- oracle_shrinkage_covariance(raw, recipe)
       over$weight[[edge]] * drop(
@@ -46,7 +47,7 @@ test_that("learned crossnobis plans execute one exact support-streamed kernel", 
   setup$fixture$reset_reads()
   observed <- crossnobis(plan, c(condition = 1, drift = 0))
   expected <- learned_crossnobis_oracle(
-    setup$fixture$fit, setup$fixture$frame, setup$over,
+    setup$fixture, setup$fixture$frame, setup$over,
     c(condition = 1, drift = 0), recipe, training
   )
 
@@ -121,14 +122,14 @@ test_that("residual provenance policies share execution but retain identity", {
   expect_equal(
     disjoint_value$values,
     learned_crossnobis_oracle(
-      setup$fixture$fit, setup$fixture$frame, setup$over,
+      setup$fixture, setup$fixture$frame, setup$over,
       c(condition = 1, drift = 0), recipe, disjoint_policy
     ), tolerance = 5e-10
   )
   expect_equal(
     all_value$values,
     learned_crossnobis_oracle(
-      setup$fixture$fit, setup$fixture$frame, setup$over,
+      setup$fixture, setup$fixture$frame, setup$over,
       c(condition = 1, drift = 0), recipe, all_policy
     ), tolerance = 5e-10
   )

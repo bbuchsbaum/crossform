@@ -1,7 +1,7 @@
 ---
 title: "Reading contrast energies, RDMs, and uncertainty"
 description: >
-  What each returned column means, how to read negatives and the coherence fraction, and the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame.
+  What each returned column means, how to read negatives and the coherence fraction, the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame, and how to read a real map when no ground truth marks the answer.
 output: rmarkdown::html_document
 ---
 
@@ -15,10 +15,11 @@ knitr::opts_chunk$set(
 library(crossform)
 ```
 
-This article introduces no new statistics. It is about reading the numbers
-the package already returns, and about three ways a reader can be misled by
-them. Everything below runs on the generated fixture, whose planted truth
-makes the traps visible.
+This article introduces no new statistics. It is about reading the numbers the
+package already returns: what each column means, three ways a reader can be
+misled by the coherence fraction, and how to read a map when nothing marks the
+right answer. Everything below runs on the generated fixture, whose planted
+truth makes the traps visible.
 
 ```{r example}
 example <- example_fmri_effects()
@@ -265,6 +266,99 @@ The same warning applies to any post-hoc gate: thresholding on `total > 0`
 and then summarizing `coherent` conditions the summary on the numerator's
 sibling.
 
+## Reading a map without ground truth
+
+Every figure so far could mark the right answer, because the fixture carries
+`truth$signal_measurements`. Your data will not. This section is about what the
+same picture tells you when nothing is marked.
+
+```{r blind-map, fig.width=8, fig.height=4, fig.cap="The same contrast view with no highlight supplied. Nothing here identifies the planted searchlights; the reading below uses only what is on the page."}
+plot(effect)
+```
+
+### The band at zero is the noise floor, and it comes free
+
+A crossvalidated energy is a product of estimates from two different
+partitions, so its expectation is zero wherever nothing reproduces. You do not
+have to model that floor or estimate it from a separate null run. It is already
+in the map, underneath your candidates, and about half of it is below the line
+because the negatives were kept.
+
+```{r floor-known}
+quiet <- setdiff(seq_along(effect$total), example$truth$signal_measurements)
+round(c(
+  mean = mean(effect$total[quiet]),
+  sd = stats::sd(effect$total[quiet]),
+  fraction_below_zero = mean(effect$total[quiet] < 0),
+  largest = max(effect$total[quiet])
+), 4)
+```
+
+That used the truth. You can get close without it, because in a typical map the
+floor is the majority and a robust summary is dominated by it:
+
+```{r floor-blind}
+round(c(
+  median_over_all = stats::median(effect$total),
+  mad_over_all = stats::mad(effect$total),
+  fraction_below_zero_over_all = mean(effect$total < 0)
+), 4)
+```
+
+```{r floor-check, include=FALSE}
+stopifnot(
+  abs(stats::median(effect$total)) < 0.01,
+  abs(mean(effect$total[quiet])) < 0.01,
+  stats::mad(effect$total) > stats::sd(effect$total[quiet])
+)
+```
+
+The blind median lands near the true floor's center. The blind MAD is *larger*
+than the floor's true spread, because 23% of these measurements carry planted
+signal and inflate it — which is the right direction for a scale you are going
+to eyeball against, but it is a description, not an estimate of a null.
+
+### Candidates, not findings
+
+Sorted, this map has a visible shoulder: rank 55 is `0.037` and rank 56 is
+`0.030`, while rank 1 is `4.22`. The shoulder happens to fall exactly at the
+edge of the planted set here. That is a fact about this fixture, not a method.
+
+```{r shoulder}
+round(sort(effect$total, decreasing = TRUE)[c(1, 10, 40, 55, 56, 80, 245)], 4)
+```
+
+`crossform` deliberately gives you no way to turn that shoulder into a finding.
+There is no threshold, no p-value, no permutation null, no spatial
+random-field correction, and no group inference; the
+[Status and scope](../index.html#status-and-scope) section says so, and the
+[failure gallery](failure-gallery.html) treats manufactured uncertainty as an
+error to guard against. Measurements standing clear of the floor are
+**candidates**. What you may legitimately do with them:
+
+- **Say what kind of effect each one is.** The coherent/configuration split is
+  descriptive, not inferential, so it costs you nothing to read: a candidate
+  high in configuration is a reproducible pattern, one far along the coherent
+  axis is a regional mean that a univariate contrast would also have found.
+- **Attach a within-measurement standard error at a measurement you chose in
+  advance**, using `rdm_sampling_covariance()` with `target = "null"` — and
+  only if the relation kept its residual channel, which means fitting with
+  `lm_relation_fit()` or `estimate_relation()` rather than importing betas.
+- **Take the candidates somewhere else**: a held-out session, an independent
+  dataset, or a group-level analysis performed outside this package.
+
+### The error bar at the peak is not an error bar
+
+One trap deserves naming, because the package makes it easy to walk into. If
+you find `peak <- which.max(effect$total)` and then report a standard error at
+`peak`, that interval describes a measurement you selected *because* it was
+extreme. The estimate is conditioned on being the largest; the standard error
+is not. Every number in this article that uses `peak` is illustrative for that
+reason, not a result.
+
+Specify the measurement in advance, or treat the peak as a candidate and estimate it
+somewhere you did not select it.
+
 ## Reading the RDM
 
 ```{r rdm}
@@ -418,6 +512,8 @@ relation; only the error bar is withheld.
 | `target = "null"` | calibrate a test of no effect | use as an error bar on a nonzero distance |
 | `target = "plugin"` | error bar on an estimate, read as conservative | treat as exact |
 | a refusal | read `$reasons` and `$remedies` | retry until something returns a number |
+| a measurement above the floor | call it a candidate and say what kind it is | threshold it and report it as a finding |
+| an error bar at `which.max()` | name the measurement in advance instead | read it as uncertainty about the peak |
 
 ## See also
 

@@ -1,0 +1,5 @@
+"id","storage","phase","os_peak_rss_bytes","incremental_peak_rss_bytes","baseline_rss_bytes","absolute_peak_rss_bytes","planned_workspace_bytes","allocated_bytes","largest_allocation_bytes","frame_bytes","resident_source_bytes","max_measured_live_temporary_bytes"
+"small-dense-memory-cold","memory","cold",324485120,25067520,299417600,324485120,252610,7230216,65584,100320,25224,27392
+"medium-sparse-memory-cold","memory","cold",334626816,38748160,295878656,334626816,913580,35758448,159792,83560,148104,105984
+"medium-sparse-block-cold","block","cold",336150528,24854528,311296000,336150528,514760,41705760,73776,83560,148104,93696
+"medium-sparse-memory-warm","memory","warm",344309760,23494656,320815104,344309760,913580,33951616,159792,83560,148104,105984

@@ -8,9 +8,12 @@ Date: 2026-08-12
 
 This document freezes the semantics used by the effect-form implementation
 epic. It is normative for every child of
-`bd-01KZW4WEZSJYMDK9XKB78N28FR`. The executable fixtures in
-`tests/testthat/test-effect-form-contract.R` are independent numerical oracles
-for the laws stated here. This contract does not itself change production code
+`bd-01KZW4WEZSJYMDK9XKB78N28FR`. The independent numerical oracles in
+`tests/testthat/helper-effect-form-laws.R` never call production crossform
+functions; `tests/testthat/test-effect-form-laws.R` runs the laws stated here
+against the package, and `tests/testthat/helper-geometry-component-oracle.R`
+supplies the first-principles total/coherent/configuration oracle used by the
+view tests. This contract does not itself change production code
 or the supported 0.1 API.
 
 ## 1. The logical object

@@ -32,8 +32,19 @@ test_that("the documented first workflow runs through every public layer", {
   observed <- cbind(result$signed, result$coherent,
     result$configuration, result$total)
   expect_equal(observed, expected, tolerance = 1e-12)
-  expect_equal(result$total, result$coherent + result$configuration,
-    tolerance = 0)
+  # The same three components derived from the frame weights and partition
+  # products, so the golden numbers above are backed by a construction rather
+  # than by the identity configuration = total - coherent.
+  oracle <- geometry_contrast_oracle(
+    weights = c(1, -1, 0),
+    relation_values = list(run1 = run1, run2 = run2),
+    frame_weights = at$weights,
+    partition_edges = over
+  )
+  expect_equal(unname(result$total), oracle$total, tolerance = 1e-12)
+  expect_equal(unname(result$coherent), oracle$coherent, tolerance = 1e-12)
+  expect_equal(unname(result$configuration), oracle$configuration,
+    tolerance = 1e-12)
 
   query <- bilinear_query(tcrossprod(c(1, -1, 0)), effects = effects)
   expect_equal(

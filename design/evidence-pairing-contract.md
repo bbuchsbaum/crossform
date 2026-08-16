@@ -10,8 +10,9 @@ This document froze the semantic foundation for
 `bd-01KZWD1P7Y7DA5HY779MXGQ731` and now governs the implemented
 evidence-pairing, measurement-form, coupling, and tomography surfaces. The
 independent numerical oracles in
-`tests/testthat/test-evidence-pairing-contract.R` certify the laws stated here
-without calling production crossform functions.
+`tests/testthat/helper-evidence-pairing-laws.R` never call production
+crossform functions; `tests/testthat/test-evidence-pairing-laws.R` is the
+executable law court that certifies the laws stated here against the package.
 
 The contract extends, and does not replace, `effect-form-v1`. Public
 `measurement_form()`, `effect_coupling()`, capability-gated `connectivity()`,

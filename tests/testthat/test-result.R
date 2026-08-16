@@ -44,7 +44,7 @@ test_that("full materialization and direct query agree", {
 test_that("bilinear operators compile only after their contracts are checked", {
   geometry <- result_fixture()
   operator <- matrix(c(2, -1, -1, 3), 2)
-  packed <- matrix(crossform:::.svec_symmetric(operator), ncol = 1)
+  packed <- matrix(oracle_svec(operator), ncol = 1)
 
   expect_equal(
     query_geometry(geometry, bilinear_query(operator))$values,

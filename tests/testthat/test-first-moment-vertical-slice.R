@@ -228,12 +228,12 @@ test_that("vertical-slice ambiguities refuse before scientific execution", {
 })
 
 test_that("the committed first-moment benchmark receipt passes", {
-  path <- testthat::test_path(
-    "..", "..", "benchmark-results", "first-moment-vertical-slice.rds"
+  artifact <- certified_artifact(
+    "first-moment-vertical-slice.rds", "run-first-moment-vertical-slice.R"
   )
-  skip_if_not(file.exists(path), "first-moment benchmark receipt is unavailable")
-  artifact <- readRDS(path)
   expect_identical(artifact$schema_version, 1L)
+  expect_identical(artifact$provenance$runner,
+    "run-first-moment-vertical-slice.R")
   expect_identical(artifact$fixture_version,
     "first-moment-vertical-slice:v1")
   expect_true(artifact$gate$passed)
@@ -254,4 +254,9 @@ test_that("the committed first-moment benchmark receipt passes", {
     "bids_events", "bids_confounds", "bids_study",
     "fmridesign_design_model"
   ))
+
+  # The receipt is only evidence for the adapter versions it was recorded
+  # against, so it names them rather than implying version independence.
+  expect_named(artifact$adapter_versions, c("fmridesign", "fmrireg"))
+  expect_true(all(nzchar(artifact$adapter_versions)))
 })

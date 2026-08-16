@@ -1,4 +1,67 @@
-# Memory benchmark harness
+# Benchmark and certification harness
+
+## Provenance binding
+
+A recorded benchmark artifact is evidence for exactly one source tree. Every
+runner that persists an artifact records a `provenance` list into it
+(`benchmarks/provenance.R`):
+
+| Field | Meaning |
+|---|---|
+| `source_digest` | SHA-256 over the sorted per-file SHA-256 of `R/*.R` |
+| `git_commit`, `git_dirty` | HEAD at record time, and whether `R/` was dirty |
+| `package_version` | `packageVersion("crossform")`, or DESCRIPTION when the package is not yet installed |
+| `r_version`, `platform`, `blas`, `lapack`, `lapack_version` | numerical environment |
+| `runner`, `recorded_at` | which script wrote it, when |
+
+`tests/testthat/helper-certification.R` refuses to read a recorded gate as a
+boolean unless that provenance still binds it, in one of two tiers:
+
+1. **`source_tree`** - a source checkout is reachable from the test directory,
+   so the recorded `source_digest` must equal the current digest of `R/*.R`.
+   Any change to package source invalidates recorded certification until the
+   runner is re-run. This is the tier that applies to `testthat::test_local()`.
+2. **`package_version`** - under `R CMD check` the package sources are not
+   shipped (`R/` holds a lazy-load database, not `.R` files) and `.git` is
+   absent, so only the recorded package version can be compared. Binding is
+   version-level, and the tier is reported so it is never mistaken for the
+   stronger one.
+
+A non-binding artifact makes its test **skip with a loud message** naming the
+runner that re-certifies it, rather than pass silently. Hard failure was
+rejected deliberately: it would turn every ordinary source edit into a red
+suite, which trains people to disable the check. The skip reasons are
+greppable (`CERTIFICATION UNBOUND`, `CERTIFICATION STALE`,
+`CERTIFICATION ABSENT`), and a pass at the weaker tier announces itself with a
+`CERTIFICATION TIER package_version` message so that a version-level binding
+is never read as a source-level one.
+
+`benchmarks/run-measurement-benchmarks.R` and
+`benchmarks/run-support-index-benchmark.R` persist nothing - they print to the
+console - so they carry no provenance and certify nothing.
+
+## Where artifacts live
+
+Runners write to `benchmark-results/`, which is git-tracked for the two large
+validation records but never shipped (`.Rbuildignore`). The small gate
+artifacts the test suite reads live in `inst/extdata/certification/`, so that
+certification **runs** under `R CMD check` instead of skipping. Promotion is
+one script:
+
+```sh
+Rscript benchmarks/promote-artifacts.R benchmark-results .
+```
+
+It refuses to promote an artifact that carries no provenance, and refuses
+anything above a 64 KiB shipped cap. The two large validation records
+(`sampling-covariance-validation.rds`, 1.0 MB;
+`learned-metric-policy-validation.rds`, 239 KB) are never promoted; their
+tests read them from `benchmark-results/` when a local run has produced them
+and skip with a message when it has not.
+
+Tests resolve an artifact in this order: a fresh unpromoted run in
+`benchmark-results/`, then `system.file("extdata", "certification", ...)`,
+then the checkout's `inst/extdata/certification/`.
 
 ## Public geometry map gate
 
@@ -35,6 +98,8 @@ is recorded separately from repeated map execution.
 `CROSSFORM_RUN_SCALE_TESTS=true`. The scheduled and manually dispatchable
 scale workflow sets that flag, which also activates the two 50k topology tests.
 
+## Memory benchmark harness
+
 Run from the repository root:
 
 ```sh
@@ -51,22 +116,31 @@ regimes explicitly.
 
 The resulting RDS records measured child-process peak RSS, `Rprofmem`
 allocation counts and sizes, every named live kernel temporary, total and
-coherent output-storage bytes, and the conservative memory plan. The plan
-includes a named 64 MiB process-level runtime reserve for measured R,
-Matrix/BLAS initialization, allocator arenas, and native pages that cannot be
-assigned to one scientific array. This is an explicit benchmark-calibrated
-category, not an unnamed multiplier. Version 0.1 has no worker processes, so
-worker peak RSS is explicitly zero; future executor benchmarks must aggregate
-coordinator and worker peaks rather than reporting coordinator memory alone.
+coherent output-storage bytes, and the conservative memory plan.
 
-The harness is evidence, not a timing assertion in the fast test suite.
+The plan predicts **crossform-owned workspace**, not process RSS: its
+`prediction_kind` is `crossform_owned_workspace_upper_bound`, and its named
+categories (frame, resident source, source handles and blocks, relation and
+atom blocks, local state, output, contraction, replacement copy, serialization
+overlap, reorder and checkpoint buffers) are summed and multiplied by a 1.25
+safety factor. It deliberately makes no claim about interpreter, BLAS,
+allocator-arena, or native pages, so it must not be compared against process
+RSS. `tests/testthat/test-benchmark.R` therefore checks the plan against what
+it actually bounds - the measured live temporaries and durable local relations
+- and checks the recorded RSS separately as an OS measurement of an isolated
+child polled only after the fixture signalled ready.
+
+Version 0.1 has no worker processes, so worker peak RSS is explicitly zero;
+future executor benchmarks must aggregate coordinator and worker peaks rather
+than reporting coordinator memory alone.
+
 Representative dimensions and frame density are versioned by
-`.memory_benchmark_scenarios()`.
+`.memory_benchmark_scenarios()`, and every scenario it declares must have a
+recorded artifact.
 
-`summary.csv` compares the conservative plan with measured incremental peak
-RSS above the signaled pre-contraction baseline. Every scenario must report
-`plan_covers_incremental_peak = TRUE`; a false value blocks both closure of the
-sequential compiler epic and every later parallel-executor gate.
+`memory-benchmark-summary.csv` is the compact table: OS peak RSS, incremental
+peak above the signalled pre-contraction baseline, the planned workspace,
+allocation totals, and the largest measured live temporary.
 
 ## Shard admission benchmark
 

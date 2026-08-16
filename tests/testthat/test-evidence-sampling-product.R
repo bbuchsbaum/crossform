@@ -122,12 +122,18 @@ test_that("relation-fit product agrees with an independent direct oracle", {
 
 test_that("beta-only and learned-metric product paths refuse honestly", {
   fixture <- sampling_product_fixture()
-  expect_error(
+  beta_only <- catch_refusal(
     crossform:::.compile_fixed_metric_rdm_sampling(
       fixture$evidence, fixture$fit$relation
-    ),
-    "lm_relation_fit.*beta matrices alone"
+    )
   )
+  expect_s3_class(beta_only, "effect_capability_refusal")
+  expect_identical(beta_only$capability, "sampling_covariance")
+  expect_identical(beta_only$namespace, "evidence_sampling")
+  expect_true("missing_error_channel" %in% beta_only$reasons)
+  expect_match(conditionMessage(beta_only),
+    "lm_relation_fit.*beta matrices alone")
+
   learned <- plan_crossnobis(
     fixture$fit,
     compile_frame(searchlights(100), fixture$domain),
@@ -138,10 +144,14 @@ test_that("beta-only and learned-metric product paths refuse honestly", {
       justification = "test fixture; uncertainty remains unpropagated"
     )
   )
-  expect_error(
-    rdm_sampling_covariance(learned, fixture$fit, target = "null"),
-    "metric was learned"
+  learned_refusal <- catch_refusal(
+    rdm_sampling_covariance(learned, fixture$fit, target = "null")
   )
+  expect_s3_class(learned_refusal, "effect_capability_refusal")
+  expect_identical(learned_refusal$capability, "fixed_metric_sampling_law")
+  expect_identical(learned_refusal$namespace, "evidence_sampling")
+  expect_identical(learned_refusal$reasons, "learned_metric_law_not_admitted")
+  expect_match(conditionMessage(learned_refusal), "metric was learned")
 })
 
 test_that("overlapping supports reuse one exact sparse residual statistic", {
@@ -242,14 +252,25 @@ test_that("public RDM sampling covariance is explicit and exactly queryable", {
     sampling_covariance(covariance, "transport", query = map),
     map %*% dense %*% t(map), tolerance = 4e-13
   )
-  expect_error(
-    rdm_sampling_covariance(fixture$evidence, fixture$fit),
-    "signal-dependent covariance target is not inferred"
+  target_refusal <- catch_refusal(
+    rdm_sampling_covariance(fixture$evidence, fixture$fit)
   )
-  expect_error(
+  expect_s3_class(target_refusal, "effect_capability_refusal")
+  expect_identical(target_refusal$capability, "calibration_target_declared")
+  expect_identical(target_refusal$namespace, "evidence_sampling")
+  expect_identical(target_refusal$reasons, "calibration_target_not_declared")
+  expect_match(conditionMessage(target_refusal),
+    "signal-dependent covariance target is not inferred")
+
+  beta_only <- catch_refusal(
     rdm_sampling_covariance(
       fixture$evidence, fixture$fit$relation, target = "null"
-    ),
-    "lm_relation_fit.*beta matrices alone"
+    )
   )
+  expect_s3_class(beta_only, "effect_capability_refusal")
+  expect_identical(beta_only$capability, "sampling_covariance")
+  expect_identical(beta_only$namespace, "evidence_sampling")
+  expect_true("missing_error_channel" %in% beta_only$reasons)
+  expect_match(conditionMessage(beta_only),
+    "lm_relation_fit.*beta matrices alone")
 })

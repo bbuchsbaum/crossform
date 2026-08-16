@@ -44,3 +44,42 @@ test_that("OS peak RSS parser recognizes GNU and macOS time formats", {
   )
   expect_true(is.na(crossform:::.parse_os_peak_rss("no measurement")))
 })
+
+test_that("recorded memory-benchmark evidence covers every declared scenario", {
+  scenarios <- crossform:::.memory_benchmark_scenarios()
+  for (index in seq_len(nrow(scenarios))) {
+    id <- scenarios$id[[index]]
+    artifact <- certified_artifact(
+      paste0(id, ".rds"), "run-memory-benchmarks.R"
+    )
+    expect_identical(artifact$schema_version, 3L)
+    expect_identical(artifact$provenance$runner, "run-memory-benchmarks.R")
+    expect_identical(artifact$scenario$id, id)
+    expect_identical(artifact$scenario$storage, scenarios$storage[[index]])
+    expect_identical(artifact$scenario$phase, scenarios$phase[[index]])
+
+    # The recorded RSS is a real OS measurement of an isolated child, taken
+    # only after the fixture signalled ready.
+    expect_identical(artifact$rss_evidence,
+      "isolated_child_process_polled_os_peak")
+    expect_gt(artifact$os_peak_rss_bytes, 0)
+    expect_gte(artifact$incremental_peak_rss_bytes, 0)
+    expect_true(is.finite(artifact$incremental_peak_rss_bytes))
+    # Version 0.1 runs no workers, so an aggregated worker peak of zero is a
+    # fact about this release rather than an unmeasured field.
+    expect_identical(artifact$worker_peak_rss_bytes, 0)
+
+    # The plan predicts crossform-owned workspace, not process RSS. The
+    # prediction is checked against what it actually claims to bound.
+    expect_s3_class(artifact$plan, "effect_memory_plan")
+    expect_identical(artifact$plan$prediction_kind,
+      "crossform_owned_workspace_upper_bound")
+    expect_gte(artifact$plan$planned_workspace_bytes,
+      artifact$plan$modeled_workspace_bytes)
+    expect_gte(artifact$plan$planned_workspace_bytes,
+      artifact$total$max_live_temporary_bytes +
+        artifact$total$durable_local_relation_bytes)
+    expect_gt(artifact$allocation$allocation_count, 0)
+    expect_gt(artifact$allocation$allocated_bytes, 0)
+  }
+})

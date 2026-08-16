@@ -348,3 +348,62 @@ independent oracles, generative evidence, and honest capability boundaries.
 The implementation epic can close. Release certification cannot: it remains
 blocked on a user-authorized commit and, later, hosted/cross-platform and
 external scientific evidence.
+
+## Certification provenance binding (2026-08-16)
+
+This receipt's evidence sections cite recorded `.rds` artifacts. Until today
+the test suite read those artifacts as bare booleans
+(`expect_true(artifact$gate$passed)`) with nothing tying an artifact to the
+source that produced it, and `benchmark-results/` was `.Rbuildignore`d, so
+under `R CMD check` every certification block skipped silently. A stale
+artifact passed forever, and the tier the project calls certification was the
+tier that did not run where it mattered. Eight of the twelve committed
+artifacts, including both large validation records, were read by no test at
+all.
+
+**Binding.** Every runner that persists an artifact now records a
+`provenance` list into it (`benchmarks/provenance.R`): an aggregate SHA-256
+over the sorted per-file digests of `R/*.R`, the git commit and whether `R/`
+was dirty, the package version, and the R/platform/BLAS/LAPACK environment.
+`tests/testthat/helper-certification.R` refuses to read a recorded gate unless
+that provenance still binds it, in two tiers. From a source checkout the
+recorded source digest must equal the current one. Under `R CMD check` the
+package sources are not shipped and `.git` is absent, so only the package
+version can be compared; that weaker tier is named rather than presented as
+the stronger one. A non-binding artifact **skips with a loud, greppable
+message** naming the runner that re-certifies it. Hard failure was rejected:
+it would redden the suite on every ordinary source edit, which teaches people
+to switch the check off.
+
+**Shipping.** The small gate artifacts moved from `benchmark-results/` to
+`inst/extdata/certification/`, so certification now runs under check instead
+of skipping. `benchmarks/promote-artifacts.R` is the only supported path from
+a fresh run into the package; it refuses an artifact without provenance and
+anything above a 64 KiB cap. The two large validation records stay out of the
+tarball, and their tests skip with a message when they are absent.
+
+**Re-recorded today**, each passing its own gate as recorded, on R 4.5.1,
+aarch64-apple-darwin20, Accelerate BLAS: the four memory scenarios, the
+first-moment vertical slice, the sampling-covariance scale record, the
+brain-scale crossnobis gate, the public map gate, the query-first gate, and
+the sampling-covariance validation. Two artifacts remain unbound and their
+tests skip with instructions: `shard-admission.rds` (needs an isolated
+library with `shard` and `crossform` installed; the recorded verdict remains
+"not admitted") and `learned-metric-policy-validation.rds`.
+
+**Two recorded claims did not survive re-execution and were corrected rather
+than re-asserted.** The memory harness documentation described a conservative
+plan carrying a named 64 MiB process-level runtime reserve, and required every
+scenario to report `plan_covers_incremental_peak = TRUE`. The current
+`memory_plan()` emits no such reserve and no such column: its `prediction_kind`
+is `crossform_owned_workspace_upper_bound`, a claim about crossform-owned
+workspace and explicitly not about process RSS. The committed artifacts were
+schema 2 against a schema 3 emitter. `benchmarks/README.md` now describes what
+the code does, and the tests check the plan against what it actually bounds
+while checking measured RSS separately.
+
+**Court.** `testthat::test_local()`: FAIL 0. `R CMD check --as-cran
+--no-manual` on the built tarball: tests report `FAIL 0 | WARN 0 | SKIP 10 |
+PASS 4112`, with the certification blocks running rather than skipping. The
+remaining skips are the two unbound or absent validation records, the
+`CROSSFORM_RUN_SCALE_TESTS` tier, and three `On CRAN` blocks.

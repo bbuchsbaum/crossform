@@ -232,7 +232,7 @@ test_that("coherent geometry from retained relations matches an explicit oracle"
       geometry <- geometry + fixture$over$weight[[edge]] *
         0.5 * (cross + t(cross)) / mass[[measurement]]
     }
-    oracle[measurement, ] <- crossform:::.svec_symmetric(geometry)
+    oracle[measurement, ] <- oracle_svec(geometry)
   }
 
   expect_equal(got$value, oracle, tolerance = 1e-12)

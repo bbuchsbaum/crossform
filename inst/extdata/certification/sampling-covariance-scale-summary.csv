@@ -1,0 +1,7 @@
+"operation","elapsed_seconds","resident_delta_bytes","result_bytes"
+"volume_frame_compile",4.828,195978854.4,193213840
+"factor_construction",0.171,13316915.2,25053016
+"diagonal",0.0340000000000007,0,685648
+"selected_100",0.0129999999999999,0,848
+"quadratic_form",0.00799999999999912,0,56
+"transport_8",0.0579999999999998,104857.599999964,728

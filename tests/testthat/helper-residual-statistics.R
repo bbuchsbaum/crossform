@@ -52,6 +52,8 @@ residual_statistics_fixture <- function() {
     fit = fit,
     frame = frame,
     domain = domain,
+    design = design,
+    effects = effects,
     response = response,
     reads = function() reads,
     reset_reads = function() reads[] <<- 0L
@@ -77,14 +79,20 @@ residual_statistics_budgets <- function(fixture) {
   )
 }
 
-oracle_local_residual_covariance <- function(fit, partitions, support) {
+# An independent pooled residual covariance. It regresses the raw responses on
+# the raw design itself rather than calling `residual_block()` or
+# `residual_df()`, so it cannot inherit an error from the fit it is checking.
+# Residual degrees of freedom are the ordinary n - rank(X) per partition.
+oracle_local_residual_covariance <- function(fixture, partitions, support) {
+  design <- fixture$design
+  decomposition <- qr(design)
+  df_per_partition <- nrow(design) - decomposition$rank
   cross_products <- lapply(partitions, function(partition) {
-    crossprod(residual_block(fit, partition, support))
+    observed <- fixture$response[[partition]][, support, drop = FALSE]
+    residuals <- observed - design %*% qr.coef(decomposition, observed)
+    crossprod(residuals)
   })
-  df <- sum(vapply(partitions, function(partition) {
-    residual_df(fit, partition)
-  }, integer(1)))
-  Reduce(`+`, cross_products) / df
+  Reduce(`+`, cross_products) / (length(partitions) * df_per_partition)
 }
 
 oracle_shrinkage_covariance <- function(raw, recipe) {

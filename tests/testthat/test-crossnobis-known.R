@@ -304,10 +304,22 @@ test_that("crossnobis refuses undeclared metrics and coordinate identity errors"
     coordinate_units = "mm"
   )
 
-  expect_error(crossnobis(euclidean_plan, fixture$contrast),
-    "explicit noise-precision")
-  expect_error(crossnobis(generic_plan, fixture$contrast),
-    "noise_precision", fixed = TRUE)
+  implicit <- catch_refusal(crossnobis(euclidean_plan, fixture$contrast))
+  expect_s3_class(implicit, "effect_capability_refusal")
+  expect_identical(implicit$capability, "declared_noise_metric")
+  expect_identical(implicit$namespace, "geometry_views")
+  expect_identical(implicit$reasons,
+    "implicit_identity_metric_is_not_a_noise_model")
+  expect_match(conditionMessage(implicit), "explicit noise-precision")
+
+  undeclared <- catch_refusal(crossnobis(generic_plan, fixture$contrast))
+  expect_s3_class(undeclared, "effect_capability_refusal")
+  expect_identical(undeclared$capability, "declared_noise_metric")
+  expect_identical(undeclared$namespace, "geometry_views")
+  # The two refusals share a capability but not a reason: one plan has no
+  # metric at all, the other has one that was never declared as noise.
+  expect_identical(undeclared$reasons, "metric_role_is_not_noise_precision")
+  expect_match(conditionMessage(undeclared), "noise_precision", fixed = TRUE)
   expect_error(
     plan_geometry(
       fixture$relation, fixture$frame, fixture$over,
@@ -424,7 +436,59 @@ test_that("crossnobis is the named total of the metric-carrying contrast", {
   family <- contrast_energy(plan, weights)
   expect_equal(unname(named$values), unname(family$total),
     tolerance = 1e-12)
-  # The decomposition of the same estimand is available from contrast_energy().
-  expect_equal(family$total, family$coherent + family$configuration,
+
+  # The decomposition of the same estimand is available from
+  # contrast_energy(). Each of the three components is checked against an
+  # independent first-principles oracle rather than against each other: the
+  # implementation computes `configuration` as `total - coherent`, so
+  # asserting their sum would prove nothing about either one.
+  frame_weights <- as.matrix(compile_frame(whole_brain(), domain)$weights)
+  over <- cross_partitions(relation, independence = "independent")
+  oracle <- geometry_contrast_oracle(
+    weights = unname(weights),
+    relation_values = sources,
+    frame_weights = frame_weights,
+    partition_edges = over,
+    metric = precision
+  )
+  expect_equal(unname(family$total), oracle$total, tolerance = 1e-12)
+  expect_equal(unname(family$coherent), oracle$coherent, tolerance = 1e-12)
+  expect_equal(unname(family$configuration), oracle$configuration,
+    tolerance = 1e-12)
+  # The crossnobis alias is the same named total, so it inherits the check.
+  expect_equal(unname(named$values), oracle$total, tolerance = 1e-12)
+
+  # The oracle's metric-general coherent operator is a rank-one projection
+  # along the Riesz representative of the frame-weighted mean. Check the two
+  # properties that pin it down: it annihilates nothing else (configuration
+  # kills that direction exactly), and it reduces to the identity-metric
+  # formula the contract writes, `(B_L w)(B_R w)' / sum(w)`.
+  support_weight <- frame_weights[1L, ]
+  local_metric <- precision * tcrossprod(sqrt(support_weight))
+  profile <- support_weight / sum(support_weight)
+  representative <- drop(solve(local_metric, profile))
+  coherent_metric <- local_metric %*%
+    (tcrossprod(representative) /
+      drop(crossprod(representative, local_metric %*% representative))) %*%
+    local_metric
+  expect_equal(
+    drop((local_metric - coherent_metric) %*% representative),
+    numeric(length(representative)), tolerance = 1e-12
+  )
+  expect_identical(qr(coherent_metric)$rank, 1L)
+
+  euclidean <- contrast_energy(
+    plan_geometry(relation, compile_frame(whole_brain(), domain), over),
+    weights
+  )
+  contract_coherent <- drop(
+    unname(weights) %*% Reduce(`+`, lapply(seq_len(nrow(over)), function(edge) {
+      left <- sources[[over$left[[edge]]]] %*% support_weight
+      right <- sources[[over$right[[edge]]]] %*% support_weight
+      cross <- tcrossprod(drop(left), drop(right)) / sum(support_weight)
+      over$weight[[edge]] * (cross + t(cross)) / 2
+    })) %*% unname(weights)
+  )
+  expect_equal(unname(euclidean$coherent), contract_coherent,
     tolerance = 1e-12)
 })

@@ -28,6 +28,10 @@ repetitions <- if (length(arguments) >= 3L) {
 if (is.na(repetitions) || repetitions < 3L) {
   stop("The public map gate requires at least three repetitions.")
 }
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(
+  repo, "run-public-map-scale-gate.R"
+)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 result_path <- file.path(output_dir, "public-map-scale-gate.rds")
 summary_path <- file.path(output_dir, "public-map-scale-gate-summary.csv")
@@ -332,6 +336,7 @@ if (is.null(collected) || inherits(collected[[1L]], "try-error") ||
 }
 
 result <- readRDS(result_path)
+result$provenance <- provenance
 peak_rss <- max(peak_rss, result$memory$baseline_rss_bytes, na.rm = TRUE)
 result$memory$os_peak_rss_bytes <- peak_rss
 result$memory$incremental_peak_rss_bytes <- max(

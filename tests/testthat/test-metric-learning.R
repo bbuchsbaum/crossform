@@ -84,7 +84,7 @@ test_that("on-demand shrinkage precision agrees with an independent oracle", {
   handle <- provider$at(10L)
   support_positions <- handle$support_positions
   raw <- oracle_local_residual_covariance(
-    setup$fixture$fit, "run3", support_positions
+    setup$fixture, "run3", support_positions
   )
   expected_covariance <- oracle_shrinkage_covariance(raw, schedule$recipe)
   set.seed(8302)
@@ -109,8 +109,11 @@ test_that("on-demand shrinkage precision agrees with an independent oracle", {
   )
   expect_identical(receipt$nodes_derived, 1L)
   expect_false(receipt$retained_factor_table)
+  # Nothing in this block reads a residual source: the provider answers from
+  # the frozen atomic statistics, and the oracle above regresses the raw
+  # responses directly instead of calling `residual_block()`.
   expect_identical(setup$fixture$reads(),
-    c(run1 = 0L, run2 = 0L, run3 = 1L))
+    c(run1 = 0L, run2 = 0L, run3 = 0L))
 })
 
 test_that("providers reduce only local pairs in the canonical global order", {
@@ -166,7 +169,7 @@ test_that("identity and diagonal schedules use their exact fast actions", {
   left <- matrix(rnorm(2 * length(identity$support)), 2)
   right <- matrix(rnorm(4 * length(identity$support)), 4)
   raw <- oracle_local_residual_covariance(
-    setup$fixture$fit, "run3", diagonal$support_positions
+    setup$fixture, "run3", diagonal$support_positions
   )
   variance <- diag(raw)
   floor <- 1e-7 * mean(variance[variance > 0])

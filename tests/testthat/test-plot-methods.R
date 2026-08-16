@@ -84,6 +84,38 @@ test_that("the contrast view draws its decomposition and profile", {
   })
 })
 
+test_that("a highlight set can be named in the legend", {
+  fixture <- plot_fixture()
+  with_null_device({
+    expect_drawn(
+      plot(fixture$energy, highlight = fixture$planted,
+        highlight_label = "planted signal"),
+      fixture$energy
+    )
+    expect_silent(plot(fixture$energy, which = "profile",
+      highlight = fixture$planted, highlight_label = "planted signal"))
+    expect_drawn(
+      plot(fixture$coefficients, highlight = fixture$planted,
+        highlight_label = "planted signal"),
+      fixture$coefficients
+    )
+    # The label is checked even without a highlight set, so a typo surfaces
+    # rather than sitting unused until a highlight is passed.
+    expect_silent(plot(fixture$energy, highlight_label = "planted signal"))
+    for (bad in list(NA_character_, "", character(), c("a", "b"), 1)) {
+      expect_error(
+        plot(fixture$energy, highlight = fixture$planted,
+          highlight_label = bad),
+        "one non-empty character string"
+      )
+      expect_error(
+        plot(fixture$coefficients, highlight_label = bad),
+        "one non-empty character string"
+      )
+    }
+  })
+})
+
 test_that("the contrast view refuses a highlight it cannot honour", {
   fixture <- plot_fixture()
   view <- fixture$energy
@@ -198,8 +230,15 @@ test_that("the crossnobis view draws a signed index plot", {
     expect_drawn(plot(view, highlight = example$truth$signal_measurements),
       view)
     expect_silent(plot(view, main = "custom", col = "#009E73"))
+    expect_drawn(
+      plot(view, highlight = example$truth$signal_measurements,
+        highlight_label = "planted signal"),
+      view
+    )
     expect_error(plot(view, highlight = length(view$values) + 1L),
       "measurement positions")
+    expect_error(plot(view, highlight_label = NA_character_),
+      "one non-empty character string")
   })
   # Signed estimates are drawn where they fall, so the panel must span them.
   expect_true(any(view$values < 0))
