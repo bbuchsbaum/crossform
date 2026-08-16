@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# 05-crossnobis-uncertainty.R -- the error-channel arm (effectagram only).
+# 05-crossnobis-uncertainty.R -- the error-channel arm (crossform only).
 #
 # This is NOT a comparison row. It is a different, better-defined estimand
 # that rMVPA does not expose: the same cross-run geometry carried together
@@ -31,7 +31,7 @@ exemplar_dir <- if (nzchar(Sys.getenv("EXEMPLAR_DIR"))) {
     grep("^--file=", commandArgs(FALSE), value = TRUE)[1])))
 }
 source(file.path(exemplar_dir, "models.R"))
-invisible(load_effectagram(exemplar_dir))
+invisible(load_crossform(exemplar_dir))
 paths <- exemplar_paths(exemplar_dir)
 
 prep <- readRDS(paths$prepared)
@@ -76,7 +76,7 @@ over <- cross_partitions(fit$relation)
 # different effects and its error bars would not belong to that estimate.
 nominal_plan <- plan_geometry(fit$relation, at = frame, over = over)
 D_fit <- as.matrix(rdm(nominal_plan)$values)
-arm2 <- file.path(paths$results, "smoke-effectagram.rds")
+arm2 <- file.path(paths$results, "smoke-crossform.rds")
 consistency <- NA_real_
 if (file.exists(arm2)) {
   consistency <- max(abs(D_fit - readRDS(arm2)$rdm))
@@ -218,7 +218,7 @@ refusals <- list(
 
 ## ---- Save ---------------------------------------------------------------
 out <- list(
-  arm = "effectagram error channel",
+  arm = "crossform error channel",
   note = paste("A different, better-defined estimand than the parity",
                "comparison -- not a replacement-map row."),
   centers = fixed_centers,
@@ -238,7 +238,7 @@ out <- list(
                 node_seconds = node_seconds,
                 node_rss_kb = node_rss_kb,
                 crossnobis_seconds = elapsed_cn),
-  session = list(effectagram = as.character(utils::packageVersion("effectagram")),
+  session = list(crossform = as.character(utils::packageVersion("crossform")),
                  when = Sys.time())
 )
 saveRDS(out, file.path(paths$results, "smoke-uncertainty.rds"))

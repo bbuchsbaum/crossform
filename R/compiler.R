@@ -332,7 +332,7 @@
   .validate_frame_for_compile(at)
   .validate_pairing(over)
   if (!identical(at$representation, "additive_diagonal")) {
-    stop("effectagram 0.1 executes only additive diagonal frames.", call. = FALSE)
+    stop("crossform 0.1 executes only additive diagonal frames.", call. = FALSE)
   }
   if (!.same_domain_reference(at$domain, x$domain) ||
       (!is.null(right) && !.same_domain_reference(at$domain, right$domain))) {

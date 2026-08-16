@@ -19,10 +19,10 @@ sampling_kernel_fixture <- function(dimension = 7L) {
   xi_raw <- matrix(rnorm(dimension^2), dimension)
   delta <- tcrossprod(delta_raw) / dimension
   xi <- tcrossprod(xi_raw) / dimension + diag(0.2, dimension)
-  plan <- effectagram:::.compile_evidence_sampling_plan(
+  plan <- crossform:::.compile_evidence_sampling_plan(
     base$evidence, base$fit
   )
-  covariance <- effectagram:::.sampling_covariance_form(
+  covariance <- crossform:::.sampling_covariance_form(
     plan, sqrt(0.37) * delta_raw / sqrt(dimension),
     t(chol(xi)), noise_trace = 0.37,
     partitions = 4L, labels = paste0("d", seq_len(dimension)),
@@ -38,7 +38,7 @@ sampling_kernel_fixture <- function(dimension = 7L) {
 
 test_that("structured covariance equals the independent Eq. 13 oracle", {
   fixture <- sampling_kernel_fixture()
-  observed <- effectagram:::.sampling_covariance_materialize(
+  observed <- crossform:::.sampling_covariance_materialize(
     fixture$covariance
   )
 
@@ -68,7 +68,7 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
   five_fit <- lm_relation_fit(
     sources, design, effect_map, sampling_unit = "trial", domain = domain
   )
-  five_plan <- effectagram:::.compile_evidence_sampling_plan(
+  five_plan <- crossform:::.compile_evidence_sampling_plan(
     plan_geometry(
       five_fit$relation, compile_frame(whole_brain(), domain),
       cross_partitions(five_fit$relation, independence = "independent")
@@ -88,13 +88,13 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
     components$delta, components$xi, residual_covariance,
     five_plan$partition$count
   )$covariance
-  observed <- effectagram:::.sampling_covariance_from_components(
+  observed <- crossform:::.sampling_covariance_from_components(
     five_plan, contrasts, patterns, effect_covariance,
     residual_covariance, labels = rownames(contrasts)
   )
 
   expect_equal(
-    unname(effectagram:::.sampling_covariance_materialize(observed)),
+    unname(crossform:::.sampling_covariance_materialize(observed)),
     unname(expected), tolerance = 3e-13
   )
   expect_identical(dim(observed$signal_factor),
@@ -105,7 +105,7 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
 
 test_that("every exact query route agrees with dense covariance", {
   fixture <- sampling_kernel_fixture()
-  dense <- effectagram:::.sampling_covariance_materialize(
+  dense <- crossform:::.sampling_covariance_materialize(
     fixture$covariance
   )
   set.seed(81322)
@@ -115,34 +115,34 @@ test_that("every exact query route agrees with dense covariance", {
   selected <- matrix(c(1L, 1L, 2L, 5L, 7L, 3L), byrow = TRUE, ncol = 2L)
 
   expect_equal(
-    effectagram:::.sampling_covariance_diagonal(fixture$covariance),
+    crossform:::.sampling_covariance_diagonal(fixture$covariance),
     stats::setNames(diag(dense), fixture$covariance$labels),
     tolerance = 2e-14
   )
   expect_equal(
-    effectagram:::.sampling_covariance_entries(
+    crossform:::.sampling_covariance_entries(
       fixture$covariance, selected[, 1L], selected[, 2L]
     ),
     dense[selected], tolerance = 2e-14
   )
   expect_equal(
-    effectagram:::.sampling_covariance_apply(fixture$covariance, vector),
+    crossform:::.sampling_covariance_apply(fixture$covariance, vector),
     drop(dense %*% vector), tolerance = 3e-14
   )
   expect_equal(
-    effectagram:::.sampling_covariance_apply(
+    crossform:::.sampling_covariance_apply(
       fixture$covariance, matrix_value
     ),
     dense %*% matrix_value, tolerance = 3e-14
   )
   expect_equal(
-    effectagram:::.sampling_covariance_quadratic(
+    crossform:::.sampling_covariance_quadratic(
       fixture$covariance, vector
     ),
     drop(crossprod(vector, dense %*% vector)), tolerance = 3e-14
   )
   expect_equal(
-    effectagram:::.sampling_covariance_transport(
+    crossform:::.sampling_covariance_transport(
       fixture$covariance, transport
     ),
     transport %*% dense %*% t(transport), tolerance = 5e-14
@@ -152,19 +152,19 @@ test_that("every exact query route agrees with dense covariance", {
   named_transport <- transport[, rev(seq_len(ncol(transport))), drop = FALSE]
   colnames(named_transport) <- rev(fixture$covariance$labels)
   expect_equal(
-    effectagram:::.sampling_covariance_apply(
+    crossform:::.sampling_covariance_apply(
       fixture$covariance, named_vector
     ),
     drop(dense %*% aligned_vector), tolerance = 3e-14
   )
   expect_equal(
-    effectagram:::.sampling_covariance_transport(
+    crossform:::.sampling_covariance_transport(
       fixture$covariance, named_transport
     ),
     transport %*% dense %*% t(transport), tolerance = 5e-14
   )
   expect_error(
-    effectagram:::.sampling_covariance_apply(
+    crossform:::.sampling_covariance_apply(
       fixture$covariance,
       stats::setNames(vector, paste0("wrong", seq_along(vector)))
     ),
@@ -175,18 +175,18 @@ test_that("every exact query route agrees with dense covariance", {
 test_that("compiled operation plans execute the requested exact route", {
   fixture <- sampling_kernel_fixture()
   vector <- seq_len(fixture$covariance$dimension) / 10
-  operation <- effectagram:::.sampling_operation("quadratic_form", vector)
-  plan <- effectagram:::.rebind_evidence_sampling_plan(
+  operation <- crossform:::.sampling_operation("quadratic_form", vector)
+  plan <- crossform:::.rebind_evidence_sampling_plan(
     fixture$plan, operation,
-    effectagram:::.sampling_materialization("query_only")
+    crossform:::.sampling_materialization("query_only")
   )
-  observed <- effectagram:::.execute_evidence_sampling_plan(
+  observed <- crossform:::.execute_evidence_sampling_plan(
     plan, fixture$covariance
   )
 
   expect_equal(
     observed,
-    effectagram:::.sampling_covariance_quadratic(
+    crossform:::.sampling_covariance_quadratic(
       fixture$covariance, vector
     ),
     tolerance = 0
@@ -197,20 +197,20 @@ test_that("compiled operation plans execute the requested exact route", {
 
 test_that("dense materialization is explicit and size-preflighted", {
   fixture <- sampling_kernel_fixture(dimension = 20L)
-  materialize <- effectagram:::.rebind_evidence_sampling_plan(
+  materialize <- crossform:::.rebind_evidence_sampling_plan(
     fixture$plan,
-    effectagram:::.sampling_operation("materialize"),
-    effectagram:::.sampling_materialization("dense_covariance")
+    crossform:::.sampling_operation("materialize"),
+    crossform:::.sampling_materialization("dense_covariance")
   )
 
   expect_error(
-    effectagram:::.execute_evidence_sampling_plan(
+    crossform:::.execute_evidence_sampling_plan(
       materialize, fixture$covariance, max_bytes = 8
     ),
     "exceeding.*materialization budget"
   )
   expect_identical(
-    dim(effectagram:::.execute_evidence_sampling_plan(
+    dim(crossform:::.execute_evidence_sampling_plan(
       materialize, fixture$covariance,
       max_bytes = 8 * 20^2 + 64 * 20
     )),
@@ -224,15 +224,15 @@ test_that("sampling covariance detects plan and source mutation", {
   forged$xi_factor[1L, 1L] <- forged$xi_factor[1L, 1L] + 1
 
   expect_error(
-    effectagram:::.validate_sampling_covariance(forged),
+    crossform:::.validate_sampling_covariance(forged),
     "identity"
   )
-  different_target <- effectagram:::.compile_evidence_sampling_plan(
+  different_target <- crossform:::.compile_evidence_sampling_plan(
     fixture$base$evidence, fixture$base$fit,
-    target = effectagram:::.sampling_target("null")
+    target = crossform:::.sampling_target("null")
   )
   expect_error(
-    effectagram:::.execute_evidence_sampling_plan(
+    crossform:::.execute_evidence_sampling_plan(
       different_target, fixture$covariance
     ),
     "different scientific identities"

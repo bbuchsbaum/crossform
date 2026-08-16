@@ -1,5 +1,5 @@
 # Independent numerical oracles for the normative effect-form laws. These
-# helpers deliberately do not call production effectagram functions.
+# helpers deliberately do not call production crossform functions.
 
 oracle_effect_form <- function(left, right, weight = NULL) {
   if (!is.matrix(left) || !is.matrix(right) || ncol(left) != ncol(right)) {

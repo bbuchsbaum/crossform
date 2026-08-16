@@ -82,6 +82,18 @@
   fields
 }
 
+# The public compiler was renamed before release. The semantic protocol token
+# predates that rename and already participates in plan hashes, so both spellings
+# lower to the original canonical token. Compiler package and route fields keep
+# the current `crossform` name and therefore still distinguish the new route.
+.canonical_design_protocol <- function(protocol, protocol_version) {
+  aliases <- c("effectagram-semantic-design", "crossform-semantic-design")
+  if (identical(protocol_version, "1") && protocol %in% aliases) {
+    return("effectagram-semantic-design")
+  }
+  protocol
+}
+
 #' Declare a semantic design model with compiled routes
 #'
 #' `design_model_id` covers the semantic mean-model request. Concrete design
@@ -103,8 +115,8 @@
 #' @export
 design_model <- function(
     specification, conditions, designs, parameterizations, row_ids = NULL,
-    solver = "auto", protocol = "effectagram-semantic-design",
-    protocol_version = "1", package = "effectagram",
+    solver = "auto", protocol = "crossform-semantic-design",
+    protocol_version = "1", package = "crossform",
     package_version = "0.0.0.9000", provenance = list()) {
   if (!is.list(specification)) {
     stop("`specification` must be a portable semantic declaration list.",
@@ -152,7 +164,12 @@ design_model <- function(
   )
   semantic <- list(
     schema_version = 1L,
-    protocol = compiler[c("protocol", "protocol_version")],
+    protocol = list(
+      protocol = .canonical_design_protocol(
+        compiler$protocol, compiler$protocol_version
+      ),
+      protocol_version = compiler$protocol_version
+    ),
     condition_space = conditions,
     specification = specification,
     provenance = provenance
@@ -222,7 +239,7 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
   }
   solver <- .normalize_solver_routes(solver, partitions)
   compiler <- .design_compiler_record(
-    "effectagram-raw-design", "1", "effectagram", "0.0.0.9000"
+    "crossform-raw-design", "1", "crossform", "0.0.0.9000"
   )
   semantic <- list(
     schema_version = 1L,

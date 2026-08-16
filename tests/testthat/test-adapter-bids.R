@@ -8,7 +8,7 @@
 
 test_that("BIDS adapters preserve facts without assigning model roles", {
   bound <- bound_study_fixture()
-  directory <- tempfile("effectagram-bids-")
+  directory <- tempfile("crossform-bids-")
   dir.create(directory)
   event_files <- confound_files <- character(length(bound$fixture$partitions))
   names(event_files) <- names(confound_files) <- bound$fixture$partitions
@@ -66,7 +66,7 @@ test_that("BIDS adapters preserve facts without assigning model roles", {
 })
 
 test_that("BIDS event timing and censoring ambiguities refuse by capability", {
-  directory <- tempfile("effectagram-bids-refusal-")
+  directory <- tempfile("crossform-bids-refusal-")
   dir.create(directory)
   invalid_events <- .write_bids_tsv(
     data.frame(onset = "n/a", duration = 1, trial_type = "face"),

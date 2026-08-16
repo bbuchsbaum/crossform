@@ -104,7 +104,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     stop("Receipt identities must be nonempty character scalars.", call. = FALSE)
   }
   if (!identical(precision, "double")) {
-    stop("effectagram 0.1 supports only `precision = \"double\"`.", call. = FALSE)
+    stop("crossform 0.1 supports only `precision = \"double\"`.", call. = FALSE)
   }
   if (!is.null(domain_signature) &&
       (!is.character(domain_signature) || length(domain_signature) != 1L ||
@@ -218,7 +218,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     source_access = character(),
     memory = list(baseline_rss_bytes = NULL, incremental_peak_rss_bytes = NULL,
       absolute_peak_rss_bytes = NULL, measured_workspace_bytes = NULL),
-    runtime = list(package_version = as.character(utils::packageVersion("effectagram")),
+    runtime = list(package_version = as.character(utils::packageVersion("crossform")),
       r_version = R.version.string, platform = R.version$platform),
     reporter_failures = character(),
     checkpoint = list(enabled = FALSE, resumed = FALSE, artifacts_written = 0L),
@@ -309,7 +309,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
 
 .validate_memory_plan_for_receipt <- function(memory) {
   if (!inherits(memory, "effect_memory_plan") || !is.numeric(memory$categories)) {
-    stop("`memory` must be an effectagram memory plan.", call. = FALSE)
+    stop("`memory` must be a crossform memory plan.", call. = FALSE)
   }
   expected_categories <- c(
     "frame", "resident_source", "source_handles", "source_block",
@@ -359,7 +359,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
 
 .validate_numeric_contract_for_receipt <- function(contract) {
   if (!inherits(contract, "effect_numerical_contract")) {
-    stop("`numeric_contract` must be an effectagram numerical contract.",
+    stop("`numeric_contract` must be a crossform numerical contract.",
       call. = FALSE)
   }
   rebuilt <- numerical_contract(contract$atol, contract$rtol)
@@ -391,7 +391,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
 
 .validate_execution_receipt <- function(receipt) {
   if (!inherits(receipt, "effect_execution_receipt")) {
-    stop("`receipt` must be an effectagram execution receipt.", call. = FALSE)
+    stop("`receipt` must be a crossform execution receipt.", call. = FALSE)
   }
   expected <- c(
     "scientific_plan_id", "domain_signature", "kernel_version", "task_partition_id",

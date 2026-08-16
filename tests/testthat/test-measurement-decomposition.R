@@ -15,13 +15,13 @@ decomposition_measurement_fixture <- function(seed = 2026081224) {
     0, 1, 4, 2, 1
   ), 2, p, byrow = TRUE)
   additive <- additive_frame(weights, domain = domain)
-  frame <- effectagram:::.measurement_frame_from_additive_decomposition(additive)
+  frame <- crossform:::.measurement_frame_from_additive_decomposition(additive)
   pairs <- expand.grid(
     left = frame$node_ids,
     right = frame$node_ids,
     stringsAsFactors = FALSE
   )
-  spatial_edges <- effectagram:::.measurement_edges(
+  spatial_edges <- crossform:::.measurement_edges(
     pairs$left, pairs$right, frame
   )
   over <- pairing(
@@ -30,24 +30,24 @@ decomposition_measurement_fixture <- function(seed = 2026081224) {
     self_pairs = "allow_biased",
     independence = "not_independent"
   )
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     over, rel$partitions, rel$partitions, TRUE
   )
   h <- crossprod(matrix(rnorm(q * q), q, q))
   query <- pair_query(h, effects, effects)
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     rel, rel, TRUE, partition_edges,
-    effectagram:::.closed_experimental_boundary(query),
-    effectagram:::.open_neural_boundary(frame, frame, spatial_edges),
-    effectagram:::.evidence_stage_plan(),
-    effectagram:::.evidence_materialization(
+    crossform:::.closed_experimental_boundary(query),
+    crossform:::.open_neural_boundary(frame, frame, spatial_edges),
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   )
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     task, compute_policy(block_features = 2L), route = "pull_h"
   )
-  form <- effectagram:::.measurement_form_from_contraction(task, run)
+  form <- crossform:::.measurement_form_from_contraction(task, run)
   list(
     domain = domain,
     effects = effects,
@@ -118,7 +118,7 @@ test_that("coherent and configuration node geometries retain certified values", 
 test_that("every crossed component block exactly reassembles its edge", {
   fixture <- decomposition_measurement_fixture(seed = 2026081226)
   for (edge in seq_len(nrow(fixture$form$block_index))) {
-    lifted <- effectagram:::.lift_measurement_decomposition(
+    lifted <- crossform:::.lift_measurement_decomposition(
       fixture$form, edge
     )
     expect_s3_class(lifted, "effect_measurement_decomposition_view")
@@ -128,11 +128,11 @@ test_that("every crossed component block exactly reassembles its edge", {
       "coherent::configuration", "configuration::configuration"
     ))
     expect_equal(
-      effectagram:::.recompose_measurement_decomposition(lifted),
-      effectagram:::.measurement_block(fixture$form, edge),
+      crossform:::.recompose_measurement_decomposition(lifted),
+      crossform:::.measurement_block(fixture$form, edge),
       tolerance = 0
     )
-    expect_silent(effectagram:::.validate_measurement_decomposition_view(
+    expect_silent(crossform:::.validate_measurement_decomposition_view(
       lifted
     ))
   }
@@ -140,15 +140,15 @@ test_that("every crossed component block exactly reassembles its edge", {
 
 test_that("raw entries require oriented bases while coordinate access remains exact", {
   fixture <- decomposition_measurement_fixture(seed = 2026081227)
-  lifted <- effectagram:::.lift_measurement_decomposition(fixture$form, 2L)
+  lifted <- crossform:::.lift_measurement_decomposition(fixture$form, 2L)
 
-  expect_silent(effectagram:::.measurement_component_block(
+  expect_silent(crossform:::.measurement_component_block(
     lifted, "coherent", "coherent", interpretation = "raw"
   ))
-  expect_error(effectagram:::.measurement_component_block(
+  expect_error(crossform:::.measurement_component_block(
     lifted, "configuration", "configuration", interpretation = "raw"
   ), "oriented bases|subspace")
-  coordinate <- effectagram:::.measurement_component_block(
+  coordinate <- crossform:::.measurement_component_block(
     lifted, "configuration", "configuration", interpretation = "coordinate"
   )
   position <- which(lifted$index$left_component == "configuration" &
@@ -158,22 +158,22 @@ test_that("raw entries require oriented bases while coordinate access remains ex
 
 test_that("reversal swaps crossed components and transposes every block", {
   fixture <- decomposition_measurement_fixture(seed = 2026081228)
-  reversed <- effectagram:::.reverse_measurement_form(fixture$form)
+  reversed <- crossform:::.reverse_measurement_form(fixture$form)
 
   for (edge in seq_len(nrow(fixture$form$block_index))) {
-    forward_lift <- effectagram:::.lift_measurement_decomposition(
+    forward_lift <- crossform:::.lift_measurement_decomposition(
       fixture$form, edge
     )
-    reverse_lift <- effectagram:::.lift_measurement_decomposition(
+    reverse_lift <- crossform:::.lift_measurement_decomposition(
       reversed, edge
     )
     for (row in seq_len(nrow(forward_lift$index))) {
       left <- forward_lift$index$left_component[[row]]
       right <- forward_lift$index$right_component[[row]]
-      forward_block <- effectagram:::.measurement_component_block(
+      forward_block <- crossform:::.measurement_component_block(
         forward_lift, left, right, "coordinate"
       )
-      reverse_block <- effectagram:::.measurement_component_block(
+      reverse_block <- crossform:::.measurement_component_block(
         reverse_lift, right, left, "coordinate"
       )
       expect_equal(reverse_block, t(forward_block), tolerance = 0)
@@ -194,10 +194,10 @@ test_that("invariant summaries survive independent configuration rotations", {
   rotated_left <- left_rotation %*% left_self %*% t(left_rotation)
   rotated_right <- right_rotation %*% right_self %*% t(right_rotation)
 
-  original <- effectagram:::.measurement_invariant_summary(
+  original <- crossform:::.measurement_invariant_summary(
     cross, left_self, right_self
   )
-  rotated <- effectagram:::.measurement_invariant_summary(
+  rotated <- crossform:::.measurement_invariant_summary(
     rotated_cross, rotated_left, rotated_right
   )
 
@@ -217,7 +217,7 @@ test_that("invariant summaries survive independent configuration rotations", {
 test_that("singleton nodes retain a zero-dimensional configuration component", {
   domain <- abstract_domain(3)
   frame <- additive_frame(matrix(c(0, 2, 0), 1), domain = domain)
-  decomposition <- effectagram:::.measurement_frame_from_additive_decomposition(
+  decomposition <- crossform:::.measurement_frame_from_additive_decomposition(
     frame
   )
   leg <- decomposition$legs[[1L]]
@@ -230,15 +230,15 @@ test_that("singleton nodes retain a zero-dimensional configuration component", {
 
 test_that("future named decompositions use the same crossed lifting law", {
   domain <- abstract_domain(3)
-  low <- effectagram:::.measurement_leg(
+  low <- crossform:::.measurement_leg(
     matrix(c(1, 0, 0), 1), domain,
-    effectagram:::.measurement_axis("low", "frequency:low")
+    crossform:::.measurement_axis("low", "frequency:low")
   )
-  high <- effectagram:::.measurement_leg(
+  high <- crossform:::.measurement_leg(
     matrix(c(0, 1, 1), 1), domain,
-    effectagram:::.measurement_axis("high", "frequency:high")
+    crossform:::.measurement_axis("high", "frequency:high")
   )
-  combined <- effectagram:::.direct_sum_measurement_leg(
+  combined <- crossform:::.direct_sum_measurement_leg(
     list(low = low, high = high), "frequency:v1"
   )
 

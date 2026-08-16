@@ -2,7 +2,7 @@
 % Please edit documentation in R/neuroim2-adapter.R
 \name{neuroim2_volume_domain}
 \alias{neuroim2_volume_domain}
-\title{Construct an effectagram domain from a neuroim2 volume mask}
+\title{Construct a crossform domain from a neuroim2 volume mask}
 \usage{
 neuroim2_volume_domain(mask, id = "neuroim2-volume")
 }

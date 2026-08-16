@@ -15,7 +15,7 @@ axis_fixture <- function(domain_id = "generalization-axis-domain") {
 test_that("the generalization axis is declared, validated, and retained", {
   over <- cross_partitions(paste0("p", 1:3), generalizes_over = "run")
   expect_identical(attr(over, "generalizes_over", exact = TRUE), "run")
-  expect_silent(effectagram:::.validate_pairing(over))
+  expect_silent(crossform:::.validate_pairing(over))
   expect_error(
     pairing("a", "b", generalizes_over = ""),
     "one nonempty axis name"
@@ -57,9 +57,9 @@ test_that("the declared axis reaches metric-pairing identity", {
     paste0("p", 1:3), generalizes_over = "session"
   )
   undeclared_pairing <- cross_partitions(paste0("p", 1:3))
-  run_identity <- effectagram:::.metric_pairing_identity(run_pairing)
-  session_identity <- effectagram:::.metric_pairing_identity(session_pairing)
-  undeclared_identity <- effectagram:::.metric_pairing_identity(
+  run_identity <- crossform:::.metric_pairing_identity(run_pairing)
+  session_identity <- crossform:::.metric_pairing_identity(session_pairing)
+  undeclared_identity <- crossform:::.metric_pairing_identity(
     undeclared_pairing
   )
   expect_identical(run_identity$generalizes_over, "run")

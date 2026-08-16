@@ -9,7 +9,7 @@ direct_pair_values <- function(fit, partition, statistics) {
 test_that("fixed-width residual reads pad before residualization", {
   fixture <- residual_statistics_fixture()
   ordinary <- residual_block(fixture$fit, "run1", 17:19)
-  padded <- effectagram:::.residual_padded_block(
+  padded <- crossform:::.residual_padded_block(
     fixture$fit, "run1", 17:19, 8L
   )
 
@@ -51,7 +51,7 @@ test_that("residual pair statistics are bitwise invariant to workspace", {
     unname(wide_reads),
     unname(vapply(wide$execution$atomic, `[[`, integer(1), "residual_reads"))
   )
-  expect_silent(effectagram:::.validate_residual_pair_statistics(
+  expect_silent(crossform:::.validate_residual_pair_statistics(
     narrow, deep = TRUE
   ))
 })
@@ -83,10 +83,10 @@ test_that("atomic statistics combine without rereading residuals", {
     fixture$fit, fixture$frame, workspace_bytes = budget
   )
   fixture$reset_reads()
-  scope <- effectagram:::.residual_pair_scope(
+  scope <- crossform:::.residual_pair_scope(
     statistics, c("run3", "run1")
   )
-  covariance <- effectagram:::.residual_pair_scope_matrix(
+  covariance <- crossform:::.residual_pair_scope_matrix(
     statistics, c("run3", "run1")
   )
 
@@ -118,14 +118,14 @@ test_that("derived local precision inherits workspace bitwise invariance", {
   wide <- residual_pair_statistics(
     fixture$fit, fixture$frame, workspace_bytes = budgets$wider
   )
-  support <- effectagram:::.support_index_support(
+  support <- crossform:::.support_index_support(
     fixture$frame$support_index, 10L
   )[[1L]]
   narrow_covariance <- as.matrix(
-    effectagram:::.residual_pair_scope_matrix(narrow)[support, support]
+    crossform:::.residual_pair_scope_matrix(narrow)[support, support]
   )
   wide_covariance <- as.matrix(
-    effectagram:::.residual_pair_scope_matrix(wide)[support, support]
+    crossform:::.residual_pair_scope_matrix(wide)[support, support]
   )
   regularize <- function(value) {
     target <- diag(diag(value), nrow(value))

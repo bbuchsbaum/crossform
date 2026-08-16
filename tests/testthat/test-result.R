@@ -44,7 +44,7 @@ test_that("full materialization and direct query agree", {
 test_that("bilinear operators compile only after their contracts are checked", {
   geometry <- result_fixture()
   operator <- matrix(c(2, -1, -1, 3), 2)
-  packed <- matrix(effectagram:::.svec_symmetric(operator), ncol = 1)
+  packed <- matrix(crossform:::.svec_symmetric(operator), ncol = 1)
 
   expect_equal(
     query_geometry(geometry, bilinear_query(operator))$values,
@@ -68,11 +68,11 @@ test_that("invalid direct queries perform no store reads", {
   reads <- new.env(parent = emptyenv())
   reads$total <- 0L
   reads$coherent <- 0L
-  total_store <- effectagram:::.block_geometry_store(dim(total), function(rows = NULL) {
+  total_store <- crossform:::.block_geometry_store(dim(total), function(rows = NULL) {
     reads$total <- reads$total + 1L
     if (is.null(rows)) total else total[rows, , drop = FALSE]
   })
-  coherent_store <- effectagram:::.block_geometry_store(dim(coherent), function(rows = NULL) {
+  coherent_store <- crossform:::.block_geometry_store(dim(coherent), function(rows = NULL) {
     reads$coherent <- reads$coherent + 1L
     if (is.null(rows)) coherent else coherent[rows, , drop = FALSE]
   })
@@ -141,10 +141,10 @@ test_that("storage representation cannot change semantic completeness", {
   geometry <- result_fixture()
   total <- geometry_component(geometry, "total")
   coherent <- geometry_component(geometry, "coherent")
-  blocked_total <- effectagram:::.block_geometry_store(
+  blocked_total <- crossform:::.block_geometry_store(
     dim(total), function(rows = NULL) if (is.null(rows)) total else total[rows, , drop = FALSE]
   )
-  blocked_coherent <- effectagram:::.block_geometry_store(
+  blocked_coherent <- crossform:::.block_geometry_store(
     dim(coherent),
     function(rows = NULL) if (is.null(rows)) coherent else coherent[rows, , drop = FALSE]
   )

@@ -17,7 +17,7 @@ output_dir <- if (length(args) >= 2L) args[[2L]] else file.path(repo, "benchmark
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 pkgload::load_all(repo, quiet = TRUE)
-scenarios <- effectagram:::.memory_benchmark_scenarios()
+scenarios <- crossform:::.memory_benchmark_scenarios()
 summary_rows <- vector("list", nrow(scenarios))
 
 for (scenario_index in seq_len(nrow(scenarios))) {

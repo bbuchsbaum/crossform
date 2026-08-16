@@ -3,10 +3,10 @@
 # Reproducible statistical validation for Diedrichsen et al. Eq. 13 under the
 # exact equal-partition, fixed-metric, separable matrix-normal capability.
 # This script deliberately uses the independent base-R law court rather than
-# effectagram implementation code.
+# crossform implementation code.
 
 arguments <- commandArgs(trailingOnly = TRUE)
-repetitions <- as.integer(Sys.getenv("EFFECTAGRAM_CALIBRATION_REPS", "10000"))
+repetitions <- as.integer(Sys.getenv("CROSSFORM_CALIBRATION_REPS", "10000"))
 if (length(arguments) > 0L && nzchar(arguments[[1L]])) {
   repetitions <- as.integer(arguments[[1L]])
 }

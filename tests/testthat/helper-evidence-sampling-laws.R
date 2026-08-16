@@ -1,5 +1,5 @@
 # Independent numerical laws for evidence-sampling-v1. These helpers use base
-# R only and deliberately call no effectagram function.
+# R only and deliberately call no crossform function.
 
 sampling_oracle_matrix <- function(value, name, symmetric = FALSE) {
   if (!is.matrix(value) || !is.numeric(value) || any(dim(value) < 1L) ||

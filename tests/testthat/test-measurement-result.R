@@ -12,30 +12,30 @@ joint_measurement_fixture <- function(seed = 2026081215,
   )
   rel <- relation(values, effects = effects, domain = domain)
   h <- diag(q) - matrix(1 / q, q, q)
-  query <- effectagram:::.variation_pair_query(
+  query <- crossform:::.variation_pair_query(
     h, effects, sampling_axis = "trial",
     construction = "joint_covariance",
     provenance = list(estimator = "centered-within-run")
   )
   legs <- list(
-    a = effectagram:::.measurement_leg(
+    a = crossform:::.measurement_leg(
       matrix(c(1, 0, 1, -1, 0, 2, 1, 0), 2, p, byrow = TRUE),
       domain,
-      effectagram:::.measurement_axis(c("a1", "a2"), "joint:a:v1")
+      crossform:::.measurement_axis(c("a1", "a2"), "joint:a:v1")
     ),
-    b = effectagram:::.measurement_leg(
+    b = crossform:::.measurement_leg(
       matrix(c(0, 1, 1, 0, 2, -1, 0, 1), 2, p, byrow = TRUE),
       domain,
-      effectagram:::.measurement_axis(c("b1", "b2"), "joint:b:v1")
+      crossform:::.measurement_axis(c("b1", "b2"), "joint:b:v1")
     )
   )
-  frame <- effectagram:::.measurement_frame(legs)
+  frame <- crossform:::.measurement_frame(legs)
   pairs <- expand.grid(
     left = frame$node_ids,
     right = frame$node_ids,
     stringsAsFactors = FALSE
   )
-  spatial_edges <- effectagram:::.measurement_edges(
+  spatial_edges <- crossform:::.measurement_edges(
     pairs$left, pairs$right, frame
   )
   over <- if (crossvalidated) {
@@ -48,17 +48,17 @@ joint_measurement_fixture <- function(seed = 2026081215,
       independence = "not_independent"
     )
   }
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     over, rel$partitions, rel$partitions, TRUE
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     rel, rel, TRUE, partition_edges,
-    effectagram:::.closed_experimental_boundary(
+    crossform:::.closed_experimental_boundary(
       query, role = "variation", sampling_axis = "trial"
     ),
-    effectagram:::.open_neural_boundary(frame, frame, spatial_edges),
-    effectagram:::.evidence_stage_plan(),
-    effectagram:::.evidence_materialization(
+    crossform:::.open_neural_boundary(frame, frame, spatial_edges),
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   )
@@ -67,10 +67,10 @@ joint_measurement_fixture <- function(seed = 2026081215,
 
 test_that("measurement_form is complete, durable, and distinct from effect_form", {
   fixture <- measurement_kernel_fixture(seed = 2026081216)
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     fixture$task, compute_policy(block_features = 2L), route = "pull_h"
   )
-  form <- effectagram:::.measurement_form_from_contraction(
+  form <- crossform:::.measurement_form_from_contraction(
     fixture$task, run
   )
 
@@ -87,23 +87,23 @@ test_that("measurement_form is complete, durable, and distinct from effect_form"
   expect_identical(form$receipt$execution$kernel_version,
     "measurement-form-v1")
   for (edge in seq_along(run$blocks)) {
-    expect_equal(effectagram:::.measurement_block(form, edge),
+    expect_equal(crossform:::.measurement_block(form, edge),
       run$blocks[[edge]], tolerance = 0)
   }
-  expect_silent(effectagram:::.validate_measurement_form(form))
+  expect_silent(crossform:::.validate_measurement_form(form))
 })
 
 test_that("memory and block codecs preserve one semantic result identity", {
   fixture <- measurement_kernel_fixture(seed = 2026081217)
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     fixture$task, compute_policy(block_features = 2L), route = "pull_h"
   )
   path <- tempfile(fileext = ".emf")
   on.exit(unlink(c(path, paste0(path, ".manifest.rds"))), add = TRUE)
-  memory <- effectagram:::.measurement_form_from_contraction(
+  memory <- crossform:::.measurement_form_from_contraction(
     fixture$task, run, storage = "memory"
   )
-  blocked <- effectagram:::.measurement_form_from_contraction(
+  blocked <- crossform:::.measurement_form_from_contraction(
     fixture$task, run, storage = "block", path = path
   )
 
@@ -113,16 +113,16 @@ test_that("memory and block codecs preserve one semantic result identity", {
   expect_identical(memory$codec, blocked$codec)
   expect_false(identical(memory$storage, blocked$storage))
   for (edge in seq_len(nrow(memory$block_index))) {
-    expect_equal(effectagram:::.measurement_block(memory, edge),
-      effectagram:::.measurement_block(blocked, edge), tolerance = 0)
+    expect_equal(crossform:::.measurement_block(memory, edge),
+      crossform:::.measurement_block(blocked, edge), tolerance = 0)
   }
 })
 
 test_that("construction capabilities cannot be forged from diagnostics", {
   fixture <- measurement_kernel_fixture(seed = 2026081218)
-  run <- effectagram:::.run_measurement_contraction(fixture$task,
+  run <- crossform:::.run_measurement_contraction(fixture$task,
     route = "pull_h")
-  form <- effectagram:::.measurement_form_from_contraction(fixture$task, run)
+  form <- crossform:::.measurement_form_from_contraction(fixture$task, run)
 
   expect_false(form$capabilities$repeated_variation)
   expect_false(form$capabilities$joint_covariance)
@@ -132,20 +132,20 @@ test_that("construction capabilities cannot be forged from diagnostics", {
 
   forged <- form
   forged$capabilities$guaranteed_psd <- TRUE
-  expect_error(effectagram:::.validate_measurement_form(forged),
+  expect_error(crossform:::.validate_measurement_form(forged),
     "cannot be forged")
   forged <- form
   forged$diagnostics$blocks$observed_min_eigenvalue[] <- 1
-  expect_error(effectagram:::.validate_measurement_form(forged),
+  expect_error(crossform:::.validate_measurement_form(forged),
     "diagnostics signature")
 })
 
 test_that("joint covariance requires same-partition self-products", {
   valid <- joint_measurement_fixture(crossvalidated = FALSE)
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     valid$task, compute_policy(block_features = 2L), route = "pull_h"
   )
-  form <- effectagram:::.measurement_form_from_contraction(
+  form <- crossform:::.measurement_form_from_contraction(
     valid$task, run,
     query_construction = "joint_covariance",
     edge_scope = "frame_complete"
@@ -160,7 +160,7 @@ test_that("joint covariance requires same-partition self-products", {
   expect_identical(form$capabilities$sampling_axis, "trial")
 
   blocks <- lapply(seq_len(nrow(form$block_index)), function(edge) {
-    effectagram:::.measurement_block(form, edge)
+    crossform:::.measurement_block(form, edge)
   })
   rows <- valid$frame$node_ids
   assembled <- do.call(rbind, lapply(rows, function(left) {
@@ -174,15 +174,15 @@ test_that("joint covariance requires same-partition self-products", {
     only.values = TRUE)$values), -1e-10)
 
   invalid <- joint_measurement_fixture(crossvalidated = TRUE)
-  invalid_run <- effectagram:::.run_measurement_contraction(
+  invalid_run <- crossform:::.run_measurement_contraction(
     invalid$task, route = "pull_h"
   )
-  expect_error(effectagram:::.measurement_form_from_contraction(
+  expect_error(crossform:::.measurement_form_from_contraction(
     invalid$task, invalid_run,
     query_construction = "joint_covariance",
     edge_scope = "frame_complete"
   ), "same-partition|crossvalidated")
-  variation <- effectagram:::.measurement_form_from_contraction(
+  variation <- crossform:::.measurement_form_from_contraction(
     invalid$task, invalid_run,
     query_construction = "psd_variation",
     edge_scope = "frame_complete"
@@ -194,10 +194,10 @@ test_that("joint covariance requires same-partition self-products", {
 
 test_that("reversal transposes blocks and swaps every measurement axis", {
   fixture <- measurement_kernel_fixture(seed = 2026081219)
-  run <- effectagram:::.run_measurement_contraction(fixture$task,
+  run <- crossform:::.run_measurement_contraction(fixture$task,
     route = "pull_h")
-  form <- effectagram:::.measurement_form_from_contraction(fixture$task, run)
-  reversed <- effectagram:::.reverse_measurement_form(form)
+  form <- crossform:::.measurement_form_from_contraction(fixture$task, run)
+  reversed <- crossform:::.reverse_measurement_form(form)
 
   expect_identical(reversed$left_frame, form$right_frame)
   expect_identical(reversed$right_frame, form$left_frame)
@@ -207,46 +207,46 @@ test_that("reversal transposes blocks and swaps every measurement axis", {
   expect_identical(reversed$receipt$derivation$parent,
     form$receipt$signature)
   for (edge in seq_len(nrow(form$block_index))) {
-    expect_equal(effectagram:::.measurement_block(reversed, edge),
-      t(effectagram:::.measurement_block(form, edge)), tolerance = 0)
+    expect_equal(crossform:::.measurement_block(reversed, edge),
+      t(crossform:::.measurement_block(form, edge)), tolerance = 0)
   }
-  expect_silent(effectagram:::.validate_measurement_form(reversed))
+  expect_silent(crossform:::.validate_measurement_form(reversed))
 })
 
 test_that("swapped axes, incomplete stores, and forged plan identity fail", {
   fixture <- measurement_kernel_fixture(seed = 2026081220)
-  run <- effectagram:::.run_measurement_contraction(fixture$task,
+  run <- crossform:::.run_measurement_contraction(fixture$task,
     route = "pull_h")
-  form <- effectagram:::.measurement_form_from_contraction(fixture$task, run)
+  form <- crossform:::.measurement_form_from_contraction(fixture$task, run)
 
   swapped <- form
   swapped$left_frame <- form$right_frame
-  expect_error(effectagram:::.validate_measurement_form(swapped, probe = FALSE),
+  expect_error(crossform:::.validate_measurement_form(swapped, probe = FALSE),
     "axes|identity|disagree")
   forged <- form
   forged$plan$edge_scope <- "frame_complete"
-  expect_error(effectagram:::.validate_measurement_form(forged, probe = FALSE),
+  expect_error(crossform:::.validate_measurement_form(forged, probe = FALSE),
     "complete|identity")
 
   path <- tempfile(fileext = ".emf")
   on.exit(unlink(c(path, paste0(path, ".manifest.rds"))), add = TRUE)
-  incomplete <- effectagram:::.file_measurement_store(
+  incomplete <- crossform:::.file_measurement_store(
     path, form$block_index, create = TRUE
   )
-  expect_error(effectagram:::.new_measurement_form(
+  expect_error(crossform:::.new_measurement_form(
     incomplete, form$plan, form$capabilities, form$diagnostics, form$receipt
   ), "incomplete")
 })
 
 test_that("query-only measurement views cannot become complete forms", {
   fixture <- measurement_kernel_fixture(seed = 2026081221)
-  run <- effectagram:::.run_measurement_contraction(fixture$task,
+  run <- crossform:::.run_measurement_contraction(fixture$task,
     route = "pull_h")
-  form <- effectagram:::.measurement_form_from_contraction(fixture$task, run)
+  form <- crossform:::.measurement_form_from_contraction(fixture$task, run)
   values <- matrix(vapply(seq_len(nrow(form$block_index)), function(edge) {
-    sum(effectagram:::.measurement_block(form, edge)^2)
+    sum(crossform:::.measurement_block(form, edge)^2)
   }, numeric(1)), ncol = 1L)
-  view <- effectagram:::.measurement_view(
+  view <- crossform:::.measurement_view(
     values, form$plan, form$receipt,
     view = list(kind = "squared_energy")
   )
@@ -255,67 +255,67 @@ test_that("query-only measurement views cannot become complete forms", {
   expect_false(inherits(view, "effect_measurement_form"))
   expect_identical(view$completeness, "query_only")
   expect_identical(view$edge_completeness, "requested_complete")
-  expect_silent(effectagram:::.validate_measurement_view(view))
+  expect_silent(crossform:::.validate_measurement_view(view))
   upgraded <- view
   upgraded$completeness <- "complete"
-  expect_error(effectagram:::.validate_measurement_view(upgraded),
+  expect_error(crossform:::.validate_measurement_view(upgraded),
     "query-only")
-  expect_error(effectagram:::.measurement_block(view, 1L),
+  expect_error(crossform:::.measurement_block(view, 1L),
     "canonical complete")
 })
 
 test_that("typed view eligibility is capability-gated before block reads", {
   fixture <- measurement_kernel_fixture(seed = 2026081223)
-  run <- effectagram:::.run_measurement_contraction(fixture$task,
+  run <- crossform:::.run_measurement_contraction(fixture$task,
     route = "pull_h")
-  arbitrary <- effectagram:::.measurement_form_from_contraction(
+  arbitrary <- crossform:::.measurement_form_from_contraction(
     fixture$task, run
   )
 
-  expect_silent(effectagram:::.require_measurement_view_capabilities(
+  expect_silent(crossform:::.require_measurement_view_capabilities(
     arbitrary, "effect_coupling"
   ))
-  expect_error(effectagram:::.require_measurement_view_capabilities(
+  expect_error(crossform:::.require_measurement_view_capabilities(
     arbitrary, "covariance_coupling"
   ), "repeated variation")
 
   joint <- joint_measurement_fixture(crossvalidated = FALSE)
-  joint_run <- effectagram:::.run_measurement_contraction(joint$task,
+  joint_run <- crossform:::.run_measurement_contraction(joint$task,
     route = "pull_h")
-  covariance <- effectagram:::.measurement_form_from_contraction(
+  covariance <- crossform:::.measurement_form_from_contraction(
     joint$task, joint_run,
     query_construction = "joint_covariance",
     edge_scope = "frame_complete"
   )
-  expect_silent(effectagram:::.require_measurement_view_capabilities(
+  expect_silent(crossform:::.require_measurement_view_capabilities(
     covariance, "covariance_coupling"
   ))
-  expect_error(effectagram:::.require_measurement_view_capabilities(
+  expect_error(crossform:::.require_measurement_view_capabilities(
     covariance, "canonical_coupling", positive_self_blocks = FALSE
   ), "positive self-blocks")
-  expect_silent(effectagram:::.require_measurement_view_capabilities(
+  expect_silent(crossform:::.require_measurement_view_capabilities(
     covariance, "canonical_coupling", positive_self_blocks = TRUE
   ))
 })
 
 test_that("regularization identity is recorded but raw blocks cannot claim it applied", {
   fixture <- measurement_kernel_fixture(seed = 2026081222)
-  run <- effectagram:::.run_measurement_contraction(fixture$task,
+  run <- crossform:::.run_measurement_contraction(fixture$task,
     route = "pull_h")
-  policy <- effectagram:::.measurement_regularization(
+  policy <- crossform:::.measurement_regularization(
     "ridge", lambda_left = 1e-6, lambda_right = 2e-6,
     applied = FALSE
   )
-  form <- effectagram:::.measurement_form_from_contraction(
+  form <- crossform:::.measurement_form_from_contraction(
     fixture$task, run, regularization = policy
   )
 
   expect_identical(form$plan$regularization, policy)
   expect_identical(form$diagnostics$regularization$policy, policy$signature)
   expect_false(form$diagnostics$regularization$applied)
-  expect_error(effectagram:::.measurement_form_from_contraction(
+  expect_error(crossform:::.measurement_form_from_contraction(
     fixture$task, run,
-    regularization = effectagram:::.measurement_regularization(
+    regularization = crossform:::.measurement_regularization(
       "ridge", 1e-6, applied = TRUE
     )
   ), "Raw measurement blocks")

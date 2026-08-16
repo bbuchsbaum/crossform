@@ -83,9 +83,9 @@ measurement_kernel_fixture <- function(scalar = FALSE, low_rank_h = FALSE,
   }
   make_legs <- function(operators, domain, prefix) {
     legs <- Map(function(operator, node) {
-      effectagram:::.measurement_leg(
+      crossform:::.measurement_leg(
         operator, domain,
-        effectagram:::.measurement_axis(
+        crossform:::.measurement_axis(
           paste0("mode", seq_len(nrow(operator))),
           paste0(prefix, ":", node),
           basis_id = paste0(prefix, ":fixed-basis")
@@ -95,13 +95,13 @@ measurement_kernel_fixture <- function(scalar = FALSE, low_rank_h = FALSE,
     names(legs) <- names(operators)
     legs
   }
-  left_frame <- effectagram:::.measurement_frame(
+  left_frame <- crossform:::.measurement_frame(
     make_legs(left_operators, left_domain, "left-frame")
   )
-  right_frame <- effectagram:::.measurement_frame(
+  right_frame <- crossform:::.measurement_frame(
     make_legs(right_operators, right_domain, "right-frame")
   )
-  measurement_edges <- effectagram:::.measurement_edges(
+  measurement_edges <- crossform:::.measurement_edges(
     c("x1", "x2", "x3", "x1"),
     c("y2", "y1", "y3", "y3"),
     left_frame, right_frame,
@@ -110,7 +110,7 @@ measurement_kernel_fixture <- function(scalar = FALSE, low_rank_h = FALSE,
   over <- pairing(
     left_partitions, right_partitions, c(0.35, 0.65), directed = TRUE
   )
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     over, left_partitions, right_partitions, FALSE
   )
   h <- if (low_rank_h) {
@@ -120,14 +120,14 @@ measurement_kernel_fixture <- function(scalar = FALSE, low_rank_h = FALSE,
     matrix(rnorm(q_left * q_right), q_left, q_right)
   }
   query <- pair_query(h, left_space, right_space)
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     left_relation, right_relation, FALSE, partition_edges,
-    effectagram:::.closed_experimental_boundary(query),
-    effectagram:::.open_neural_boundary(
+    crossform:::.closed_experimental_boundary(query),
+    crossform:::.open_neural_boundary(
       left_frame, right_frame, measurement_edges
     ),
-    effectagram:::.evidence_stage_plan(),
-    effectagram:::.evidence_materialization(
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   )

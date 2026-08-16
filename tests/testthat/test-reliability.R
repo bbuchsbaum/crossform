@@ -1,7 +1,7 @@
 test_that("reporter failure cannot alter a successful scientific result", {
   receipt <- receipt_fixture()
   oracle <- matrix(c(1, 2, 3, 4), 2)
-  got <- effectagram:::.execute_guarded(
+  got <- crossform:::.execute_guarded(
     compute = function() oracle,
     receipt = receipt,
     reporter = function(event) stop("display failed"),
@@ -15,7 +15,7 @@ test_that("execution failure carries receipt and successful cleanup status", {
   receipt <- receipt_fixture()
   cleaned <- FALSE
   condition <- tryCatch(
-    effectagram:::.execute_guarded(
+    crossform:::.execute_guarded(
       compute = function() stop("kernel failed"),
       receipt = receipt,
       cleanup = function() cleaned <<- TRUE
@@ -35,7 +35,7 @@ test_that("execution failure carries receipt and successful cleanup status", {
 test_that("cleanup failure is itself a receipt-bearing execution failure", {
   receipt <- receipt_fixture()
   condition <- tryCatch(
-    effectagram:::.execute_guarded(
+    crossform:::.execute_guarded(
       compute = function() 42,
       receipt = receipt,
       cleanup = function() stop("close failed")
@@ -54,7 +54,7 @@ test_that("cleanup failure is itself a receipt-bearing execution failure", {
 test_that("reporter diagnostics remain nonsemantic on computational failure", {
   receipt <- receipt_fixture()
   condition <- tryCatch(
-    effectagram:::.execute_guarded(
+    crossform:::.execute_guarded(
       compute = function() stop("science failed"),
       receipt = receipt,
       reporter = function(event) stop("observer failed")
@@ -76,7 +76,7 @@ test_that("synthetic interrupts preserve interrupt semantics and clean exactly o
     class = c("interrupt", "condition")
   )
   condition <- tryCatch(
-    effectagram:::.execute_guarded(
+    crossform:::.execute_guarded(
       compute = function() signalCondition(interrupt),
       receipt = receipt_fixture(),
       reporter = function(event) events[[length(events) + 1L]] <<- event,
@@ -96,7 +96,7 @@ test_that("synthetic interrupts preserve interrupt semantics and clean exactly o
 test_that("primary failure wins when cleanup and reporting also fail", {
   cleaned <- 0L
   condition <- tryCatch(
-    effectagram:::.execute_guarded(
+    crossform:::.execute_guarded(
       compute = function() stop("primary computation failed"),
       receipt = receipt_fixture(),
       reporter = function(event) stop("observer failed"),
@@ -119,7 +119,7 @@ test_that("primary failure wins when cleanup and reporting also fail", {
 test_that("success cleanup and completion reporting occur exactly once", {
   cleaned <- 0L
   final_receipt <- NULL
-  value <- effectagram:::.execute_guarded(
+  value <- crossform:::.execute_guarded(
     compute = function() 17,
     receipt = receipt_fixture(),
     reporter = function(event) {
@@ -140,7 +140,7 @@ test_that("cleanup failure cannot replace interrupt semantics", {
   interrupt <- structure(list(message = "stop now", call = NULL),
     class = c("interrupt", "condition"))
   condition <- tryCatch(
-    effectagram:::.execute_guarded(
+    crossform:::.execute_guarded(
       compute = function() signalCondition(interrupt),
       receipt = receipt_fixture(),
       reporter = function(event) stop("observer failed"),

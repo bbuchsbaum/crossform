@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      EFFECTAGRAM_RUN_SCALE_TESTS: "true"
+      CROSSFORM_RUN_SCALE_TESTS: "true"
     steps:
     - uses: actions/checkout@v4
     - uses: r-lib/actions/setup-r@v2

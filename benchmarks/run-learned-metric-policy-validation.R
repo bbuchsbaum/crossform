@@ -16,11 +16,11 @@
 # identity observation metric. The latter is a scoped misspecification stress
 # test, not a model of every possible analysis failure.
 
-if (!requireNamespace("effectagram", quietly = TRUE)) {
-  stop("Install effectagram before running policy validation.")
+if (!requireNamespace("crossform", quietly = TRUE)) {
+  stop("Install crossform before running policy validation.")
 }
 
-library(effectagram)
+library(crossform)
 
 arguments <- commandArgs(trailingOnly = TRUE)
 replications <- if (length(arguments) >= 1L) {
@@ -99,7 +99,7 @@ policies <- list(
   )
 )
 
-support <- effectagram:::.support_index_support(
+support <- crossform:::.support_index_support(
   frame$support_index, selected_node
 )[[1L]]
 frame_weights <- as.numeric(frame$weights[selected_node, support])
@@ -192,7 +192,7 @@ run_replication <- function(regime, replication) {
         numeric(length(support))
       }
       sum(vapply(seq_len(nrow(over)), function(edge) {
-        metric <- effectagram:::materialize_metric(
+        metric <- crossform:::materialize_metric(
           plan$metric_schedule, selected_node, edge
         )
         over$weight[[edge]] * drop(delta %*% metric$value %*% delta)

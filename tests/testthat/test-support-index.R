@@ -28,10 +28,10 @@ test_that("coordinate-cell supports and pair patterns match brute force", {
   )
   radius <- 1.05
   expected <- brute_ball_supports(domain, radius)
-  index <- effectagram:::.euclidean_support_index(domain, radius)
+  index <- crossform:::.euclidean_support_index(domain, radius)
 
   expect_identical(
-    effectagram:::.support_index_support(index, seq_len(domain$n_features)),
+    crossform:::.support_index_support(index, seq_len(domain$n_features)),
     expected
   )
   expect_identical(
@@ -40,7 +40,7 @@ test_that("coordinate-cell supports and pair patterns match brute force", {
   )
   expect_identical(index$construction$provider, "coordinate_cells")
   expect_identical(index$construction$lookup, "mixed_radix_vectorized")
-  expect_silent(effectagram:::.validate_support_index(index, deep = TRUE))
+  expect_silent(crossform:::.validate_support_index(index, deep = TRUE))
 })
 
 test_that("coordinate-cell hashing remains exact beyond mixed-radix range", {
@@ -50,10 +50,10 @@ test_that("coordinate-cell hashing remains exact beyond mixed-radix range", {
   )
   radius <- 1.01
   expected <- brute_ball_supports(domain, radius)
-  index <- effectagram:::.euclidean_support_index(domain, radius)
+  index <- crossform:::.euclidean_support_index(domain, radius)
 
   expect_identical(
-    effectagram:::.support_index_support(index, seq_len(domain$n_features)),
+    crossform:::.support_index_support(index, seq_len(domain$n_features)),
     expected
   )
   expect_identical(index$construction$lookup, "hashed_tuple")
@@ -66,10 +66,10 @@ test_that("volume stencils preserve holes, anisotropy, and brute-force order", {
     id = "anisotropic-mask")
   radius <- 2.55
   expected <- brute_ball_supports(domain, radius)
-  index <- effectagram:::.euclidean_support_index(domain, radius)
+  index <- crossform:::.euclidean_support_index(domain, radius)
 
   expect_identical(
-    effectagram:::.support_index_support(index, seq_len(domain$n_features)),
+    crossform:::.support_index_support(index, seq_len(domain$n_features)),
     expected
   )
   expect_identical(
@@ -81,14 +81,14 @@ test_that("volume stencils preserve holes, anisotropy, and brute-force order", {
 
 test_that("support identities, blocks, gathers, and costs are deterministic", {
   domain <- volume_domain(array(TRUE, c(4, 4, 3)), id = "support-tools")
-  first <- effectagram:::.euclidean_support_index(domain, 1.01)
-  second <- effectagram:::.euclidean_support_index(domain, 1.01)
-  changed <- effectagram:::.euclidean_support_index(domain, 1.5)
+  first <- crossform:::.euclidean_support_index(domain, 1.01)
+  second <- crossform:::.euclidean_support_index(domain, 1.01)
+  changed <- crossform:::.euclidean_support_index(domain, 1.5)
 
   expect_identical(first$signature, second$signature)
   expect_false(identical(first$signature, changed$signature))
   expect_identical(
-    effectagram:::.support_index_blocks(first, 19L),
+    crossform:::.support_index_blocks(first, 19L),
     data.frame(
       block = 1:3,
       start = c(1L, 20L, 39L),
@@ -96,10 +96,10 @@ test_that("support identities, blocks, gathers, and costs are deterministic", {
       stringsAsFactors = FALSE
     )
   )
-  support <- effectagram:::.support_index_support(first, 7L)[[1L]]
+  support <- crossform:::.support_index_support(first, 7L)[[1L]]
   relation <- matrix(seq_len(3 * domain$n_features), 3)
   expect_identical(
-    effectagram:::.support_index_gather(first, relation, 7L),
+    crossform:::.support_index_gather(first, relation, 7L),
     relation[, support, drop = FALSE]
   )
   expect_equal(first$cost$diagonal_metric_entries,
@@ -113,9 +113,9 @@ test_that("support identities, blocks, gathers, and costs are deterministic", {
 
 test_that("support preflight refuses persistent dense local schedules", {
   domain <- volume_domain(array(TRUE, c(12, 11, 10)), id = "preflight")
-  index <- effectagram:::.euclidean_support_index(domain, 2.1)
+  index <- crossform:::.euclidean_support_index(domain, 2.1)
   budget <- index$cost$materialized_dense_metric_bytes * 2
-  preflight <- effectagram:::.support_index_preflight(
+  preflight <- crossform:::.support_index_preflight(
     index, budget, evaluation_edges = 3L
   )
 
@@ -139,14 +139,14 @@ test_that("support preflight refuses persistent dense local schedules", {
 
 test_that("support preflight requires explicit valid edge multiplicity", {
   domain <- volume_domain(array(TRUE, c(3, 3, 2)), id = "edge-preflight")
-  index <- effectagram:::.euclidean_support_index(domain, 1.01)
+  index <- crossform:::.euclidean_support_index(domain, 1.01)
 
   expect_error(
-    effectagram:::.support_index_preflight(index, evaluation_edges = 0),
+    crossform:::.support_index_preflight(index, evaluation_edges = 0),
     "positive integer"
   )
   expect_error(
-    effectagram:::.support_index_preflight(index, evaluation_edges = 1.5),
+    crossform:::.support_index_preflight(index, evaluation_edges = 1.5),
     "positive integer"
   )
 })
@@ -160,18 +160,18 @@ test_that("compiled searchlights retain their canonical support topology", {
   expect_s3_class(frame$support_index, "effect_support_index")
   expect_identical(frame$support_index$node_ids, frame$index$measurement)
   expect_identical(
-    as.matrix(effectagram:::.support_index_membership(frame$support_index) != 0),
+    as.matrix(crossform:::.support_index_membership(frame$support_index) != 0),
     as.matrix(frame$weights != 0)
   )
-  expect_silent(effectagram:::.validate_frame_for_compile(frame))
+  expect_silent(crossform:::.validate_frame_for_compile(frame))
 })
 
 test_that("a 50k-volume topology builds without quadratic storage", {
-  if (!identical(Sys.getenv("EFFECTAGRAM_RUN_SCALE_TESTS"), "true")) {
-    skip("Set EFFECTAGRAM_RUN_SCALE_TESTS=true to run the 50k topology gate.")
+  if (!identical(Sys.getenv("CROSSFORM_RUN_SCALE_TESTS"), "true")) {
+    skip("Set CROSSFORM_RUN_SCALE_TESTS=true to run the 50k topology gate.")
   }
   domain <- volume_domain(array(TRUE, c(50, 40, 25)), id = "volume-50k")
-  index <- effectagram:::.euclidean_support_index(domain, 1.01)
+  index <- crossform:::.euclidean_support_index(domain, 1.01)
 
   expect_identical(index$cost$nodes, 50000)
   expect_lte(index$cost$support_size[["max"]], 7)
@@ -181,8 +181,8 @@ test_that("a 50k-volume topology builds without quadratic storage", {
 })
 
 test_that("a 50k-coordinate topology uses vectorized cell lookup", {
-  if (!identical(Sys.getenv("EFFECTAGRAM_RUN_SCALE_TESTS"), "true")) {
-    skip("Set EFFECTAGRAM_RUN_SCALE_TESTS=true to run the 50k topology gate.")
+  if (!identical(Sys.getenv("CROSSFORM_RUN_SCALE_TESTS"), "true")) {
+    skip("Set CROSSFORM_RUN_SCALE_TESTS=true to run the 50k topology gate.")
   }
   coordinates <- as.matrix(expand.grid(
     x = seq_len(37L), y = seq_len(37L), z = seq_len(37L)
@@ -191,7 +191,7 @@ test_that("a 50k-coordinate topology uses vectorized cell lookup", {
     nrow(coordinates), coordinates = coordinates, id = "coordinates-50k"
   )
   elapsed <- system.time({
-    index <- effectagram:::.euclidean_support_index(domain, 1.1)
+    index <- crossform:::.euclidean_support_index(domain, 1.1)
   })[["elapsed"]]
 
   expect_identical(index$cost$nodes, 50653)
@@ -204,24 +204,24 @@ test_that("a 50k-coordinate topology uses vectorized cell lookup", {
 
 test_that("deep validation detects changed supports or pair topology", {
   domain <- volume_domain(array(TRUE, c(3, 3, 2)), id = "support-mutation")
-  index <- effectagram:::.euclidean_support_index(domain, 1.01)
+  index <- crossform:::.euclidean_support_index(domain, 1.01)
   index$members[[1L]] <- if (index$members[[1L]] == 1L) 2L else 1L
 
   expect_error(
-    effectagram:::.validate_support_index(index, deep = TRUE),
+    crossform:::.validate_support_index(index, deep = TRUE),
     "strictly increasing|pair pattern|identity"
   )
 })
 
 test_that("deep validation rejects noncanonical support order", {
   domain <- volume_domain(array(TRUE, c(3, 3, 2)), id = "support-order")
-  index <- effectagram:::.euclidean_support_index(domain, 1.01)
+  index <- crossform:::.euclidean_support_index(domain, 1.01)
   start <- index$ptr[[2L]] + 1
   end <- index$ptr[[3L]]
   index$members[start:end] <- rev(index$members[start:end])
 
   expect_error(
-    effectagram:::.validate_support_index(index, deep = TRUE),
+    crossform:::.validate_support_index(index, deep = TRUE),
     "strictly increasing"
   )
 })

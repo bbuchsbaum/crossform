@@ -11,9 +11,9 @@ design_model(
   parameterizations,
   row_ids = NULL,
   solver = "auto",
-  protocol = "effectagram-semantic-design",
+  protocol = "crossform-semantic-design",
   protocol_version = "1",
-  package = "effectagram",
+  package = "crossform",
   package_version = "0.0.0.9000",
   provenance = list()
 )

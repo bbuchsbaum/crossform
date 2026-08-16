@@ -328,7 +328,7 @@
 #'   requested measurement. `"shared_pair_statistics"` explicitly compiles
 #'   reusable residual pair sufficient statistics for a batch of overlapping
 #'   supports.
-#' @param residual_workspace_bytes Positive effectagram-owned workspace budget
+#' @param residual_workspace_bytes Positive crossform-owned workspace budget
 #'   for shared residual pair statistics.
 #' @return An `effect_rdm_sampling_covariance`, queryable by
 #'   [sampling_covariance()]. It contains within-measurement uncertainty only;

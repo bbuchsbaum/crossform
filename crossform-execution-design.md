@@ -1,8 +1,8 @@
-# `effectagram` execution model
+# `crossform` execution model
 
 Status: architecture proposal; review corrections incorporated, not implementation
 Date: 2026-08-12
-Companion to: [effectagram-package-design.md](effectagram-package-design.md)
+Companion to: [crossform-package-design.md](crossform-package-design.md)
 
 ## Version 0.1 execution contract freeze
 
@@ -42,9 +42,9 @@ documentation, and `R CMD check`.
 
 ## Outcome
 
-`effectagram` should not replace rMVPA’s `future` calls with another parallel map. For its additive fixed-bilinear core, it should eliminate the unit of work that made that machinery necessary.
+`crossform` should not replace rMVPA’s `future` calls with another parallel map. For its additive fixed-bilinear core, it should eliminate the unit of work that made that machinery necessary.
 
-rMVPA schedules regions or searchlights because each region is treated as a separate fit. `effectagram` compiles additive diagonal-frame locations with fixed bilinear queries into matrix algebra:
+rMVPA schedules regions or searchlights because each region is treated as a separate fit. `crossform` compiles additive diagonal-frame locations with fixed bilinear queries into matrix algebra:
 
 \[
 V=W\,\Phi_\Gamma(EY)\,C.
@@ -58,7 +58,7 @@ The execution principle is:
 
 `shard` is valuable here. The correction is not to discard shared memory or
 supervised workers; it is to prevent them from becoming another scientific
-engine. `effectagram` should use `shard` as an optional data-plane and executor
+engine. `crossform` should use `shard` as an optional data-plane and executor
 adapter beneath the one relation/geometry kernel.
 
 ## What the current rMVPA execution model is compensating for
@@ -76,7 +76,7 @@ The live rMVPA audit at commit `3b12a8855b06f549e5772ccb9af070639a34752b` found:
 
 This architecture has been progressively hardened, but it is solving the consequences of per-ROI fitting: extraction, serialization, task overhead, load balancing, result reconciliation, and method-specific fast paths.
 
-`effectagram` removes that causal chain.
+`crossform` removes that causal chain.
 
 The current `shard` 0.2.0 source at commit
 `233c71186ebac0e2e98eba70f10671450fc5e1be` already provides the operational
@@ -370,7 +370,7 @@ The core owns no global scheduler state.
 
 - `workers = 1`: deterministic in-process streaming; always available.
 - any other value fails before source access with `workers > 1 is not implemented
-  in effectagram 0.1`; it never silently ignores the request or inherits an
+  in crossform 0.1`; it never silently ignores the request or inherits an
   ambient pool.
 - Phase E2 may admit `workers > 1` after the benchmark gate. The preferred first
   local executor is an optional `shard` adapter, because it already owns
@@ -400,7 +400,7 @@ inherit the process-global plan.
 The intended integration is deliberately asymmetric:
 
 ```text
-effectagram owns                    shard owns
+crossform owns                    shard owns
 -------------------------------   -------------------------------
 relation/frame/pairing/query       shared segments and descriptors
 feature-block task manifest       worker pool and supervision
@@ -417,7 +417,7 @@ descriptors.
 
 The first adapter should use `shard_map()` with a small number of coarse blocks,
 not thousands of searchlight jobs. Returned relation/atom blocks are bounded
-and reduced by `effectagram` in canonical feature order. If gathered blocks
+and reduced by `crossform` in canonical feature order. If gathered blocks
 would exceed the memory plan, the adapter may write disjoint atom/query rows to
 a `shard::buffer()` and let the coordinator scan that buffer in order. Workers
 still never write the final overlapping spatial geometry.
@@ -425,7 +425,7 @@ still never write the final overlapping spatial geometry.
 `shard_reduce()` is attractive for scalar or naturally associative diagnostics,
 but the geometry accumulator should not be forced into its API unless the
 combine law and ordered floating-point semantics are exact. Scientific
-reduction remains `effectagram`'s responsibility.
+reduction remains `crossform`'s responsibility.
 
 Single-worker execution bypasses `shard` completely unless the user explicitly
 requests a reusable shared staging object. This avoids paying process and
@@ -534,7 +534,7 @@ Default behavior is fail-fast at task boundary:
 - preserve valid checkpoint shards if checkpointing was requested;
 - return neither a successful `effect_geometry` nor `effect_view`.
 
-The raised `effectagram_execution_error` carries the partial execution receipt,
+The raised `crossform_execution_error` carries the partial execution receipt,
 cleanup state, and checkpoint manifest reference. A receipt is therefore
 available even though no successful geometry exists to contain it.
 
@@ -835,13 +835,13 @@ and worker-readable file-backed sources.
 Only if end-to-end benchmarks justify it, add a `shard` adapter for immutable response or
 relation staging and coarse feature-block dispatch. Reuse `shard` supervision,
 recycling, buffers, and telemetry; keep geometry reduction and result assembly
-in the one `effectagram` kernel. Do not expose a global plan or a second
+in the one `crossform` kernel. Do not expose a global plan or a second
 `shard`-specific analysis path.
 
 #### Phase E2 admission result, 2026-08-12
 
 The first admission benchmark did **not** justify a public or default `shard`
-executor. It compared the installed `effectagram` 0.0.0.9000 sequential
+executor. It compared the installed `crossform` 0.0.0.9000 sequential
 compiler with installed `shard` 0.2.0 using exactly the same pure feature task,
 canonical ordered reducer, simulated relation, frame, and pairing. It measured
 the complete cold path, including shared staging and pool creation, in isolated
@@ -891,10 +891,10 @@ No external executor is admitted for version 0.1.
 - **`future` is rejected as a core-owned executor.** Its documented package
   contract asks package authors not to choose or mutate the active plan; a
   backend is selected through process-global plan state. Inheriting that state
-  violates effectagram's explicit ownership and resource-budget contract, while
-  locally replacing it would make effectagram the kind of plan-mutating package
+  violates crossform's explicit ownership and resource-budget contract, while
+  locally replacing it would make crossform the kind of plan-mutating package
   this architecture is intended to avoid. A caller may orchestrate independent
-  effectagram jobs with `future`, but the core will not treat the ambient plan
+  crossform jobs with `future`, but the core will not treat the ambient plan
   as its executor.
 - **`mirai` remains technically compatible but deferred.** Named compute
   profiles and scoped daemon selection can provide explicit isolation, and

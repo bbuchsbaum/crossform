@@ -6,7 +6,7 @@ test_that("row-coordinate-feature tiling agrees with the dense oracle", {
 
   tile_shapes <- list(c(1, 1, 1), c(3, 4, 5), c(20, 20, 20), c(2, 7, 3))
   for (shape in tile_shapes) {
-    got <- effectagram:::.tiled_contraction(
+    got <- crossform:::.tiled_contraction(
       weights, atoms,
       row_tile = shape[[1]], coordinate_tile = shape[[2]],
       feature_tile = shape[[3]]
@@ -28,7 +28,7 @@ test_that("writer-backed contraction never materializes the full output", {
     output[rows, coordinates] <<- value
   }
 
-  got <- effectagram:::.tiled_contraction(
+  got <- crossform:::.tiled_contraction(
     weights, atoms, row_tile = 2, coordinate_tile = 3, feature_tile = 4,
     write_tile = writer
   )
@@ -44,8 +44,8 @@ test_that("feature permutation preserves the contraction", {
   atoms <- matrix(rnorm(8 * 6), 8, 6)
   permutation <- sample(seq_len(8))
 
-  original <- effectagram:::.tiled_contraction(weights, atoms, 2, 3, 3)$value
-  permuted <- effectagram:::.tiled_contraction(
+  original <- crossform:::.tiled_contraction(weights, atoms, 2, 3, 3)$value
+  permuted <- crossform:::.tiled_contraction(
     weights[, permutation, drop = FALSE],
     atoms[permutation, , drop = FALSE], 2, 3, 3
   )$value
@@ -55,11 +55,11 @@ test_that("feature permutation preserves the contraction", {
 
 test_that("tiled contraction rejects dimension and tile errors", {
   expect_error(
-    effectagram:::.tiled_contraction(matrix(1, 2, 3), matrix(1, 2, 2), 1, 1, 1),
+    crossform:::.tiled_contraction(matrix(1, 2, 3), matrix(1, 2, 2), 1, 1, 1),
     "feature dimension"
   )
   expect_error(
-    effectagram:::.tiled_contraction(matrix(1, 2, 2), matrix(1, 2, 2), 0, 1, 1),
+    crossform:::.tiled_contraction(matrix(1, 2, 2), matrix(1, 2, 2), 0, 1, 1),
     "positive integer"
   )
 })
@@ -132,7 +132,7 @@ run_streamed_fixture <- function(fixture, feature_block = 3L,
       fixture$relation[[partition]][, features, drop = FALSE]
     }
   }
-  effectagram:::.streamed_crossgram_contraction(
+  crossform:::.streamed_crossgram_contraction(
     fixture$frame, reader, fixture$partitions, fixture$effects, fixture$over,
     feature_block = feature_block, row_tile = row_tile,
     coordinate_tile = coordinate_tile, accumulate_tile = accumulate_tile,
@@ -198,7 +198,7 @@ test_that("the same relation reads can retain bounded coherent marginals", {
 
 test_that("coherent-only streaming omits atom formation and total output", {
   fixture <- crossgram_fixture()
-  got <- effectagram:::.streamed_crossgram_contraction(
+  got <- crossform:::.streamed_crossgram_contraction(
     fixture$frame,
     function(partition, features) {
       fixture$relation[[partition]][, features, drop = FALSE]
@@ -218,7 +218,7 @@ test_that("coherent geometry from retained relations matches an explicit oracle"
   streamed <- run_streamed_fixture(fixture, feature_block = 4,
     retain_local_relations = TRUE)
   mass <- Matrix::rowSums(fixture$frame$weights)
-  got <- effectagram:::.coherent_geometry_from_local(
+  got <- crossform:::.coherent_geometry_from_local(
     streamed$local_relations, fixture$over, mass, row_tile = 2
   )
   q <- length(fixture$effects)
@@ -232,7 +232,7 @@ test_that("coherent geometry from retained relations matches an explicit oracle"
       geometry <- geometry + fixture$over$weight[[edge]] *
         0.5 * (cross + t(cross)) / mass[[measurement]]
     }
-    oracle[measurement, ] <- effectagram:::.svec_symmetric(geometry)
+    oracle[measurement, ] <- crossform:::.svec_symmetric(geometry)
   }
 
   expect_equal(got$value, oracle, tolerance = 1e-12)
@@ -294,7 +294,7 @@ test_that("streamed cross-Gram fails closed on malformed relation blocks", {
 
   forged_pairing <- fixture$over
   forged_pairing$weight[[1]] <- -1
-  expect_error(effectagram:::.streamed_crossgram_contraction(
+  expect_error(crossform:::.streamed_crossgram_contraction(
     fixture$frame,
     function(partition, features) fixture$relation[[partition]][, features, drop = FALSE],
     fixture$partitions, fixture$effects, forged_pairing
@@ -314,7 +314,7 @@ test_that("task observers record a failed task boundary", {
     fixture$relation[[partition]][, feature_ids, drop = FALSE]
   }
 
-  expect_error(effectagram:::.streamed_crossgram_contraction(
+  expect_error(crossform:::.streamed_crossgram_contraction(
     fixture$frame, bad_reader, fixture$partitions, fixture$effects,
     fixture$over, feature_block = 3, task_observer = observer), "block failed")
   expect_identical(events, c("started", "completed", "started", "failed"))

@@ -3,7 +3,7 @@
 #
 # Three comparisons, in decreasing order of how much they prove:
 #
-#   1. MATCHED ESTIMAND (tolerance-gated). effectagram's cross-validated
+#   1. MATCHED ESTIMAND (tolerance-gated). crossform's cross-validated
 #      squared Euclidean RDM vs the same estimand recomputed by a direct loop
 #      over rMVPA's searchlight spheres and neuroim2 series extraction. Same
 #      inputs, same estimand, two independent data paths and two independent
@@ -12,7 +12,7 @@
 #   2. SHARED SECOND-ORDER SCORE (tolerance-gated). The identical
 #      `spearman_rsa()` applied to each arm's own RDM vectors.
 #
-#   3. NATIVE ESTIMANDS (reported, NOT gated). effectagram's cross-run
+#   3. NATIVE ESTIMANDS (reported, NOT gated). crossform's cross-run
 #      condition-level RSA vs rMVPA's `rsa_model`. These are different
 #      estimands by construction; the numbers are reported as map agreement
 #      with the semantic causes named, never reconciled by adjustment.
@@ -26,7 +26,7 @@ exemplar_dir <- if (nzchar(Sys.getenv("EXEMPLAR_DIR"))) {
 source(file.path(exemplar_dir, "models.R"))
 paths <- exemplar_paths(exemplar_dir)
 
-E <- readRDS(file.path(paths$results, "smoke-effectagram.rds"))
+E <- readRDS(file.path(paths$results, "smoke-crossform.rds"))
 R <- readRDS(file.path(paths$results, "smoke-rmvpa.rds"))
 
 ## ---- Preconditions: the two arms must describe the same geometry --------
@@ -52,7 +52,7 @@ per_center_max <- apply(abs(d_rdm), 1L, max)
 rdm_pass <- max_abs_rdm <= TOLERANCE
 
 message("\n[1] MATCHED ESTIMAND -- cross-validated squared Euclidean RDM")
-message("  (1a) effectagram vs independent reference loop")
+message("  (1a) crossform vs independent reference loop")
 message("    entries compared      : ", length(d_rdm),
         " (", n_centers, " centres x ", ncol(E$rdm), " pairs)")
 message("    max abs difference    : ", fmt(max_abs_rdm))
@@ -62,7 +62,7 @@ message("    worst centre          : ", E$centers[which.max(per_center_max)],
 message("    centres above tol     : ", sum(per_center_max > TOLERANCE), "/", n_centers)
 message("    GATE (<= ", fmt(TOLERANCE), "): ", if (rdm_pass) "PASS" else "FAIL")
 
-# (1b) The comparison that actually earns a replacement-map row: effectagram's
+# (1b) The comparison that actually earns a replacement-map row: crossform's
 # estimator against rMVPA's own crossnobis estimator, same estimand.
 native_cv <- list(available = isTRUE(R$native_cv_available))
 if (native_cv$available) {
@@ -73,7 +73,7 @@ if (native_cv$available) {
   native_cv$score_max_abs_difference <- max(abs(E$rsa_score - R$native_cv_score),
                                             na.rm = TRUE)
   native_cv$pass <- native_cv$max_abs_difference <= TOLERANCE
-  message("  (1b) effectagram vs rMVPA's OWN crossnobis estimator")
+  message("  (1b) crossform vs rMVPA's OWN crossnobis estimator")
   message("    max abs difference    : ", fmt(native_cv$max_abs_difference))
   message("    centres above tol     : ", native_cv$centers_above_tolerance,
           "/", n_centers)
@@ -104,14 +104,14 @@ for (dm in names(R$native)) {
   v <- R$native[[dm]]$values
   native_rows[[dm]] <- data.frame(
     rmvpa_distmethod = dm,
-    pearson_r_vs_effectagram_spearman = stats::cor(E$rsa_score, v,
+    pearson_r_vs_crossform_spearman = stats::cor(E$rsa_score, v,
                                                    use = "complete.obs"),
-    spearman_rho_vs_effectagram_spearman = stats::cor(E$rsa_score, v,
+    spearman_rho_vs_crossform_spearman = stats::cor(E$rsa_score, v,
       method = "spearman", use = "complete.obs"),
-    pearson_r_vs_effectagram_ols = stats::cor(E$rsa_ols, v, use = "complete.obs"),
+    pearson_r_vs_crossform_ols = stats::cor(E$rsa_ols, v, use = "complete.obs"),
     max_abs_difference = max(abs(E$rsa_score - v), na.rm = TRUE),
     rmvpa_median = stats::median(v, na.rm = TRUE),
-    effectagram_median = stats::median(E$rsa_score, na.rm = TRUE),
+    crossform_median = stats::median(E$rsa_score, na.rm = TRUE),
     stringsAsFactors = FALSE)
 }
 native_tbl <- do.call(rbind, native_rows)
@@ -131,21 +131,21 @@ print(format(native_tbl, digits = 4))
 # one entry point, not about the package.
 divergences <- data.frame(
   id = c("aggregation-level", "distance-convention", "second-order-coupling",
-         "run-pair-treatment", "effectagram-second-order"),
+         "run-pair-treatment", "crossform-second-order"),
   affects = c("native", "native", "native", "native", "native"),
   description = c(
     paste("rMVPA rsa_model builds ONE pooled 96x96 RDM per sphere and keeps",
-          "its 4224 between-run cell pairs. effectagram aggregates over run",
+          "its 4224 between-run cell pairs. crossform aggregates over run",
           "pairs first, yielding 28 condition-level values. A correlation",
           "over 4224 cell pairs is not a function of the 28 cell means",
           "(the denominator uses the full within-cell spread), so the two",
           "cannot coincide even on identical patterns."),
     paste("rMVPA uses 1 - correlation, computed within each single-run",
-          "pattern pair. effectagram uses the cross-validated squared",
+          "pattern pair. crossform uses the cross-validated squared",
           "Euclidean distance under the identity metric. Correlation",
           "distance rescales each pattern to unit norm inside the sphere,",
           "which is nonlinear in the patterns and therefore not expressible",
-          "in effectagram's bilinear core."),
+          "in crossform's bilinear core."),
     paste("In rMVPA `distmethod` sets BOTH the neural RDM metric AND the",
           "second-order correlation method; `regtype` is inert for",
           "'pearson'/'spearman'. A Pearson (1-r) RDM scored by a Spearman",
@@ -153,10 +153,10 @@ divergences <- data.frame(
           "not expressible in a single rsa_model call."),
     paste("Both arms exclude within-run pairs, but at different levels:",
           "rMVPA drops within-run CELL pairs from a pooled vector,",
-          "effectagram averages over the 66 unordered RUN pairs. These",
+          "crossform averages over the 66 unordered RUN pairs. These",
           "coincide only in which information is excluded, not in how the",
           "retained information is weighted."),
-    paste("effectagram's native rsa() is an ordinary least-squares",
+    paste("crossform's native rsa() is an ordinary least-squares",
           "regression in RDM space, not a rank correlation. The Spearman",
           "statistic in the matched comparison is supplied by the",
           "exemplar's shared spearman_rsa(), applied identically to both",
@@ -191,15 +191,15 @@ comparison <- list(
     pass = score_pass),
   native = native_tbl,
   divergences = divergences,
-  effectagram_self_verification = E$verify_max_abs,
-  effectagram_score = E$rsa_score,
+  crossform_self_verification = E$verify_max_abs,
+  crossform_score = E$rsa_score,
   rmvpa_reference_score = R$reference_score,
   rmvpa_native = lapply(R$native, function(x) x$values),
   centers = E$centers,
   n_voxels = E$n_voxels,
-  timing = list(effectagram = E$timing, rmvpa = R$timing,
+  timing = list(crossform = E$timing, rmvpa = R$timing,
                 rmvpa_native = lapply(R$native, function(x) x$seconds)),
-  session = list(effectagram = E$session, rmvpa = R$session),
+  session = list(crossform = E$session, rmvpa = R$session),
   when = Sys.time()
 )
 saveRDS(comparison, file.path(paths$results, "smoke-comparison.rds"))

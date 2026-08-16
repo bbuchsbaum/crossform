@@ -11,7 +11,7 @@ This document froze the semantic foundation for
 evidence-pairing, measurement-form, coupling, and tomography surfaces. The
 independent numerical oracles in
 `tests/testthat/test-evidence-pairing-contract.R` certify the laws stated here
-without calling production effectagram functions.
+without calling production crossform functions.
 
 The contract extends, and does not replace, `effect-form-v1`. Public
 `measurement_form()`, `effect_coupling()`, capability-gated `connectivity()`,

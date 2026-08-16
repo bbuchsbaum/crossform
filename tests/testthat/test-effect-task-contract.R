@@ -32,7 +32,7 @@ test_that("undirected partition pairs compile to canonical ordered half edges", 
   domain <- abstract_domain(3, id = "shared:v1")
   rel <- task_relation(c("r1", "r2", "r3"), c("a", "b"), domain)
   over <- cross_partitions(rel)
-  task <- effectagram:::.compile_effect_task(rel, over)
+  task <- crossform:::.compile_effect_task(rel, over)
   edges <- task$ordered_edges
 
   expect_s3_class(task, "effect_compiled_task")
@@ -49,7 +49,7 @@ test_that("undirected partition pairs compile to canonical ordered half edges", 
   }
 
   flipped <- pairing(over$right, over$left, over$weight, directed = FALSE)
-  flipped_task <- effectagram:::.compile_effect_task(rel, flipped)
+  flipped_task <- crossform:::.compile_effect_task(rel, flipped)
   expect_identical(flipped_task$ordered_edges, task$ordered_edges)
   expect_identical(flipped_task$task_id, task$task_id)
 })
@@ -63,7 +63,7 @@ test_that("ordered half edges exactly retain the old self-adjoint estimator", {
   )
   rel <- relation(matrices, effects = c("a", "b"), domain = domain)
   over <- cross_partitions(rel)
-  task <- effectagram:::.compile_effect_task(rel, over)
+  task <- crossform:::.compile_effect_task(rel, over)
 
   old <- matrix(0, 2, 2)
   for (edge in seq_len(nrow(over))) {
@@ -90,7 +90,7 @@ test_that("two homogeneous relation sides compile with structural direction", {
   right <- task_relation(c("r1", "r2"), right_space, domain)
   over <- pairing(c("e1", "e2"), c("r1", "r2"), c(1, 3), directed = TRUE)
   H <- matrix(1:6, 2, 3)
-  task <- effectagram:::.compile_effect_task(
+  task <- crossform:::.compile_effect_task(
     left, over, right, pair_query(H, left_space, right_space)
   )
 
@@ -102,7 +102,7 @@ test_that("two homogeneous relation sides compile with structural direction", {
   expect_identical(task$bridge$kind, "identity")
   expect_identical(task$bridge$common_space, domain$reference)
 
-  reversed <- effectagram:::.compile_effect_task(
+  reversed <- crossform:::.compile_effect_task(
     right,
     pairing(over$right, over$left, over$weight, directed = TRUE),
     left,
@@ -129,17 +129,17 @@ test_that("task semantic failures occur before lazy relation reads", {
   )
   over <- pairing("e1", "r1", directed = TRUE)
 
-  expect_error(effectagram:::.compile_effect_task(
+  expect_error(crossform:::.compile_effect_task(
     left, over, right,
     pair_query(matrix(1, 2, 3),
       effect_space(c("l1", "l2"), basis_id = "wrong"), right_space)
   ), "axes")
-  expect_error(effectagram:::.compile_effect_task(
+  expect_error(crossform:::.compile_effect_task(
     left, pairing("missing", "r1", directed = TRUE), right
   ), "endpoints")
-  expect_error(effectagram:::.compile_effect_task(left, over, wrong_domain),
+  expect_error(crossform:::.compile_effect_task(left, over, wrong_domain),
     "Distinct neural spaces")
-  expect_error(effectagram:::.compile_effect_task(
+  expect_error(crossform:::.compile_effect_task(
     left, pairing("e1", "r1", directed = FALSE), right
   ), "undirected compatibility")
   expect_identical(reads$count, 0L)
@@ -153,14 +153,14 @@ test_that("task identity covers axes edges bridge reducer and query", {
   left <- task_relation(c("e1", "e2"), left_space, domain)
   right <- task_relation(c("r1", "r2"), right_space, domain)
   over <- pairing(c("e1", "e2"), c("r1", "r2"), c(1, 2), directed = TRUE)
-  base <- effectagram:::.compile_effect_task(
+  base <- crossform:::.compile_effect_task(
     left, over, right, pair_query(diag(2), left_space, right_space)
   )
-  changed_query <- effectagram:::.compile_effect_task(
+  changed_query <- crossform:::.compile_effect_task(
     left, over, right, pair_query(matrix(c(1, 1, 0, 1), 2),
       left_space, right_space)
   )
-  changed_edges <- effectagram:::.compile_effect_task(
+  changed_edges <- crossform:::.compile_effect_task(
     left,
     pairing(rev(over$left), rev(over$right), rev(over$weight), directed = TRUE),
     right,
@@ -168,7 +168,7 @@ test_that("task identity covers axes edges bridge reducer and query", {
   )
   left_other <- task_relation(c("e1", "e2"), left_space, other_domain)
   right_other <- task_relation(c("r1", "r2"), right_space, other_domain)
-  changed_bridge <- effectagram:::.compile_effect_task(
+  changed_bridge <- crossform:::.compile_effect_task(
     left_other, over, right_other, pair_query(diag(2), left_space, right_space)
   )
 
@@ -180,7 +180,7 @@ test_that("task identity covers axes edges bridge reducer and query", {
   )), 4L)
   mutated <- base
   mutated$reducer$order <- 2L
-  expect_error(effectagram:::.validate_compiled_effect_task(mutated),
+  expect_error(crossform:::.validate_compiled_effect_task(mutated),
     "reducer")
 })
 
@@ -193,7 +193,7 @@ test_that("legacy compiler plan hashes use canonical ordered task semantics", {
   reordered <- pairing(
     rev(over$left), rev(over$right), rev(over$weight), directed = FALSE
   )
-  plan <- function(pairing) effectagram:::.compiler_plan_id(
+  plan <- function(pairing) crossform:::.compiler_plan_id(
     rel, frame, pairing, "full_geometry", NULL, "full"
   )
 
@@ -217,8 +217,8 @@ test_that("relation-family provenance is portable and changes identity", {
   )
 
   expect_false(identical(
-    effectagram:::.relation_family_identity(first),
-    effectagram:::.relation_family_identity(changed)
+    crossform:::.relation_family_identity(first),
+    crossform:::.relation_family_identity(changed)
   ))
   expect_error(relation(
     list(r1 = matrix(1, 2, 2)), effects = c("a", "b"),
@@ -240,13 +240,13 @@ test_that("same-relation task sessions deduplicate source handles", {
     effects = c("a", "b"),
     domain = domain
   )
-  task <- effectagram:::.compile_effect_task(rel, cross_partitions(rel))
+  task <- crossform:::.compile_effect_task(rel, cross_partitions(rel))
   opens <- 0L
   opener <- function(...) {
     opens <<- opens + 1L
-    effectagram:::.open_source_descriptor(...)
+    crossform:::.open_source_descriptor(...)
   }
-  session <- effectagram:::.open_effect_task_source_session(
+  session <- crossform:::.open_effect_task_source_session(
     task, open_descriptor = opener
   )
   on.exit(session$close(), add = TRUE)

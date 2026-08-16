@@ -82,6 +82,6 @@ test_that("rank-deficient extraction admits only estimable targets", {
 test_that("mutated extractor contracts fail closed", {
   extractor <- effect_extractor(diag(2), c("a", "b"))
   extractor$n_observations <- 3L
-  expect_error(effectagram:::.validate_effect_extractor(extractor),
+  expect_error(crossform:::.validate_effect_extractor(extractor),
     "inconsistent")
 })

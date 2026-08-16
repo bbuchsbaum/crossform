@@ -26,7 +26,7 @@ full_pair_design <- function(spaces) {
 explicit_pair_lm_operator <- function(design, coefficient, spaces,
                                       encoding_nuisance = FALSE,
                                       retrieval_nuisance = FALSE) {
-  compiled <- effectagram:::.pair_design_matrix(
+  compiled <- crossform:::.pair_design_matrix(
     design, spaces$left, spaces$right,
     encoding_nuisance, retrieval_nuisance
   )
@@ -135,10 +135,10 @@ test_that("sparse and dense H compile and query identically", {
 
   expect_s4_class(sparse$operator, "Matrix")
   expect_equal(as.matrix(sparse$operator), dense$operator, tolerance = 0)
-  expect_silent(effectagram:::.validate_query_for_compile(sparse))
+  expect_silent(crossform:::.validate_query_for_compile(sparse))
 
   values <- matrix(seq_len(24), 2, 12)
-  result <- effectagram:::effect_form(
+  result <- crossform:::effect_form(
     values, spaces$left, spaces$right, receipt_fixture(), codec = "rectangular"
   )
   expect_equal(

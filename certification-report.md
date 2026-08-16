@@ -1,6 +1,7 @@
 # Statistical and brain-scale validation receipt
 
-Date: 2026-08-13  
+Date: 2026-08-15
+
 Umbrella: `bd-01KZXA4C1RJDV567TS9X175ND0`  
 Final evidence epic: `bd-01KZXA62QZQMH79RS7KW3PVCGT`
 
@@ -29,9 +30,9 @@ acceptance, calibrated intervals, LD-t, or arbitrary real-data validity.
 
 | Property | Value |
 |---|---|
-| Artifact | `effectagram_0.0.0.9000.tar.gz` |
-| SHA-256 | `fe128a5e038cfda5b336e6cc2a9f7bc8e56c96c800fac71e307bc399435de23e` |
-| Payload size | 300,021 bytes |
+| Artifact | `crossform_0.0.0.9000.tar.gz` |
+| SHA-256 | `b18e47ca1933caf671ed65a79f64d56f53b26edac5f1535eff4af6f9f236dbfa` |
+| Payload size | 433,291 bytes |
 | R | 4.5.1 (2025-06-13) |
 | Platform | `aarch64-apple-darwin20` |
 | Host | macOS Sonoma 14.3 |
@@ -39,23 +40,39 @@ acceptance, calibrated intervals, LD-t, or arbitrary real-data validity.
 | Exact local check | `R CMD check --no-manual`, CRAN incoming disabled |
 | Result | `Status: OK` |
 
-The artifact was built from the current workspace, not a named Git commit.
-Current `HEAD` is `b5d9a335bc80fa1d5c0e60d76b2be7a233d06e4a`, which predates this work.
-Therefore the tarball hash identifies the exact validated payload, but the
-validation is not yet commit-reproducible. No release or durable certification
-claim should be made until the user authorizes and creates a commit containing
-the tree.
+The artifact was built from the staged workspace immediately before
+publication. Its hash identifies the exact validated payload, and the
+publication commit records the same package-payload paths. This establishes a
+commit-reproducible local receipt; it is not a release, hosted-CI, or
+cross-platform certification.
 
-An `--as-cran --no-manual` run on the immediately preceding code-equivalent
-artifact completed examples, tests, and vignette rebuilding with one incoming
-note for the development version. A later incoming probe on this final source
-was partially unable to read the Bioconductor archive metadata because the
-remote timed out. The deterministic local package court above is the final
-artifact's authoritative result; incoming/hosted evidence remains qualified.
+The same artifact also passed `R CMD check --as-cran --no-manual` with no
+errors or warnings and one expected incoming note: the development version
+`0.0.0.9000` contains large components. Remote incoming checks were disabled;
+the deterministic local package court above is the final artifact's
+authoritative result, and incoming/hosted evidence remains qualified.
 
 Workspace-only `.claude`, `.tmp`, `.mote`, benchmark artifacts, and this report
 are excluded from the package payload. The exact tarball contains none of
 those paths.
+
+## Package rename integrity
+
+The 2026-08-15 rename to `crossform` is present in package metadata, namespace
+loading, generated help, vignettes, examples, benchmark drivers, scale-test
+controls, and the pkgdown site. All three vignettes render against an installed
+`crossform` package. The pkgdown site completes its reference, article, search,
+redirect, and integrity stages when the articles are rendered in-process; the
+installed pkgdown version's isolated article subprocess fails in its own error
+wrapper before reporting the underlying condition.
+
+Previously hashed scientific tokens are not rewritten. Both the legacy and
+public design-protocol spellings lower to the same canonical semantic token,
+while compiler-route and execution receipts carry `crossform`. The regression
+suite verifies that this preserves `design_model_id` and `relation_plan_id`
+while changing route and design-receipt identities. Remaining `effectagram`
+strings in active source are limited to those frozen tokens, their compatibility
+test, and an explicit note about historical exemplar receipts.
 
 ## Four evidence levels
 
@@ -106,7 +123,7 @@ SKIP 2
 ```
 
 The two skips are the declared 50k topology tier. Running the same support-index
-court with `EFFECTAGRAM_RUN_SCALE_TESTS=true` produced:
+court with `CROSSFORM_RUN_SCALE_TESTS=true` produced:
 
 ```text
 PASS 47

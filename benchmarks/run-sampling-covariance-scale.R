@@ -35,7 +35,7 @@ frame <- volume$value$frame
 conditions <- 120L
 features <- as.integer(round(frame$support_index$cost$support_size[["mean"]]))
 partitions <- 8L
-contrasts <- effectagram:::.sampling_distance_contrasts(
+contrasts <- crossform:::.sampling_distance_contrasts(
   paste0("condition", seq_len(conditions))
 )$matrix
 dimension <- nrow(contrasts)
@@ -70,14 +70,14 @@ evidence <- plan_geometry(
   fit$relation, compile_frame(whole_brain(), fixture_domain),
   cross_partitions(fit$relation, independence = "independent")
 )
-plan <- effectagram:::.compile_evidence_sampling_plan(
+plan <- crossform:::.compile_evidence_sampling_plan(
   evidence, fit,
-  target = effectagram:::.sampling_target(
+  target = crossform:::.sampling_target(
     "point_estimate", policy = "partition_mean_plugin"
   )
 )
 
-construction <- measure(effectagram:::.sampling_covariance_from_components(
+construction <- measure(crossform:::.sampling_covariance_from_components(
   plan, contrasts, signal_patterns, effect_covariance,
   residual_covariance, labels = rownames(contrasts)
 ))
@@ -93,20 +93,20 @@ selected_pairs <- cbind(
 vector <- rnorm(dimension)
 transport_map <- matrix(rnorm(8L * dimension), 8L, dimension)
 
-diagonal <- measure(effectagram:::.sampling_covariance_diagonal(covariance))
-selected <- measure(effectagram:::.sampling_covariance_entries(
+diagonal <- measure(crossform:::.sampling_covariance_diagonal(covariance))
+selected <- measure(crossform:::.sampling_covariance_entries(
   covariance, selected_pairs[, 1L], selected_pairs[, 2L]
 ))
-quadratic <- measure(effectagram:::.sampling_covariance_quadratic(
+quadratic <- measure(crossform:::.sampling_covariance_quadratic(
   covariance, vector
 ))
-transport <- measure(effectagram:::.sampling_covariance_transport(
+transport <- measure(crossform:::.sampling_covariance_transport(
   covariance, transport_map
 ))
 
 dense_payload_bytes <- 8 * as.double(dimension)^2
 dense_refusal <- tryCatch({
-  effectagram:::.sampling_covariance_materialize(
+  crossform:::.sampling_covariance_materialize(
     covariance, max_bytes = 64 * 1024^2
   )
   FALSE

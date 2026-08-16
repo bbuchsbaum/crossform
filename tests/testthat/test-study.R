@@ -69,7 +69,7 @@ test_that("clock unit mismatch and missing clocks refuse explicitly", {
   fixture <- bound_study_fixture()
   wrong_units <- fixture$events
   wrong_units$units <- "milliseconds"
-  wrong_units$events_id <- effectagram:::.validate_nonempty_id(
+  wrong_units$events_id <- crossform:::.validate_nonempty_id(
     wrong_units$events_id, "events_id"
   )
   # Rebuild rather than relying on a mutated identity.
@@ -210,7 +210,7 @@ test_that("study identity includes factual binding and detects tampering", {
 
   tampered <- value
   tampered$lineage$`run-1`$retained[1] <- FALSE
-  expect_error(effectagram:::.validate_study(tampered),
+  expect_error(crossform:::.validate_study(tampered),
     "lineage or capabilities")
   expect_true(study_capabilities(value)$stable_source_revision)
 })

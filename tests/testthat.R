@@ -1,4 +1,4 @@
 library(testthat)
-library(effectagram)
+library(crossform)
 
-test_check("effectagram")
+test_check("crossform")

@@ -30,11 +30,11 @@ test_that("effect compilation is an exact adapter over the evidence-task IR", {
   rel <- evidence_ir_relation(c("r1", "r2", "r3"), effects, domain)
   over <- cross_partitions(rel)
 
-  evidence <- effectagram:::.compile_effect_evidence_task(rel, over)
-  legacy <- effectagram:::.compile_effect_task(rel, over)
+  evidence <- crossform:::.compile_effect_evidence_task(rel, over)
+  legacy <- crossform:::.compile_effect_task(rel, over)
 
   expect_s3_class(evidence, "effect_evidence_task")
-  expect_identical(effectagram:::.as_compiled_effect_task(evidence), legacy)
+  expect_identical(crossform:::.as_compiled_effect_task(evidence), legacy)
   expect_identical(evidence$task_id, legacy$task_id)
   expect_identical(evidence$identity_schema, "effect-form-v1")
   expect_identical(evidence$experimental_boundary$state, "open")
@@ -58,7 +58,7 @@ test_that("all four identified spaces and axis-labelled stages are explicit", {
   right <- evidence_ir_relation(c("r1", "r2"), right_space, domain)
   over <- pairing(c("e1", "e2"), c("r1", "r2"), c(1, 2), directed = TRUE)
   query <- pair_query(matrix(1:6, 2), left_space, right_space)
-  task <- effectagram:::.compile_effect_evidence_task(
+  task <- crossform:::.compile_effect_evidence_task(
     left, over, right, query,
     normalizer = correlation(),
     reducer = aggregate_first()
@@ -85,8 +85,8 @@ test_that("legacy scientific identity is byte-for-byte the certified semantic", 
   effects <- effect_space(c("a", "b"), basis_id = "conditions:v1")
   rel <- evidence_ir_relation(c("r1", "r2"), effects, domain)
   over <- cross_partitions(rel)
-  task <- effectagram:::.compile_effect_evidence_task(rel, over)
-  expected_semantic <- effectagram:::.effect_task_semantic(
+  task <- crossform:::.compile_effect_evidence_task(rel, over)
+  expected_semantic <- crossform:::.effect_task_semantic(
     task$left_relation_id,
     task$right_relation_id,
     effects,
@@ -94,40 +94,40 @@ test_that("legacy scientific identity is byte-for-byte the certified semantic", 
     task$ordered_partition_products,
     task$neural_boundary$bridge,
     inner_product(),
-    effectagram:::.identity_edge_transform(),
-    effectagram:::.partition_reducer(),
+    crossform:::.identity_edge_transform(),
+    crossform:::.partition_reducer(),
     list(kind = "complete_form", query = NULL)
   )
 
   expect_identical(task$semantic, expected_semantic)
   expect_identical(task$task_id,
-    effectagram:::.effect_task_id(expected_semantic))
+    crossform:::.effect_task_id(expected_semantic))
 })
 
 test_that("closed experimental and open neural boundaries form measurement IR", {
   domain <- abstract_domain(3, id = "neural:shared:v1")
   effects <- effect_space(c("a", "b", "c"), basis_id = "conditions:v1")
   rel <- evidence_ir_relation(c("r1", "r2"), effects, domain)
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     cross_partitions(rel), rel$partitions, rel$partitions, TRUE
   )
   additive <- additive_frame(diag(3), domain = domain)
-  frame <- effectagram:::.measurement_frame_from_additive(additive)
-  spatial_edges <- effectagram:::.measurement_edges(
+  frame <- crossform:::.measurement_frame_from_additive(additive)
+  spatial_edges <- crossform:::.measurement_edges(
     c("measurement_1", "measurement_2"),
     c("measurement_2", "measurement_3"),
     frame
   )
   query <- pair_query(diag(3), effects, effects)
-  experimental <- effectagram:::.closed_experimental_boundary(
+  experimental <- crossform:::.closed_experimental_boundary(
     query, role = "variation", sampling_axis = "trial"
   )
-  neural <- effectagram:::.open_neural_boundary(frame, frame, spatial_edges)
-  stages <- effectagram:::.evidence_stage_plan()
-  materialization <- effectagram:::.evidence_materialization(
+  neural <- crossform:::.open_neural_boundary(frame, frame, spatial_edges)
+  stages <- crossform:::.evidence_stage_plan()
+  materialization <- crossform:::.evidence_materialization(
     "measurement_form", "complete_form"
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     rel, rel, TRUE, partition_edges,
     experimental, neural, stages, materialization
   )
@@ -137,7 +137,7 @@ test_that("closed experimental and open neural boundaries form measurement IR", 
   expect_identical(task$neural_boundary$state, "open")
   expect_identical(task$materialization$kind, "measurement_form")
   expect_identical(nrow(task$neural_boundary$edges$edges), 2L)
-  expect_silent(effectagram:::.validate_evidence_task(task))
+  expect_silent(crossform:::.validate_evidence_task(task))
 })
 
 test_that("the neural boundary can close with an identified pair query", {
@@ -149,29 +149,29 @@ test_that("the neural boundary can close with an identified pair query", {
   right <- evidence_ir_relation(c("r1", "r2"), right_space, right_domain)
   over <- pairing(c("e1", "e2"), c("r1", "r2"), c(0.5, 0.5),
     directed = TRUE)
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     over, left$partitions, right$partitions, FALSE
   )
   k <- matrix(c(1, 0, -1, 2, 3, 1), 2, 3)
-  neural_query <- effectagram:::.neural_pair_query(
+  neural_query <- crossform:::.neural_pair_query(
     k, left_domain, right_domain,
     provenance = list(bridge = "fixed-scientific-query")
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     left, right, FALSE, partition_edges,
-    effectagram:::.open_experimental_boundary(left_space, right_space),
-    effectagram:::.closed_neural_query_boundary(neural_query),
-    effectagram:::.evidence_stage_plan(),
-    effectagram:::.evidence_materialization("effect_form", "complete_form")
+    crossform:::.open_experimental_boundary(left_space, right_space),
+    crossform:::.closed_neural_query_boundary(neural_query),
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization("effect_form", "complete_form")
   )
 
   expect_identical(task$neural_boundary$closure_kind, "query")
   expect_identical(task$neural_boundary$query$operator, k)
-  reversed <- effectagram:::.reverse_evidence_task(task)
+  reversed <- crossform:::.reverse_evidence_task(task)
   expect_identical(reversed$neural_boundary$query$operator, t(k))
   expect_identical(reversed$neural_boundary$query$left_domain,
     right_domain$reference)
-  expect_identical(effectagram:::.reverse_evidence_task(reversed), task)
+  expect_identical(crossform:::.reverse_evidence_task(reversed), task)
 })
 
 test_that("typed boundary mismatches fail before any source read", {
@@ -183,38 +183,38 @@ test_that("typed boundary mismatches fail before any source read", {
   effects <- effect_space(c("a", "b"), basis_id = "conditions:v1")
   other_effects <- effect_space(c("a", "b"), basis_id = "conditions:v2")
   rel <- evidence_ir_relation(c("r1", "r2"), effects, domain, reads)
-  edges <- effectagram:::.ordered_partition_edges(
+  edges <- crossform:::.ordered_partition_edges(
     cross_partitions(rel), rel$partitions, rel$partitions, TRUE
   )
-  bridge <- effectagram:::.identity_measurement_bridge(rel, rel)
-  neural <- effectagram:::.closed_neural_boundary(bridge, rel, rel)
-  stages <- effectagram:::.evidence_stage_plan()
-  materialization <- effectagram:::.evidence_materialization("scalar_field",
+  bridge <- crossform:::.identity_measurement_bridge(rel, rel)
+  neural <- crossform:::.closed_neural_boundary(bridge, rel, rel)
+  stages <- crossform:::.evidence_stage_plan()
+  materialization <- crossform:::.evidence_materialization("scalar_field",
     "query_only")
 
-  expect_error(effectagram:::.new_evidence_task(
+  expect_error(crossform:::.new_evidence_task(
     rel, rel, TRUE, edges,
-    effectagram:::.closed_experimental_boundary(
+    crossform:::.closed_experimental_boundary(
       pair_query(diag(2), other_effects, effects)
     ), neural, stages, materialization
   ), "Experimental boundary axes")
 
-  wrong_frame <- effectagram:::.measurement_frame_from_additive(
+  wrong_frame <- crossform:::.measurement_frame_from_additive(
     additive_frame(diag(3), domain = other_domain)
   )
-  wrong_edges <- effectagram:::.measurement_edges(
+  wrong_edges <- crossform:::.measurement_edges(
     "measurement_1", "measurement_2", wrong_frame
   )
-  expect_error(effectagram:::.new_evidence_task(
+  expect_error(crossform:::.new_evidence_task(
     rel, rel, TRUE, edges,
-    effectagram:::.closed_experimental_boundary(
+    crossform:::.closed_experimental_boundary(
       pair_query(diag(2), effects, effects)
     ),
-    effectagram:::.open_neural_boundary(
+    crossform:::.open_neural_boundary(
       wrong_frame, wrong_frame, wrong_edges
     ),
     stages,
-    effectagram:::.evidence_materialization(
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   ), "Neural boundary axes")
@@ -230,11 +230,11 @@ test_that("reversing every typed side exactly matches reversed compilation", {
   over <- pairing(c("e1", "e2"), c("r1", "r2"), c(0.4, 0.6),
     directed = TRUE)
   h <- matrix(1:6, 2, 3)
-  forward <- effectagram:::.compile_effect_evidence_task(
+  forward <- crossform:::.compile_effect_evidence_task(
     left, over, right, pair_query(h, left_space, right_space)
   )
-  reversed <- effectagram:::.reverse_evidence_task(forward)
-  independently_reversed <- effectagram:::.compile_effect_evidence_task(
+  reversed <- crossform:::.reverse_evidence_task(forward)
+  independently_reversed <- crossform:::.compile_effect_evidence_task(
     right,
     pairing(over$right, over$left, over$weight, directed = TRUE),
     left,
@@ -242,7 +242,7 @@ test_that("reversing every typed side exactly matches reversed compilation", {
   )
 
   expect_identical(reversed, independently_reversed)
-  expect_identical(effectagram:::.reverse_evidence_task(reversed), forward)
+  expect_identical(crossform:::.reverse_evidence_task(reversed), forward)
   expect_identical(reversed$spaces$experimental_left,
     forward$spaces$experimental_right)
   expect_identical(reversed$ordered_partition_products$left,
@@ -253,21 +253,21 @@ test_that("materialization states are enforced rather than inferred by shape", {
   domain <- abstract_domain(2)
   effects <- effect_space(c("a", "b"))
   rel <- evidence_ir_relation(c("r1", "r2"), effects, domain)
-  edges <- effectagram:::.ordered_partition_edges(
+  edges <- crossform:::.ordered_partition_edges(
     cross_partitions(rel), rel$partitions, rel$partitions, TRUE
   )
-  experimental <- effectagram:::.open_experimental_boundary(effects, effects)
-  bridge <- effectagram:::.identity_measurement_bridge(rel, rel)
-  neural <- effectagram:::.closed_neural_boundary(bridge, rel, rel)
+  experimental <- crossform:::.open_experimental_boundary(effects, effects)
+  bridge <- crossform:::.identity_measurement_bridge(rel, rel)
+  neural <- crossform:::.closed_neural_boundary(bridge, rel, rel)
 
-  expect_error(effectagram:::.new_evidence_task(
+  expect_error(crossform:::.new_evidence_task(
     rel, rel, TRUE, edges, experimental, neural,
-    effectagram:::.evidence_stage_plan(),
-    effectagram:::.evidence_materialization(
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   ), "incompatible with its open boundaries")
-  expect_error(effectagram:::.evidence_materialization(
+  expect_error(crossform:::.evidence_materialization(
     "scalar_field", "complete_form"
   ), "necessarily")
 })
@@ -276,12 +276,12 @@ test_that("evidence-task validation detects semantic mutation", {
   domain <- abstract_domain(2)
   effects <- effect_space(c("a", "b"))
   rel <- evidence_ir_relation(c("r1", "r2"), effects, domain)
-  task <- effectagram:::.compile_effect_evidence_task(
+  task <- crossform:::.compile_effect_evidence_task(
     rel, cross_partitions(rel)
   )
   forged <- task
   forged$stages$normalization$axis <- "experimental_samples"
 
-  expect_error(effectagram:::.validate_evidence_task(forged),
+  expect_error(crossform:::.validate_evidence_task(forged),
     "stage identity")
 })

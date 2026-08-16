@@ -3,7 +3,7 @@ test_that("version 0.1 accepts exactly one worker", {
 
   expect_identical(policy$workers, 1L)
   expect_identical(policy$process_backend, "sequential")
-  expect_error(compute_policy(workers = 2), "not implemented in effectagram 0.1")
+  expect_error(compute_policy(workers = 2), "not implemented in crossform 0.1")
   expect_error(compute_policy(workers = 0), "must be 1")
   expect_error(compute_policy(workers = Inf), "must be 1")
 })
@@ -25,15 +25,15 @@ test_that("invalid worker policy fails before source inspection", {
   )
 
   expect_error(
-    effectagram:::.execution_preflight(invalid, inspect_source),
-    "not implemented in effectagram 0.1"
+    crossform:::.execution_preflight(invalid, inspect_source),
+    "not implemented in crossform 0.1"
   )
   expect_identical(accessed, 0L)
 })
 
 test_that("valid preflight is owned and sequential", {
   accessed <- 0L
-  plan <- effectagram:::.execution_preflight(
+  plan <- crossform:::.execution_preflight(
     compute_policy(block_features = 64, workspace_bytes = 1e7),
     function() {
       accessed <<- accessed + 1L
@@ -56,14 +56,14 @@ test_that("compute policies are canonicalized and revalidated at preflight", {
   mutated <- policy
   mutated$block_features <- 0
   expect_error(
-    effectagram:::.execution_preflight(mutated, function() stop("must not inspect")),
+    crossform:::.execution_preflight(mutated, function() stop("must not inspect")),
     "positive integer"
   )
 
   forged <- policy
   forged$extra <- TRUE
   expect_error(
-    effectagram:::.execution_preflight(forged, function() stop("must not inspect")),
+    crossform:::.execution_preflight(forged, function() stop("must not inspect")),
     "canonical order"
   )
 })

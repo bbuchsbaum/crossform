@@ -27,5 +27,5 @@ test_that("effect-space validators reject ambiguous and mutated identity", {
 
   space <- effect_space(c("a", "b"), basis_id = "basis:v1")
   space$units[[1L]] <- "other"
-  expect_error(effectagram:::.validate_effect_space(space), "inconsistent")
+  expect_error(crossform:::.validate_effect_space(space), "inconsistent")
 })

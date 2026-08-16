@@ -1,4 +1,4 @@
-Package: effectagram
+Package: crossform
 Title: Cross-Generalized Effect Geometry
 Version: 0.0.0.9000
 Authors@R: person("Bradley", "Buchsbaum", role = c("aut", "cre"),
@@ -12,9 +12,9 @@ Description: Implements a cross-generalized evidence calculus for asking where
     pairings, units, execution receipts, uncertainty capabilities, and
     principled refusals remain explicit.
 License: MIT + file LICENSE
-URL: https://bbuchsbaum.github.io/effectagram/,
-    https://github.com/bbuchsbaum/effectagram
-BugReports: https://github.com/bbuchsbaum/effectagram/issues
+URL: https://bbuchsbaum.github.io/crossform/,
+    https://github.com/bbuchsbaum/crossform
+BugReports: https://github.com/bbuchsbaum/crossform/issues
 Encoding: UTF-8
 Imports:
     digest,

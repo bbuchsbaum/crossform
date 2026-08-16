@@ -38,13 +38,13 @@ test_that("every unmet sampling requirement is reported, not only the first", {
     fixture$fit$relation, fixture$frame,
     pairing("run1", "run2", independence = "independent")
   )
-  compiled <- effectagram:::.compile_evidence_sampling_plan(
+  compiled <- crossform:::.compile_evidence_sampling_plan(
     partial, fixture$fit$relation, sampling_axis = "trial"
   )
   expect_true(all(c("missing_error_channel", "not_equal_weight_all_pairs")
     %in% compiled$unavailable_reasons))
   refusal <- catch_refusal(
-    effectagram:::.require_sampling_covariance(compiled)
+    crossform:::.require_sampling_covariance(compiled)
   )
   expect_identical(refusal$reasons, compiled$unavailable_reasons)
   expect_match(refusal$message, "complete, equally weighted set")
@@ -52,13 +52,13 @@ test_that("every unmet sampling requirement is reported, not only the first", {
 
   # Without a declared sampling axis, that reason joins the set and gets its
   # own sentence rather than the generic fallback.
-  axis_free <- effectagram:::.compile_evidence_sampling_plan(
+  axis_free <- crossform:::.compile_evidence_sampling_plan(
     partial, fixture$fit$relation
   )
   expect_true("sampling_axis_missing_or_inconsistent" %in%
     axis_free$unavailable_reasons)
   axis_refusal <- catch_refusal(
-    effectagram:::.require_sampling_covariance(axis_free)
+    crossform:::.require_sampling_covariance(axis_free)
   )
   expect_match(axis_refusal$message, "no single sampling axis is declared")
 })
@@ -70,13 +70,13 @@ test_that("undeclared endpoint independence refuses with its own sentence", {
     fixture$fit$relation, fixture$frame,
     pairing("run1", "run2", independence = "not_independent")
   )
-  compiled <- effectagram:::.compile_evidence_sampling_plan(
+  compiled <- crossform:::.compile_evidence_sampling_plan(
     dependent, fixture$fit
   )
   expect_true("endpoint_independence_not_declared" %in%
     compiled$unavailable_reasons)
   refusal <- catch_refusal(
-    effectagram:::.require_sampling_covariance(compiled)
+    crossform:::.require_sampling_covariance(compiled)
   )
   expect_match(refusal$message, "statistically\\s+independent")
   expect_true(any(grepl("independence", refusal$remedies)))
@@ -97,7 +97,7 @@ test_that("a learned-frozen metric is refused by admission, not by accident", {
     cross_partitions(fixture$fit$relation, independence = "independent"),
     metric = learned_metric
   )
-  descriptor <- effectagram:::.sampling_evidence_descriptor(plan)
+  descriptor <- crossform:::.sampling_evidence_descriptor(plan)
   expect_identical(descriptor$record$metric_status, "learned")
 
   refusal <- catch_refusal(
@@ -145,7 +145,7 @@ test_that("plan_crossnobis diagnoses a missing residual channel first", {
 test_that("relation-fit refusals carry the capability and partitions", {
   fixture <- refusal_fixture(domain_id = "refusal-relation-fit-domain")
   refusal <- catch_refusal(
-    effectagram:::.require_relation_fit_capability(
+    crossform:::.require_relation_fit_capability(
       fixture$fit$relation, "residual_blocks"
     )
   )
@@ -158,12 +158,12 @@ test_that("relation-fit refusals carry the capability and partitions", {
 test_that("error capabilities are earned by their own fields", {
   fixture <- refusal_fixture(domain_id = "refusal-capability-bits-domain")
   model <- fixture$fit$error_models[[1L]]
-  full <- effectagram:::.error_capabilities(model)
+  full <- crossform:::.error_capabilities(model)
   expect_true(full$within_participant_calibration)
 
   covariance_free <- model
   covariance_free$effect_covariance <- NULL
-  partial <- effectagram:::.error_capabilities(covariance_free)
+  partial <- crossform:::.error_capabilities(covariance_free)
   expect_true(partial$error_model)
   expect_false(partial$effect_covariance)
   expect_false(partial$within_participant_calibration)

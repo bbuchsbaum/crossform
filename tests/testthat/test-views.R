@@ -14,7 +14,7 @@ view_geometry_fixture <- function() {
     diag(c(0.5, 0.25, -0.1, -0.25))
   )
   pack <- function(values) do.call(rbind,
-    lapply(values, effectagram:::.svec_symmetric))
+    lapply(values, crossform:::.svec_symmetric))
   endpoint <- matrix(c(
     1, 2, 3, 4,
     -1, 0, 1, 2
@@ -91,8 +91,8 @@ test_that("compiled multiple-regression RSA equals explicit RDM regression", {
     nuisance = list(group = nuisance), intercept = TRUE)
   distances <- rdm(fixture$geometry)$values
   design <- cbind(`(Intercept)` = 1,
-    ordinal = effectagram:::.rdm_vector(model),
-    group = effectagram:::.rdm_vector(nuisance))
+    ordinal = crossform:::.rdm_vector(model),
+    group = crossform:::.rdm_vector(nuisance))
   expected <- t(apply(distances, 1, function(value) {
     qr.coef(qr(design), value)
   }))
@@ -110,7 +110,7 @@ test_that("thin QR coefficient maps equal the dense-identity oracle", {
     strong = stats::rnorm(300L, sd = 10)
   )
   decomposition <- qr(design, LAPACK = FALSE)
-  got <- effectagram:::.thin_qr_coefficient_map(decomposition)
+  got <- crossform:::.thin_qr_coefficient_map(decomposition)
   oracle <- qr.coef(decomposition, diag(nrow(design)))
 
   expect_equal(got, oracle, tolerance = 1e-12)

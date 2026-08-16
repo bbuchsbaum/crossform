@@ -252,6 +252,7 @@ fmridesign_design_model <- function(
     package = "fmridesign",
     package_version = version,
     provenance = list(
+      # Frozen because semantic model provenance participates in plan identity.
       adapter = "effectagram::fmridesign_design_model",
       block_map = as.list(block_map)
     )

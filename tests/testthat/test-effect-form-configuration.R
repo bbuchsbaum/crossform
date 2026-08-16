@@ -30,7 +30,7 @@ configuration_form_fixture <- function(singleton = FALSE) {
     left_effects = left_effects,
     right_effects = right_effects,
     frame = additive_frame(Matrix::Matrix(weights, sparse = TRUE)),
-    edges = effectagram:::.ordered_partition_edges(
+    edges = crossform:::.ordered_partition_edges(
       over, left_partitions, right_partitions, FALSE
     )
   )
@@ -38,7 +38,7 @@ configuration_form_fixture <- function(singleton = FALSE) {
 
 run_configuration_form <- function(fixture, query = NULL,
                                    form_total = TRUE) {
-  effectagram:::.streamed_effect_form_contraction(
+  crossform:::.streamed_effect_form_contraction(
     fixture$frame,
     read_left = function(partition, features) {
       fixture$left[[partition]][, features, drop = FALSE]
@@ -62,7 +62,7 @@ run_configuration_form <- function(fixture, query = NULL,
 }
 
 run_configuration_component <- function(fixture, component, query = NULL) {
-  effectagram:::.streamed_effect_form_components(
+  crossform:::.streamed_effect_form_components(
     fixture$frame,
     read_left = function(partition, features) {
       fixture$left[[partition]][, features, drop = FALSE]
@@ -128,7 +128,7 @@ configuration_oracle <- function(fixture) {
 test_that("rectangular configuration equals explicit weighted centering", {
   fixture <- configuration_form_fixture()
   streamed <- run_configuration_form(fixture)
-  coherent <- effectagram:::.effect_form_coherent_from_first_moments(
+  coherent <- crossform:::.effect_form_coherent_from_first_moments(
     streamed$first_moments$left,
     streamed$first_moments$right,
     fixture$edges,
@@ -154,7 +154,7 @@ test_that("rectangular configuration equals explicit weighted centering", {
 test_that("direct total, coherent, and configuration queries equal late queries", {
   fixture <- configuration_form_fixture()
   complete <- run_configuration_form(fixture)
-  complete_coherent <- effectagram:::.effect_form_coherent_from_first_moments(
+  complete_coherent <- crossform:::.effect_form_coherent_from_first_moments(
     complete$first_moments$left,
     complete$first_moments$right,
     fixture$edges,
@@ -167,7 +167,7 @@ test_that("direct total, coherent, and configuration queries equal late queries"
   )
   query <- do.call(cbind, lapply(operators, as.vector))
   direct <- run_configuration_form(fixture, query = query)
-  direct_coherent <- effectagram:::.effect_form_coherent_from_first_moments(
+  direct_coherent <- crossform:::.effect_form_coherent_from_first_moments(
     direct$first_moments$left,
     direct$first_moments$right,
     fixture$edges,
@@ -218,7 +218,7 @@ test_that("direct total, coherent, and configuration queries equal late queries"
 
   left_space <- effect_space(fixture$left_effects, basis_id = "encode:v1")
   right_space <- effect_space(fixture$right_effects, basis_id = "retrieve:v1")
-  result <- effectagram:::effect_form(
+  result <- crossform:::effect_form(
     complete$value, left_space, right_space, receipt_fixture(),
     codec = "rectangular", coherent = complete_coherent
   )
@@ -236,7 +236,7 @@ test_that("direct total, coherent, and configuration queries equal late queries"
 test_that("singleton spatial frames have zero configuration", {
   fixture <- configuration_form_fixture(singleton = TRUE)
   streamed <- run_configuration_form(fixture)
-  coherent <- effectagram:::.effect_form_coherent_from_first_moments(
+  coherent <- crossform:::.effect_form_coherent_from_first_moments(
     streamed$first_moments$left,
     streamed$first_moments$right,
     fixture$edges,
@@ -262,7 +262,7 @@ test_that("first-moment-only streaming omits total atoms and output", {
 test_that("rectangular first-moment memory plans cover both side states", {
   fixture <- configuration_form_fixture()
   got <- run_configuration_form(fixture)
-  plan <- effectagram:::.effect_form_kernel_memory_plan(
+  plan <- crossform:::.effect_form_kernel_memory_plan(
     fixture$frame,
     fixture$left_effects,
     fixture$right_effects,
@@ -295,7 +295,7 @@ test_that("packed self coherent specialization remains exact", {
   over <- pairing(c("run1", "run1", "run2"),
     c("run2", "run3", "run3"), weight = c(1, 2, 3))
   mass <- c(2, 3, 4, 5)
-  got <- effectagram:::.coherent_geometry_from_local(local, over, mass)
+  got <- crossform:::.coherent_geometry_from_local(local, over, mass)
   oracle <- matrix(0, 4, 6)
   for (measurement in 1:4) {
     form <- matrix(0, 3, 3)
@@ -305,7 +305,7 @@ test_that("packed self coherent specialization remains exact", {
       form <- form + over$weight[[edge]] *
         0.5 * (outer(left, right) + outer(right, left)) / mass[[measurement]]
     }
-    oracle[measurement, ] <- effectagram:::.svec_symmetric(form)
+    oracle[measurement, ] <- crossform:::.svec_symmetric(form)
   }
 
   expect_equal(got$value, oracle, tolerance = 1e-14)

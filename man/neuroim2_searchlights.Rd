@@ -2,7 +2,7 @@
 % Please edit documentation in R/neuroim2-adapter.R
 \name{neuroim2_searchlights}
 \alias{neuroim2_searchlights}
-\title{Compile neuroim2 searchlight indices into an effectagram frame}
+\title{Compile neuroim2 searchlight indices into a crossform frame}
 \usage{
 neuroim2_searchlights(
   mask,

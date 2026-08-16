@@ -2,7 +2,7 @@
 # 01-prepare-data.R -- the single shared preparation for both arms.
 #
 # Produces one 8 x P condition-mean matrix per run (P = VT mask voxels),
-# computed once. Both the effectagram arm and the rMVPA arm consume exactly
+# computed once. Both the crossform arm and the rMVPA arm consume exactly
 # this object, so no preprocessing, HRF, or averaging choice can differ
 # between them. The comparison isolates pairing/distance/RSA semantics only.
 #

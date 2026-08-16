@@ -24,8 +24,8 @@ amplitude remains `B a`; the metric controls only its normalization.
 \examples{
 domain <- abstract_domain(3, id = "component-example")
 metric <- neural_metric(diag(c(1, 2, 3)), domain)
-mean_functional <- effectagram:::coherent_functional(rep(1 / 3, 3), domain)
-components <- effectagram:::metric_components(metric, mean_functional)
+mean_functional <- crossform:::coherent_functional(rep(1 / 3, 3), domain)
+components <- crossform:::metric_components(metric, mean_functional)
 all.equal(components$coherent + components$configuration, metric$value)
 }
 \keyword{internal}

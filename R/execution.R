@@ -8,7 +8,7 @@
 #'
 #' @param workers Number of R workers. Must be exactly one in version 0.1.
 #' @param block_features Optional positive feature-block size.
-#' @param workspace_bytes Optional positive budget for effectagram-owned live
+#' @param workspace_bytes Optional positive budget for crossform-owned live
 #'   workspace. Baseline and total process RSS are not charged to this budget.
 #' @return An immutable-by-convention declarative compute policy.
 #' @export
@@ -28,7 +28,7 @@ compute_policy <- function(workers = 1L, block_features = NULL,
 
 .validate_compute_policy <- function(policy) {
   if (!inherits(policy, "effect_compute_policy")) {
-    stop("`compute` must be an effectagram compute policy.", call. = FALSE)
+    stop("`compute` must be a crossform compute policy.", call. = FALSE)
   }
   expected_names <- c("workers", "block_features", "workspace_bytes",
     "process_backend")
@@ -39,7 +39,7 @@ compute_policy <- function(workers = 1L, block_features = NULL,
   workers <- policy$workers
   if (!is.numeric(workers) || length(workers) != 1L || is.na(workers) ||
       !is.finite(workers) || workers != 1) {
-    stop("workers > 1 is not implemented in effectagram 0.1; `workers` must be 1.",
+    stop("workers > 1 is not implemented in crossform 0.1; `workers` must be 1.",
       call. = FALSE)
   }
   if (!is.null(policy$block_features) &&
@@ -57,7 +57,7 @@ compute_policy <- function(workers = 1L, block_features = NULL,
       call. = FALSE)
   }
   if (!identical(policy$process_backend, "sequential")) {
-    stop("effectagram 0.1 supports only the sequential process backend.",
+    stop("crossform 0.1 supports only the sequential process backend.",
       call. = FALSE)
   }
   structure(

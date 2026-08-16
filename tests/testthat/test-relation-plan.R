@@ -21,6 +21,43 @@ test_that("relation plan identity is stable across coding and solver routes", {
     "svd_requested")
 })
 
+test_that("the crossform rename changes receipts but not relation estimands", {
+  renamed <- relation_plan_fixture("qr", "cell")
+  legacy_model <- design_model(
+    specification = renamed$model$specification,
+    conditions = renamed$model$condition_space,
+    designs = renamed$model$designs,
+    parameterizations = renamed$model$parameterizations,
+    row_ids = renamed$model$row_ids,
+    solver = renamed$model$solver,
+    protocol = "effectagram-semantic-design",
+    protocol_version = "1",
+    package = "effectagram",
+    package_version = "0.0.0.9000",
+    provenance = renamed$model$provenance
+  )
+  legacy_plan <- plan_relation(
+    renamed$plan$study,
+    legacy_model,
+    renamed$effects,
+    renamed$observation
+  )
+
+  expect_identical(renamed$model$compiler$protocol,
+    "crossform-semantic-design")
+  expect_identical(renamed$model$compiler$package, "crossform")
+  expect_identical(renamed$model$design_model_id,
+    legacy_model$design_model_id)
+  expect_false(identical(renamed$model$compilation_route_id,
+    legacy_model$compilation_route_id))
+  expect_identical(renamed$plan$relation_plan_id,
+    legacy_plan$relation_plan_id)
+  expect_false(identical(
+    renamed$plan$design_receipts$`run-1`$design_receipt_id,
+    legacy_plan$design_receipts$`run-1`$design_receipt_id
+  ))
+})
+
 test_that("estimate emits the existing relation-fit contract with receipt identity", {
   cell <- relation_plan_fixture("qr", "cell")
   treatment <- relation_plan_fixture("svd", "treatment")
@@ -191,7 +228,7 @@ test_that("row alignment and nonestimability refuse before neural reads", {
   model <- fixture$model
   model$row_ids$`run-1` <- rev(model$row_ids$`run-1`)
   model$compilation_route_id <- "tampered"
-  expect_error(effectagram:::.validate_design_model(model),
+  expect_error(crossform:::.validate_design_model(model),
     "disagree|inconsistent")
 
   reversed_designs <- fixture$model$designs
@@ -251,6 +288,6 @@ test_that("design receipts are portable and identity guarded", {
 
   tampered <- receipts$`run-1`
   tampered$design[1, 1] <- tampered$design[1, 1] + 1
-  expect_error(effectagram:::.validate_design_receipt(tampered),
+  expect_error(crossform:::.validate_design_receipt(tampered),
     "identity is inconsistent")
 })

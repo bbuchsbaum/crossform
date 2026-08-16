@@ -20,7 +20,7 @@ sampling_plan_fixture <- function(partitions = 3L,
 
 test_that("sampling plans bind evidence, error, metric, and target identities", {
   fixture <- sampling_plan_fixture()
-  plan <- effectagram:::.compile_evidence_sampling_plan(
+  plan <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit
   )
 
@@ -39,25 +39,25 @@ test_that("sampling plans bind evidence, error, metric, and target identities", 
   expect_identical(plan$capabilities$requested_operation, "diagonal")
   expect_identical(plan$capabilities$materialization, "query_only")
   expect_false(plan$partition$edge_products_independent)
-  expect_silent(effectagram:::.require_sampling_covariance(plan))
+  expect_silent(crossform:::.require_sampling_covariance(plan))
 })
 
 test_that("same-shaped sampling requests keep distinct semantic identities", {
   fixture <- sampling_plan_fixture()
-  baseline <- effectagram:::.compile_evidence_sampling_plan(
+  baseline <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit
   )
-  null_target <- effectagram:::.compile_evidence_sampling_plan(
+  null_target <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit,
-    target = effectagram:::.sampling_target("null")
+    target = crossform:::.sampling_target("null")
   )
-  selected <- effectagram:::.compile_evidence_sampling_plan(
+  selected <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit,
-    operation = effectagram:::.sampling_operation(
+    operation = crossform:::.sampling_operation(
       "selected_entries", matrix(c(1L, 1L), 1L, 2L)
     )
   )
-  heterogeneous <- effectagram:::.compile_evidence_sampling_plan(
+  heterogeneous <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit, partition_model = "heterogeneous"
   )
 
@@ -75,10 +75,10 @@ test_that("same-shaped sampling requests keep distinct semantic identities", {
 
 test_that("a bare relation cannot gain a sampling law from its shape", {
   fixture <- sampling_plan_fixture()
-  fitted <- effectagram:::.compile_evidence_sampling_plan(
+  fitted <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit
   )
-  bare <- effectagram:::.compile_evidence_sampling_plan(
+  bare <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit$relation, sampling_axis = "trial"
   )
 
@@ -90,7 +90,7 @@ test_that("a bare relation cannot gain a sampling law from its shape", {
     fitted$scientific_plan_id, bare$scientific_plan_id
   ))
   expect_error(
-    effectagram:::.require_sampling_covariance(bare),
+    crossform:::.require_sampling_covariance(bare),
     "lm_relation_fit.*beta matrices alone"
   )
 })
@@ -100,7 +100,7 @@ test_that("error channels are identity-bound to the evidence relation", {
   second <- sampling_plan_fixture(domain_id = "different-domain")
 
   expect_error(
-    effectagram:::.compile_evidence_sampling_plan(
+    crossform:::.compile_evidence_sampling_plan(
       first$evidence, second$fit
     ),
     "identity-bound"
@@ -108,10 +108,10 @@ test_that("error channels are identity-bound to the evidence relation", {
 })
 
 test_that("learned metric uncertainty and spatial scope are explicit gates", {
-  metric <- effectagram:::.sampling_metric_record(
+  metric <- crossform:::.sampling_metric_record(
     "sha256:learned-metric", status = "learned", uncertainty = "ignored"
   )
-  bridge <- effectagram:::.sampling_metric_record(
+  bridge <- crossform:::.sampling_metric_record(
     "sha256:bridge", status = "fixed", role = "bridge"
   )
 
@@ -119,33 +119,33 @@ test_that("learned metric uncertainty and spatial scope are explicit gates", {
   expect_identical(metric$uncertainty, "ignored")
   expect_identical(bridge$role, "bridge")
   expect_error(
-    effectagram:::.sampling_metric_record(
+    crossform:::.sampling_metric_record(
       "sha256:learned-metric", status = "learned"
     ),
     "must declare uncertainty"
   )
 
   fixture <- sampling_plan_fixture()
-  spatial <- effectagram:::.compile_evidence_sampling_plan(
+  spatial <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit, spatial_scope = "modeled"
   )
   expect_identical(spatial$capabilities$spatial_covariance, "unavailable")
   expect_error(
-    effectagram:::.require_sampling_covariance(spatial),
+    crossform:::.require_sampling_covariance(spatial),
     "cross-location sampling covariance requires an explicit spatial model"
   )
 })
 
 test_that("sampling-plan mutation is detected by canonical validation", {
   fixture <- sampling_plan_fixture()
-  plan <- effectagram:::.compile_evidence_sampling_plan(
+  plan <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit
   )
   forged <- plan
   forged$capabilities$calibration_target <- "null"
 
   expect_error(
-    effectagram:::.validate_evidence_sampling_plan(forged),
+    crossform:::.validate_evidence_sampling_plan(forged),
     "capabilities"
   )
 })

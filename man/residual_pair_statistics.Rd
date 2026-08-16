@@ -21,7 +21,7 @@ accepted.}
 \item{partitions}{Optional relation partitions. They are canonicalized to
 relation order.}
 
-\item{workspace_bytes}{Positive effectagram-owned workspace budget.}
+\item{workspace_bytes}{Positive crossform-owned workspace budget.}
 }
 \value{
 An `effect_residual_pair_statistics` object containing one atomic

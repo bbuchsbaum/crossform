@@ -50,9 +50,9 @@ plan_relation(
 )
 ```
 
-The contract does not turn effectagram into an event grammar, HRF library,
+The contract does not turn crossform into an event grammar, HRF library,
 BIDS indexer, or general GLM engine. Those facilities may be supplied by
-conforming packages. Effectagram owns the identities, conformance boundary,
+conforming packages. Crossform owns the identities, conformance boundary,
 capability implications, refusals, and the relation object emitted downstream.
 
 ## 2. The linear relation and its conditional scope
@@ -497,7 +497,7 @@ earned guarantee, and the choice remains part of estimand identity.
 Version 0.2 does not promise:
 
 - every BIDS derivative or modality;
-- a new HRF formula language inside effectagram;
+- a new HRF formula language inside crossform;
 - nonlinear or Bayesian first-level inference;
 - automatic discovery of exchangeability or independence;
 - semantic equivalence testing for arbitrary user-supplied `(X, T)` pairs;

@@ -15,7 +15,7 @@
   invisible(TRUE)
 }
 
-#' Construct an effectagram domain from a neuroim2 volume mask
+#' Construct a crossform domain from a neuroim2 volume mask
 #'
 #' This conditional adapter records the mask's stable full-volume indices,
 #' physical coordinates, spacing, and full neuroim2 spatial metadata. It does
@@ -55,7 +55,7 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
     domain$coordinate_units, domain$metadata)
 }
 
-#' Compile neuroim2 searchlight indices into an effectagram frame
+#' Compile neuroim2 searchlight indices into a crossform frame
 #'
 #' The function calls only `neuroim2::searchlight_indices()` and maps its stable
 #' full-volume indices to the ordered compact feature columns of `domain`.
@@ -74,7 +74,7 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
   .require_neuroim2_searchlight_indices()
   if (!is.logical(nonzero) || length(nonzero) != 1L || is.na(nonzero) ||
       !nonzero) {
-    stop("effectagram neuroim2 searchlights require `nonzero = TRUE`.",
+    stop("crossform neuroim2 searchlights require `nonzero = TRUE`.",
       call. = FALSE)
   }
   if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
@@ -133,7 +133,7 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
 #' Map a compact result vector back to a neuroim2 volume
 #'
 #' The compact values are inserted at the exact full-volume indices carried by
-#' an effectagram volume domain. Features outside the domain receive `fill`.
+#' a crossform volume domain. Features outside the domain receive `fill`.
 #' This is an output adapter only; it performs no interpolation, smoothing, or
 #' coordinate reinterpretation.
 #'
@@ -146,7 +146,7 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
 #' @return A neuroim2 `NeuroVol` with values at `domain$feature_ids`.
 #' @export
 as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
-                        label = "effectagram result") {
+                        label = "crossform result") {
   .require_neuroim2_searchlight_indices()
   if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
   .validate_domain(domain)

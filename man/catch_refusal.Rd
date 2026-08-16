@@ -14,7 +14,7 @@ The captured `effect_capability_refusal` condition, or `NULL` if
   `expr` succeeded.
 }
 \description{
-Every contract-level refusal in effectagram signals a condition of class
+Every contract-level refusal in crossform signals a condition of class
 `effect_capability_refusal`. The condition carries the missing
 `$capability`, its `$namespace`, all unmet `$reasons`, and suggested
 `$remedies`, so callers can branch on the *cause* rather than matching

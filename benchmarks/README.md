@@ -32,13 +32,13 @@ path while the matched implicit metric remains subsecond. Metric construction
 is recorded separately from repeated map execution.
 
 `tests/testthat/test-public-map-scale.R` invokes the same runner when
-`EFFECTAGRAM_RUN_SCALE_TESTS=true`. The scheduled and manually dispatchable
+`CROSSFORM_RUN_SCALE_TESTS=true`. The scheduled and manually dispatchable
 scale workflow sets that flag, which also activates the two 50k topology tests.
 
 Run from the repository root:
 
 ```sh
-Rscript benchmarks/run-memory-benchmarks.R . /tmp/effectagram-memory-results
+Rscript benchmarks/run-memory-benchmarks.R . /tmp/crossform-memory-results
 ```
 
 Each fixed-seed scenario runs the actual sparse additive-frame path in a fresh
@@ -71,7 +71,7 @@ sequential compiler epic and every later parallel-executor gate.
 ## Shard admission benchmark
 
 The optional executor gate is separate from the sequential memory harness. It
-requires installed development versions of `effectagram` and `shard` in an
+requires installed development versions of `crossform` and `shard` in an
 isolated library, then runs:
 
 ```sh
@@ -82,7 +82,7 @@ Rscript benchmarks/run-shard-admission.R \
 The harness compares sequential response extraction, shared-response staging,
 and shared-relation staging. Cold modes include staging and pool startup; warm
 modes measure execution with those resources already available. Every mode
-uses `effectagram`'s canonical feature task and ordered reducer. The parent
+uses `crossform`'s canonical feature task and ordered reducer. The parent
 process samples the full child process tree, so the memory record includes the
 coordinator and all workers rather than coordinator RSS alone.
 

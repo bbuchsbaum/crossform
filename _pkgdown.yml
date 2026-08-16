@@ -1,4 +1,4 @@
-url: https://bbuchsbaum.github.io/effectagram/
+url: https://bbuchsbaum.github.io/crossform/
 
 development:
   mode: unreleased
@@ -15,7 +15,7 @@ home:
   - text: Failure gallery
     href: failure-gallery.html
   - text: Haxby 2001 real-data exemplar
-    href: https://github.com/bbuchsbaum/effectagram/tree/main/exemplars/haxby2001
+    href: https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001
 
 articles:
 - title: Start here

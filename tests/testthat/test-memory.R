@@ -53,7 +53,7 @@ test_that("workspace budgets and RSS observations remain distinct", {
   expect_equal(plan$incremental_peak_rss_bytes, 1200)
   expect_equal(plan$absolute_peak_rss_bytes, 6200)
   expect_identical(plan$prediction_kind,
-    "effectagram_owned_workspace_upper_bound")
+    "crossform_owned_workspace_upper_bound")
 })
 
 test_that("memory plans reject invalid and overflowing inputs", {
@@ -84,7 +84,7 @@ test_that("dense matrix byte planning is exact and allocation-free in size", {
       matrix(0, shape[[1L]], shape[[2L]])
     ))
     expect_identical(
-      effectagram:::.dense_double_matrix_bytes(shape[[1L]], shape[[2L]]),
+      crossform:::.dense_double_matrix_bytes(shape[[1L]], shape[[2L]]),
       expected
     )
   }
@@ -92,11 +92,11 @@ test_that("dense matrix byte planning is exact and allocation-free in size", {
   # This represents a 20 GB matrix.  The assertion is safe precisely because
   # the planner performs arithmetic and never constructs the matrix.
   expect_identical(
-    effectagram:::.dense_double_matrix_bytes(50000, 50000),
+    crossform:::.dense_double_matrix_bytes(50000, 50000),
     20000000216
   )
   expect_error(
-    effectagram:::.dense_double_matrix_bytes(2^52, 2^52),
+    crossform:::.dense_double_matrix_bytes(2^52, 2^52),
     "overflows"
   )
 })
@@ -109,7 +109,7 @@ test_that("named array byte planning preserves metadata without values", {
   )))
 
   expect_identical(
-    effectagram:::.named_double_array_bytes(dimensions, names),
+    crossform:::.named_double_array_bytes(dimensions, names),
     expected
   )
 })

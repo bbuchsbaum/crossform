@@ -1,34 +1,41 @@
 ---
-title: "How do observations become a representational analysis?"
+title: "Fit condition effects from observations"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{How do observations become a representational analysis?}
+  %\VignetteIndexEntry{Fit condition effects from observations}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-library(effectagram)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+library(crossform)
 ```
 
-This guide starts before the beta matrices. Its question is: **how can raw
-observation-by-feature responses become a cross-run geometry without letting
-design coding, censoring, or solver choices silently redefine the requested
-effects?**
+Use this guide when you have one scan-by-feature response matrix per run, event
+and confound tables, and a design matrix or design compiler. The goal is to fit
+named condition effects in every run and pass them to `contrast()`, `rdm()`, or
+`rsa()`. The returned `effect_relation_fit` can also retain residuals for
+within-participant uncertainty calculations.
 
-The answer uses two plans. `plan_relation()` identifies the first-moment
-request; `plan_geometry()` identifies the second-moment request. Between them,
-portable receipts record what actually happened.
+The workflow has five steps: bind observations to their clocks and metadata,
+declare the condition effects, declare the observation model, call
+`plan_relation()`, and fit it with `estimate()`. A separate `plan_geometry()`
+then states what those fitted effects must reproduce across.
 
-## Build a small study from facts
+## What data does the fit require?
 
 The example has three runs, three named conditions, twelve neural features,
-and two censored scans per run. The event rows, observation clocks, confounds,
-and partition hierarchy are facts. They do not decide which terms are nuisance,
-which sampling unit matters, or what must generalize.
+and two censored scans per run. Each response matrix has scans in rows and
+neural features in columns. Event rows use the same clock units as the scan
+index, while confound rows join to scans by `partition` and `observation_id`.
 
-```{r facts}
+```{r generate-data, include=FALSE}
 set.seed(20260815)
 partitions <- paste0("run-", 1:3)
 n_scan <- 18L
@@ -86,32 +93,53 @@ confound_table <- do.call(rbind, lapply(partitions, function(partition) {
     retained = seq_len(n_scan) <= 16L
   )
 }))
-
-facts <- study(
-  observations(response_runs, scan_indexes, domain),
-  events(event_table),
-  observation_confounds(confound_table, censor = "retained"),
-  partition_hierarchy(data.frame(
-    partition = partitions,
-    run = partitions,
-    session = "session-1",
-    subject = "subject-1"
-  ))
-)
-facts
-study_capabilities(facts)
 ```
 
-`study()` joins by declared partition and observation identifiers, never by
-positional luck. It also checks that event intervals and scan clocks use the
-same units and coverage. The condition and motion columns still have no model
-role.
+```{r inspect-inputs}
+data.frame(
+  partition = names(response_runs),
+  scans = vapply(response_runs, nrow, integer(1)),
+  features = vapply(response_runs, ncol, integer(1))
+)
+utils::head(event_table, 3)
+utils::head(confound_table, 3)
+```
+
+## Bind observations to events and confounds
+
+The constructors below turn the matrices and tables into records with named
+axes. `study()` then verifies their correspondence. It rejects missing or extra
+confound rows, incompatible identifier types, mismatched clock units, and
+events outside the observation window.
+
+```{r bind-study}
+neural_record <- observations(response_runs, scan_indexes, domain)
+event_record <- events(event_table)
+confound_record <- observation_confounds(
+  confound_table, censor = "retained"
+)
+hierarchy <- partition_hierarchy(data.frame(
+  partition = partitions, run = partitions,
+  session = "session-1", subject = "subject-1"
+))
+
+study_facts <- study(
+  neural_record, event_record, confound_record, hierarchy
+)
+study_capabilities(study_facts)
+```
+
+The returned row reports aligned observations, resolved timing, a bound
+partition hierarchy, and stable source revisions. The study's row lineage also
+records which scans censoring retained. `study()` does not decide whether
+`condition` or `motion` is a target, nuisance term, or unused column. Those
+roles belong to the design model.
 
 ## Declare effects before choosing coefficient coding
 
-The scientific coordinates are the three condition amplitudes. The identity
-effect map requests all three so the downstream relation has a named condition
-axis. A contrast such as face minus body will be asked later without refitting.
+The requested effects are the three condition amplitudes, in arbitrary BOLD
+units. `condition_space()` names those coordinates. `effect_map()` requests all
+three, so later calls can form contrasts without refitting the run models.
 
 ```{r semantic-effects}
 condition_coordinates <- condition_space(
@@ -124,8 +152,11 @@ dimnames(effect_weights) <- list(conditions, conditions)
 named_effects <- effect_map(effect_weights, condition_coordinates)
 ```
 
-The compiled design uses cell means plus drift and motion. Its parameterization
-declares how coefficient coordinates reconstruct the semantic condition means:
+The compiled design has one column per condition plus linear drift and motion.
+`coefficient_parameterization()` declares which linear combinations of those
+coefficients equal the named condition amplitudes. This declaration makes the
+effect request independent of whether the compiler uses cell-means or treatment
+coding.
 
 ```{r design-model}
 condition_from_coefficients <- cbind(
@@ -163,16 +194,18 @@ declared_design <- design_model(
 )
 ```
 
-This explicit design constructor is the small self-contained route. A
-conforming external compiler can own the event grammar and HRF construction;
-effectagram requires it to emit the same semantic identity and portable
-receipt fields.
+`design_model()` returns the declared design plus the metadata needed to check
+and reproduce its compilation. This example supplies matrices directly. An
+external compiler may instead build haemodynamic response functions and event
+grammars, but it must provide the same named condition map, row lineage, ranks,
+aliasing information, and solver diagnostics.
 
-## Compose the first-moment estimand
+## Declare the fit and its assumptions
 
-The observation model is an assumption declaration. Here OLS is fixed, scans
-are the sampling unit, and run independence is asserted explicitly. None of
-those claims is inferred from the event table or run labels.
+The observation model states assumptions that the data tables cannot prove.
+Here the estimator is ordinary least squares (OLS), scans are the sampling
+unit, and runs are declared independently acquired conditional on the model.
+Changing any of these declarations changes the requested relation.
 
 ```{r relation-plan}
 noise_model <- observation_model(
@@ -181,7 +214,7 @@ noise_model <- observation_model(
   independence = "runs independently acquired conditional on the model"
 )
 relation_request <- plan_relation(
-  facts,
+  study_facts,
   declared_design,
   named_effects,
   noise_model
@@ -190,11 +223,12 @@ relation_request
 compiler_conformance(relation_request)
 ```
 
-`plan_relation()` compiles and validates design metadata without reading the
-neural values. Non-estimable effects refuse here with the partition, rank,
-aliased regressors, cause, and remedies.
+`plan_relation()` compiles and validates the design metadata without reading
+neural values. It returns an `effect_relation_plan`. If a requested effect is
+not estimable in a run, the call stops and names the run, rank, aliased
+regressors, cause, and possible remedies.
 
-The identity ladder separates the scientific request from its realized route:
+The plan, design receipt, and fitted relation have separate identities:
 
 ```{r identity-ladder}
 receipts <- relation_plan_receipts(relation_request)
@@ -209,16 +243,19 @@ data.frame(
 )
 ```
 
-Changing QR to SVD or using a supported treatment coding changes the receipt,
-not the condition-space request. Changing the named functional, units,
-observation law, or independence declaration changes the plan. `fit$signature`
-then binds that plan provenance, realized receipts, and observation revisions.
+Changing the solver from QR to SVD changes the design receipt, not the named
+condition-space request. A supported change from cell-means to treatment coding
+does the same. Changing the requested effects, units, observation law, or
+independence declaration changes the relation plan. `fit$signature` binds the
+plan, the realized receipts, and the exact observation revisions used by
+`estimate()`.
 
-## Continue into geometry without an ingestion-specific analysis engine
+## Ask what reproduces across runs
 
 `estimate()` emits the same `effect_relation_fit` consumed everywhere else in
-the package. The second-moment API does not branch on how the relation was
-obtained.
+the package. `cross_partitions()` requests products between different runs;
+`generalizes_over = "run"` records that run is the axis across which the effect
+must reproduce.
 
 ```{r geometry}
 frame <- compile_frame(
@@ -242,7 +279,14 @@ tool_category <- outer(
   function(left, right) as.numeric(left != right)
 )
 model_fit <- rsa(geometry_plan, models = list(tool = tool_category))
+```
 
+`contrast()` returns the signed regional contrast and its coherent,
+configuration, and total cross-run energies. `rdm()` returns the three pairwise
+condition distances for each region. `rsa()` returns an intercept and the
+coefficient for the named tool-category model.
+
+```{r summarize-geometry}
 round(cbind(
   signed = effect$signed,
   coherent = effect$coherent,
@@ -253,7 +297,9 @@ round(distances$values, 3)
 round(model_fit$coefficients, 3)
 ```
 
-The point outputs inherit one exact spatial accounting:
+For every region, total energy must equal coherent plus configuration energy.
+The hidden check below also verifies the expected result dimensions and every
+compiler-conformance guarantee.
 
 ```{r downstream-checks, include=FALSE}
 stopifnot(
@@ -268,9 +314,9 @@ stopifnot(
 )
 ```
 
-Because the fit retained residuals and the plan declared a fixed observation
-model and endpoint independence, the admitted analytic RDM variance is also
-available:
+Because the fit retained residuals and declared a fixed observation model, the
+package can calculate analytic standard errors for the three RDM distances at
+a selected region:
 
 ```{r uncertainty}
 distance_covariance <- rdm_sampling_covariance(
@@ -279,18 +325,20 @@ distance_covariance <- rdm_sampling_covariance(
 round(sqrt(sampling_covariance(distance_covariance)), 3)
 ```
 
-That is within-participant uncertainty under the stated separable fixed-model
-law. It is not population inference, and a learned frozen whitener would keep
-the point relation while withholding this analytic channel.
+These are within-participant standard errors under the declared fixed,
+separable error model, which represents sampling and neural-feature covariance
+as separate factors. They are not population-level uncertainty. A learned
+whitener would still permit the point estimates but would not receive this
+analytic uncertainty capability.
 
-## Use adapters without making the core BIDS-shaped
+## How do BIDS and external compilers fit?
 
-`bids_events()` maps one task `events.tsv` per declared partition into
-`events()`. `bids_confounds()` maps row-aligned confound tables into
-`observation_confounds()` and requires an explicit censor column if censoring
-is intended. `bids_study()` returns the same generic `study()` used above.
-Arbitrary event and confound columns are preserved; model roles are still
-assigned by the design compiler.
+`bids_study()` adapts one task `events.tsv` and one row-aligned confound table
+per partition to the same `study()` object used above. It preserves extra event
+and confound columns. The design compiler, not the adapter, decides which
+columns become target or nuisance terms. If censoring is intended, the call
+must name the Boolean censor column. This keeps BIDS at the file boundary; the
+core study object is not BIDS-shaped.
 
 ```{r bids-adapter, eval=FALSE}
 facts <- bids_study(
@@ -302,18 +350,21 @@ facts <- bids_study(
 )
 ```
 
-`fmridesign_design_model()` adapts the certified `fmridesign` version into a
-semantic design model. `fmrireg_relation()` independently executes an OLS
-relation plan for point-estimate parity; it deliberately withholds an analytic
-error channel rather than translating unsupported standard errors.
+`fmridesign_design_model()` adapts the supported `fmridesign` version into a
+design that names condition effects independently of coefficient columns.
+`fmrireg_relation()` can execute an OLS relation plan for point-estimate
+parity. That adapter does not return an analytic error channel because
+crossform cannot verify the required residual covariance contract from its
+result.
 
-If only already compiled matrices are available, use `raw_design_model()` with
-`raw_effect_map()`. That path remains valid, but the concrete `(X, T)` values
-become identity-bearing and the fit cannot claim symbolic coding invariance.
-If only beta matrices remain, `relation()` supports point geometry while
-honestly lacking a residual channel.
+If you have compiled design and target matrices but not their semantic
+condition mapping, use `raw_design_model()` with `raw_effect_map()`. Their
+numeric values then become part of the plan identity, and the fit cannot claim
+that a different coefficient coding represents the same request. If only beta
+matrices remain, use `relation()` for point geometry; analytic uncertainty is
+unavailable because the residual channel is missing.
 
-The distinction is the whole discipline: facts describe what was observed;
-`plan_relation()` composes the scientific request and assumptions; receipts
-record the realized compiler route; `estimate()` reads the data; and
-`plan_geometry()` asks what must reproduce.
+The next call depends on the result you need. Use `contrast()` for a named
+effect, `rdm()` for condition distances, `rsa()` for a fixed linear model, and
+`rdm_sampling_covariance()` only after `sampling_capabilities()` confirms that
+the fit and plan meet its assumptions.

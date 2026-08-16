@@ -11,7 +11,7 @@ compute_policy(workers = 1L, block_features = NULL, workspace_bytes = NULL)
 
 \item{block_features}{Optional positive feature-block size.}
 
-\item{workspace_bytes}{Optional positive budget for effectagram-owned live
+\item{workspace_bytes}{Optional positive budget for crossform-owned live
 workspace. Baseline and total process RSS are not charged to this budget.}
 }
 \value{

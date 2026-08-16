@@ -20,7 +20,7 @@ test_that("same-space metric capabilities gate exact lowering classes", {
   almost_diagonal <- diag(3)
   almost_diagonal[1, 2] <- almost_diagonal[2, 1] <- 1e-16
   dense <- neural_metric(almost_diagonal, domain)
-  recipe <- effectagram:::.metric_recipe(
+  recipe <- crossform:::.metric_recipe(
     "shrinkage_precision", domain,
     native_diagonal = FALSE,
     positive_definite = TRUE,
@@ -35,11 +35,11 @@ test_that("same-space metric capabilities gate exact lowering classes", {
   expect_true(metric_capabilities(recipe)$learned_recipe)
   expect_false(metric_capabilities(recipe)$materialized)
   expect_true(metric_capabilities(recipe)$inverse_quadratic_recipe)
-  expect_identical(effectagram:::.metric_lowering(identity),
+  expect_identical(crossform:::.metric_lowering(identity),
     "additive_contraction")
-  expect_identical(effectagram:::.metric_lowering(dense),
+  expect_identical(crossform:::.metric_lowering(dense),
     "support_streamed_pair_contraction")
-  expect_identical(effectagram:::.metric_lowering(recipe),
+  expect_identical(crossform:::.metric_lowering(recipe),
     "derive_then_support_streamed_pair_contraction")
 })
 
@@ -51,7 +51,7 @@ test_that("metric and bridge roles cannot be confused", {
   )
 
   expect_error(metric_capabilities(bridge), "bridge.*not.*metric")
-  expect_error(effectagram:::metric_components(bridge, c(0.5, 0.5)),
+  expect_error(crossform:::metric_components(bridge, c(0.5, 0.5)),
     "bridges do not admit")
 })
 
@@ -77,14 +77,14 @@ test_that("frame weights and metrics compose by square-root congruence", {
     -0.1, 0.2, 1.2
   ), 3, 3, byrow = TRUE)
   base <- neural_metric(base_value, domain, support = support)
-  composed <- effectagram:::.compose_frame_metric(frame, base, 1)
+  composed <- crossform:::.compose_frame_metric(frame, base, 1)
 
   expect_equal(composed$metric$value,
     oracle_frame_metric(weight[support], base_value), tolerance = 1e-14)
   expect_equal(composed$coherent$value,
     weight[support] / sum(weight[support]), tolerance = 0)
   expect_identical(composed$composition, "sqrt_weight_congruence")
-  expect_identical(effectagram:::.metric_lowering(composed$metric),
+  expect_identical(crossform:::.metric_lowering(composed$metric),
     "support_streamed_pair_contraction")
 })
 
@@ -93,11 +93,11 @@ test_that("identity base metrics recover the existing additive metric exactly", 
   weight <- c(0.1, 0.2, 0.3, 0.4)
   frame <- additive_frame(matrix(weight, 1), normalization = "local",
     domain = domain)
-  composed <- effectagram:::.compose_frame_metric(frame, NULL, 1)
+  composed <- crossform:::.compose_frame_metric(frame, NULL, 1)
 
   expect_equal(composed$metric$value, diag(weight), tolerance = 0)
   expect_true(metric_capabilities(composed$metric)$feature_additive)
-  expect_identical(effectagram:::.metric_lowering(composed$metric),
+  expect_identical(crossform:::.metric_lowering(composed$metric),
     "additive_contraction")
 })
 
@@ -106,21 +106,21 @@ test_that("conservative identity conservation is capability-gated", {
   weights <- rbind(c(0.5, 1, 0), c(0.5, 0, 1))
   frame <- additive_frame(weights, normalization = "conservative",
     domain = domain)
-  identity <- effectagram:::.metric_frame_conservation(frame)
+  identity <- crossform:::.metric_frame_conservation(frame)
   dense_metrics <- list(
     neural_metric(matrix(c(1, 0.2, 0.2, 1), 2), domain, c(1L, 2L)),
     neural_metric(matrix(c(1, -0.1, -0.1, 1), 2), domain, c(1L, 3L))
   )
-  dense <- effectagram:::.metric_frame_conservation(frame, dense_metrics)
+  dense <- crossform:::.metric_frame_conservation(frame, dense_metrics)
 
   expect_true(identity$feature_additive)
   expect_true(identity$identity_conservation)
   expect_equal(identity$global_diagonal, rep(1, 3), tolerance = 0)
-  expect_silent(effectagram:::.require_metric_conservation(identity, "identity"))
+  expect_silent(crossform:::.require_metric_conservation(identity, "identity"))
   expect_false(dense$feature_additive)
   expect_false(dense$identity_conservation)
   expect_null(dense$global_diagonal)
-  expect_error(effectagram:::.require_metric_conservation(dense, "identity"),
+  expect_error(crossform:::.require_metric_conservation(dense, "identity"),
     "not certified.*non-diagonal")
 })
 
@@ -131,8 +131,8 @@ test_that("rank-one coherent and PSD configuration laws hold", {
   K <- crossprod(raw) + diag(0.75, 8)
   a <- seq_len(8) / sum(seq_len(8))
   metric <- neural_metric(K, domain)
-  functional <- effectagram:::coherent_functional(a, domain, label = "weighted_mean")
-  got <- effectagram:::metric_components(metric, functional)
+  functional <- crossform:::coherent_functional(a, domain, label = "weighted_mean")
+  got <- crossform:::metric_components(metric, functional)
   expected <- oracle_metric_components(K, a)
 
   expect_identical(got$coherent_rank, 1L)
@@ -150,8 +150,8 @@ test_that("the metric split reproduces signed cross-partition components", {
   mass <- sum(weight)
   domain <- abstract_domain(4, id = "signed-component-law")
   metric <- neural_metric(diag(weight), domain)
-  functional <- effectagram:::coherent_functional(weight / mass, domain)
-  components <- effectagram:::metric_components(metric, functional)
+  functional <- crossform:::coherent_functional(weight / mass, domain)
+  components <- crossform:::metric_components(metric, functional)
   left <- matrix(c(
     1, -2, 0.5, 3,
     -1, 0.5, 2, -0.25
@@ -184,8 +184,8 @@ test_that("precision metrics keep the raw mean and reuse retained covariance", {
     provenance = list(kind = "precision_family"))
   solved <- neural_metric(K, domain,
     provenance = list(kind = "precision_family"))
-  retained_components <- effectagram:::metric_components(retained, a)
-  solved_components <- effectagram:::metric_components(solved, a)
+  retained_components <- crossform:::metric_components(retained, a)
+  solved_components <- crossform:::metric_components(solved, a)
   amplitude <- drop(relation %*% a)
   expected <- tcrossprod(amplitude) /
     drop(crossprod(a, Sigma %*% a))
@@ -221,8 +221,8 @@ test_that("metric-aware components are covariant under neural reparameterization
   transformed_a <- solve(t(transform), a)
   relation <- matrix(rnorm(4 * dimension), 4, dimension)
   transformed_relation <- relation %*% t(transform)
-  original <- effectagram:::metric_components(neural_metric(K, domain), a)
-  changed <- effectagram:::metric_components(
+  original <- crossform:::metric_components(neural_metric(K, domain), a)
+  changed <- crossform:::metric_components(
     neural_metric(transformed_K, domain), transformed_a
   )
 
@@ -245,15 +245,15 @@ test_that("metric-aware components are covariant under neural reparameterization
 test_that("singular and unfrozen metrics refuse coherent decomposition", {
   domain <- abstract_domain(3, id = "metric-refusal")
   singular <- neural_metric(diag(c(1, 1, 0)), domain)
-  recipe <- effectagram:::.metric_recipe(
+  recipe <- crossform:::.metric_recipe(
     "unfrozen_precision", domain,
     inverse_quadratic_recipe = TRUE
   )
 
   expect_false(metric_capabilities(singular)$positive_definite)
-  expect_error(effectagram:::metric_components(singular, rep(1 / 3, 3)),
+  expect_error(crossform:::metric_components(singular, rep(1 / 3, 3)),
     "requires an SPD metric")
-  expect_error(effectagram:::metric_components(recipe, rep(1 / 3, 3)),
+  expect_error(crossform:::metric_components(recipe, rep(1 / 3, 3)),
     "derived and frozen")
 })
 
@@ -261,17 +261,17 @@ test_that("component identity binds both metric and coherent functional", {
   domain <- abstract_domain(3, id = "component-identity")
   first_metric <- neural_metric(diag(c(1, 2, 3)), domain)
   second_metric <- neural_metric(diag(c(1, 2, 4)), domain)
-  first_functional <- effectagram:::coherent_functional(c(0.2, 0.3, 0.5), domain)
-  second_functional <- effectagram:::coherent_functional(c(0.3, 0.2, 0.5), domain)
-  baseline <- effectagram:::metric_components(first_metric, first_functional)
+  first_functional <- crossform:::coherent_functional(c(0.2, 0.3, 0.5), domain)
+  second_functional <- crossform:::coherent_functional(c(0.3, 0.2, 0.5), domain)
+  baseline <- crossform:::metric_components(first_metric, first_functional)
 
   expect_false(identical(
     baseline$signature,
-    effectagram:::metric_components(second_metric, first_functional)$signature
+    crossform:::metric_components(second_metric, first_functional)$signature
   ))
   expect_false(identical(
     baseline$signature,
-    effectagram:::metric_components(first_metric, second_functional)$signature
+    crossform:::metric_components(first_metric, second_functional)$signature
   ))
 })
 
@@ -280,6 +280,6 @@ test_that("mutated metric identities fail at the deep boundary", {
   metric <- neural_metric(diag(2), domain)
   metric$value[1, 1] <- 2
 
-  expect_error(effectagram:::.validate_neural_metric(metric, deep = TRUE),
+  expect_error(crossform:::.validate_neural_metric(metric, deep = TRUE),
     "identity")
 })

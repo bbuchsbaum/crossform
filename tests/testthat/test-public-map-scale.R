@@ -17,13 +17,13 @@ test_that("recorded public map-scale evidence passes its gates", {
 })
 
 test_that("the public map-scale benchmark passes its declared gate", {
-  if (!identical(Sys.getenv("EFFECTAGRAM_RUN_SCALE_TESTS"), "true")) {
-    skip("Set EFFECTAGRAM_RUN_SCALE_TESTS=true to run the public map gate.")
+  if (!identical(Sys.getenv("CROSSFORM_RUN_SCALE_TESTS"), "true")) {
+    skip("Set CROSSFORM_RUN_SCALE_TESTS=true to run the public map gate.")
   }
   skip_if_not_installed("processx")
   repo <- normalizePath(testthat::test_path("..", ".."), mustWork = TRUE)
   output <- file.path(tempdir(), paste0(
-    "effectagram-public-map-gate-", Sys.getpid()
+    "crossform-public-map-gate-", Sys.getpid()
   ))
   dir.create(output, recursive = TRUE, showWarnings = FALSE)
   run <- processx::run(

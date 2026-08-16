@@ -218,15 +218,15 @@ test_that("semantic object validation detects identity tampering", {
   fixture <- effect_map_fixture()
   tampered <- fixture$effects
   tampered$weights[1, 1] <- tampered$weights[1, 1] + 1
-  expect_error(effectagram:::.validate_effect_map(tampered), "inconsistent")
+  expect_error(crossform:::.validate_effect_map(tampered), "inconsistent")
 
   tampered_space <- fixture$conditions
   tampered_space$basis_id <- "changed"
-  expect_error(effectagram:::.validate_condition_space(tampered_space),
+  expect_error(crossform:::.validate_condition_space(tampered_space),
     "inconsistent")
 
   lowered <- lower_effect_map(fixture$effects, fixture$cell)
   lowered$target[1, 1] <- lowered$target[1, 1] + 1
-  expect_error(effectagram:::.validate_lowered_effect_map(lowered),
+  expect_error(crossform:::.validate_lowered_effect_map(lowered),
     "identity is inconsistent")
 })

@@ -1,6 +1,6 @@
-# What is novel in effectagram?
+# What is novel in crossform?
 
-`effectagram` is an estimand compiler for second-order neuroimaging analysis.
+`crossform` is an estimand compiler for second-order neuroimaging analysis.
 Its primary architectural contribution is an **evidence-pairing calculus** in
 which familiar analyses arise by closing different experimental and neural
 boundaries. Its software contribution is the **executable estimand contract**
@@ -79,7 +79,7 @@ supports multiple dissimilarities including crossnobis, residual-based noise
 precision, searchlights, fixed and flexible models, and inferential procedures
 for different generalization targets. Its methods paper explicitly treats
 generalization over subjects and conditions
-([Schütt et al., 2023](https://doi.org/10.7554/eLife.82566)). `effectagram`
+([Schütt et al., 2023](https://doi.org/10.7554/eLife.82566)). `crossform`
 does not claim any of those ingredients as inventions.
 
 Nor is a shared interface across ROIs, searchlights, whole-brain maps, and
@@ -109,7 +109,7 @@ open evidence gate. The current external comparison is with rMVPA.
 The intended distinction is that an RDM is an optional view of an effect form,
 not the mandatory intermediate representation. The principal `rsatoolbox`
 `RDMs` abstraction stores dissimilarities over one shared pattern axis as a
-vector or square matrix. `effectagram` instead keeps the identified relation,
+vector or square matrix. `crossform` instead keeps the identified relation,
 left and right axes, generalization operator, measurement frame, and error
 channel, when the relation was fitted with one, available until the requested
 query has been compiled. This is an architectural comparison, not a claim that
@@ -143,7 +143,7 @@ pairing, with stronger normalized views admitted only by their own contracts.
 
 ### 2. Exact, non-destructive coherent/configuration accounting
 
-For an admitted spatial metric, `effectagram` partitions the metric into a
+For an admitted spatial metric, `crossform` partitions the metric into a
 rank-one coherent mode and its configuration complement. Pulling the partition
 through the relation gives
 
@@ -328,7 +328,7 @@ structure the square RDM view has already collapsed.
 
 ## What is not claimed
 
-`effectagram` does not claim to have invented RSA, crossnobis, analytic RDM
+`crossform` does not claim to have invented RSA, crossnobis, analytic RDM
 covariance, searchlights, noise ceilings, condition/subject generalization, or
 connectivity. It does not yet claim empirical superiority to `rsatoolbox`, a
 matched-estimator speed advantage, or a complete population-inference layer.

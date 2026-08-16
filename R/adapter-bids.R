@@ -60,7 +60,7 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
       )
     }
     if (any(c(".bids_partition", ".bids_event_id") %in% names(value))) {
-      stop("BIDS tables may not use effectagram's private adapter columns.",
+      stop("BIDS tables may not use crossform's private adapter columns.",
         call. = FALSE)
     }
     value$.bids_partition <- partition
@@ -109,7 +109,7 @@ bids_confounds <- function(files, partitions = names(files),
   tables <- lapply(names(files), function(partition) {
     value <- .read_bids_table(files[[partition]])
     if (any(c(".bids_partition", ".bids_observation_id") %in% names(value))) {
-      stop("Confound tables may not use effectagram's private adapter columns.",
+      stop("Confound tables may not use crossform's private adapter columns.",
         call. = FALSE)
     }
     ids <- if (is.null(observation_ids)) {
@@ -158,7 +158,7 @@ bids_confounds <- function(files, partitions = names(files),
 
 #' Bind BIDS files into a generic study
 #'
-#' BIDS is an adapter boundary, not the effectagram object model: the result is
+#' BIDS is an adapter boundary, not the crossform object model: the result is
 #' the same [study()] that can be built from any event and confound source.
 #'
 #' @param observations A declared [observations()] record.
@@ -196,6 +196,7 @@ bids_study <- function(observations, event_files, confound_files = NULL,
     events = event_record,
     confounds = confound_record,
     hierarchy = hierarchy,
+    # Frozen because study provenance participates in downstream plan identity.
     provenance = list(adapter = "effectagram::bids_study")
   )
 }

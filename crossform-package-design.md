@@ -1,11 +1,9 @@
-# `effectagram`: clean-room package design
+# `crossform`: clean-room package design
 
 Status: living package design
-Date: 2026-08-11; package name adopted 2026-08-12
-Canonical package name: `effectagram`, pronounced “effect-a-gram.” Preliminary
-checks on 2026-08-12 found the name available on CRAN, Bioconductor, and GitHub
-and found no obvious exact-name scientific-software collision. This is a naming
-check, not trademark clearance.
+Date: 2026-08-11; package name changed to `crossform` 2026-08-15
+Canonical package name: `crossform`. An exact-name CRAN scan on 2026-08-15
+found no collision. That check is not GitHub, domain, or trademark clearance.
 
 ## Version 0.1 contract freeze
 
@@ -30,7 +28,7 @@ The following decisions are binding before the public API freezes:
    retains local relations but not total atoms. Configuration calculates total
    and coherent. Complete geometry calculates both and retains
    pairing-appropriate marginals.
-4. `workspace_bytes` means the conservative peak of effectagram-owned live
+4. `workspace_bytes` means the conservative peak of crossform-owned live
    objects and temporaries. Baseline, incremental, and absolute process RSS are
    separate observations. Any hard aggregate RSS limit is an explicit optional
    policy and is enforced only where RSS can be observed reliably.
@@ -107,7 +105,7 @@ This proposal is grounded in a read-only audit of rMVPA commit `3b12a8855b06f549
 - A standardized ROI result is converted back to a one-row tibble required by existing method-specific combiners ([data_roi_result.R](https://github.com/bbuchsbaum/rMVPA/blob/3b12a8855b06f549e5772ccb9af070639a34752b/R/data_roi_result.R)).
 - The general image-dataset constructor rejects one-feature inputs for a Feature-RSA-specific reason ([dataset.R](https://github.com/bbuchsbaum/rMVPA/blob/3b12a8855b06f549e5772ccb9af070639a34752b/R/dataset.R#L263)).
 
-These facts identify the architectural pressure; they do not prescribe `effectagram` internals. No source is to be copied.
+These facts identify the architectural pressure; they do not prescribe `crossform` internals. No source is to be copied.
 
 ## 1. Canonical mathematics
 
@@ -598,7 +596,7 @@ Then compute \(\frac12\log\det(I+G)\) with stable eigen/log1p numerics.
 ## 6. Compiler and execution
 
 The detailed resource, scheduling, failure, checkpoint, and observability design
-is in [effectagram-execution-design.md](effectagram-execution-design.md). Its
+is in [crossform-execution-design.md](crossform-execution-design.md). Its
 governing decision is that additive-frame searchlights with fixed bilinear
 queries are rows of sparse \(W\), not jobs submitted to workers. Locally
 trained, locally estimated, nonlinear, or generic factor-frame extensions are
@@ -902,7 +900,7 @@ resources without stale-handle reuse.
 5. Is `neuroim2` a Suggests adapter or a separate companion package? `Matrix`-only core is cleaner.
 6. What tolerance and rank policy should `lm_extractor()` use for nonestimable contrasts?
 7. Which metadata are sufficient to certify noise-normalized information units without pretending to validate the upstream noise model?
-8. The public package is named `effectagram`. The mathematical intermediates
+8. The public package is named `crossform`. The mathematical intermediates
    retain precise names such as `effect_relation`, `effect_geometry`, and
    `effect_view`; the package name does not replace those domain terms.
 

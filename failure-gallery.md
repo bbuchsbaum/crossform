@@ -2,7 +2,7 @@
 
 A contract is persuasive only when it visibly prevents plausible errors. Each
 case below is an error that a conventional pipeline can execute silently. In
-`effectagram`, callable unsupported interpretations return a classed
+`crossform`, callable unsupported interpretations return a classed
 `effect_capability_refusal` carrying the missing capability, every unmet
 reason, and concrete remedies. Catch those refusals with `catch_refusal(expr)`
 and branch on `$capability` instead of matching prose. The package prevents the
@@ -13,7 +13,7 @@ Every refusal message quoted below is reproduced verbatim from the running
 package. The fixture is the standard first-analysis setup:
 
 ```r
-library(effectagram)
+library(crossform)
 example <- example_fmri_effects()
 plan <- plan_geometry(
   example$fit$relation, example$frame,

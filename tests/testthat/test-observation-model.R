@@ -64,6 +64,6 @@ test_that("observation-model identity binds sampling and whitener values", {
 
   tampered <- first
   tampered$whitener[[1L]][1, 1] <- 2
-  expect_error(effectagram:::.validate_observation_model(tampered),
+  expect_error(crossform:::.validate_observation_model(tampered),
     "inconsistent")
 })

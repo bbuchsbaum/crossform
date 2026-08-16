@@ -1,5 +1,5 @@
 test_that("benchmark scenarios span density and storage regimes", {
-  scenarios <- effectagram:::.memory_benchmark_scenarios()
+  scenarios <- crossform:::.memory_benchmark_scenarios()
 
   expect_true(all(c("memory", "block") %in% scenarios$storage))
   expect_true(all(c("cold", "warm") %in% scenarios$phase))
@@ -10,8 +10,8 @@ test_that("benchmark scenarios span density and storage regimes", {
 })
 
 test_that("allocation benchmark emits a complete evidence record", {
-  scenario <- effectagram:::.memory_benchmark_scenarios()[1, ]
-  result <- effectagram:::.run_memory_benchmark_case(scenario)
+  scenario <- crossform:::.memory_benchmark_scenarios()[1, ]
+  result <- crossform:::.run_memory_benchmark_case(scenario)
 
   expect_identical(result$schema_version, 3L)
   expect_gt(result$allocation$allocation_count, 0)
@@ -33,14 +33,14 @@ test_that("allocation benchmark emits a complete evidence record", {
 
 test_that("OS peak RSS parser recognizes GNU and macOS time formats", {
   expect_equal(
-    effectagram:::.parse_os_peak_rss(
+    crossform:::.parse_os_peak_rss(
       "Maximum resident set size (kbytes): 12345"
     ),
     12345 * 1024
   )
   expect_equal(
-    effectagram:::.parse_os_peak_rss("  987654 maximum resident set size"),
+    crossform:::.parse_os_peak_rss("  987654 maximum resident set size"),
     987654
   )
-  expect_true(is.na(effectagram:::.parse_os_peak_rss("no measurement")))
+  expect_true(is.na(crossform:::.parse_os_peak_rss("no measurement")))
 })

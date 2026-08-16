@@ -5,13 +5,13 @@ test_that("every multivariate route agrees with an independent dense oracle", {
     fixture$partition_edges, fixture$measurement_edges,
     fixture$left_operators, fixture$right_operators
   )
-  production_reference <- effectagram:::.measurement_form_dense_reference(
+  production_reference <- crossform:::.measurement_form_dense_reference(
     fixture$task, fixture$left_values, fixture$right_values
   )
   measurement_expect_blocks_equal(production_reference, expected, 2e-12)
 
   for (route in c("forward_k", "pull_h", "multivariate_blocks")) {
-    run <- effectagram:::.run_measurement_contraction(
+    run <- crossform:::.run_measurement_contraction(
       fixture$task,
       compute = compute_policy(block_features = 2L),
       route = route,
@@ -31,13 +31,13 @@ test_that("low-rank factorized contraction agrees without a neural operator", {
     fixture$partition_edges, fixture$measurement_edges,
     fixture$left_operators, fixture$right_operators
   )
-  plan <- effectagram:::.measurement_route_plan(
+  plan <- crossform:::.measurement_route_plan(
     fixture$task, "factorized_h", feature_block = 2L, edge_tile = 3L
   )
   expect_identical(plan$factor_rank, 2L)
   expect_true(plan$eligible[["factorized_h"]])
 
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     fixture$task,
     compute = compute_policy(block_features = 2L),
     route = "factorized_h",
@@ -53,11 +53,11 @@ test_that("scalar stacking computes only explicitly requested edges", {
     fixture$partition_edges, fixture$measurement_edges,
     fixture$left_operators, fixture$right_operators
   )
-  plan <- effectagram:::.measurement_route_plan(
+  plan <- crossform:::.measurement_route_plan(
     fixture$task, "scalar_stack", feature_block = 3L, edge_tile = 2L
   )
   expect_true(plan$eligible[["scalar_stack"]])
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     fixture$task,
     compute = compute_policy(block_features = 3L),
     route = "scalar_stack"
@@ -72,15 +72,15 @@ test_that("scalar stacking computes only explicitly requested edges", {
 test_that("feature blocking, edge tiling, and eligible routes preserve values", {
   fixture <- measurement_kernel_fixture(low_rank_h = TRUE)
   runs <- list(
-    tiny = effectagram:::.run_measurement_contraction(
+    tiny = crossform:::.run_measurement_contraction(
       fixture$task, compute_policy(block_features = 1L),
       route = "pull_h", edge_tile = 1L
     ),
-    wide = effectagram:::.run_measurement_contraction(
+    wide = crossform:::.run_measurement_contraction(
       fixture$task, compute_policy(block_features = 99L),
       route = "multivariate_blocks", edge_tile = 99L
     ),
-    factored = effectagram:::.run_measurement_contraction(
+    factored = crossform:::.run_measurement_contraction(
       fixture$task, compute_policy(block_features = 3L),
       route = "factorized_h", edge_tile = 2L
     )
@@ -116,7 +116,7 @@ test_that("block-backed relation sources obey revisions and bounded reads", {
     left_sources = left_sources,
     right_sources = right_sources
   )
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     fixture$task, compute_policy(block_features = 2L), route = "pull_h"
   )
   expected <- measurement_block_oracle(
@@ -134,7 +134,7 @@ test_that("block-backed relation sources obey revisions and bounded reads", {
   writeBin(999, connection, size = 8, endian = .Platform$endian)
   close(connection)
   failure <- tryCatch(
-    effectagram:::.run_measurement_contraction(
+    crossform:::.run_measurement_contraction(
       fixture$task, compute_policy(block_features = 2L), route = "pull_h"
     ),
     error = identity
@@ -175,7 +175,7 @@ test_that("workspace rejection occurs before lazy source reads", {
     domain = fixture$task$spaces$neural_right,
     capabilities = capabilities
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     left_relation, right_relation, FALSE,
     fixture$task$ordered_partition_products,
     fixture$task$experimental_boundary,
@@ -184,7 +184,7 @@ test_that("workspace rejection occurs before lazy source reads", {
     fixture$task$materialization
   )
   failure <- tryCatch(
-    effectagram:::.run_measurement_contraction(
+    crossform:::.run_measurement_contraction(
       task,
       compute_policy(block_features = 2L, workspace_bytes = 1),
       route = "pull_h"
@@ -219,10 +219,10 @@ test_that("extreme reciprocal scales and near-degenerate H remain finite", {
     fixture$task$spaces$experimental_left,
     fixture$task$spaces$experimental_right
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     left_relation, right_relation, FALSE,
     fixture$task$ordered_partition_products,
-    effectagram:::.closed_experimental_boundary(query),
+    crossform:::.closed_experimental_boundary(query),
     fixture$task$neural_boundary,
     fixture$task$stages,
     fixture$task$materialization
@@ -232,7 +232,7 @@ test_that("extreme reciprocal scales and near-degenerate H remain finite", {
     fixture$partition_edges, fixture$measurement_edges,
     fixture$left_operators, fixture$right_operators
   )
-  run <- effectagram:::.run_measurement_contraction(
+  run <- crossform:::.run_measurement_contraction(
     task, compute_policy(block_features = 2L), route = "pull_h"
   )
 
@@ -242,10 +242,10 @@ test_that("extreme reciprocal scales and near-degenerate H remain finite", {
 
 test_that("route and memory plans account for every named live buffer", {
   fixture <- measurement_kernel_fixture()
-  route <- effectagram:::.measurement_route_plan(
+  route <- crossform:::.measurement_route_plan(
     fixture$task, "pull_h", feature_block = 2L, edge_tile = 2L
   )
-  memory <- effectagram:::.measurement_kernel_memory_plan(
+  memory <- crossform:::.measurement_kernel_memory_plan(
     fixture$task, route, "memory"
   )
 
@@ -261,11 +261,11 @@ test_that("route and memory plans account for every named live buffer", {
 
 test_that("measurement preflight uses arithmetic rather than buffer allocation", {
   fixture <- measurement_kernel_fixture()
-  route <- effectagram:::.measurement_route_plan(
+  route <- crossform:::.measurement_route_plan(
     fixture$task, "pull_h", feature_block = 2L, edge_tile = 2L
   )
 
-  memory <- effectagram:::.measurement_kernel_memory_plan(
+  memory <- crossform:::.measurement_kernel_memory_plan(
     fixture$task, route, "memory"
   )
 
@@ -273,7 +273,7 @@ test_that("measurement preflight uses arithmetic rather than buffer allocation",
   expect_true(all(is.finite(memory$buffers)))
   expect_false(any(grepl(
     "object\\.size\\(matrix\\(|object\\.size\\(array\\(",
-    paste(deparse(body(effectagram:::.measurement_kernel_memory_plan)),
+    paste(deparse(body(crossform:::.measurement_kernel_memory_plan)),
       collapse = "\n")
   )))
 })
@@ -281,10 +281,10 @@ test_that("measurement preflight uses arithmetic rather than buffer allocation",
 test_that("small benchmark receipts distinguish scalar and multivariate costs", {
   scalar <- measurement_kernel_fixture(scalar = TRUE, seed = 2026081209)
   multivariate <- measurement_kernel_fixture(scalar = FALSE, seed = 2026081210)
-  scalar_record <- effectagram:::.measurement_benchmark_record(
+  scalar_record <- crossform:::.measurement_benchmark_record(
     scalar$task, iterations = 1L, feature_block = 5L, edge_tile = 4L
   )
-  multivariate_record <- effectagram:::.measurement_benchmark_record(
+  multivariate_record <- crossform:::.measurement_benchmark_record(
     multivariate$task, iterations = 1L, feature_block = 5L, edge_tile = 4L
   )
 

@@ -11,10 +11,10 @@ domain <- volume_domain(
 )
 
 elapsed <- system.time({
-  index <- effectagram:::.euclidean_support_index(domain, radius)
+  index <- crossform:::.euclidean_support_index(domain, radius)
 })
 evaluation_edges <- 8L
-preflight <- effectagram:::.support_index_preflight(
+preflight <- crossform:::.support_index_preflight(
   index, 4 * 1024^3, evaluation_edges = evaluation_edges
 )
 
@@ -54,7 +54,7 @@ coordinate_domain <- abstract_domain(
   id = "support-benchmark-50k-coordinates"
 )
 coordinate_elapsed <- system.time({
-  coordinate_index <- effectagram:::.euclidean_support_index(
+  coordinate_index <- crossform:::.euclidean_support_index(
     coordinate_domain, 1.1
   )
 })

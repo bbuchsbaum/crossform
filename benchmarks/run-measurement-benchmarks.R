@@ -1,14 +1,14 @@
 #!/usr/bin/env Rscript
 
 # Deterministic public-API benchmark for explicit scalar and multivariate
-# measurement edges. Run with an installed effectagram package. The optional
+# measurement edges. Run with an installed crossform package. The optional
 # first argument is the iteration count (default: 3).
 
-if (!requireNamespace("effectagram", quietly = TRUE)) {
-  stop("Install effectagram before running measurement benchmarks.")
+if (!requireNamespace("crossform", quietly = TRUE)) {
+  stop("Install crossform before running measurement benchmarks.")
 }
 
-library(effectagram)
+library(crossform)
 
 arguments <- commandArgs(trailingOnly = TRUE)
 iterations <- if (length(arguments)) suppressWarnings(as.integer(arguments[[1L]])) else 3L

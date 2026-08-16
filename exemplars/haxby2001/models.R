@@ -67,7 +67,7 @@ spearman_rsa <- function(rdm_vec, model_vec) {
 
 #' Canonical ordering of the 28 unique condition pairs.
 #'
-#' `utils::combn(q, 2)` column order -- the same order effectagram's `rdm()`
+#' `utils::combn(q, 2)` column order -- the same order crossform's `rdm()`
 #' view reports its pairs in, which 02 asserts against rather than assumes.
 rdm_pair_index <- function(conditions = CONDITIONS) {
   p <- utils::combn(seq_along(conditions), 2L)
@@ -93,19 +93,19 @@ exemplar_paths <- function(exemplar_dir) {
   )
 }
 
-#' Attach effectagram, whether installed or only present as a source tree.
+#' Attach crossform, whether installed or only present as a source tree.
 #'
 #' The exemplar lives inside the package repository, so a developer checkout
 #' normally has no installed copy. Fall back to devtools::load_all on the
 #' repository root two levels up.
-load_effectagram <- function(exemplar_dir) {
-  if (requireNamespace("effectagram", quietly = TRUE)) {
-    suppressMessages(library(effectagram))
+load_crossform <- function(exemplar_dir) {
+  if (requireNamespace("crossform", quietly = TRUE)) {
+    suppressMessages(library(crossform))
     return("installed")
   }
   repo <- normalizePath(file.path(exemplar_dir, "..", ".."), mustWork = FALSE)
   if (!file.exists(file.path(repo, "DESCRIPTION"))) {
-    stop("effectagram is neither installed nor found as a source tree at ", repo)
+    stop("crossform is neither installed nor found as a source tree at ", repo)
   }
   suppressMessages(devtools::load_all(repo, quiet = TRUE))
   "source"

@@ -65,14 +65,14 @@
   bytes
 }
 
-#' Construct an effectagram-owned workspace plan
+#' Construct a crossform-owned workspace plan
 #'
 #' The hard budget covers package-owned live objects and conservative temporary
 #' overlap. Process baseline RSS and absolute RSS are observations, not hidden
 #' additions to the workspace model.
 #'
 #' @param frame_bytes Resident dense or sparse frame storage.
-#' @param resident_source_bytes Resident source objects owned by effectagram.
+#' @param resident_source_bytes Resident source objects owned by crossform.
 #' @param source_handle_bytes Execution-owned source handles and bookkeeping.
 #' @param source_block_bytes,relation_block_bytes,atom_block_bytes Per-active-task
 #'   data blocks.
@@ -203,7 +203,7 @@ memory_plan <- function(frame_bytes = 0,
     baseline_rss_bytes = baseline_rss_bytes,
     incremental_peak_rss_bytes = incremental_rss,
     absolute_peak_rss_bytes = peak_rss_bytes,
-    prediction_kind = "effectagram_owned_workspace_upper_bound"
+    prediction_kind = "crossform_owned_workspace_upper_bound"
   ), class = "effect_memory_plan")
 }
 

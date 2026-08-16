@@ -39,12 +39,12 @@ sampling_product_fixture <- function(conditions = 4L, features = 6L,
 
 test_that("relation-fit product path supplies exact fixed-metric covariance", {
   fixture <- sampling_product_fixture()
-  plan <- effectagram:::.compile_fixed_metric_rdm_sampling(
+  plan <- crossform:::.compile_fixed_metric_rdm_sampling(
     fixture$evidence, fixture$fit,
-    target = effectagram:::.sampling_target("null")
+    target = crossform:::.sampling_target("null")
   )
-  covariance <- effectagram:::.fixed_metric_rdm_sampling_covariance(plan)
-  observed <- effectagram:::.execute_fixed_metric_rdm_sampling(plan)
+  covariance <- crossform:::.fixed_metric_rdm_sampling_covariance(plan)
+  observed <- crossform:::.execute_fixed_metric_rdm_sampling(plan)
 
   expect_s3_class(covariance, "effect_sampling_covariance")
   expect_identical(names(observed), covariance$labels)
@@ -102,7 +102,7 @@ test_that("relation-fit product agrees with an independent direct oracle", {
 test_that("beta-only and learned-metric product paths refuse honestly", {
   fixture <- sampling_product_fixture()
   expect_error(
-    effectagram:::.compile_fixed_metric_rdm_sampling(
+    crossform:::.compile_fixed_metric_rdm_sampling(
       fixture$evidence, fixture$fit$relation
     ),
     "lm_relation_fit.*beta matrices alone"
@@ -135,21 +135,21 @@ test_that("overlapping supports reuse one exact sparse residual statistic", {
       provenance = list(source = "simulation_truth")
     )
   )
-  plan <- effectagram:::.compile_fixed_metric_rdm_sampling(
+  plan <- crossform:::.compile_fixed_metric_rdm_sampling(
     evidence, fixture$fit,
-    target = effectagram:::.sampling_target("null")
+    target = crossform:::.sampling_target("null")
   )
-  resources <- effectagram:::.fixed_metric_rdm_sampling_resources(
+  resources <- crossform:::.fixed_metric_rdm_sampling_resources(
     plan, strategy = "shared_pair_statistics"
   )
 
   expect_s3_class(resources$residual_statistics,
     "effect_residual_pair_statistics")
   for (node in c(1L, 5L, 9L)) {
-    sparse <- effectagram:::.execute_fixed_metric_rdm_sampling(
+    sparse <- crossform:::.execute_fixed_metric_rdm_sampling(
       plan, node, resources = resources
     )
-    node_value <- effectagram:::.frame_metric_node_accessor(frame)(node)
+    node_value <- crossform:::.frame_metric_node_accessor(frame)(node)
     direct_residual <- Reduce(`+`, lapply(
       fixture$fit$relation$partitions, function(partition) {
         crossprod(residual_block(
@@ -159,7 +159,7 @@ test_that("overlapping supports reuse one exact sparse residual statistic", {
     )) / sum(vapply(fixture$fit$relation$partitions, function(partition) {
       residual_df(fixture$fit, partition)
     }, integer(1)))
-    gathered <- effectagram:::.sampling_node_residual_covariance(
+    gathered <- crossform:::.sampling_node_residual_covariance(
       plan, node_value, resources
     )
 
@@ -180,16 +180,16 @@ test_that("one-node sampling queries do not compile whole-frame residual state",
       provenance = list(source = "simulation_truth")
     )
   )
-  plan <- effectagram:::.compile_fixed_metric_rdm_sampling(
+  plan <- crossform:::.compile_fixed_metric_rdm_sampling(
     evidence, fixture$fit,
-    target = effectagram:::.sampling_target("null")
+    target = crossform:::.sampling_target("null")
   )
-  resources <- effectagram:::.fixed_metric_rdm_sampling_resources(plan)
+  resources <- crossform:::.fixed_metric_rdm_sampling_resources(plan)
 
   expect_identical(resources$strategy, "node_local")
   expect_null(resources$residual_statistics)
   expect_true(all(is.finite(
-    effectagram:::.execute_fixed_metric_rdm_sampling(
+    crossform:::.execute_fixed_metric_rdm_sampling(
       plan, node = 5L, resources = resources
     )
   )))

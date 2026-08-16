@@ -27,7 +27,7 @@ test_that("observations support unequal partitions on one exact domain", {
   }, integer(1))), fixture$counts)
   expect_identical(record$domain, fixture$domain$reference)
   expect_true(all(vapply(record$capabilities, function(value) {
-    effectagram:::.strong_sha256(value$stable_revision)
+    crossform:::.strong_sha256(value$stable_revision)
   }, logical(1))))
 })
 
@@ -42,7 +42,7 @@ test_that("metadata construction does not read lazy neural values", {
   )
 
   expect_identical(fixture$reads$count, 0L)
-  effectagram:::.validate_observations(record)
+  crossform:::.validate_observations(record)
   expect_identical(fixture$reads$count, 0L)
 })
 
@@ -138,6 +138,6 @@ test_that("fact identities detect mutation and semantic changes", {
 
   tampered <- first
   tampered$indexes$`run-1`$partition <- "changed"
-  expect_error(effectagram:::.validate_observations(tampered),
+  expect_error(crossform:::.validate_observations(tampered),
     "inconsistent|declares")
 })

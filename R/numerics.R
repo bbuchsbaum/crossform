@@ -1,6 +1,6 @@
 # Numerical reproducibility contract ----------------------------------------
 
-#' Define effectagram's numerical reproducibility contract
+#' Define crossform's numerical reproducibility contract
 #'
 #' The contract separates three claims. Reordering completion of fixed tasks is
 #' bitwise invariant because reduction order is canonical. Changing feature
@@ -86,7 +86,7 @@ numerical_agreement <- function(x, y,
 
 .validate_numerical_contract <- function(contract) {
   if (!inherits(contract, "effect_numerical_contract") || !is.list(contract)) {
-    stop("`contract` must be an effectagram numerical contract.", call. = FALSE)
+    stop("`contract` must be a crossform numerical contract.", call. = FALSE)
   }
   rebuilt <- numerical_contract(contract$atol, contract$rtol)
   if (!identical(contract, rebuilt)) {

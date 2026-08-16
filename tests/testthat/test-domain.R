@@ -42,5 +42,5 @@ test_that("volume domains preserve mask order and physical coordinates", {
 test_that("mutated domains fail closed", {
   domain <- abstract_domain(2, coordinates = matrix(1:4, 2))
   domain$n_features <- 3L
-  expect_error(effectagram:::.validate_domain(domain), "identities|coordinates")
+  expect_error(crossform:::.validate_domain(domain), "identities|coordinates")
 })

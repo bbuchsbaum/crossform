@@ -214,7 +214,7 @@ result <- list(
   schema_version = 1L,
   fixture_version = cell$version,
   generated_at = format(Sys.time(), tz = "UTC", usetz = TRUE),
-  package_version = as.character(utils::packageVersion("effectagram")),
+  package_version = as.character(utils::packageVersion("crossform")),
   adapter_versions = c(
     fmridesign = as.character(utils::packageVersion("fmridesign")),
     fmrireg = as.character(utils::packageVersion("fmrireg"))

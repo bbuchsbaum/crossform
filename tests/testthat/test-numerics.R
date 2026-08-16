@@ -14,12 +14,12 @@ test_that("canonical reduction is bitwise invariant to completion order", {
     c = matrix(c(-2, 1, -1, 2), 2)
   )
   task_id <- c(30L, 10L, 20L)
-  oracle <- effectagram:::.canonical_reduce(values, task_id)
+  oracle <- crossform:::.canonical_reduce(values, task_id)
 
   set.seed(20260812)
   for (iteration in seq_len(25)) {
     order <- sample(seq_along(values))
-    got <- effectagram:::.canonical_reduce(values[order], task_id[order])
+    got <- crossform:::.canonical_reduce(values[order], task_id[order])
     agreement <- numerical_agreement(got, oracle, guarantee = "scheduling")
     expect_true(agreement$passed)
     expect_identical(got, oracle)
@@ -66,7 +66,7 @@ test_that("non-finite comparisons and invalid tolerances are rejected", {
   expect_error(numerical_contract(rtol = Inf), "finite")
   expect_error(numerical_agreement(NA_real_, 0), "finite numeric")
   expect_error(
-    effectagram:::.canonical_reduce(list(1, 2), c(1, 1)),
+    crossform:::.canonical_reduce(list(1, 2), c(1, 1)),
     "unique"
   )
 })

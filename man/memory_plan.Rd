@@ -2,7 +2,7 @@
 % Please edit documentation in R/memory.R
 \name{memory_plan}
 \alias{memory_plan}
-\title{Construct an effectagram-owned workspace plan}
+\title{Construct a crossform-owned workspace plan}
 \usage{
 memory_plan(
   frame_bytes = 0,
@@ -30,7 +30,7 @@ memory_plan(
 \arguments{
 \item{frame_bytes}{Resident dense or sparse frame storage.}
 
-\item{resident_source_bytes}{Resident source objects owned by effectagram.}
+\item{resident_source_bytes}{Resident source objects owned by crossform.}
 
 \item{source_handle_bytes}{Execution-owned source handles and bookkeeping.}
 

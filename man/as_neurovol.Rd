@@ -9,7 +9,7 @@ as_neurovol(
   mask,
   domain = NULL,
   fill = NA_real_,
-  label = "effectagram result"
+  label = "crossform result"
 )
 }
 \arguments{
@@ -29,7 +29,7 @@ A neuroim2 `NeuroVol` with values at `domain$feature_ids`.
 }
 \description{
 The compact values are inserted at the exact full-volume indices carried by
-an effectagram volume domain. Features outside the domain receive `fill`.
+a crossform volume domain. Features outside the domain receive `fill`.
 This is an output adapter only; it performs no interpolation, smoothing, or
 coordinate reinterpretation.
 }

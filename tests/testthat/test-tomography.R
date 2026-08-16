@@ -5,9 +5,9 @@ tomography_frame_from_operator <- function(operator, domain, node_widths,
   ranges <- Map(seq.int, starts, ends)
   names(ranges) <- paste0("node", seq_along(ranges))
   legs <- Map(function(rows, node) {
-    effectagram:::.measurement_leg(
+    crossform:::.measurement_leg(
       operator[rows, , drop = FALSE], domain,
-      effectagram:::.measurement_axis(
+      crossform:::.measurement_axis(
         paste0(node, "_", seq_along(rows)),
         paste0(prefix, ":", node, ":v1"),
         basis_id = paste0(prefix, ":", node, ":basis:v1")
@@ -15,7 +15,7 @@ tomography_frame_from_operator <- function(operator, domain, node_widths,
     )
   }, ranges, names(ranges))
   names(legs) <- names(ranges)
-  effectagram:::.measurement_frame(legs)
+  crossform:::.measurement_frame(legs)
 }
 
 tomography_self_fixture <- function(
@@ -32,7 +32,7 @@ tomography_self_fixture <- function(
   values <- list(run1 = b)
   relation_value <- relation(values, effects = effects, domain = domain)
   h <- (diag(q) - matrix(1 / q, q, q)) / (q - 1)
-  query <- effectagram:::.variation_pair_query(
+  query <- crossform:::.variation_pair_query(
     h, effects, "trial", "joint_covariance",
     provenance = list(estimator = "centered-single-partition")
   )
@@ -72,31 +72,31 @@ tomography_self_fixture <- function(
       stringsAsFactors = FALSE
     )
   }
-  spatial_edges <- effectagram:::.measurement_edges(
+  spatial_edges <- crossform:::.measurement_edges(
     pairs$left, pairs$right, frame
   )
   over <- pairing(
     "run1", "run1", directed = TRUE,
     self_pairs = "allow_biased", independence = "not_independent"
   )
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     over, "run1", "run1", TRUE
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     relation_value, relation_value, TRUE, partition_edges,
-    effectagram:::.closed_experimental_boundary(
+    crossform:::.closed_experimental_boundary(
       query, "variation", "trial"
     ),
-    effectagram:::.open_neural_boundary(frame, frame, spatial_edges),
-    effectagram:::.evidence_stage_plan(),
-    effectagram:::.evidence_materialization(
+    crossform:::.open_neural_boundary(frame, frame, spatial_edges),
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   )
-  contraction <- effectagram:::.run_measurement_contraction(
+  contraction <- crossform:::.run_measurement_contraction(
     task, route = "pull_h"
   )
-  form <- effectagram:::.measurement_form_from_contraction(
+  form <- crossform:::.measurement_form_from_contraction(
     task, contraction,
     query_construction = "joint_covariance",
     edge_scope = if (complete) "frame_complete" else "requested"
@@ -151,28 +151,28 @@ tomography_asymmetric_fixture <- function(seed = 2026081227) {
     right = right_frame$node_ids,
     stringsAsFactors = FALSE
   )
-  spatial_edges <- effectagram:::.measurement_edges(
+  spatial_edges <- crossform:::.measurement_edges(
     pairs$left, pairs$right, left_frame, right_frame
   )
   over <- pairing("left_run", "right_run", directed = TRUE)
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     over, "left_run", "right_run", FALSE
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     left_relation, right_relation, FALSE, partition_edges,
-    effectagram:::.closed_experimental_boundary(query),
-    effectagram:::.open_neural_boundary(
+    crossform:::.closed_experimental_boundary(query),
+    crossform:::.open_neural_boundary(
       left_frame, right_frame, spatial_edges
     ),
-    effectagram:::.evidence_stage_plan(),
-    effectagram:::.evidence_materialization(
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   )
-  contraction <- effectagram:::.run_measurement_contraction(
+  contraction <- crossform:::.run_measurement_contraction(
     task, route = "pull_h"
   )
-  form <- effectagram:::.measurement_form_from_contraction(
+  form <- crossform:::.measurement_form_from_contraction(
     task, contraction, edge_scope = "frame_complete"
   )
   list(
@@ -185,10 +185,10 @@ tomography_asymmetric_fixture <- function(seed = 2026081227) {
 
 test_that("Parseval frames assemble and reconstruct the global operator", {
   fixture <- tomography_self_fixture("parseval")
-  assembled <- effectagram:::.assemble_measurement_blocks(
+  assembled <- crossform:::.assemble_measurement_blocks(
     fixture$form, fixture$frame, fixture$frame
   )
-  result <- effectagram:::.reconstruct_neural_evidence(
+  result <- crossform:::.reconstruct_neural_evidence(
     fixture$form, fixture$frame,
     reference_operator = fixture$reference
   )
@@ -201,10 +201,10 @@ test_that("Parseval frames assemble and reconstruct the global operator", {
   expect_true(result$certified)
   expect_equal(result$operator, fixture$reference, tolerance = 1e-13)
   expect_lte(result$diagnostics$relative_reconstruction_residual, 1e-13)
-  expect_silent(effectagram:::.validate_measured_block_form(assembled))
-  expect_silent(effectagram:::.validate_tomography_result(result))
+  expect_silent(crossform:::.validate_measured_block_form(assembled))
+  expect_silent(crossform:::.validate_tomography_result(result))
 
-  algebraic <- effectagram:::.reconstruct_neural_evidence(
+  algebraic <- crossform:::.reconstruct_neural_evidence(
     fixture$form, fixture$frame
   )
   expect_identical(algebraic$status, "exact_algebraic_reconstruction")
@@ -213,7 +213,7 @@ test_that("Parseval frames assemble and reconstruct the global operator", {
 
 test_that("general dual frames reconstruct and reverse independently", {
   fixture <- tomography_asymmetric_fixture()
-  result <- effectagram:::.reconstruct_neural_evidence(
+  result <- crossform:::.reconstruct_neural_evidence(
     fixture$form, fixture$left_frame, fixture$right_frame,
     reference_operator = fixture$reference
   )
@@ -221,8 +221,8 @@ test_that("general dual frames reconstruct and reverse independently", {
   expect_true(result$lossless)
   expect_equal(result$operator, fixture$reference, tolerance = 1e-10)
 
-  reversed_form <- effectagram:::.reverse_measurement_form(fixture$form)
-  reversed <- effectagram:::.reconstruct_neural_evidence(
+  reversed_form <- crossform:::.reverse_measurement_form(fixture$form)
+  reversed <- crossform:::.reconstruct_neural_evidence(
     reversed_form, fixture$right_frame, fixture$left_frame,
     reference_operator = t(fixture$reference)
   )
@@ -236,7 +236,7 @@ test_that("general dual frames reconstruct and reverse independently", {
 
 test_that("rank-deficient frames return only their projected operator", {
   fixture <- tomography_self_fixture("deficient")
-  result <- effectagram:::.reconstruct_neural_evidence(
+  result <- crossform:::.reconstruct_neural_evidence(
     fixture$form, fixture$frame,
     reference_operator = fixture$reference
   )
@@ -251,7 +251,7 @@ test_that("rank-deficient frames return only their projected operator", {
   expect_equal(result$right_projection, projection, tolerance = 1e-13)
   expect_equal(result$operator, expected, tolerance = 1e-13)
   expect_identical(result$diagnostics$regularization$kind, "truncated_svd")
-  expect_error(effectagram:::.reconstruct_neural_evidence(
+  expect_error(crossform:::.reconstruct_neural_evidence(
     fixture$form, fixture$frame, allow_projection = FALSE
   ), "projection is disabled", class = "effect_tomography_rejection")
 })
@@ -259,10 +259,10 @@ test_that("rank-deficient frames return only their projected operator", {
 test_that("diagonal-only blocks and incompatible bases cannot claim tomography", {
   incomplete <- tomography_self_fixture("deficient", complete = FALSE)
   expect_false(incomplete$form$capabilities$complete_edge_set)
-  expect_error(effectagram:::.assemble_measurement_blocks(
+  expect_error(crossform:::.assemble_measurement_blocks(
     incomplete$form, incomplete$frame, incomplete$frame
   ), "diagonal-only|incomplete")
-  expect_error(effectagram:::.reconstruct_neural_evidence(
+  expect_error(crossform:::.reconstruct_neural_evidence(
     incomplete$form, incomplete$frame
   ), "frame-complete|diagonal-only")
 
@@ -278,7 +278,7 @@ test_that("diagonal-only blocks and incompatible bases cannot claim tomography",
     c(2L, 1L),
     "tomography:altered-basis"
   )
-  expect_error(effectagram:::.reconstruct_neural_evidence(
+  expect_error(crossform:::.reconstruct_neural_evidence(
     complete$form, altered
   ), "do not match.*bases")
 })
@@ -286,7 +286,7 @@ test_that("diagonal-only blocks and incompatible bases cannot claim tomography",
 test_that("ill-conditioning is rejected with frame diagnostics", {
   fixture <- tomography_self_fixture("ill_conditioned")
   error <- tryCatch(
-    effectagram:::.reconstruct_neural_evidence(
+    crossform:::.reconstruct_neural_evidence(
       fixture$form, fixture$frame,
       tolerance = 1e-15, max_condition = 1e8
     ),
@@ -307,12 +307,12 @@ test_that("resource preflight fails before any measurement block read", {
     reads$count <- reads$count + 1L
     original_read(edge)
   }
-  plan <- effectagram:::.tomography_resource_plan(
+  plan <- crossform:::.tomography_resource_plan(
     fixture$form, fixture$frame, fixture$frame
   )
   expect_gt(plan$planned_workspace_bytes, 1)
-  expect_silent(effectagram:::.validate_tomography_resource_plan(plan))
-  expect_error(effectagram:::.reconstruct_neural_evidence(
+  expect_silent(crossform:::.validate_tomography_resource_plan(plan))
+  expect_error(crossform:::.reconstruct_neural_evidence(
     fixture$form, fixture$frame, workspace_bytes = 1
   ), "exceeding")
   expect_identical(reads$count, 0L)

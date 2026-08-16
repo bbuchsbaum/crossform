@@ -344,7 +344,7 @@
 #'   accepted.
 #' @param partitions Optional relation partitions. They are canonicalized to
 #'   relation order.
-#' @param workspace_bytes Positive effectagram-owned workspace budget.
+#' @param workspace_bytes Positive crossform-owned workspace budget.
 #' @return An `effect_residual_pair_statistics` object containing one atomic
 #'   residual cross-product vector and residual degrees of freedom per
 #'   partition. Execution diagnostics are excluded from its scientific

@@ -2,7 +2,7 @@
 % Please edit documentation in R/numerics.R
 \name{numerical_contract}
 \alias{numerical_contract}
-\title{Define effectagram's numerical reproducibility contract}
+\title{Define crossform's numerical reproducibility contract}
 \usage{
 numerical_contract(atol = 1e-12, rtol = 1e-10)
 }

@@ -1,4 +1,4 @@
-# `effectagram` package design review
+# `crossform` package design review
 
 Status: design guidance, not implementation
 Date: 2026-08-11
@@ -8,7 +8,7 @@ Implementation baseline: commit
 implementation audit used aggregate source SHA-256
 `13fe403a2ad6deec5b70c769dd39d226c993254cba4b4a206b5e3036e6c71e4c`.
 Its eight remediation decisions are frozen in the opening sections of
-`effectagram-package-design.md` and `effectagram-execution-design.md`; those
+`crossform-package-design.md` and `crossform-execution-design.md`; those
 sections supersede any incompatible provisional guidance in this review.
 
 ## Recommendation
@@ -42,7 +42,7 @@ For an undirected edge of weight \(\omega\), internally expand it into both dire
 \frac{(B_{l(e)}+B_{r(e)})w_j}{2a_j}.
 \]
 
-Undirected pairings should expose one `endpoint` marginal; directed pairings should expose `left` and `right`. Amend the marginal law to require exact orientation invariance. This affects the pairing rules and marginal definition in `effectagram-package-design.md`, beginning around lines 76 and 189.
+Undirected pairings should expose one `endpoint` marginal; directed pairings should expose `left` and `right`. Amend the marginal law to require exact orientation invariance. This affects the pairing rules and marginal definition in `crossform-package-design.md`, beginning around lines 76 and 189.
 
 ### 2. Add an explicit experimental-space contract
 
@@ -75,7 +75,7 @@ A packed geometry is not always small. At 100,000 measurements:
 
 Storing both total and coherent roughly doubles that before marginals and R copies. This makes direct-query execution foundational, not merely an optimization.
 
-Keep `geometry()` semantically explicit: either materialize full geometry after a memory preflight, or execute a declared query and return a non-durable view. Never silently change the output type. The tension appears between the packed representation and direct-query execution described in `effectagram-package-design.md` around lines 135–158 and 471–477.
+Keep `geometry()` semantically explicit: either materialize full geometry after a memory preflight, or execute a declared query and return a non-durable view. Never silently change the output type. The tension appears between the packed representation and direct-query execution described in `crossform-package-design.md` around lines 135–158 and 471–477.
 
 ### 5. Separate localization weights from metric and conservation semantics
 
@@ -98,7 +98,7 @@ Include:
 - fixed linear multiple-regression RSA;
 - signed eigenvalues, clearly labelled as finite-sample cross-estimate eigenvalues.
 
-Defer information, effective rank, coherence ratios as primary statistics, latent PSD reconstruction, and Bures/population summaries. This matches the final recommendation in `effectagram-package-design.md` despite the inconsistency in its current scope list around lines 502–529.
+Defer information, effective rank, coherence ratios as primary statistics, latent PSD reconstruction, and Bures/population summaries. This matches the final recommendation in `crossform-package-design.md` despite the inconsistency in its current scope list around lines 502–529.
 
 ## Recommended version 0.1 boundary
 

@@ -6,19 +6,19 @@ test_that("block-backed complete geometry matches in-memory geometry and queries
   total_path <- tempfile(fileext = ".egm")
   coherent_path <- tempfile(fileext = ".egm")
   on.exit(unlink(c(total_path, coherent_path)), add = TRUE)
-  total_store <- effectagram:::.file_geometry_store(total_path, c(9, 10), create = TRUE)
-  coherent_store <- effectagram:::.file_geometry_store(coherent_path, c(9, 10), create = TRUE)
+  total_store <- crossform:::.file_geometry_store(total_path, c(9, 10), create = TRUE)
+  coherent_store <- crossform:::.file_geometry_store(coherent_path, c(9, 10), create = TRUE)
 
-  total_run <- effectagram:::.tiled_contraction(
+  total_run <- crossform:::.tiled_contraction(
     weights, total_atoms, 3, 4, 5,
     write_tile = function(rows, coordinates, value) {
-      effectagram:::.write_geometry_tile(total_store, rows, coordinates, value)
+      crossform:::.write_geometry_tile(total_store, rows, coordinates, value)
     }
   )
-  coherent_run <- effectagram:::.tiled_contraction(
+  coherent_run <- crossform:::.tiled_contraction(
     weights, coherent_atoms, 3, 4, 5,
     write_tile = function(rows, coordinates, value) {
-      effectagram:::.write_geometry_tile(coherent_store, rows, coordinates, value)
+      crossform:::.write_geometry_tile(coherent_store, rows, coordinates, value)
     }
   )
   base <- result_fixture()
@@ -44,11 +44,11 @@ test_that("block-backed complete geometry matches in-memory geometry and queries
 test_that("block store refuses overwrite and malformed tiles", {
   path <- tempfile(fileext = ".egm")
   on.exit(unlink(path), add = TRUE)
-  store <- effectagram:::.file_geometry_store(path, c(3, 4), create = TRUE)
+  store <- crossform:::.file_geometry_store(path, c(3, 4), create = TRUE)
 
-  expect_error(effectagram:::.file_geometry_store(path, c(3, 4), create = TRUE),
+  expect_error(crossform:::.file_geometry_store(path, c(3, 4), create = TRUE),
     "Refusing to overwrite")
-  expect_error(effectagram:::.write_geometry_tile(
+  expect_error(crossform:::.write_geometry_tile(
     store, c(1, 3), 1, matrix(1, 2, 1)
   ), "Invalid geometry tile")
 })
@@ -56,11 +56,11 @@ test_that("block store refuses overwrite and malformed tiles", {
 test_that("selected block-store tiles round-trip without full-row reads", {
   path <- tempfile(fileext = ".egm")
   on.exit(unlink(path), add = TRUE)
-  store <- effectagram:::.file_geometry_store(path, c(5, 6), create = TRUE)
+  store <- crossform:::.file_geometry_store(path, c(5, 6), create = TRUE)
   value <- matrix(seq_len(6), 3, 2)
-  effectagram:::.write_geometry_tile(store, 2:4, c(2, 5), value)
+  crossform:::.write_geometry_tile(store, 2:4, c(2, 5), value)
 
-  expect_equal(effectagram:::.read_geometry_tile(store, 2:4, c(2, 5)), value)
-  expect_error(effectagram:::.read_geometry_tile(store, c(1, 3), 2),
+  expect_equal(crossform:::.read_geometry_tile(store, 2:4, c(2, 5)), value)
+  expect_error(crossform:::.read_geometry_tile(store, c(1, 3), 2),
     "Invalid geometry tile")
 })

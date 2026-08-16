@@ -1,5 +1,5 @@
 # Independent numerical oracles for evidence-pairing-v1. These helpers do not
-# call production effectagram functions.
+# call production crossform functions.
 
 pair_oracle_matrix <- function(value, name) {
   if (!is.matrix(value) || !is.numeric(value) || any(!is.finite(value))) {

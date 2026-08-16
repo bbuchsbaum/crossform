@@ -138,7 +138,7 @@ test_that("pure relations advertise no recoverable error capability", {
   expect_equal(relation_block(relation_value, "run", 1:2),
     relation_block(wrapped, "run", 1:2), tolerance = 0)
   expect_error(
-    effectagram:::.require_relation_fit_capability(
+    crossform:::.require_relation_fit_capability(
       relation_value, "learned_metric_input"
     ),
     "precomputed effects.*lm_relation_fit"
@@ -171,7 +171,7 @@ test_that("deep validation is a boundary operation, not a block-read rebuild", {
 
   expect_silent(residual_block(mutated, "run", 1:2))
   expect_error(
-    effectagram:::.validate_relation_fit(mutated, deep = TRUE),
+    crossform:::.validate_relation_fit(mutated, deep = TRUE),
     "identity"
   )
 })

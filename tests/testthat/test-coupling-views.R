@@ -30,7 +30,7 @@ coupling_test_fixture <- function(multivariate = FALSE, rank_one = FALSE,
   } else {
     center / (q - 1)
   }
-  query <- effectagram:::.variation_pair_query(
+  query <- crossform:::.variation_pair_query(
     h, effects, sampling_axis = "trial",
     construction = "joint_covariance",
     provenance = list(estimator = if (rank_one) {
@@ -51,9 +51,9 @@ coupling_test_fixture <- function(multivariate = FALSE, rank_one = FALSE,
     )
   }
   legs <- Map(function(operator, node) {
-    effectagram:::.measurement_leg(
+    crossform:::.measurement_leg(
       operator, domain,
-      effectagram:::.measurement_axis(
+      crossform:::.measurement_axis(
         paste0(node, seq_len(nrow(operator))),
         paste0("coupling:", node, ":v1"),
         basis_id = paste0("coupling:", node, ":fixed-basis:v1")
@@ -61,13 +61,13 @@ coupling_test_fixture <- function(multivariate = FALSE, rank_one = FALSE,
     )
   }, operators, names(operators))
   names(legs) <- names(operators)
-  frame <- effectagram:::.measurement_frame(legs)
+  frame <- crossform:::.measurement_frame(legs)
   pairs <- expand.grid(
     left = frame$node_ids,
     right = frame$node_ids,
     stringsAsFactors = FALSE
   )
-  spatial_edges <- effectagram:::.measurement_edges(
+  spatial_edges <- crossform:::.measurement_edges(
     pairs$left, pairs$right, frame
   )
   over <- if (crossvalidated) {
@@ -80,24 +80,24 @@ coupling_test_fixture <- function(multivariate = FALSE, rank_one = FALSE,
       independence = "not_independent"
     )
   }
-  partition_edges <- effectagram:::.ordered_partition_edges(
+  partition_edges <- crossform:::.ordered_partition_edges(
     over, rel$partitions, rel$partitions, TRUE
   )
-  task <- effectagram:::.new_evidence_task(
+  task <- crossform:::.new_evidence_task(
     rel, rel, TRUE, partition_edges,
-    effectagram:::.closed_experimental_boundary(
+    crossform:::.closed_experimental_boundary(
       query, role = "variation", sampling_axis = "trial"
     ),
-    effectagram:::.open_neural_boundary(frame, frame, spatial_edges),
-    effectagram:::.evidence_stage_plan(reducer = reducer),
-    effectagram:::.evidence_materialization(
+    crossform:::.open_neural_boundary(frame, frame, spatial_edges),
+    crossform:::.evidence_stage_plan(reducer = reducer),
+    crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
   )
-  run <- effectagram:::.run_measurement_contraction(task, route = "pull_h")
+  run <- crossform:::.run_measurement_contraction(task, route = "pull_h")
   construction <- if (crossvalidated) "psd_variation" else
     "joint_covariance"
-  form <- effectagram:::.measurement_form_from_contraction(
+  form <- crossform:::.measurement_form_from_contraction(
     task, run,
     query_construction = construction,
     edge_scope = "frame_complete"
@@ -130,7 +130,7 @@ coupling_edge_position <- function(form, left, right) {
 
 test_that("effect coupling is the unrestricted algebraic measurement form", {
   fixture <- coupling_test_fixture(rank_one = TRUE)
-  result <- effectagram:::.effect_coupling(fixture$form)
+  result <- crossform:::.effect_coupling(fixture$form)
   expected_q <- coupling_expected_neural_form(fixture)
 
   expect_s3_class(result, "effect_coupling_result")
@@ -144,14 +144,14 @@ test_that("effect coupling is the unrestricted algebraic measurement form", {
       t(fixture$operators[[row$right[[1L]]]])
     expect_equal(result$values[[edge]], expected, tolerance = 1e-12)
   }
-  expect_silent(effectagram:::.validate_coupling_result(result))
-  expect_error(effectagram:::.pearson_coupling(fixture$form),
+  expect_silent(crossform:::.validate_coupling_result(result))
+  expect_error(crossform:::.pearson_coupling(fixture$form),
     "rank above one|rank-one effect direction")
 })
 
 test_that("scalar repeated variation recovers signed Pearson correlation", {
   fixture <- coupling_test_fixture()
-  result <- effectagram:::.pearson_coupling(fixture$form)
+  result <- crossform:::.pearson_coupling(fixture$form)
   q_form <- coupling_expected_neural_form(fixture)
   expected <- q_form[1L, 2L] / sqrt(q_form[1L, 1L] * q_form[2L, 2L])
   position <- coupling_edge_position(fixture$form, "a", "b")
@@ -164,43 +164,43 @@ test_that("scalar repeated variation recovers signed Pearson correlation", {
   expect_identical(result$normalization_axis, "experimental_samples")
   expect_identical(result$units, "correlation")
   expect_identical(
-    effectagram:::.connectivity_view(fixture$form, "correlation"), result
+    crossform:::.connectivity_view(fixture$form, "correlation"), result
   )
   source_end <- length(fixture$form$plan$stages$order)
   expect_identical(result$stage_order[seq_len(source_end)],
     fixture$form$plan$stages$order)
   expect_gt(match("experimental_sample_normalization", result$stage_order),
     match("partition_reduction", result$stage_order))
-  expect_silent(effectagram:::.validate_coupling_result(result))
+  expect_silent(crossform:::.validate_coupling_result(result))
 })
 
 test_that("normalized coupling rejects missing joint covariance and zero self variance", {
   crossvalidated <- coupling_test_fixture(crossvalidated = TRUE)
-  expect_silent(effectagram:::.effect_coupling(crossvalidated$form))
-  expect_error(effectagram:::.covariance_coupling(crossvalidated$form),
+  expect_silent(crossform:::.effect_coupling(crossvalidated$form))
+  expect_error(crossform:::.covariance_coupling(crossvalidated$form),
     "joint covariance|positive self-blocks")
-  expect_error(effectagram:::.canonical_coupling(
+  expect_error(crossform:::.canonical_coupling(
     crossvalidated$form,
-    effectagram:::.measurement_regularization("ridge", 1e-4)
+    crossform:::.measurement_regularization("ridge", 1e-4)
   ), "joint covariance|positive self-blocks")
 
   zero <- coupling_test_fixture(zero_second = TRUE)
-  expect_error(effectagram:::.pearson_coupling(zero$form),
+  expect_error(crossform:::.pearson_coupling(zero$form),
     "strictly positive scalar self-variance")
 })
 
 test_that("CCA, geometry alignment, and Gaussian information match references", {
   fixture <- coupling_test_fixture(multivariate = TRUE)
-  regularization <- effectagram:::.measurement_regularization(
+  regularization <- crossform:::.measurement_regularization(
     "ridge", lambda_left = 0.05, lambda_right = 0.08
   )
   edge <- coupling_edge_position(fixture$form, "a", "b")
   edge_id <- fixture$form$block_index$edge_id[[edge]]
-  cross <- effectagram:::.measurement_block(fixture$form, edge)
-  left_self <- effectagram:::.measurement_block(
+  cross <- crossform:::.measurement_block(fixture$form, edge)
+  left_self <- crossform:::.measurement_block(
     fixture$form, coupling_edge_position(fixture$form, "a", "a")
   )
-  right_self <- effectagram:::.measurement_block(
+  right_self <- crossform:::.measurement_block(
     fixture$form, coupling_edge_position(fixture$form, "b", "b")
   )
   inverse_root <- function(value) {
@@ -212,7 +212,7 @@ test_that("CCA, geometry alignment, and Gaussian information match references", 
     cross %*% inverse_root(right_self + diag(0.08, nrow(right_self)))
   expected_rho <- svd(normalized, nu = 0L, nv = 0L)$d
 
-  canonical <- effectagram:::.canonical_coupling(
+  canonical <- crossform:::.canonical_coupling(
     fixture$form, regularization
   )
   got_rho <- canonical$values$canonical_correlation[
@@ -221,7 +221,7 @@ test_that("CCA, geometry alignment, and Gaussian information match references", 
   expect_equal(got_rho, expected_rho, tolerance = 1e-11)
   expect_identical(canonical$normalization_axis, "experimental_samples")
 
-  alignment <- effectagram:::.geometry_alignment(fixture$form)
+  alignment <- crossform:::.geometry_alignment(fixture$form)
   expected_alignment <- sum(cross^2) /
     sqrt(sum(left_self^2) * sum(right_self^2))
   got_alignment <- alignment$values$geometry_alignment[
@@ -232,10 +232,10 @@ test_that("CCA, geometry alignment, and Gaussian information match references", 
   expect_match(alignment$terminology,
     "not_dynamic_informational_connectivity")
 
-  model <- effectagram:::.gaussian_covariance_model(
+  model <- crossform:::.gaussian_covariance_model(
     list(assumption = "joint Gaussian observations")
   )
-  information <- effectagram:::.gaussian_information(
+  information <- crossform:::.gaussian_information(
     fixture$form, regularization, model, units = "bits"
   )
   expected_information <- -0.5 * sum(log1p(-(expected_rho^2))) / log(2)
@@ -244,16 +244,16 @@ test_that("CCA, geometry alignment, and Gaussian information match references", 
   ]
   expect_equal(got_information, expected_information, tolerance = 1e-11)
   expect_identical(information$units, "bits")
-  expect_silent(effectagram:::.validate_coupling_result(canonical))
-  expect_silent(effectagram:::.validate_coupling_result(alignment))
-  expect_silent(effectagram:::.validate_coupling_result(information))
+  expect_silent(crossform:::.validate_coupling_result(canonical))
+  expect_silent(crossform:::.validate_coupling_result(alignment))
+  expect_silent(crossform:::.validate_coupling_result(information))
 })
 
 test_that("stage order and axis identity are part of the coupling estimand", {
   edge_first <- coupling_test_fixture(reducer = reduce_partitions())
   aggregate <- coupling_test_fixture(reducer = aggregate_first())
-  edge_result <- effectagram:::.pearson_coupling(edge_first$form)
-  aggregate_result <- effectagram:::.pearson_coupling(aggregate$form)
+  edge_result <- crossform:::.pearson_coupling(edge_first$form)
+  aggregate_result <- crossform:::.pearson_coupling(aggregate$form)
 
   expect_false(identical(edge_first$form$plan$scientific_plan_id,
     aggregate$form$plan$scientific_plan_id))
@@ -272,10 +272,10 @@ test_that("partition-pair and aggregate-first normalization are distinct estiman
   forms <- list(first$form, second$form)
   weights <- c(0.3, 0.7)
   transform <- fisher_z(boundary = "clip", delta = 1e-8)
-  edge_first <- effectagram:::.partitioned_pearson_coupling(
+  edge_first <- crossform:::.partitioned_pearson_coupling(
     forms, weights, "within_partition_pair", transform
   )
-  aggregate_first_result <- effectagram:::.partitioned_pearson_coupling(
+  aggregate_first_result <- crossform:::.partitioned_pearson_coupling(
     forms, weights, "after_partition_aggregation", transform
   )
   position <- coupling_edge_position(first$form, "a", "b")
@@ -308,22 +308,22 @@ test_that("partition-pair and aggregate-first normalization are distinct estiman
   expect_gt(match("experimental_sample_normalization",
     aggregate_first_result$stage_order), match("partition_reduction",
     aggregate_first_result$stage_order))
-  expect_silent(effectagram:::.validate_coupling_result(edge_first))
-  expect_silent(effectagram:::.validate_coupling_result(
+  expect_silent(crossform:::.validate_coupling_result(edge_first))
+  expect_silent(crossform:::.validate_coupling_result(
     aggregate_first_result
   ))
 })
 
 test_that("connectivity convenience validates view-specific declarations", {
   fixture <- coupling_test_fixture(multivariate = TRUE)
-  expect_error(effectagram:::.connectivity_view(fixture$form, "canonical"),
+  expect_error(crossform:::.connectivity_view(fixture$form, "canonical"),
     "regularization")
-  expect_error(effectagram:::.connectivity_view(
+  expect_error(crossform:::.connectivity_view(
     fixture$form, "gaussian_information",
-    regularization = effectagram:::.measurement_regularization("ridge", 0.1)
+    regularization = crossform:::.measurement_regularization("ridge", 0.1)
   ), "Gaussian model")
   expect_false(exists("informational_connectivity",
-    envir = asNamespace("effectagram"), inherits = FALSE))
+    envir = asNamespace("crossform"), inherits = FALSE))
 })
 
 test_that("coupling() takes the adjoint closure from the plan vocabulary", {

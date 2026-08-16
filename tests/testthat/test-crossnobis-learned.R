@@ -194,8 +194,8 @@ test_that("shrinkage target and calibration limits are explicit", {
   expect_identical(recipe$hyperparameters$target,
     "sample_residual_diagonal")
   expect_true(recipe$hyperparameters$target_estimated)
-  expect_false("ld_t" %in% getNamespaceExports("effectagram"))
-  expect_false("confidence_interval" %in% getNamespaceExports("effectagram"))
+  expect_false("ld_t" %in% getNamespaceExports("crossform"))
+  expect_false("confidence_interval" %in% getNamespaceExports("crossform"))
 })
 
 test_that("workspace changes execution identity but not the scientific plan", {
@@ -234,8 +234,8 @@ test_that("compiled support execution does not revalidate global state per node"
   )
   frame_checks <- 0L
   support_checks <- 0L
-  original_frame <- effectagram:::.validate_frame_for_compile
-  original_support <- effectagram:::.validate_support_index
+  original_frame <- crossform:::.validate_frame_for_compile
+  original_support <- crossform:::.validate_support_index
   testthat::local_mocked_bindings(
     .validate_frame_for_compile = function(...) {
       frame_checks <<- frame_checks + 1L
@@ -245,7 +245,7 @@ test_that("compiled support execution does not revalidate global state per node"
       support_checks <<- support_checks + 1L
       original_support(...)
     },
-    .package = "effectagram"
+    .package = "crossform"
   )
 
   value <- crossnobis(plan, c(condition = 1, drift = 0))

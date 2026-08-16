@@ -8,38 +8,56 @@ vignette: >
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6, fig.height = 5)
-library(effectagram)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 5,
+  message = FALSE,
+  warning = FALSE
+)
+library(crossform)
 ```
 
-This guide answers one question from beginning to end: **where does an
-animate-versus-inanimate pattern reproduce across independent runs?** Along the
-way, the same fitted geometry will supply a contrast map, a representational
-dissimilarity matrix (RDM), a linear RSA coefficient, and an analytic standard
-error where its assumptions are met.
+Use this guide when you have condition estimates from repeated runs and want to
+find where an effect reproduces across runs. The input is one
+condition-by-feature matrix per run plus a spatial measurement frame. The
+outputs are a contrast map, a representational dissimilarity matrix (RDM), and
+a linear representational similarity analysis (RSA) coefficient at each
+measurement. If the fitted relation retains the required residual information,
+the same analysis can also return within-participant standard errors.
 
-The example is generated with known truth so that every line runs after
-installation. It is not empirical evidence. The package's Haxby 2001 exemplar
-provides the separate public-data parity workflow.
+The worked question is: **where does an animate-versus-inanimate pattern
+reproduce across independent runs?** The data are generated with known truth,
+so the example runs after installation and can check its own answer. These
+generated data are not empirical evidence; the separate Haxby 2001 exemplar is
+the public-data comparison.
 
 ## Start from a ready relation
 
 ```{r example}
 example <- example_fmri_effects()
-example$fit
+c(
+  conditions = length(example$fit$relation$effects),
+  runs = length(example$fit$relation$partitions),
+  features = example$fit$relation$n_features,
+  searchlights = nrow(example$frame$index)
+)
 ```
 
-There are four conditions in four independent runs over a small 7 by 7 by 5
-volume. The generator returns both the full domain and a compiled searchlight
-frame because a fitted relation deliberately retains only the domain's exact
-identity, not mutable spatial construction data.
+`example$fit` contains four run-specific estimates for four conditions in a
+small 7 by 7 by 5 volume. `example$frame` defines the 245 searchlights at which
+the analysis will report results. The generator returns the frame separately
+because a fitted relation records the neural domain but does not own a mutable
+searchlight definition.
 
-`fit` contains two distinct things:
+The fit provides two kinds of information:
 
-- `fit$relation` is the lazy condition-by-feature relation used for point
-  evidence;
-- its error channel retains residual blocks, residual degrees of freedom, and
-  effect-coordinate covariance for admitted uncertainty calculations.
+- `example$fit$relation` is the condition-by-feature relation used for point
+  estimates; it reads feature blocks only when a query needs them;
+- its error channel stores residual blocks, residual degrees of freedom, and
+  effect-coordinate covariance for uncertainty calculations whose assumptions
+  the fit can support.
 
 ## Declare what must generalize
 
@@ -47,19 +65,24 @@ identity, not mutable spatial construction data.
 plan <- plan_geometry(
   example$fit$relation,
   at = example$frame,
-  over = cross_partitions(example$fit$relation, independence = "independent")
+  over = cross_partitions(
+    example$fit$relation,
+    independence = "independent",
+    generalizes_over = "run"
+  )
 )
 plan
 ```
 
-`cross_partitions()` names the generalization requirement: every unordered pair
-of different runs contributes to one estimator. It is not a request to treat
-those run pairs as independent samples. `plan_geometry()` binds that pairing to
-the condition axes, searchlight frame, metric, units, and exact neural domain.
-It validates the request before reading neural values.
+`cross_partitions()` requests products between different runs. Every unordered
+pair of runs contributes to the estimate, but the function does not treat the
+six run pairs as six independent samples. `plan_geometry()` checks that the
+relation, condition names, searchlight frame, metric, units, and neural domain
+agree before it reads neural values.
 
-This is the central object to save in an audit trail. Compute policy may change
-how the plan is executed, but it cannot change the plan's scientific identity.
+Save `plan` with the analysis record. It identifies the estimand: the scientific
+quantity the analysis is meant to estimate. Changing block size or storage
+changes the execution receipt, not this plan identity.
 
 ## Find the reproducible contrast
 
@@ -76,15 +99,19 @@ c(
 )
 ```
 
-One plan therefore reports the whole contrast family at once. `signed` is the
-familiar signed contrast at each measurement — a retained first-moment
-marginal, the number a GLM reader expects. The three energies are quadratic
-quantities that decompose its reproducibility, so `coherent` is not the
-signed univariate result: it is the crossvalidated energy carried by the
-locally averaged contrast. `configuration` is the energy in reproducible
-spatial departures from that weighted mean — orthogonal to the coherent mode
-in the frame-weighted inner product, not the Euclidean one — and the package
-preserves the exact identity `total = coherent + configuration`.
+`contrast()` returns four values at every searchlight. `signed` is the usual
+signed contrast of the local weighted mean. The other three values measure
+cross-run reproducibility:
+
+- `coherent` is the crossvalidated energy of that local weighted mean;
+- `configuration` is the energy in reproducible spatial departures from the
+  weighted mean;
+- `total` is their sum.
+
+The coherent and configuration modes are orthogonal under the weights declared
+by the frame. They need not be orthogonal under an unweighted Euclidean inner
+product. The package checks `total = coherent + configuration` for every
+measurement.
 
 ```{r contrast-check, include=FALSE}
 stopifnot(
@@ -95,8 +122,10 @@ stopifnot(
 )
 ```
 
-Crossvalidated energy is unbiased around zero, so negative values are retained
-rather than clipped. A negative estimate is not an invalid geometry.
+Crossvalidated energy is centred on zero when no reproducible effect is
+present. Sampling noise can therefore produce negative estimates. Clipping
+them to zero would change the estimator and introduce positive bias, so
+`contrast()` retains them.
 
 The known truth makes that policy visible. Inside the affected searchlights the
 planted multivariate pattern is carried mostly by configuration; outside them,
@@ -128,7 +157,7 @@ stopifnot(
 )
 ```
 
-```{r contrast-map, fig.cap="Cross-generalized contrast energy in the middle slice. The generated signal is centred in the volume; the map is an analysis check, not empirical evidence."}
+```{r contrast-map, echo=FALSE, fig.cap="Cross-generalized contrast energy in the middle slice. The generated signal is centred in the volume; the map checks the analysis and is not empirical evidence."}
 volume <- array(NA_real_, dim = example$domain$metadata$dim)
 volume[example$domain$metadata$mask] <- effect$total
 middle <- ceiling(dim(volume)[3] / 2)
@@ -155,9 +184,10 @@ round(distances$values[peak, ], 3)
 distances$pairs
 ```
 
-Under cross-partition pairing these are signed crossvalidated squared
-Euclidean distances. A plan with a fixed neural precision metric gives squared
-Mahalanobis distances. Either can be negative near the null.
+With the current identity metric and cross-run pairing, these are signed,
+crossvalidated squared Euclidean distances. Supplying a fixed neural precision
+metric changes them to squared Mahalanobis distances. Either estimate can be
+negative near the null because the two factors come from different runs.
 
 Linear RSA compiles the RDM transform and regression coefficient into a fixed
 query against the same plan:
@@ -178,8 +208,9 @@ stopifnot(
 )
 ```
 
-Named RDM axes are aligned to the relation's exact condition identities, and a
-rank-deficient design is rejected before geometry rows are read.
+`rsa()` aligns the model's named rows and columns to the relation conditions.
+It rejects a model with missing names or a rank-deficient regression design
+before it reads geometry rows.
 
 ## Ask for uncertainty without inventing replicates
 
@@ -187,9 +218,9 @@ The six run pairs share run estimates and are not six independent sampling
 units. Their empirical spread divided by the square root of six is not a valid
 standard error.
 
-Because `example_fmri_effects()` used `lm_relation_fit()`, the residual error
-channel required by the admitted fixed-metric covariance model remains
-available:
+`example_fmri_effects()` used `lm_relation_fit()`, so the fit retains the
+residual error channel required by the package's fixed-metric covariance
+model:
 
 ```{r uncertainty}
 distance_covariance <- rdm_sampling_covariance(
@@ -210,24 +241,24 @@ stopifnot(
 )
 ```
 
-`target = "plugin"` evaluates the signal-dependent term at the partition-mean
-pattern estimate. `target = "null"` evaluates it at the fixed zero null. The
-package refuses to infer this choice.
+`target = "plugin"` evaluates the signal-dependent variance term at the
+estimated mean pattern. Use `target = "null"` to evaluate that term under a
+fixed zero-effect null. The package requires this choice because the two calls
+answer different variance questions.
 
 The result is a within-searchlight covariance under an equal-partition,
-fixed-metric, separable model. It is not a cross-location random-field model,
-an automatic confidence interval, or group inference. The covariance is stored
-as an exact factorized operator: its diagonal, selected entries, actions,
-quadratic forms, or a fixed linear transport can be read without materializing
-the full distance-by-distance matrix.
+fixed-metric, separable error model. It is not a cross-location random-field
+model, a confidence interval, or group inference. The object stores a
+factorized covariance operator. `sampling_covariance()` can read its diagonal,
+selected entries, matrix action, quadratic form, or fixed linear transport
+without constructing the full distance-by-distance matrix.
 
 ## Use your own data
 
-The full raw-observation route is executable in
-`vignette("from-observations", package = "effectagram")`. It binds observation
-clocks, event and confound facts, a semantic condition-space effect map, an
-observation model, portable design receipts, and the resulting fit before
-entering the geometry layer.
+If you have scan-by-feature responses rather than beta matrices, continue with
+`vignette("from-observations", package = "crossform")`. That guide binds scan
+times, events, confounds, named effects, and an observation model before it
+fits the relation used here.
 
 If independent runs already contain condition-by-feature estimates, construct a
 point relation directly:
@@ -244,9 +275,9 @@ plan <- plan_geometry(
 )
 ```
 
-This is enough for `contrast()`, `rdm()`, and `rsa()`. Beta matrices do not
-contain the residual information needed for within-participant analytic
-uncertainty.
+This relation is enough for `contrast()`, `rdm()`, and `rsa()`. It cannot supply
+the analytic standard errors shown above because beta matrices alone do not
+contain residuals or residual degrees of freedom.
 
 When raw observation-by-feature responses and an already compiled design are
 available, the older direct fit remains the compact degenerate route:
@@ -262,20 +293,22 @@ fit <- lm_relation_fit(
 )
 ```
 
-The typed `plan_relation()` route can instead consume a semantic
-`design_model()` or the exact-version `fmridesign_design_model()` adapter.
-`effectagram` owns the identities, receipts, capabilities, and refusals; it
-does not replace HRF grammars, general GLM engines, preprocessing, masks, or
-registration. Those upstream choices remain explicit and identity-bearing.
+For a fully declared first-moment fit, `plan_relation()` accepts either a
+semantic `design_model()` or the version-checked
+`fmridesign_design_model()` adapter. Crossform records the requested effects,
+design identity, fit receipt, and supported uncertainty operations. It does
+not perform preprocessing, registration, masking, or general haemodynamic
+response modelling.
 
 ## Why correlation distance is not an option to `rdm()`
 
-Feature centring is a fixed linear projection and can be declared as a metric.
-The unit-norm denominator in `1 - Pearson correlation` depends on the observed
-patterns, so it is not a fixed linear query. Conventional correlation distance
-can be a named nonlinear view of a positive-semidefinite self geometry, but
-diagonal-normalizing a signed cross-generalized form is a different and not
-automatically valid estimand.
+Feature centring is a fixed linear projection, so a plan can declare it as a
+metric. Pearson correlation also divides each observed pattern by its norm.
+That denominator depends on the data and is therefore not a fixed linear query.
+A conventional correlation distance can be defined from a positive-semidefinite
+self geometry. Applying the same diagonal normalization to a signed
+cross-generalized form does not automatically define a valid crossvalidated
+estimator.
 
 The package therefore does not hide correlation normalization inside `rdm()`.
 The accepted extension requirements and refusal cases are recorded in the
@@ -299,5 +332,6 @@ repository's `correlation-distance-policy.md`.
 - `novelty.md` separates the package's architectural contribution from the
   established statistics it implements.
 
-The key habit is simple: declare the relation, measurement, and generalization
-requirement once; then ask fixed, named questions of the resulting plan.
+For the usual workflow, construct one plan from the fitted relation, spatial
+frame, and cross-run pairing. Then pass that plan to `contrast()`, `rdm()`, or
+`rsa()` according to the result you need.

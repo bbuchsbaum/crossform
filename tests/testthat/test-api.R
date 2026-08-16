@@ -1,5 +1,5 @@
 test_that("the 0.1 namespace exposes only implemented workflows", {
-  exports <- getNamespaceExports("effectagram")
+  exports <- getNamespaceExports("crossform")
 
   expect_true(all(c(
     "effect_space", "pair_query", "abstract_domain", "volume_domain", "relation",

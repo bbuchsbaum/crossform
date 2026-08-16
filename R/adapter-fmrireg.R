@@ -56,7 +56,7 @@ fmrireg_relation <- function(x) {
     provenance = list(
       contract_version = "first-moment-relation-v1",
       relation_plan_id = plan$relation_plan_id,
-      adapter = "effectagram::fmrireg_relation",
+      adapter = "crossform::fmrireg_relation",
       adapter_package = "fmrireg",
       adapter_version = version,
       design_receipt_ids = vapply(
@@ -70,7 +70,7 @@ fmrireg_relation <- function(x) {
     provenance = list(
       contract_version = "first-moment-relation-v1",
       relation_plan_id = plan$relation_plan_id,
-      adapter = "effectagram::fmrireg_relation",
+      adapter = "crossform::fmrireg_relation",
       adapter_version = version,
       analytic_error_channel = "withheld"
     )

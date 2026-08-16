@@ -4,8 +4,8 @@ test_that("checkpoint round trip preserves payload and exact resume identity", {
   on.exit(unlink(path, recursive = TRUE), add = TRUE)
   payload <- list(task = 3L, tile = matrix(c(1, 2, 3, 4), 2))
 
-  effectagram:::.write_checkpoint(payload, path, receipt, available_bytes = 1e8)
-  got <- effectagram:::.read_checkpoint(path, receipt)
+  crossform:::.write_checkpoint(payload, path, receipt, available_bytes = 1e8)
+  got <- crossform:::.read_checkpoint(path, receipt)
 
   expect_identical(got, payload)
   expect_true(file.exists(file.path(path, "manifest.rds")))
@@ -20,7 +20,7 @@ test_that("checkpoint disk preflight fails before staging", {
   receipt <- receipt_fixture()
   path <- tempfile(pattern = "checkpoint-")
   condition <- tryCatch(
-    effectagram:::.write_checkpoint(list(x = rnorm(100)), path, receipt,
+    crossform:::.write_checkpoint(list(x = rnorm(100)), path, receipt,
       available_bytes = 1),
     effect_execution_error = identity
   )
@@ -34,14 +34,14 @@ test_that("checkpoint detects payload corruption", {
   receipt <- receipt_fixture()
   path <- tempfile(pattern = "checkpoint-")
   on.exit(unlink(path, recursive = TRUE), add = TRUE)
-  effectagram:::.write_checkpoint(list(x = 1:4), path, receipt,
+  crossform:::.write_checkpoint(list(x = 1:4), path, receipt,
     available_bytes = 1e8)
   connection <- file(file.path(path, "payload.rds"), open = "ab")
   writeBin(as.raw(1), connection)
   close(connection)
 
   condition <- tryCatch(
-    effectagram:::.read_checkpoint(path, receipt),
+    crossform:::.read_checkpoint(path, receipt),
     effect_execution_error = identity
   )
   expect_match(condition$message, "checksum or size mismatch")
@@ -52,7 +52,7 @@ test_that("resume rejects changed task, reduction, precision, and source identit
   receipt <- receipt_fixture()
   path <- tempfile(pattern = "checkpoint-")
   on.exit(unlink(path, recursive = TRUE), add = TRUE)
-  effectagram:::.write_checkpoint(42, path, receipt, available_bytes = 1e8)
+  crossform:::.write_checkpoint(42, path, receipt, available_bytes = 1e8)
 
   mutate_receipt <- function(field, value) {
     changed <- receipt
@@ -69,7 +69,7 @@ test_that("resume rejects changed task, reduction, precision, and source identit
     changed_source
   )
   for (candidate in candidates) {
-    expect_error(effectagram:::.read_checkpoint(path, candidate),
+    expect_error(crossform:::.read_checkpoint(path, candidate),
       "execution identity does not match")
   }
 })
@@ -78,17 +78,17 @@ test_that("checkpoint rejects schema drift and permissive modes", {
   receipt <- receipt_fixture()
   path <- tempfile(pattern = "checkpoint-")
   on.exit(unlink(path, recursive = TRUE), add = TRUE)
-  effectagram:::.write_checkpoint(42, path, receipt, available_bytes = 1e8)
+  crossform:::.write_checkpoint(42, path, receipt, available_bytes = 1e8)
   manifest_path <- file.path(path, "manifest.rds")
   manifest <- readRDS(manifest_path)
   manifest$schema_version <- 99L
   saveRDS(manifest, manifest_path)
-  expect_error(effectagram:::.read_checkpoint(path, receipt), "schema version")
+  expect_error(crossform:::.read_checkpoint(path, receipt), "schema version")
 
   manifest$schema_version <- 1L
   saveRDS(manifest, manifest_path)
   Sys.chmod(manifest_path, "0644", use_umask = FALSE)
   if (.Platform$OS.type == "unix") {
-    expect_error(effectagram:::.read_checkpoint(path, receipt), "permissions")
+    expect_error(crossform:::.read_checkpoint(path, receipt), "permissions")
   }
 })

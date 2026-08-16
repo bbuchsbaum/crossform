@@ -40,14 +40,14 @@ test_that("evaluation-residual reuse requires an explicit policy contract", {
 test_that("metric compilation freezes provenance but retains no factor table", {
   setup <- metric_learning_setup()
   recipe <- shrinkage_precision(0.2)
-  schedule <- effectagram:::compile_metric_schedule(
+  schedule <- crossform:::compile_metric_schedule(
     recipe, setup$statistics, setup$fixture$frame, setup$over
   )
   record <- schedule$records$edge_1
 
   expect_s3_class(schedule, "effect_frozen_metric_schedule")
   expect_identical(schedule$recipe_specification, recipe$signature)
-  expect_true(effectagram:::.same_domain_reference(
+  expect_true(crossform:::.same_domain_reference(
     schedule$recipe$domain, setup$statistics$domain
   ))
   expect_identical(record$evaluation_left, "run1")
@@ -61,14 +61,14 @@ test_that("metric compilation freezes provenance but retains no factor table", {
   expect_true(schedule$capabilities$calibration_requires_metric_uncertainty)
   expect_identical(setup$fixture$reads(),
     c(run1 = 0L, run2 = 0L, run3 = 0L))
-  expect_silent(effectagram:::.validate_frozen_metric_schedule(
+  expect_silent(crossform:::.validate_frozen_metric_schedule(
     schedule, deep = TRUE
   ))
 })
 
 test_that("on-demand shrinkage precision agrees with an independent oracle", {
   setup <- metric_learning_setup()
-  schedule <- effectagram:::compile_metric_schedule(
+  schedule <- crossform:::compile_metric_schedule(
     shrinkage_precision(
       shrinkage = 0.2,
       relative_variance_floor = 1e-7,
@@ -76,7 +76,7 @@ test_that("on-demand shrinkage precision agrees with an independent oracle", {
     ),
     setup$statistics, setup$fixture$frame, setup$over
   )
-  provider <- effectagram:::.metric_schedule_provider(schedule, 1L)
+  provider <- crossform:::.metric_schedule_provider(schedule, 1L)
   handle <- provider$at(10L)
   support_positions <- handle$support_positions
   raw <- oracle_local_residual_covariance(
@@ -111,7 +111,7 @@ test_that("on-demand shrinkage precision agrees with an independent oracle", {
 
 test_that("providers reduce only local pairs in the canonical global order", {
   setup <- metric_learning_setup()
-  schedule <- effectagram:::compile_metric_schedule(
+  schedule <- crossform:::compile_metric_schedule(
     shrinkage_precision(0.2),
     setup$statistics, setup$fixture$frame, setup$over,
     metric_training_policy(
@@ -119,18 +119,18 @@ test_that("providers reduce only local pairs in the canonical global order", {
       justification = "Exercise the multi-partition canonical reduction law."
     )
   )
-  provider <- effectagram:::.metric_schedule_provider(schedule, 1L)
+  provider <- crossform:::.metric_schedule_provider(schedule, 1L)
   handle <- provider$at(10L)
-  scope <- effectagram:::.residual_pair_scope(
+  scope <- crossform:::.residual_pair_scope(
     schedule$statistics,
     schedule$records$edge_1$training_partitions
   )
-  global_then_gather <- effectagram:::.local_residual_covariance(
+  global_then_gather <- crossform:::.local_residual_covariance(
     schedule$support_index,
     handle$support_positions,
     scope$covariance
   )
-  gather_then_reduce <- effectagram:::.local_residual_scope_covariance(
+  gather_then_reduce <- crossform:::.local_residual_scope_covariance(
     schedule$statistics,
     schedule$support_index,
     handle$support_positions,
@@ -145,17 +145,17 @@ test_that("providers reduce only local pairs in the canonical global order", {
 
 test_that("identity and diagonal schedules use their exact fast actions", {
   setup <- metric_learning_setup()
-  identity_schedule <- effectagram:::compile_metric_schedule(
+  identity_schedule <- crossform:::compile_metric_schedule(
     identity_metric(), setup$statistics, setup$fixture$frame, setup$over
   )
-  diagonal_schedule <- effectagram:::compile_metric_schedule(
+  diagonal_schedule <- crossform:::compile_metric_schedule(
     diagonal_precision(relative_variance_floor = 1e-7),
     setup$statistics, setup$fixture$frame, setup$over
   )
-  identity <- effectagram:::.metric_schedule_provider(
+  identity <- crossform:::.metric_schedule_provider(
     identity_schedule, 1L
   )$at(10L)
-  diagonal <- effectagram:::.metric_schedule_provider(
+  diagonal <- crossform:::.metric_schedule_provider(
     diagonal_schedule, 1L
   )$at(10L)
   set.seed(8303)
@@ -181,11 +181,11 @@ test_that("identity and diagonal schedules use their exact fast actions", {
 test_that("all-partitions and disjoint training are distinct estimators", {
   setup <- metric_learning_setup()
   recipe <- shrinkage_precision(0.15)
-  disjoint <- effectagram:::compile_metric_schedule(
+  disjoint <- crossform:::compile_metric_schedule(
     recipe, setup$statistics, setup$fixture$frame, setup$over,
     metric_training_policy("exclude_evaluation")
   )
-  all_runs <- effectagram:::compile_metric_schedule(
+  all_runs <- crossform:::compile_metric_schedule(
     recipe, setup$statistics, setup$fixture$frame, setup$over,
     metric_training_policy(
       "all_partitions_residual_orthogonality",
@@ -201,8 +201,8 @@ test_that("all-partitions and disjoint training are distinct estimators", {
     c("run1", "run2", "run3"))
   expect_false(identical(disjoint$signature, all_runs$signature))
   expect_false(identical(
-    effectagram:::materialize_metric(disjoint, 10L)$signature,
-    effectagram:::materialize_metric(all_runs, 10L)$signature
+    crossform:::materialize_metric(disjoint, 10L)$signature,
+    crossform:::materialize_metric(all_runs, 10L)$signature
   ))
 })
 
@@ -213,16 +213,16 @@ test_that("workspace-invariant statistics yield identical metric schedules", {
     workspace_bytes = narrow_setup$budgets$wider
   )
   recipe <- shrinkage_precision(0.3)
-  narrow <- effectagram:::compile_metric_schedule(
+  narrow <- crossform:::compile_metric_schedule(
     recipe, narrow_setup$statistics, narrow_setup$fixture$frame,
     narrow_setup$over
   )
-  wide <- effectagram:::compile_metric_schedule(
+  wide <- crossform:::compile_metric_schedule(
     recipe, wide_statistics, narrow_setup$fixture$frame,
     narrow_setup$over
   )
-  narrow_metric <- effectagram:::materialize_metric(narrow, 10L)
-  wide_metric <- effectagram:::materialize_metric(wide, 10L)
+  narrow_metric <- crossform:::materialize_metric(narrow, 10L)
+  wide_metric <- crossform:::materialize_metric(wide, 10L)
 
   expect_identical(narrow$signature, wide$signature)
   expect_identical(narrow_metric$value, wide_metric$value)
@@ -238,18 +238,18 @@ test_that("metric schedules refuse leakage and identity mutations", {
     workspace_bytes = setup$budgets$wider
   )
   expect_error(
-    effectagram:::compile_metric_schedule(
+    crossform:::compile_metric_schedule(
       shrinkage_precision(), only_two, setup$fixture$frame, setup$over
     ),
     "leaves no residual partition"
   )
-  schedule <- effectagram:::compile_metric_schedule(
+  schedule <- crossform:::compile_metric_schedule(
     shrinkage_precision(), setup$statistics, setup$fixture$frame, setup$over
   )
   mutated <- schedule
   mutated$records$edge_1$training_partitions <- "run1"
   expect_error(
-    effectagram:::.validate_frozen_metric_schedule(mutated, deep = TRUE),
+    crossform:::.validate_frozen_metric_schedule(mutated, deep = TRUE),
     "identity is inconsistent"
   )
 })

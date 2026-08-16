@@ -12,7 +12,7 @@ rectangular_form_fixture <- function(codec = "rectangular") {
     left = left,
     right = right,
     forms = forms,
-    result = effectagram:::effect_form(
+    result = crossform:::effect_form(
       total = stored,
       left_space = left,
       right_space = right,
@@ -85,7 +85,7 @@ test_that("independent left and right permutations are equivariant", {
   permuted_forms <- lapply(fixture$forms, function(value) {
     value[left_order, right_order, drop = FALSE]
   })
-  permuted <- effectagram:::effect_form(
+  permuted <- crossform:::effect_form(
     total = do.call(rbind, lapply(permuted_forms, as.vector)),
     left_space = permuted_left,
     right_space = permuted_right,
@@ -111,15 +111,15 @@ test_that("packed and rectangular codecs contract symmetric forms identically", 
     crossprod(matrix(c(1, 2, 0, -1, 3, 4), nrow = 2)),
     crossprod(matrix(c(2, 0, 1, 5, -2, 3), nrow = 2))
   )
-  packed_values <- do.call(rbind, lapply(forms, effectagram:::.svec_symmetric))
+  packed_values <- do.call(rbind, lapply(forms, crossform:::.svec_symmetric))
   rectangular_values <- do.call(rbind, lapply(forms, as.vector))
   zero_packed <- matrix(0, nrow(packed_values), ncol(packed_values))
   zero_rectangular <- matrix(0, nrow(rectangular_values), ncol(rectangular_values))
-  packed <- effectagram:::effect_form(
+  packed <- crossform:::effect_form(
     packed_values, space, space, receipt_fixture(),
     codec = "symmetric_packed", symmetric = TRUE, coherent = zero_packed
   )
-  rectangular <- effectagram:::effect_form(
+  rectangular <- crossform:::effect_form(
     rectangular_values, space, space, receipt_fixture(),
     codec = "rectangular", symmetric = TRUE, coherent = zero_rectangular
   )
@@ -150,31 +150,31 @@ test_that("complete-form and query-only claims cannot be forged", {
 
   forged <- fixture$result
   forged$result_capability <- "query_only"
-  expect_error(effectagram:::.validate_effect_form(forged), "complete effect_form")
+  expect_error(crossform:::.validate_effect_form(forged), "complete effect_form")
 
   forged <- fixture$result
   forged$capabilities$symmetric <- TRUE
-  expect_error(effectagram:::.validate_effect_form(forged),
+  expect_error(crossform:::.validate_effect_form(forged),
     "symmetric effect form|capabilities")
 
   forged <- fixture$result
   forged$total$manifest$format <- "packed-double-v1"
-  expect_error(effectagram:::.validate_effect_form(forged), "manifest")
+  expect_error(crossform:::.validate_effect_form(forged), "manifest")
 
   self <- result_fixture()
   forged_self <- self
   forged_self$capabilities$guaranteed_psd <- TRUE
-  expect_error(effectagram:::.validate_effect_form(forged_self),
+  expect_error(crossform:::.validate_effect_form(forged_self),
     "contract signature")
 
   forged_view <- view
   forged_view$result_capability <- "complete_form"
   class(forged_view) <- c("effect_form", class(forged_view))
-  expect_error(effectagram:::.validate_effect_view(forged_view), "query-only")
+  expect_error(crossform:::.validate_effect_view(forged_view), "query-only")
 
   forged_view <- view
   forged_view$query$operator[1, 1] <- 2
-  expect_error(effectagram:::.validate_effect_view(forged_view),
+  expect_error(crossform:::.validate_effect_view(forged_view),
     "contract signature")
 })
 
@@ -198,13 +198,13 @@ test_that("rectangular block stores preserve codec and bounded queries", {
   stored <- geometry_component(fixture$result)
   path <- tempfile(fileext = ".egm")
   on.exit(unlink(path), add = TRUE)
-  store <- effectagram:::.file_geometry_store(
+  store <- crossform:::.file_geometry_store(
     path, dim(stored), create = TRUE, codec = "rectangular"
   )
-  effectagram:::.write_geometry_tile(
+  crossform:::.write_geometry_tile(
     store, seq_len(nrow(stored)), seq_len(ncol(stored)), stored
   )
-  blocked <- effectagram:::effect_form(
+  blocked <- crossform:::effect_form(
     store, fixture$left, fixture$right, receipt_fixture(),
     codec = "rectangular"
   )

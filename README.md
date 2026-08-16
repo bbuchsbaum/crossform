@@ -1,6 +1,6 @@
-# effectagram
+# crossform
 
-`effectagram` asks a concrete task-fMRI question: **where does an experimental
+`crossform` asks a concrete task-fMRI question: **where does an experimental
 effect or representational geometry reproduce across independent data
 partitions?**
 
@@ -20,7 +20,7 @@ small volume. It retains raw trial responses and a known central multivariate
 signal, so both the point estimate and its admitted uncertainty path can run.
 
 ```r
-library(effectagram)
+library(crossform)
 
 example <- example_fmri_effects()
 
@@ -120,7 +120,7 @@ their execution receipts remain distinct.
 
 The complete executable journey—including timed events, scan-level confounds,
 censoring, relation estimation, geometry, RDM, RSA, and admitted uncertainty—is
-in `vignette("from-observations", package = "effectagram")`. BIDS,
+in `vignette("from-observations", package = "crossform")`. BIDS,
 `fmridesign`, and `fmrireg` are optional adapters into this typed core; they do
 not define the core object model.
 
@@ -147,7 +147,7 @@ is also available, but no target is chosen silently.
 
 A relation made only from precomputed beta matrices remains valid for point
 geometry. It cannot reconstruct discarded residual uncertainty, and
-`effectagram` refuses to pretend that edge spread supplies it. Ask before
+`crossform` refuses to pretend that edge spread supplies it. Ask before
 provoking: `sampling_capabilities(plan, example$fit)` reports whether the
 analytic law is admitted and, if not, every unmet requirement with its
 remedy. Refusals themselves are classed conditions — `catch_refusal(expr)`
@@ -185,7 +185,7 @@ reference site groups all exported functions by these roles in
 
 ## What is actually novel?
 
-Not RSA, crossnobis, or the analytic covariance formula. `effectagram` advances
+Not RSA, crossnobis, or the analytic covariance formula. `crossform` advances
 a broader **evidence-pairing calculus**: self- and cross-experimental forms and
 self- and cross-neural measurements are different boundary closures of one
 typed second-order relation. In that architecture:
@@ -212,13 +212,13 @@ materialize-then-project, with a `4.4e-16` oracle), and the executable
 parity, a real rectangular exemplar, and an operational conservation example
 remain work to be earned. The full claim ledger—established precedents,
 current evidence with its machine-checkable artifacts, and promotion gates—is
-in [What is novel in effectagram?](novelty.md).
+in [What is novel in crossform?](novelty.md).
 
 ## Real-data evidence
 
-The [Haxby 2001 exemplar](exemplars/haxby2001/) runs the public effectagram and
+The [Haxby 2001 exemplar](exemplars/haxby2001/) runs the public crossform and
 rMVPA paths on 12 conditions and 577 VT searchlights. On the matched
-crossvalidated squared-Euclidean/crossnobis estimand, effectagram agrees with an
+crossvalidated squared-Euclidean/crossnobis estimand, crossform agrees with an
 independent reference loop to `1.33e-15` and with rMVPA to `8.88e-16`. Refitting
 the raw responses to retain the error channel reproduces the point RDM to
 `4.44e-16` before analytic covariance is transported to a fixed linear RSA
@@ -240,11 +240,11 @@ install.packages(".", repos = NULL, type = "source")
 
 Then read:
 
-- `vignette("from-observations", package = "effectagram")` for the complete
+- `vignette("from-observations", package = "crossform")` for the complete
   facts-to-fit-to-geometry journey;
-- `vignette("introduction", package = "effectagram")` for the continuous
+- `vignette("introduction", package = "crossform")` for the continuous
   question-first workflow;
-- `vignette("evidence-pairing", package = "effectagram")` for measurement
+- `vignette("evidence-pairing", package = "crossform")` for measurement
   forms and coupling views, including one bounded cross-domain contraction
   and the Parseval reconstruction law;
 - [the effect-form contract](effect-form-contract.md) for normative algebra and

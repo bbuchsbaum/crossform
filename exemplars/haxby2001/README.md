@@ -7,8 +7,8 @@ and sampling rules on public data; not merely similar-looking outputs.
 
 ## Purpose
 
-This is the first public-data, matched-estimand comparison between an
-`effectagram` workflow and its `rMVPA` counterpart. It exists to earn — or
+This is the first public-data, matched-estimand comparison between a
+`crossform` workflow and its `rMVPA` counterpart. It exists to earn — or
 honestly fail to earn — one row of the replacement map: *searchlight
 representational similarity analysis with cross-run generalization*.
 
@@ -59,7 +59,7 @@ mask for the smoke tier; whole brain for the full tier):
   defined in `models.R`.
 
 In `rMVPA` this is an `rsa_design`/`rsa_model` searchlight with run-wise
-cross-validation structure. In `effectagram` it is a relation over the eight
+cross-validation structure. In `crossform` it is a relation over the eight
 condition effects with `cross_partitions()` over runs, a searchlight frame,
 and `rdm()`/`rsa()` views. Where a system cannot express exactly this
 estimand, the nearest expressible estimand is documented and the residual
@@ -67,7 +67,7 @@ difference becomes part of the comparison, not noise.
 
 ## Beyond parity: the error-channel arm
 
-Parity is the floor, not the point. A third arm runs `effectagram`'s
+Parity is the floor, not the point. A third arm runs `crossform`'s
 crossnobis RDM with the identified error channel from `lm_relation_fit()`,
 and transports sampling covariance to the RSA coefficient — something
 `rMVPA` does not expose. This arm demonstrates the scientific surplus of the
@@ -80,10 +80,10 @@ estimand* rather than a comparison row.
 |---|---|
 | `00-download.R` | fetch and checksum subject 1 tarball into `data/` (gitignored) |
 | `01-prepare-data.R` | one shared preparation: per-run condition means, VT + whole-brain masks, saved as `.rds` |
-| `02-effectagram-searchlight.R` | the effectagram arm |
+| `02-crossform-searchlight.R` | the crossform arm |
 | `03-rmvpa-searchlight.R` | the rMVPA arm |
 | `04-compare.R` | center-by-center agreement report, tolerance gates, divergence taxonomy |
-| `05-crossnobis-uncertainty.R` | the error-channel arm (effectagram only) |
+| `05-crossnobis-uncertainty.R` | the error-channel arm (crossform only) |
 | `models.R` | model RDMs and shared constants (radius, tolerance, seeds) |
 
 Run order is numeric. Every script is idempotent and writes only under
@@ -105,19 +105,23 @@ scripts exist and are idempotent; `results/smoke-comparison.rds` and
 argument — this section records the outcome and the one place where reality
 contradicted the estimand written above.
 
+The committed smoke report predates the package rename and therefore retains
+`effectagram` in its historical receipt text. Rerunning the current scripts
+writes `crossform`-labelled artifacts; the earlier evidence is not rewritten.
+
 ### Smoke tier result: matched estimand agrees, README estimand is not expressible
 
 Both arms consume the identical prepared object, and their searchlight
 geometry was verified rather than assumed: `neuroim2::searchlight_indices`
-(effectagram) and `neuroim2::searchlight` (rMVPA) return **bit-identical
+(crossform) and `neuroim2::searchlight` (rMVPA) return **bit-identical
 sphere membership at all 577 VT centres** at radius 11.25 mm.
 
 | comparison | result |
 |---|---|
-| matched estimand, **effectagram vs rMVPA's own crossnobis estimator** | max abs difference **8.88e-16**, 0/577 centres above the 1e-8 gate — PASS |
-| matched estimand, effectagram vs an independent reference loop | max abs difference 1.33e-15, 0/577 — PASS |
+| matched estimand, **crossform vs rMVPA's own crossnobis estimator** | max abs difference **8.88e-16**, 0/577 centres above the 1e-8 gate — PASS |
+| matched estimand, crossform vs an independent reference loop | max abs difference 1.33e-15, 0/577 — PASS |
 | shared Spearman score | max abs difference **0** (exact), map r = 1 — PASS |
-| native estimands (effectagram vs rMVPA `rsa_model`) | r ≈ 0.54, fully accounted for by five named semantic differences |
+| native estimands (crossform vs rMVPA `rsa_model`) | r ≈ 0.54, fully accounted for by five named semantic differences |
 
 ### The estimand section above is not achievable as written
 
@@ -125,11 +129,11 @@ The "Estimand" section specifies a **correlation-distance (1 − Pearson r) RDM
 scored by a Spearman correlation**. Implementation established that neither
 system can express that combination:
 
-- **effectagram** cannot produce a correlation-distance RDM at all. Correlation
+- **crossform** cannot produce a correlation-distance RDM at all. Correlation
   distance rescales each pattern to unit norm inside the sphere, which is
   nonlinear in the patterns and therefore outside the bilinear core.
   (Per-sphere mean-centering *would* be expressible as a non-diagonal metric;
-  the unit-norm denominator is not.) effectagram's `rsa()` is also OLS, not a
+  the unit-norm denominator is not.) crossform's `rsa()` is also OLS, not a
   rank correlation.
 - **rMVPA's `rsa_model`** couples the two choices: `distmethod` sets both the
   neural RDM metric and the second-order correlation method, and `regtype` is
@@ -153,7 +157,7 @@ are left unedited; this note records where they and the implementation diverge.
 ### Replacement-map claim
 
 **Earned for the matched estimand, with two conditions attached.** Both sides
-of the headline comparison are package estimators — effectagram's `rdm()` over
+of the headline comparison are package estimators — crossform's `rdm()` over
 a cross-run geometry against rMVPA's
 `compute_crossvalidated_means_sl(estimation_method = "crossnobis")` +
 `compute_crossnobis_distances_sl()` — and they agree to 8.88e-16 at every
@@ -185,7 +189,7 @@ the latter the way the Estimand section describes.
 ### Cost
 
 The parity tier (scripts 02–04) is genuinely cheap: about 20 s total, of which
-effectagram's `rdm()` over 577 centres is 0.48 s and rMVPA's crossnobis RDM is
+crossform's `rdm()` over 577 centres is 0.48 s and rMVPA's crossnobis RDM is
 0.40 s. The error-channel arm (05) is heavier, but the old estimate in this
 section was stale. A 2026-08-14 rerun of 25 evenly spaced nodes on the current
 tree took 16.2 s total (0.65 s/node). A linear projection is therefore about

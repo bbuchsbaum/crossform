@@ -111,7 +111,7 @@ for (dm in c("pearson", "spearman")) {
 ## ---- (B) Matched-estimand reference over rMVPA's data path --------------
 # Cross-validated squared Euclidean distance, mean over the 66 unordered run
 # pairs, with local (1/P) normalisation -- the README estimand, written as a
-# direct loop with no reference to how effectagram computes it.
+# direct loop with no reference to how crossform computes it.
 sl <- rMVPA::get_searchlight(dset, "standard", radius = RADIUS_MM)
 center_ids <- rMVPA::get_center_ids(dset)
 stopifnot(identical(as.integer(center_ids), as.integer(vt_index)))

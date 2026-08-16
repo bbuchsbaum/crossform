@@ -1,8 +1,8 @@
 ---
-title: "Measure node effects and coupling with one evidence form"
+title: "Measure effects within and between neural nodes"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Measure node effects and coupling with one evidence form}
+  %\VignetteIndexEntry{Measure effects within and between neural nodes}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -14,27 +14,31 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE
 )
-library(effectagram)
+library(crossform)
 ```
 
-Suppose you have repeated time, trial, or subject observations over native
-neural features. You want to measure selected voxels or populations, retain
-their multivariate structure, and ask how evidence is organized within and
-between them. The hard part is not multiplying matrices; it is keeping the
-experimental sample axis, neural measurement axes, covariance assumptions,
-and normalization order honest.
+Use this guide when your result should describe relationships within and
+between neural measurements, such as two regions or two multivariate
+populations. The inputs are repeated experimental observations, a fixed
+measurement for each neural node, a list of requested node pairs, and an
+experimental query: a fixed matrix that weights time points, conditions, or
+other experimental coordinates. `measurement_form()` returns one matrix block
+for every requested pair. A diagonal block describes one node; an off-diagonal
+block relates two nodes.
 
-This workflow produces one complete measurement-space form. Its diagonal
-blocks are within-node evidence and its off-diagonal blocks are coupling. A
-view can then report signed scalar correlation, a canonical spectrum, static
-geometry alignment, or Gaussian information only when the form has the
-required capabilities.
+The later sections apply several views to those blocks. `connectivity()` can
+report an ordinary scalar correlation, `canonical_coupling()` reports a
+multivariate correlation spectrum, and `geometry_alignment()` compares two
+within-node geometries. Each view checks the assumptions it needs. Use
+`effect_coupling()` when you need the matrix block itself without claiming that
+it is covariance or connectivity.
 
 ## Can two regional signals recover ordinary correlation?
 
-The rows below are eight repeated observations and the columns are four native
-neural features. Two sessions remain separate and are combined as declared
-self-products.
+The hidden setup creates two sessions. In each matrix, eight repeated time
+points are rows and four native neural features are columns. The first two
+features are negatively related, which gives this example a known correlation
+sign.
 
 ```{r scalar-data, include=FALSE}
 sample_space <- effect_space(
@@ -61,8 +65,9 @@ signals <- relation(
 )
 ```
 
-First declare two rank-one measurements. Their supports could contain many
-features, but each retains one oriented output mode.
+First declare two scalar measurements. Each one selects a single oriented
+feature here; a regional mean would use one row of fixed weights over several
+features.
 
 ```{r scalar-frame}
 nodes <- measurement_frame(
@@ -82,14 +87,16 @@ node_pairs <- expand.grid(
 between_nodes <- edge_frame(node_pairs$from, node_pairs$to, nodes)
 ```
 
-`edge_frame()` never invents an all-pairs graph. All four pairs are requested
-here because correlation needs both self-blocks as denominators. For a seed
-map, local-neighbour graph, or selected network, list only those scientifically
-motivated edges plus the self-blocks needed by the intended normalization.
+`edge_frame()` computes only the pairs listed in `node_pairs`. This example
+requests the two self-pairs and the two directed cross-pairs. Correlation needs
+the self-pairs to obtain the two variances in its denominator. For a seed map
+or selected network, list the scientific edges you need and the self-pairs
+required by the chosen normalization.
 
-The centered sample operator supplies repeated variation. Calling it a joint
-covariance is a construction claim: the same relation and the same partition
-occur on both sides of each product.
+The matrix `center / 7` centres the eight time points and divides their sum of
+products by seven. `variation_query()` records that operation on the time
+axis. The `joint_covariance` construction is valid here because both sides of
+each product use the same session and the same fitted relation.
 
 ```{r scalar-form}
 center <- diag(8) - matrix(1 / 8, 8, 8)
@@ -116,12 +123,22 @@ measured <- measurement_form(
 )
 ```
 
-The quick result is ordinary signed Pearson correlation on rank-one
-measurement axes.
+`self_pairs = "allow_biased"` permits each session to multiply by itself; this
+is ordinary within-session covariance, not a crossvalidated estimator.
+`independence = "not_independent"` prevents the result from claiming that the
+two sides were independently estimated. `measurement_form()` averages the two
+session products and returns the four requested blocks.
+
+Because both node measurements are scalar and oriented, the correlation view
+returns ordinary signed Pearson correlations.
 
 ```{r scalar-correlation}
 functional <- connectivity(measured, view = "correlation")
-functional$values[, c("edge_id", "correlation")]
+data.frame(
+  from = measured$block_index$left,
+  to = measured$block_index$right,
+  correlation = functional$values$correlation
+)
 ```
 
 ```{r scalar-check, include=FALSE}
@@ -143,10 +160,11 @@ stopifnot(
 )
 ```
 
-The sign survives because each measurement has an oriented scalar mode. For
-multivariate populations, arbitrary rotations change raw cross-block entries;
-canonical correlations and geometry alignment are the appropriate invariant
-summaries.
+The negative cross-node value matches the generated data. Its sign is defined
+because each scalar measurement has a fixed orientation. A multivariate node
+can be rotated without changing its represented subspace, so individual
+cross-block entries are not invariant there. The next section uses summaries
+that do not depend on an arbitrary basis rotation.
 
 ## What changes when each node retains several modes?
 
@@ -170,22 +188,37 @@ population_form <- measurement_form(
 )
 ```
 
-Canonical coupling whitens the two self-covariances and reports the singular
-values of the normalized cross-form. Ridge values are explicit because the
-regularization changes the estimand.
+```{r population-edge, include=FALSE}
+cross_population_edge <- population_form$block_index$edge_id[
+  population_form$block_index$left == "anterior" &
+    population_form$block_index$right == "posterior"
+]
+```
+
+Canonical coupling uses the two self-covariance blocks to scale the cross-node
+block, then reports its singular values. These canonical correlations describe
+the shared modes in descending order. `ridge = 0.05` stabilizes the two inverse
+covariance calculations and is recorded because changing it changes the
+reported values.
 
 ```{r canonical-view}
 canonical <- canonical_coupling(population_form, ridge = 0.05)
-canonical$values[canonical$values$edge_id == "edge_000003", ]
+canonical$values[
+  canonical$values$edge_id == cross_population_edge,
+  c("mode", "canonical_correlation")
+]
 ```
 
-Static geometry alignment instead compares the observation geometries induced
-by the two populations. It is linear CKA/RV-like alignment and lies between
-zero and one for a coherent joint covariance.
+`geometry_alignment()` answers a different question: do the two populations
+induce similar pairwise geometry over the repeated observations? It computes a
+linear CKA/RV-like alignment. Under the joint-covariance construction used
+here, the result lies between zero and one.
 
 ```{r alignment-view}
 alignment <- geometry_alignment(population_form)
-alignment$values
+alignment$values$geometry_alignment[
+  alignment$values$edge_id == cross_population_edge
+]
 ```
 
 ```{r multivariate-check, include=FALSE}
@@ -199,8 +232,9 @@ stopifnot(
 )
 ```
 
-Gaussian mutual information adds another assumption. It is available only
-after an explicit model declaration and reports its units.
+Gaussian mutual information treats the normalized canonical modes as arising
+from a joint Gaussian model. The call therefore requires an explicit model
+declaration and a choice of information units.
 
 ```{r gaussian-view}
 gaussian_model <- gaussian_covariance_model(
@@ -213,7 +247,10 @@ information <- connectivity(
   model = gaussian_model,
   units = "bits"
 )
-information$values
+information$values[
+  information$values$edge_id == cross_population_edge,
+  c("information", "units")
+]
 ```
 
 ```{r gaussian-check, include=FALSE}
@@ -224,12 +261,13 @@ stopifnot(
 )
 ```
 
-## Why is one contrast not connectivity?
+## Why can one contrast not estimate connectivity?
 
-A rank-one query such as (H = cc^T) is a valid effect direction. Its
-measurement block is an outer product, so normalized coupling would be
-perfect whenever both sides are nonzero. The axis whose variation should
-estimate connectivity has already been contracted away.
+A contrast vector $c$ defines the rank-one query $H=cc^\top$. This query can
+measure whether two nodes express the same contrast, but it leaves only one
+experimental direction. Its neural block is an outer product, so a normalized
+correlation would equal one whenever both node effects are nonzero. The
+repeated variation needed to estimate connectivity has been removed.
 
 ```{r rank-one-effect}
 effect_direction <- c(-1, -1, -1, -1, 1, 1, 1, 1)
@@ -260,14 +298,18 @@ stopifnot(
 )
 ```
 
-Use `effect_coupling()` for this algebraic relation. Do not label it covariance
-connectivity merely because it has two neural endpoints.
+`effect_coupling()` returns the block because it makes no covariance claim.
+`connectivity(..., view = "correlation")` stops with an error because the
+experimental query has effective rank one. A matrix with two neural endpoints
+is therefore not sufficient evidence for connectivity.
 
 ## How do coherent and configuration modes cross on an edge?
 
-An additive measurement can be factored into its positively oriented common
-mode and its orthogonal configuration subspace. That node decomposition
-automatically induces four edge channels.
+An additive measurement has a positively oriented weighted-mean direction,
+called its coherent mode. The orthogonal remainder is its configuration
+subspace. When both nodes use this decomposition, their cross-node block has
+four components: coherent-to-coherent, coherent-to-configuration,
+configuration-to-coherent, and configuration-to-configuration.
 
 ```{r decomposition-form}
 additive <- additive_frame(
@@ -305,18 +347,22 @@ stopifnot(
 )
 ```
 
-The coherent direction has a fixed scientific orientation. Configuration is
-canonical as a subspace, not as an arbitrary compact basis within that
-subspace. `measurement_components()` therefore reports rotation-invariant
-strengths and does not present configuration-to-configuration entries as
-basis-free quantities.
+The coherent direction has a fixed orientation because the measurement weights
+define its positive direction. The configuration subspace is fixed, but any
+orthonormal basis within it is interchangeable. `measurement_components()`
+therefore reports rotation-invariant Frobenius strengths for components that
+involve configuration. Frobenius strength is the square root of the sum of the
+block's squared entries. The function does not present individual
+configuration-to-configuration entries as uniquely defined quantities.
 
-## Can different experimental and neural spaces use the same engine?
+## How do encoding and retrieval use different axes?
 
-Yes. The left and right relation arguments name experimental-neural sides;
-`between` alone carries the neural measurement endpoints. Here encoding and
-retrieval have different experimental coordinates and different native neural
-domains.
+`measurement_form()` accepts separate left and right relations. In this
+example, the left relation has two encoding conditions over three neural
+features. The right relation has three retrieval conditions over four neural
+features. `pair_query()` therefore uses a rectangular 2 by 3 experimental
+query, while `edge_frame()` relates a scalar encoding seed to a two-mode
+retrieval target.
 
 ```{r cross-domain-setup, include=FALSE}
 encoding_space <- effect_space(
@@ -387,14 +433,18 @@ stopifnot(isTRUE(all.equal(
 )))
 ```
 
-This is the off-diagonal block on both axes: different experimental spaces and
-different neural measurements. It is still one evidence-form contraction.
+The returned matrix is 1 by 2. Its rows belong to the encoding seed and its
+columns belong to the retrieval target. No square RDM is constructed because
+the two experimental axes and the two neural measurements are different.
 
-## When do node and edge blocks reconstruct the global operator?
+## Did the node and edge blocks retain all neural evidence?
 
-Complete node plus edge blocks are coordinates for the global neural evidence
-operator when the measurement frames are injective. This example uses a
-Parseval frame: stacking its two operators gives the identity.
+`reconstruct_evidence()` tests whether the measured blocks retain the complete
+global neural operator or only a projection of it. Lossless reconstruction
+requires every directed node pair and a measurement frame with full column
+rank. This example uses a Parseval frame: stacking the two node operators gives
+the identity, so the local blocks can be added back without a correction
+matrix.
 
 ```{r parseval-form}
 parseval_nodes <- measurement_frame(
@@ -433,45 +483,50 @@ stopifnot(
 )
 ```
 
-A full-rank non-Parseval frame uses its canonical dual. A rank-deficient frame
-returns `status = "projected_reconstruction"` and `lossless = FALSE`.
-Incomplete edges, incompatible frame bases, excessive condition numbers, and
-insufficient workspace are rejected before a lossless claim. Diagonal node
-blocks alone cannot distinguish two global operators with the same diagonal
-and different off-diagonal structure.
+A full-rank non-Parseval frame reconstructs through its canonical dual, a
+correction that reverses overlapping or non-orthogonal frame weights. A
+rank-deficient frame returns `status = "projected_reconstruction"` and
+`lossless = FALSE`, which tells you that the measurements discarded neural
+directions. The function refuses a lossless claim when edges are missing,
+frame bases disagree, the reconstruction is too ill-conditioned, or the
+declared workspace is too small. Diagonal node blocks alone are insufficient:
+two global operators can share the same diagonal blocks and differ between
+nodes.
 
 ## Which interpretation is permitted?
 
 | View | Minimum interpretation contract |
 |---|---|
-| `effect_coupling()` | Any admitted fixed experimental query; no covariance claim |
-| `covariance_coupling()` | Repeated variation, effective rank above one, coherent joint covariance, valid self-blocks |
-| `connectivity(..., "correlation")` | The covariance contract plus rank-one oriented measurement axes |
-| `canonical_coupling()` | The covariance contract plus explicit regularization |
-| `geometry_alignment()` | Coherent joint covariance and nonzero self-geometries; static form-entry normalization |
-| Gaussian information | Canonical contract plus an explicit joint Gaussian model and information units |
-| `reconstruct_evidence()` | Complete edge frame, matching identified bases, resource preflight, and acceptable frame rank/conditioning |
+| `effect_coupling()` | Any supported fixed experimental query; no covariance claim |
+| `covariance_coupling()` | Repeated variation, effective rank above one, a joint-covariance construction, and valid self-blocks |
+| `connectivity(..., "correlation")` | The covariance requirements plus scalar, oriented measurement axes |
+| `canonical_coupling()` | The covariance requirements plus explicit ridge regularization |
+| `geometry_alignment()` | Joint covariance and nonzero self-geometries; static normalization over form entries |
+| Gaussian information | Canonical coupling plus an explicit joint Gaussian model and information units |
+| `reconstruct_evidence()` | Every directed edge, matching frame bases, sufficient workspace, and acceptable frame rank and conditioning |
 
-The result records which axis was normalized. Pattern correlation normalizes
-neural features before producing an experimental form. Functional correlation
-normalizes repeated experimental samples before interpreting a neural form.
-Calling both operations "correlation" does not make them interchangeable.
+Each result records which axis was normalized. Pattern correlation normalizes
+neural features before it produces an experimental form. Functional
+correlation normalizes repeated experimental samples before it interprets a
+neural form. The two operations both use the word correlation, but they act on
+different axes and answer different questions.
 
-The public measurement workflow aggregates raw bilinear partition forms before
-its connectivity views normalize them. It does not silently substitute the
-different estimand obtained by normalizing or Fisher-transforming within each
-partition pair before reduction. The source stage order, view stage order,
-regularization, units, and sampling axis remain in result identity.
+The measurement workflow first averages the requested partition products and
+then applies a connectivity normalization. Normalizing or Fisher-transforming
+each partition pair before averaging would define a different estimator, so
+the package does not substitute that order. The result identity records the
+source order, view order, regularization, units, and sampling axis.
 
 ## Is geometry alignment informational connectivity?
 
-Not by default. `geometry_alignment()` compares static Gram matrices and is a
-rotation-tolerant multivariate generalization of squared scalar correlation.
-Established informational-connectivity analyses may instead correlate dynamic
-discriminability series estimated over time or trials. Those series require a
-training and cross-fitting pipeline that this fixed-form core does not own.
+No. `geometry_alignment()` compares static Gram matrices and is a
+rotation-invariant multivariate generalization of squared scalar correlation.
+Informational-connectivity analyses often correlate dynamic discriminability
+series estimated across time or trials instead. Estimating those series
+requires training and cross-fitting stages that this fixed-form package does
+not implement.
 
-Migration is therefore semantic rather than cosmetic:
+Choose the function by the question:
 
 - use `effect_coupling()` for an arbitrary fixed query;
 - use `connectivity()` only when repeated variation and covariance capabilities
@@ -480,7 +535,7 @@ Migration is therefore semantic rather than cosmetic:
 - keep dynamic informational-connectivity estimators in an adjacent system
   until their training, cross-fitting, and inference contracts are explicit.
 
-For ordinary self geometry, contrast, RDM, RSA, and spectrum views, continue
-with `vignette("introduction", package = "effectagram")`. The measurement-form
-workflow adds another partial materialization of the same evidence pairing; it
-does not replace the established geometry API.
+For contrasts, RDMs, RSA, and geometry spectra within one experimental space,
+continue with `vignette("introduction", package = "crossform")`. Use the
+measurement-form functions in this guide only when the returned object must
+retain explicit neural node and edge blocks.

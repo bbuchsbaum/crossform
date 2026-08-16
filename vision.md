@@ -1,4 +1,4 @@
-# Vision for `effectagram`
+# Vision for `crossform`
 
 Status: working vision
 Date: 2026-08-13 (calculus framing noted 2026-08-15)
@@ -11,13 +11,13 @@ Date: 2026-08-13 (calculus framing noted 2026-08-15)
 > intact through execution. This document's rMVPA-successor mission is
 > unchanged; the calculus is its organizing mathematics.
 
-The name is pronounced “effect-a-gram.” An effectagram is the
-cross-generalized geometry of experimental effects across a declared spatial
-frame. The package name is broader and more memorable than the mathematical
-class name; durable objects therefore retain precise names such as
+The name joins the two ideas at the center of the package: evidence is tested
+across declared generalization boundaries, and every analysis is a query
+against an experimental-neural form. The package name is broader than any one
+mathematical class; durable objects therefore retain precise names such as
 `effect_relation`, `effect_geometry`, and `effect_view`.
 
-`effectagram` will become the foundation for task-fMRI effect analysis in R and the eventual successor to `rMVPA`. It will replace the scientific role of `rMVPA`, not reproduce its source code, public classes, or every historical feature. Researchers should be able to perform the important analyses for which they now turn to `rMVPA`, while gaining a clearer account of what was estimated, where it was measured, across which partitions it generalized, and how the reported number was derived.
+`crossform` will become the foundation for task-fMRI effect analysis in R and the eventual successor to `rMVPA`. It will replace the scientific role of `rMVPA`, not reproduce its source code, public classes, or every historical feature. Researchers should be able to perform the important analyses for which they now turn to `rMVPA`, while gaining a clearer account of what was estimated, where it was measured, across which partitions it generalized, and how the reported number was derived.
 
 The project will achieve this through unification rather than a smaller catalogue of methods. Voxelwise, searchlight, regional, surface, and whole-brain analyses will use common relations, spatial measurements, generalization declarations, and result geometry. Contrasts, representational dissimilarities, RSA, predictive summaries, and later population models will be interpretations or extensions of those shared objects. The system can grow broad without making every new analysis another engine, registry entry, result class, and combining path.
 
@@ -106,7 +106,7 @@ The exact function names may change while the contracts are tested. The sequence
 
 `rMVPA` proved that one R system can support regional and searchlight decoding, RSA, cross-domain analysis, specialized representational models, real-data demonstrations, parallel execution, diagnostics, and command-line workflows. It also accumulated separate model families, execution modes, engine-selection rules, fast paths, custom callbacks, result types, and adapters. A change in scientific method can therefore require changes across several software ontologies.
 
-`effectagram` will replace that organizing model. It will aim for comparable or better coverage of important scientific jobs, but it will not seek one-for-one API or feature parity. Each inherited workflow will receive one of four explicit dispositions:
+`crossform` will replace that organizing model. It will aim for comparable or better coverage of important scientific jobs, but it will not seek one-for-one API or feature parity. Each inherited workflow will receive one of four explicit dispositions:
 
 1. **Core geometry:** the analysis is a fixed relation, frame, pairing, and geometry query.
 2. **Disciplined extension:** the analysis trains a model or transform, freezes it, and evaluates it on independent relations through shared contracts.
@@ -119,7 +119,7 @@ Replacement will be measured by user journeys, not exported-symbol counts. A res
 
 The unification is valuable because it changes what the software lets researchers see.
 
-`effectagram` will not treat “univariate” and “multivariate” as two kinds of neural signal. For additive spatial measurements, it will retain both the coherent regional effect and reproducible spatial configuration. Researchers can inspect what a regional mean explains and what remains in the spatial pattern without destructively demeaning the data or comparing separately fitted pipelines.
+`crossform` will not treat “univariate” and “multivariate” as two kinds of neural signal. For additive spatial measurements, it will retain both the coherent regional effect and reproducible spatial configuration. Researchers can inspect what a regional mean explains and what remains in the spatial pattern without destructively demeaning the data or comparing separately fitted pipelines.
 
 Generalization will be part of the estimand rather than an execution detail. Explicit pairings will state whether an effect must reproduce across runs, sessions, tasks, stimulus sets, or experimental domains. Cross-validation will no longer be identified merely by a fold count.
 
@@ -205,7 +205,7 @@ The core succeeds when its optimized results reproduce an independent brute-forc
 
 The broader system succeeds when:
 
-- the important scientific journeys now served by `rMVPA` have clearer effectagram-based replacements or documented reasons for retirement;
+- the important scientific journeys now served by `rMVPA` have clearer crossform-based replacements or documented reasons for retirement;
 - adding a new analysis usually means adding an extractor, frame, pairing, query, learner, or downstream model rather than another execution engine;
 - researchers can inspect coherent effect, spatial configuration, generalization structure, geometry, and scalar summaries without rerunning unrelated pipelines;
 - predictive and adaptive methods expose how they were trained and how held-out evidence was evaluated;

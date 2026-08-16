@@ -98,7 +98,7 @@ test_that("query-first execution fuses the query before spatial contraction", {
       old_route_called <<- TRUE
       stop("legacy route must not execute")
     },
-    .package = "effectagram"
+    .package = "crossform"
   )
 
   direct <- evaluate_geometry(plan, query = query)
@@ -139,7 +139,7 @@ test_that("RDM and RSA views execute only their compiled query coordinates", {
       old_route_called <<- TRUE
       stop("legacy route must not execute")
     },
-    .package = "effectagram"
+    .package = "crossform"
   )
 
   direct_rdm <- rdm(plan, component = "configuration")

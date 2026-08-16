@@ -304,8 +304,8 @@ monitor_process <- function(process, result_path, ready_path) {
 
 # Every court worker is a genuinely fresh R process. These entry points are
 # private to the benchmark script.
-worker_mode <- Sys.getenv("EFFECTAGRAM_QUERY_WORKER_MODE")
-memory_worker_path <- Sys.getenv("EFFECTAGRAM_QUERY_MEMORY_PATH")
+worker_mode <- Sys.getenv("CROSSFORM_QUERY_WORKER_MODE")
+memory_worker_path <- Sys.getenv("CROSSFORM_QUERY_MEMORY_PATH")
 if (identical(worker_mode, "timing")) {
   run_query_first_worker(
     repo, result_path, ready_path, repetitions,
@@ -316,8 +316,8 @@ if (identical(worker_mode, "timing")) {
 if (identical(worker_mode, "memory") && nzchar(memory_worker_path)) {
   run_query_first_worker(
     repo,
-    Sys.getenv("EFFECTAGRAM_QUERY_MEMORY_RESULT"),
-    Sys.getenv("EFFECTAGRAM_QUERY_MEMORY_READY"),
+    Sys.getenv("CROSSFORM_QUERY_MEMORY_RESULT"),
+    Sys.getenv("CROSSFORM_QUERY_MEMORY_READY"),
     1L, memory_worker_path, mode = "memory"
   )
   quit(save = "no", status = 0L)
@@ -336,7 +336,7 @@ timing_process <- processx::process$new(
   c(script_path, repo, output_dir, as.character(repetitions)),
   stdout = timing_stdout,
   stderr = timing_stderr,
-  env = c(EFFECTAGRAM_QUERY_WORKER_MODE = "timing"),
+  env = c(CROSSFORM_QUERY_WORKER_MODE = "timing"),
   cleanup_tree = TRUE
 )
 timing <- monitor_process(timing_process, result_path, ready_path)
@@ -363,10 +363,10 @@ memory_measurements <- lapply(query_first_paths, function(path) {
     stdout = worker_stdout,
     stderr = worker_stderr,
     env = c(
-      EFFECTAGRAM_QUERY_WORKER_MODE = "memory",
-      EFFECTAGRAM_QUERY_MEMORY_PATH = path,
-      EFFECTAGRAM_QUERY_MEMORY_RESULT = memory_result_path,
-      EFFECTAGRAM_QUERY_MEMORY_READY = memory_ready_path
+      CROSSFORM_QUERY_WORKER_MODE = "memory",
+      CROSSFORM_QUERY_MEMORY_PATH = path,
+      CROSSFORM_QUERY_MEMORY_RESULT = memory_result_path,
+      CROSSFORM_QUERY_MEMORY_READY = memory_ready_path
     ),
     cleanup_tree = TRUE
   )

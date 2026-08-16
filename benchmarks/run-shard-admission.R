@@ -68,8 +68,8 @@ for (mode in modes) {
 
 # Cleanup stress is a separate isolated child because the scientific benchmark
 # must not inherit a pool or shared segment from a failed dispatch.
-stress_script <- tempfile("effectagram-shard-stress-", fileext = ".R")
-stress_result <- tempfile("effectagram-shard-stress-", fileext = ".rds")
+stress_script <- tempfile("crossform-shard-stress-", fileext = ".R")
+stress_result <- tempfile("crossform-shard-stress-", fileext = ".rds")
 writeLines(c(
   sprintf(".libPaths(c(%s, .libPaths()))", dQuote(library_path)),
   "library(shard)",
@@ -142,8 +142,8 @@ artifact <- list(
   schema_version = 1L,
   benchmark_date = as.character(Sys.Date()),
   shard_version = as.character(utils::packageVersion("shard", lib.loc = library_path)),
-  effectagram_version = as.character(utils::packageVersion(
-    "effectagram", lib.loc = library_path)),
+  crossform_version = as.character(utils::packageVersion(
+    "crossform", lib.loc = library_path)),
   gate = list(
     numerical_parity = all(summary$total_parity & summary$coherent_parity),
     cleanup = all(summary$pool_stopped & summary$backing_removed),

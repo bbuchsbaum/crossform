@@ -3447,3 +3447,18 @@ This is not a retreat from the original goal. The package first removes the
 redundant searchlight work algebraically; it parallelizes only the irreducible
 remainder when a benchmark demonstrates an end-to-end benefit under the same
 scientific estimand.
+
+## Naming checkpoint: `crossform` (2026-08-15)
+
+The public package and project name is now **`crossform`**. The name points to
+the package's defining object: forms estimated across declared generalization
+boundaries. Active package metadata, documentation, examples, tests, benchmark
+drivers, environment variables, and execution receipts use the new name.
+
+Earlier ledger entries, committed benchmark receipts, and exemplar results keep
+the name `effectagram` as historical evidence. A small number of internal
+semantic tokens also retain that spelling because they already participate in
+scientific hashes. The public `crossform` protocol lowers to those canonical
+tokens, so the rename changes compiler-route and execution identities without
+changing the identity of an otherwise identical estimand. A regression test
+guards that distinction.

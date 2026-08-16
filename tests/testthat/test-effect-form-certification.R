@@ -24,7 +24,7 @@ certification_form_fixture <- function(sparse = FALSE) {
     left_effects = left_effects,
     right_effects = right_effects,
     frame = additive_frame(weights),
-    edges = effectagram:::.ordered_partition_edges(
+    edges = crossform:::.ordered_partition_edges(
       pairing, left_partitions, right_partitions, FALSE
     )
   )
@@ -32,7 +32,7 @@ certification_form_fixture <- function(sparse = FALSE) {
 
 certification_run_form <- function(fixture, feature_block, query = NULL,
                                    component = "complete") {
-  effectagram:::.streamed_effect_form_components(
+  crossform:::.streamed_effect_form_components(
     fixture$frame,
     read_left = function(partition, features) {
       fixture$left[[partition]][, features, drop = FALSE]
@@ -178,5 +178,5 @@ test_that("the installed namespace exposes the universal public vocabulary", {
     "measurement_bridge", "reverse_bridge", "inner_product",
     "reduce_partitions", "aggregate_first"
   )
-  expect_true(all(expected %in% getNamespaceExports("effectagram")))
+  expect_true(all(expected %in% getNamespaceExports("crossform")))
 })

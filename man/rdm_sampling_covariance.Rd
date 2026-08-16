@@ -31,7 +31,7 @@ requested measurement. `"shared_pair_statistics"` explicitly compiles
 reusable residual pair sufficient statistics for a batch of overlapping
 supports.}
 
-\item{residual_workspace_bytes}{Positive effectagram-owned workspace budget
+\item{residual_workspace_bytes}{Positive crossform-owned workspace budget
 for shared residual pair statistics.}
 }
 \value{

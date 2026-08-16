@@ -136,7 +136,7 @@ measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
 
 .validate_measurement_bridge <- function(bridge, left = NULL, right = NULL) {
   if (!inherits(bridge, "effect_measurement_bridge")) {
-    stop("`bridge` must be an effectagram measurement bridge.", call. = FALSE)
+    stop("`bridge` must be a crossform measurement bridge.", call. = FALSE)
   }
   if (identical(bridge$kind, "identity")) {
     if (is.null(left) || is.null(right)) {

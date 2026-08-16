@@ -65,14 +65,14 @@ memo_node_result <- function(fixture, node, target) {
 # check still rebuilds its neural metric in full. Results computed under it are
 # the pre-optimization oracle.
 with_unoptimized_validation <- function(code) {
-  validate_metric <- effectagram:::.validate_neural_metric
+  validate_metric <- crossform:::.validate_neural_metric
   testthat::with_mocked_bindings(
     code,
     .validated_before = function(object, key, deep = TRUE) FALSE,
     .validate_neural_metric = function(x, deep = TRUE) {
       validate_metric(x, deep = TRUE)
     },
-    .package = "effectagram"
+    .package = "crossform"
   )
 }
 
@@ -92,7 +92,7 @@ test_that("a node sweep is bit-identical to the pre-optimization path", {
 
 test_that("a warm memo leaves the point estimate and plan identity unchanged", {
   fixture <- memo_sweep_fixture()
-  effectagram:::.reset_validation_memo()
+  crossform:::.reset_validation_memo()
   cold_plan_id <- fixture$plan$scientific_plan_id
   cold_rdm <- as.matrix(rdm(fixture$plan)$values)
   invisible(rdm_sampling_covariance(
@@ -124,11 +124,11 @@ test_that("a fixed-metric geometry view matches the pre-optimization path", {
 test_that("the memo never re-admits a tampered neural metric", {
   fixture <- memo_sweep_fixture()
   metric <- fixture$plan$metric_schedule$metric
-  expect_silent(effectagram:::.validate_neural_metric(metric))
+  expect_silent(crossform:::.validate_neural_metric(metric))
   tampered <- metric
   tampered$value[1L, 1L] <- tampered$value[1L, 1L] + 1
   expect_error(
-    effectagram:::.validate_neural_metric(tampered), "inconsistent"
+    crossform:::.validate_neural_metric(tampered), "inconsistent"
   )
 })
 
@@ -137,17 +137,17 @@ test_that("the memo never re-admits a tampered object", {
   covariance <- rdm_sampling_covariance(
     fixture$plan, fixture$fit, target = "plugin", at = 1L
   )
-  expect_silent(effectagram:::.validate_sampling_covariance(covariance))
+  expect_silent(crossform:::.validate_sampling_covariance(covariance))
   tampered <- covariance
   tampered$noise_trace <- covariance$noise_trace * 2
   expect_error(
-    effectagram:::.validate_sampling_covariance(tampered),
+    crossform:::.validate_sampling_covariance(tampered),
     "identity is inconsistent"
   )
   tampered_plan <- covariance$plan
   tampered_plan$spatial_scope <- "modeled"
   expect_error(
-    effectagram:::.validate_evidence_sampling_plan(tampered_plan),
+    crossform:::.validate_evidence_sampling_plan(tampered_plan),
     "inconsistent"
   )
 })
@@ -156,10 +156,10 @@ test_that("a shallow validation does not satisfy a later deep request", {
   fixture <- memo_sweep_fixture()
   forged <- fixture$plan
   forged$scientific_plan_id <- paste0("geometry-sha256:", strrep("a", 64L))
-  effectagram:::.reset_validation_memo()
-  expect_silent(effectagram:::.validate_geometry_plan(forged, deep = FALSE))
+  crossform:::.reset_validation_memo()
+  expect_silent(crossform:::.validate_geometry_plan(forged, deep = FALSE))
   expect_error(
-    effectagram:::.validate_geometry_plan(forged, deep = TRUE),
+    crossform:::.validate_geometry_plan(forged, deep = TRUE),
     "identity is inconsistent"
   )
 })
@@ -170,28 +170,28 @@ test_that("shallow geometry-plan validation still binds the metric schedule", {
   broken$metric_schedule$metric_signature <- paste0(
     "sha256:", strrep("b", 64L)
   )
-  effectagram:::.reset_validation_memo()
+  crossform:::.reset_validation_memo()
   expect_error(
-    effectagram:::.validate_geometry_plan(broken, deep = FALSE),
+    crossform:::.validate_geometry_plan(broken, deep = FALSE),
     "inconsistent"
   )
 })
 
 test_that("the memo store is bounded by its fixed key set", {
   fixture <- memo_sweep_fixture()
-  effectagram:::.reset_validation_memo()
+  crossform:::.reset_validation_memo()
   for (node in seq_len(min(6L, fixture$nodes))) {
     invisible(rdm_sampling_covariance(
       fixture$plan, fixture$fit, target = "plugin", at = node
     ))
   }
-  keys <- ls(effectagram:::.validation_memo, all.names = TRUE)
+  keys <- ls(crossform:::.validation_memo, all.names = TRUE)
   expect_true(length(keys) <= 8L)
   expect_true(all(keys %in% c(
     "evidence_sampling_plan", "geometry_plan", "relation_fit",
     "sampling_covariance", "neural_metric"
   )))
-  effectagram:::.reset_validation_memo()
-  expect_identical(ls(effectagram:::.validation_memo, all.names = TRUE),
+  crossform:::.reset_validation_memo()
+  expect_identical(ls(crossform:::.validation_memo, all.names = TRUE),
     character())
 })

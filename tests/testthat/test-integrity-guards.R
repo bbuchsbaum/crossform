@@ -120,13 +120,13 @@ test_that("unequal-length runs get a legible per-partition diagnosis", {
 
 test_that("a covariance artifact cannot claim a plan of another dimension", {
   fixture <- integrity_fixture()
-  plan <- effectagram:::.compile_evidence_sampling_plan(
+  plan <- crossform:::.compile_evidence_sampling_plan(
     fixture$plan, fixture$fit,
-    target = effectagram:::.sampling_target("null")
+    target = crossform:::.sampling_target("null")
   )
   contrasts <- matrix(rnorm(5 * 120), 5, 120)
   expect_error(
-    effectagram:::.sampling_covariance_from_components(
+    crossform:::.sampling_covariance_from_components(
       plan, contrasts,
       signal_patterns = matrix(0, 120, 4),
       effect_covariance = diag(120),
@@ -141,7 +141,7 @@ test_that("inconsistent canonical blocks refuse instead of clipping", {
   left_self <- diag(2) * 0.1
   right_self <- diag(2) * 0.1
   expect_error(
-    effectagram:::.measurement_invariant_summary(
+    crossform:::.measurement_invariant_summary(
       cross, left_self, right_self
     ),
     "will not be silently clipped"

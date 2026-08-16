@@ -257,7 +257,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   if (!is.null(right) && !is.null(metric)) {
     .capability_refusal(paste0(
       "Fixed neural metrics are not yet admitted on rectangular ",
-      "cross-axis plans; effectagram 0.1 compiles rectangular forms on ",
+      "cross-axis plans; crossform 0.1 compiles rectangular forms on ",
       "the implicit identity metric only."
     ),
       capability = "rectangular_fixed_metric",

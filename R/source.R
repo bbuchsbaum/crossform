@@ -385,7 +385,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 
 .close_source_session <- function(session) {
   if (!inherits(session, "effect_source_session") || !is.function(session$close)) {
-    stop("`session` must be an effectagram source session.", call. = FALSE)
+    stop("`session` must be a crossform source session.", call. = FALSE)
   }
   session$close()
 }

@@ -1,10 +1,10 @@
 #!/usr/bin/env Rscript
-# 02-effectagram-searchlight.R -- the effectagram arm.
+# 02-crossform-searchlight.R -- the crossform arm.
 #
 # Consumes data/prepared-smoke.rds and produces, per VT searchlight centre:
 #   * rdm_cv     the 28-element cross-run RDM (see below)
 #   * rsa_score  the shared Spearman score of that RDM against the model RDM
-#   * rsa_ols    effectagram's own native rsa() coefficient (OLS in RDM space)
+#   * rsa_ols    crossform's own native rsa() coefficient (OLS in RDM space)
 #
 # WHAT THE RDM ACTUALLY IS, stated precisely because the comparison depends
 # on it. `cross_partitions()` declares the 66 unordered run pairs; geometry
@@ -22,7 +22,7 @@
 #
 # NOT correlation distance. Correlation distance needs each pattern rescaled
 # to unit norm inside each sphere, which is nonlinear in the patterns and
-# therefore outside effectagram's bilinear core. That divergence from the
+# therefore outside crossform's bilinear core. That divergence from the
 # README estimand is real and is carried into 04-compare.R.
 
 suppressMessages(library(neuroim2))
@@ -34,7 +34,7 @@ exemplar_dir <- if (nzchar(Sys.getenv("EXEMPLAR_DIR"))) {
     grep("^--file=", commandArgs(FALSE), value = TRUE)[1])))
 }
 source(file.path(exemplar_dir, "models.R"))
-effectagram_source <- load_effectagram(exemplar_dir)
+crossform_source <- load_crossform(exemplar_dir)
 paths <- exemplar_paths(exemplar_dir)
 dir.create(paths$results, showWarnings = FALSE, recursive = TRUE)
 
@@ -51,7 +51,7 @@ stopifnot(identical(domain$feature_ids, prep$vt_index))
 frame <- neuroim2_searchlights(vt_mask, radius = RADIUS_MM, domain = domain,
                                normalization = "local")
 n_centers <- nrow(frame$weights)
-message("effectagram frame: ", n_centers, " searchlight rows over ",
+message("crossform frame: ", n_centers, " searchlight rows over ",
         length(domain$feature_ids), " VT voxels at r = ", RADIUS_MM, " mm")
 
 ## ---- Relation, pairing, plan -------------------------------------------
@@ -73,7 +73,7 @@ D <- rdm(plan)
 elapsed_rdm <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 message("rdm() over ", n_centers, " centres in ", round(elapsed_rdm, 2), " s")
 
-# The pair order effectagram reports must be the canonical combn order the
+# The pair order crossform reports must be the canonical combn order the
 # shared model vector uses. Assert rather than assume.
 pair_idx <- rdm_pair_index()
 stopifnot(identical(D$pairs$left, pair_idx$left),
@@ -114,14 +114,14 @@ verify_max_abs <- max(vapply(verify_centers, function(cc) {
 message("self-verification vs direct loop at ", length(verify_centers),
         " centres: max abs difference = ", format(verify_max_abs, digits = 3))
 if (verify_max_abs > TOLERANCE) {
-  stop("effectagram rdm() does not match the direct cross-validated distance.")
+  stop("crossform rdm() does not match the direct cross-validated distance.")
 }
 
 ## ---- Shared second-order score -----------------------------------------
 model_vec <- model_vector(MODEL_RDMS$animacy)
 rsa_score <- apply(rdm_cv, 1L, spearman_rsa, model_vec = model_vec)
 
-## ---- effectagram's own native RSA view (OLS in RDM space) --------------
+## ---- crossform's own native RSA view (OLS in RDM space) --------------
 # Reported alongside, NOT as the matched quantity: rsa() fits an ordinary
 # least-squares regression of the RDM on the model RDM (plus intercept),
 # which is a linear estimand, not the rank-based one above.
@@ -133,7 +133,7 @@ message("rsa() over ", n_centers, " centres in ", round(elapsed_rsa, 2), " s")
 
 ## ---- Save ---------------------------------------------------------------
 out <- list(
-  arm = "effectagram",
+  arm = "crossform",
   estimand = paste("cross-validated squared Euclidean distance over 66",
                    "off-diagonal run pairs, identity metric, local frame",
                    "normalisation"),
@@ -142,17 +142,17 @@ out <- list(
   rdm = rdm_cv,
   pairs = D$pairs,
   rsa_score = rsa_score,          # shared Spearman statistic
-  rsa_ols = rsa_ols,              # effectagram-native OLS coefficient
+  rsa_ols = rsa_ols,              # crossform-native OLS coefficient
   model = "animacy",
   radius_mm = RADIUS_MM,
   verify_max_abs = verify_max_abs,
   timing = list(rdm_seconds = elapsed_rdm, rsa_seconds = elapsed_rsa),
-  session = list(effectagram = as.character(utils::packageVersion("effectagram")),
+  session = list(crossform = as.character(utils::packageVersion("crossform")),
                  neuroim2 = as.character(utils::packageVersion("neuroim2")),
                  when = Sys.time())
 )
-saveRDS(out, file.path(paths$results, "smoke-effectagram.rds"))
-message("Wrote ", file.path(paths$results, "smoke-effectagram.rds"))
+saveRDS(out, file.path(paths$results, "smoke-crossform.rds"))
+message("Wrote ", file.path(paths$results, "smoke-crossform.rds"))
 message("  Spearman RSA: median ", round(median(rsa_score, na.rm = TRUE), 4),
         "  range [", round(min(rsa_score, na.rm = TRUE), 4), ", ",
         round(max(rsa_score, na.rm = TRUE), 4), "]",

@@ -60,13 +60,13 @@ residual_statistics_fixture <- function() {
 
 residual_statistics_budgets <- function(fixture) {
   index <- fixture$frame$support_index
-  pairs <- effectagram:::.residual_pair_coordinates(index)
-  width <- effectagram:::.residual_tile_width(index)
+  pairs <- crossform:::.residual_pair_coordinates(index)
+  width <- crossform:::.residual_tile_width(index)
   observations <- vapply(
     fixture$fit$error_models, function(model) model$residual_source$dim[[1L]],
     integer(1)
   )
-  generous <- effectagram:::.residual_pair_memory_plan(
+  generous <- crossform:::.residual_pair_memory_plan(
     length(pairs$i), length(observations), observations, width,
     ceiling(fixture$fit$relation$n_features / width), 2^40
   )

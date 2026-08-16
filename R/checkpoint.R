@@ -34,7 +34,7 @@
 
 .write_checkpoint <- function(payload, path, receipt, available_bytes = NULL) {
   if (!inherits(receipt, "effect_execution_receipt")) {
-    stop("`receipt` must be an effectagram execution receipt.", call. = FALSE)
+    stop("`receipt` must be a crossform execution receipt.", call. = FALSE)
   }
   if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
     stop("`path` must be one nonempty checkpoint directory.", call. = FALSE)
@@ -82,7 +82,7 @@
 
 .read_checkpoint <- function(path, expected_receipt) {
   if (!inherits(expected_receipt, "effect_execution_receipt")) {
-    stop("`expected_receipt` must be an effectagram execution receipt.", call. = FALSE)
+    stop("`expected_receipt` must be a crossform execution receipt.", call. = FALSE)
   }
   manifest_path <- file.path(path, "manifest.rds")
   payload_path <- file.path(path, "payload.rds")

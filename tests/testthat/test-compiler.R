@@ -36,11 +36,11 @@ compiler_oracle <- function(fixture) {
       cross <- outer(b1[, v], b2[, v])
       total_matrix <- total_matrix + weights[j, v] * 0.5 * (cross + t(cross))
     }
-    total[j, ] <- effectagram:::.svec_symmetric(total_matrix)
+    total[j, ] <- crossform:::.svec_symmetric(total_matrix)
     local[j, , 1] <- b1 %*% weights[j, ]
     local[j, , 2] <- b2 %*% weights[j, ]
     local_cross <- outer(local[j, , 1], local[j, , 2])
-    coherent[j, ] <- effectagram:::.svec_symmetric(
+    coherent[j, ] <- crossform:::.svec_symmetric(
       0.5 * (local_cross + t(local_cross)) / sum(weights[j, ])
     )
   }
@@ -145,7 +145,7 @@ test_that("experimental reparameterization preserves bound scalar queries", {
 
 test_that("block-backed public geometry remains complete and readable", {
   fixture <- compiler_fixture()
-  path <- tempfile("effectagram-store-")
+  path <- tempfile("crossform-store-")
   on.exit(unlink(path, recursive = TRUE), add = TRUE)
   memory <- geometry(fixture$relation, fixture$at, fixture$over)
   blocked <- geometry(fixture$relation, fixture$at, fixture$over,
@@ -162,7 +162,7 @@ test_that("block-backed public geometry remains complete and readable", {
 
 test_that("compiler reuses one admitted file handle across feature blocks", {
   values <- matrix(seq_len(16), 2, 8)
-  path <- tempfile("effectagram-session-", fileext = ".bin")
+  path <- tempfile("crossform-session-", fileext = ".bin")
   on.exit(unlink(path), add = TRUE)
   connection <- file(path, open = "wb")
   writeBin(as.double(values), connection, size = 8, endian = .Platform$endian)
@@ -183,20 +183,20 @@ test_that("compiler reuses one admitted file handle across feature blocks", {
 
 test_that("compiler hashes a file source once at session admission", {
   values <- matrix(seq_len(12), 2, 6)
-  path <- tempfile("effectagram-hash-session-", fileext = ".bin")
+  path <- tempfile("crossform-hash-session-", fileext = ".bin")
   on.exit(unlink(path), add = TRUE)
   connection <- file(path, open = "wb")
   writeBin(as.double(values), connection, size = 8, endian = .Platform$endian)
   close(connection)
   descriptor <- file_matrix_source(path, dim(values))
-  original_hash <- effectagram:::.file_sha256
+  original_hash <- crossform:::.file_sha256
   hashes <- 0L
   testthat::local_mocked_bindings(
     .file_sha256 = function(path) {
       hashes <<- hashes + 1L
       original_hash(path)
     },
-    .package = "effectagram"
+    .package = "crossform"
   )
   domain <- abstract_domain(6)
   rel <- relation(list(run1 = descriptor, run2 = descriptor),
@@ -245,11 +245,11 @@ test_that("a feasible workspace budget drives smaller legal tiles", {
   at <- additive_frame(weights, domain = domain)
   over <- cross_partitions(rel, independence = "independent")
   query <- matrix(1, 6, 1)
-  requirements <- effectagram:::.component_requirements(query, "total")
-  unconstrained <- effectagram:::.compiler_memory_plan(
+  requirements <- crossform:::.component_requirements(query, "total")
+  unconstrained <- crossform:::.compiler_memory_plan(
     rel, at, compute_policy(), p, m, 1L, 1L, "memory", requirements
   )
-  minimum <- effectagram:::.compiler_memory_plan(
+  minimum <- crossform:::.compiler_memory_plan(
     rel, at, compute_policy(), 1L, 1L, 1L, 1L, "memory", requirements
   )
   budget <- floor((unconstrained$planned_workspace_bytes +
@@ -271,11 +271,11 @@ test_that("memory plans account for actual dense and sparse frame storage", {
   dense <- additive_frame(matrix(1, 10, 20), domain = domain)
   sparse <- additive_frame(Matrix::Matrix(diag(20)[1:10, ], sparse = TRUE),
     domain = domain)
-  requirements <- effectagram:::.component_requirements(matrix(1, 3, 1),
+  requirements <- crossform:::.component_requirements(matrix(1, 3, 1),
     "total")
-  dense_plan <- effectagram:::.compiler_memory_plan(rel, dense,
+  dense_plan <- crossform:::.compiler_memory_plan(rel, dense,
     compute_policy(), 10, 10, 1, 1, "memory", requirements)
-  sparse_plan <- effectagram:::.compiler_memory_plan(rel, sparse,
+  sparse_plan <- crossform:::.compiler_memory_plan(rel, sparse,
     compute_policy(), 10, 10, 1, 1, "memory", requirements)
 
   expect_equal(dense_plan$categories[["frame"]],

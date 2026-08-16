@@ -99,6 +99,8 @@ example_fmri_effects <- function(
     conditions <- c("face", "body", "house", "tool")
     mask <- array(TRUE, dimensions)
     domain <- volume_domain(
+      # Frozen dataset identity: changing this branding token would change
+      # every plan built from the otherwise unchanged generated fixture.
       mask, spacing = spacing, id = "effectagram:generated-fmri-example"
     )
     centre <- colMeans(domain$coordinates)

@@ -1,5 +1,5 @@
 # Independent algebra and identity oracles for first-moment-relation-v1.
-# These fixtures deliberately do not call production effectagram functions.
+# These fixtures deliberately do not call production crossform functions.
 
 ingestion_oracle_digest <- function(value, prefix) {
   paste0(prefix, digest::digest(value, algo = "sha256", serialize = TRUE))

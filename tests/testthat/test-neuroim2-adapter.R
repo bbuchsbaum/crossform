@@ -90,7 +90,7 @@ test_that("missing upstream index API fails with an actionable message", {
         "`searchlight_indices()`; install neuroim2 0.19.0 or later ",
         "(upstream commit 77b1ddb)."), call. = FALSE)
     },
-    .package = "effectagram"
+    .package = "crossform"
   )
   expect_error(neuroim2_volume_domain(structure(list(), class = "NeuroVol")),
     "0.19.0.*77b1ddb")

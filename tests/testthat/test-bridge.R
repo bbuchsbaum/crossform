@@ -79,7 +79,7 @@ test_that("factorized common-coordinate evaluation equals direct K", {
   direct <- left %*% K %*% t(right)
 
   expect_equal(common, direct, tolerance = 1e-14)
-  applied <- effectagram:::.apply_measurement_bridge(
+  applied <- crossform:::.apply_measurement_bridge(
     list(left = left), list(right = right), fixture$bridge
   )
   expect_equal(applied$left$left %*% t(applied$right$right),
@@ -92,7 +92,7 @@ test_that("joint measured block is positive semidefinite", {
   set.seed(23)
   left <- matrix(rnorm(2 * 3), 2, 3)
   right <- matrix(rnorm(3 * 4), 3, 4)
-  joint <- effectagram:::.bridge_joint_gram(left, right, fixture$bridge)
+  joint <- crossform:::.bridge_joint_gram(left, right, fixture$bridge)
 
   expect_equal(joint, t(joint), tolerance = 1e-15)
   expect_gte(min(eigen(joint, symmetric = TRUE, only.values = TRUE)$values),
@@ -133,18 +133,18 @@ test_that("bridge legs have canonical numerical identity", {
 
 test_that("distinct neural spaces require an explicit bridge before reads", {
   fixture <- bridge_fixture(lazy = TRUE)
-  expect_error(effectagram:::.compile_effect_task(
+  expect_error(crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right
   ), "require an explicit")
   expect_identical(fixture$reads$count, 0L)
 
-  task <- effectagram:::.compile_effect_task(
+  task <- crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right,
     bridge = fixture$bridge
   )
   expect_identical(task$bridge, fixture$bridge)
   expect_identical(fixture$reads$count, 0L)
-  expect_silent(effectagram:::.validate_compiled_effect_task(task))
+  expect_silent(crossform:::.validate_compiled_effect_task(task))
 })
 
 test_that("bridge incompatibilities fail before lazy source reads", {
@@ -154,7 +154,7 @@ test_that("bridge incompatibilities fail before lazy source reads", {
     fixture$left_leg, fixture$right_leg,
     wrong_left, fixture$right_domain, fixture$common
   )
-  expect_error(effectagram:::.compile_effect_task(
+  expect_error(crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right, bridge = wrong
   ), "left neural-space")
   expect_identical(fixture$reads$count, 0L)
@@ -165,7 +165,7 @@ test_that("bridge incompatibilities fail before lazy source reads", {
   ), "common measurement dimension")
   forged <- fixture$bridge
   forged$common_space <- measurement_space(2, "other-common:v1")
-  expect_error(effectagram:::.validate_measurement_bridge(
+  expect_error(crossform:::.validate_measurement_bridge(
     forged, fixture$left, fixture$right
   ), "identity is inconsistent")
   expect_identical(fixture$reads$count, 0L)
@@ -173,7 +173,7 @@ test_that("bridge incompatibilities fail before lazy source reads", {
 
 test_that("bridge identity participates in compiled task identity", {
   fixture <- bridge_fixture()
-  first <- effectagram:::.compile_effect_task(
+  first <- crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right, bridge = fixture$bridge
   )
   changed_bridge <- measurement_bridge(
@@ -181,7 +181,7 @@ test_that("bridge identity participates in compiled task identity", {
     fixture$left_domain, fixture$right_domain, fixture$common,
     provenance = list(revision = "bridge:v2")
   )
-  changed <- effectagram:::.compile_effect_task(
+  changed <- crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right, bridge = changed_bridge
   )
 

@@ -77,7 +77,7 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
   compute <- compute_policy(workspace_bytes = 4 * 1024^3)
 
   gc()
-  baseline_rss <- effectagram:::.current_rss_bytes()
+  baseline_rss <- crossform:::.current_rss_bytes()
   writeLines("ready", ready_path, useBytes = TRUE)
 
   plan_started <- proc.time()[["elapsed"]]
@@ -105,7 +105,7 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
   ) && all(is.na(mapped_array[-domain$feature_ids])) &&
     identical(neuroim2::space(mapped), neuroim2::space(mask))
   gc()
-  rss_after <- effectagram:::.current_rss_bytes()
+  rss_after <- crossform:::.current_rss_bytes()
 
   index <- frame$support_index
   support_sizes <- diff(index$ptr)

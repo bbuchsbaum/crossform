@@ -81,11 +81,11 @@ test_that("the public boundary vocabulary is narrow and axis-explicit", {
     "canonical_coupling", "geometry_alignment", "connectivity",
     "gaussian_covariance_model", "measurement_components",
     "reconstruct_evidence"
-  ) %in% getNamespaceExports("effectagram")))
+  ) %in% getNamespaceExports("crossform")))
   expect_false(any(c(
     "functional_connectivity_model", "informational_connectivity_model",
     "searchlight_connectivity_engine", "roi_connectivity_result"
-  ) %in% getNamespaceExports("effectagram")))
+  ) %in% getNamespaceExports("crossform")))
 })
 
 test_that("public measurement frames fail before brain-scale dense conversion", {

@@ -9,7 +9,7 @@ ready_path <- args[[4L]]
 library_path <- normalizePath(args[[5L]], mustWork = TRUE)
 .libPaths(c(library_path, .libPaths()))
 
-library(effectagram)
+library(crossform)
 if (mode != "sequential-response") library(shard)
 
 rss_self <- function() {
@@ -72,7 +72,7 @@ task_from_response <- function(feature_ids, source) {
     source_rows <- ((index - 1L) * n + 1L):(index * n)
     extractors[[index]] %*% source[source_rows, feature_ids, drop = FALSE]
   }), partitions)
-  effectagram:::.crossgram_feature_task(
+  crossform:::.crossgram_feature_task(
     relations, feature_ids, effects, partitions, over
   )
 }
@@ -82,20 +82,20 @@ task_from_relation <- function(feature_ids, source) {
     source_rows <- ((index - 1L) * q + 1L):(index * q)
     source[source_rows, feature_ids, drop = FALSE]
   }), partitions)
-  effectagram:::.crossgram_feature_task(
+  crossform:::.crossgram_feature_task(
     relations, feature_ids, effects, partitions, over
   )
 }
 
 reduce_tasks <- function(tasks) {
-  reduced <- effectagram:::.reduce_crossgram_tasks(
+  reduced <- crossform:::.reduce_crossgram_tasks(
     tasks, at, partitions, effects,
     output_width = q * (q + 1L) / 2L,
     row_tile = scenario$row_tile,
     coordinate_tile = scenario$coordinate_tile,
     retain_local_relations = TRUE
   )
-  coherent <- effectagram:::.coherent_geometry_from_local(
+  coherent <- crossform:::.coherent_geometry_from_local(
     reduced$local_relations, over, Matrix::rowSums(weights),
     row_tile = scenario$row_tile
   )
@@ -139,7 +139,7 @@ if (is_parallel && phase == "warm") {
   staging_seconds <- proc.time()[["elapsed"]] - stage_start
   pool_start <- proc.time()[["elapsed"]]
   pool <- shard::pool_create(scenario$workers, rss_limit = "4GB",
-    rss_drift_threshold = Inf, packages = "effectagram")
+    rss_drift_threshold = Inf, packages = "crossform")
   pool_seconds <- proc.time()[["elapsed"]] - pool_start
 }
 
@@ -167,7 +167,7 @@ if (!is_parallel) {
     staging_seconds <- proc.time()[["elapsed"]] - stage_start
     pool_start <- proc.time()[["elapsed"]]
     pool <- shard::pool_create(scenario$workers, rss_limit = "4GB",
-      rss_drift_threshold = Inf, packages = "effectagram")
+      rss_drift_threshold = Inf, packages = "crossform")
     pool_seconds <- proc.time()[["elapsed"]] - pool_start
   }
   blocks <- shard::shards_list(feature_blocks)
@@ -181,7 +181,7 @@ if (!is_parallel) {
         extractors[[index]] %*%
           source[source_rows, shard$idx, drop = FALSE]
       }), partition_ids)
-      effectagram:::.crossgram_feature_task(
+      crossform:::.crossgram_feature_task(
         relations, shard$idx, effect_ids, partition_ids, over
       )
     }
@@ -192,7 +192,7 @@ if (!is_parallel) {
         effects = effects, over = over, observations = n
       ),
       workers = scenario$workers, chunk_size = 1L, autotune = FALSE,
-      diagnostics = TRUE, packages = "effectagram", recycle = FALSE
+      diagnostics = TRUE, packages = "crossform", recycle = FALSE
     )
   } else {
     worker_fun <- function(shard, source, partitions, effects, over,
@@ -203,7 +203,7 @@ if (!is_parallel) {
         source_rows <- ((index - 1L) * effect_count + 1L):(index * effect_count)
         source[source_rows, shard$idx, drop = FALSE]
       }), partition_ids)
-      effectagram:::.crossgram_feature_task(
+      crossform:::.crossgram_feature_task(
         relations, shard$idx, effect_ids, partition_ids, over
       )
     }
@@ -214,7 +214,7 @@ if (!is_parallel) {
         over = over, effect_count = q
       ),
       workers = scenario$workers, chunk_size = 1L, autotune = FALSE,
-      diagnostics = TRUE, packages = "effectagram", recycle = FALSE
+      diagnostics = TRUE, packages = "crossform", recycle = FALSE
     )
   }
   if (!shard::succeeded(dispatch_result)) {

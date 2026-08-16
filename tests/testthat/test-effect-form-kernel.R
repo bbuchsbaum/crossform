@@ -15,7 +15,7 @@ rectangular_kernel_fixture <- function(sparse = FALSE) {
   over <- pairing(
     c("e1", "e2"), c("r1", "r2"), weight = c(1, 3), directed = TRUE
   )
-  edges <- effectagram:::.ordered_partition_edges(
+  edges <- crossform:::.ordered_partition_edges(
     over, left_partitions, right_partitions, FALSE
   )
   list(
@@ -64,7 +64,7 @@ run_rectangular_kernel <- function(fixture, feature_block = 3L,
       fixture$right[[partition]][, features, drop = FALSE]
     }
   }
-  effectagram:::.streamed_effect_form_contraction(
+  crossform:::.streamed_effect_form_contraction(
     fixture$frame,
     read_left = read_left,
     read_right = read_right,
@@ -102,7 +102,7 @@ test_that("direct pair querying happens in feature tasks and equals late query",
   direct <- run_rectangular_kernel(
     fixture, feature_block = 2L, query = physical_query
   )
-  task <- effectagram:::.effect_form_feature_task(
+  task <- crossform:::.effect_form_feature_task(
     lapply(fixture$left, function(value) value[, 1:3, drop = FALSE]),
     lapply(fixture$right, function(value) value[, 1:3, drop = FALSE]),
     1:3,
@@ -146,7 +146,7 @@ test_that("rectangular transpose and direct-sum laws hold", {
   reversed$right_partitions <- fixture$left_partitions
   reversed$left_effects <- fixture$right_effects
   reversed$right_effects <- fixture$left_effects
-  reversed$edges <- effectagram:::.ordered_partition_edges(
+  reversed$edges <- crossform:::.ordered_partition_edges(
     pairing(
       fixture$over$right,
       fixture$over$left,
@@ -197,12 +197,12 @@ test_that("rectangular streamed output supports block-backed accumulation", {
   oracle <- rectangular_kernel_oracle(fixture)
   path <- tempfile(fileext = ".egm")
   on.exit(unlink(path), add = TRUE)
-  store <- effectagram:::.file_geometry_store(
+  store <- crossform:::.file_geometry_store(
     path, dim(oracle), create = TRUE, codec = "rectangular"
   )
   writer <- function(rows, coordinates, increment) {
-    existing <- effectagram:::.read_geometry_tile(store, rows, coordinates)
-    effectagram:::.write_geometry_tile(
+    existing <- crossform:::.read_geometry_tile(store, rows, coordinates)
+    crossform:::.write_geometry_tile(
       store, rows, coordinates, existing + increment
     )
   }
@@ -212,7 +212,7 @@ test_that("rectangular streamed output supports block-backed accumulation", {
 
   expect_null(got$value)
   expect_equal(
-    effectagram:::.read_geometry_store(store),
+    crossform:::.read_geometry_store(store),
     oracle,
     tolerance = 1e-12
   )
@@ -246,7 +246,7 @@ self_kernel_fixture <- function(sparse = FALSE) {
 }
 
 run_self_kernel <- function(fixture, feature_block) {
-  effectagram:::.streamed_crossgram_contraction(
+  crossform:::.streamed_crossgram_contraction(
     fixture$frame,
     function(partition, features) {
       fixture$relation[[partition]][, features, drop = FALSE]
@@ -259,7 +259,7 @@ run_self_kernel <- function(fixture, feature_block) {
 test_that("legacy self streaming is the packed specialization of ordered atoms", {
   for (sparse in c(FALSE, TRUE)) {
     fixture <- self_kernel_fixture(sparse = sparse)
-    edges <- effectagram:::.ordered_partition_edges(
+    edges <- crossform:::.ordered_partition_edges(
       fixture$over, fixture$partitions, fixture$partitions, TRUE
     )
     reader <- function(partition, features) {
@@ -267,7 +267,7 @@ test_that("legacy self streaming is the packed specialization of ordered atoms",
     }
     for (block in c(1L, 4L, 9L)) {
       old <- run_self_kernel(fixture, feature_block = block)$value
-      lifted <- effectagram:::.streamed_effect_form_contraction(
+      lifted <- crossform:::.streamed_effect_form_contraction(
         fixture$frame,
         read_left = reader,
         left_partitions = fixture$partitions,
@@ -302,7 +302,7 @@ test_that("self specialization is invariant to declared partition order", {
 test_that("rectangular kernel memory plans bound named live objects", {
   fixture <- rectangular_kernel_fixture(sparse = TRUE)
   got <- run_rectangular_kernel(fixture, feature_block = 3L)
-  plan <- effectagram:::.effect_form_kernel_memory_plan(
+  plan <- crossform:::.effect_form_kernel_memory_plan(
     fixture$frame,
     fixture$left_effects,
     fixture$right_effects,
@@ -321,7 +321,7 @@ test_that("rectangular kernel memory plans bound named live objects", {
       got$diagnostics$durable_output_bytes
   )
   expect_identical(plan$prediction_kind,
-    "effectagram_owned_workspace_upper_bound")
+    "crossform_owned_workspace_upper_bound")
 })
 
 test_that("invalid rectangular kernel semantics fail before readers", {
@@ -332,7 +332,7 @@ test_that("invalid rectangular kernel semantics fail before readers", {
     fixture$left[[partition]][, features, drop = FALSE]
   }
 
-  expect_error(effectagram:::.streamed_effect_form_contraction(
+  expect_error(crossform:::.streamed_effect_form_contraction(
     fixture$frame,
     read_left = reader,
     read_right = reader,

@@ -37,6 +37,6 @@ identifiers already declared by `observations`.}
 A generic [study()] object.
 }
 \description{
-BIDS is an adapter boundary, not the effectagram object model: the result is
+BIDS is an adapter boundary, not the crossform object model: the result is
 the same [study()] that can be built from any event and confound source.
 }
