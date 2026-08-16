@@ -216,7 +216,7 @@
 #' @export
 relation_fit <- function(relation, error_models = NULL, provenance = list()) {
   .validate_relation(relation)
-  .compiler_capabilities(relation)
+  .relation_source_capabilities(relation)
   if (is.null(error_models)) {
     error_models <- stats::setNames(
       rep(list(NULL), length(relation$partitions)), relation$partitions
@@ -512,7 +512,7 @@ lm_relation_fit <- function(sources, design, effects,
     domain = domain, domain_id = domain_id, capabilities = capabilities,
     provenance = c(provenance, list(adapter = "lm_relation_fit"))
   )
-  source_capabilities <- .compiler_capabilities(relation_value)
+  source_capabilities <- .relation_source_capabilities(relation_value)
   error_models <- lapply(partitions, function(partition) {
     source <- relation_value$sources[[partition]]
     estimate <- compiled[[partition]]

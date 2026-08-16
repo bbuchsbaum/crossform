@@ -446,11 +446,11 @@
     compatibility_semantic = NULL) {
   .validate_relation(left_relation)
   .validate_relation(right_relation)
-  left_relation$capabilities <- .compiler_capabilities(left_relation)
+  left_relation$capabilities <- .relation_source_capabilities(left_relation)
   right_relation$capabilities <- if (isTRUE(same_relation)) {
     left_relation$capabilities
   } else {
-    .compiler_capabilities(right_relation)
+    .relation_source_capabilities(right_relation)
   }
   if (!is.logical(same_relation) || length(same_relation) != 1L ||
       is.na(same_relation)) {
@@ -768,4 +768,272 @@
     distinct_handle_keys = task$distinct_handle_keys,
     task_id = task$task_id
   ), class = "effect_compiled_task")
+}
+
+# Effect-task construction and identity --------------------------------------
+#
+# Building a task and naming it is plan work, not execution work. These
+# functions lived in `R/compiler.R`, which forced every plan that wanted a
+# task identity to call up into the executor's file and made the plan and
+# compiler layers mutually recursive.
+
+.effect_task_source_uses <- function(left, right, left_id, right_id) {
+  side_uses <- function(relation, side, relation_id) {
+    do.call(rbind, lapply(relation$partitions, function(partition) {
+      descriptor <- relation$sources[[partition]]$descriptor
+      handle_key <- if (is.null(descriptor) ||
+          identical(descriptor$access, "coordinator")) {
+        NA_character_
+      } else {
+        .source_descriptor_key(descriptor)
+      }
+      data.frame(
+        side = side,
+        relation_id = relation_id,
+        partition = partition,
+        stable_revision = relation$capabilities[[partition]]$stable_revision,
+        handle_key = handle_key,
+        stringsAsFactors = FALSE
+      )
+    }))
+  }
+  uses <- rbind(
+    side_uses(left, "left", left_id),
+    side_uses(right, "right", right_id)
+  )
+  rownames(uses) <- NULL
+  list(
+    uses = uses,
+    distinct_handle_keys = unique(stats::na.omit(uses$handle_key))
+  )
+}
+
+.effect_task_semantic <- function(left_id, right_id, left_space, right_space,
+                                  edges, bridge, normalizer, transform, reducer,
+                                  query_identity) {
+  list(
+    schema_version = 1L,
+    left_relation = left_id,
+    right_relation = right_id,
+    left_space = left_space,
+    right_space = right_space,
+    ordered_edges = unclass(as.data.frame(edges)),
+    edge_expansion = attr(edges, "expansion"),
+    bridge = bridge$signature,
+    normalizer = unclass(normalizer),
+    transform = unclass(transform),
+    reducer = unclass(reducer),
+    query = query_identity
+  )
+}
+
+.effect_task_id <- function(semantic) {
+  .sha256_signature(semantic)
+}
+
+# The identity the task would have carried without an embedded query. This is
+# the estimand-bearing task id: a fused query is an execution strategy, so a
+# queried task must still be verifiable against the complete-form identity of
+# its parent plan.
+.effect_task_base_id <- function(task) {
+  if (identical(task$materialization$completeness, "complete_form")) {
+    return(task$task_id)
+  }
+  semantic <- .effect_task_semantic(
+    task$left_relation_id, task$right_relation_id,
+    task$spaces$experimental_left, task$spaces$experimental_right,
+    task$ordered_partition_products,
+    task$neural_boundary$bridge,
+    structure(task$stages$normalization$operation,
+      class = "effect_edge_normalizer"),
+    structure(task$stages$transform$operation,
+      class = "effect_edge_transform"),
+    structure(task$stages$reduction$operation,
+      class = "effect_partition_reducer"),
+    list(kind = "complete_form", query = NULL)
+  )
+  .effect_task_id(semantic)
+}
+
+.compile_effect_evidence_task <- function(
+    left, over, right = NULL, query = NULL,
+    normalizer = inner_product(), transform = NULL,
+    reducer = .partition_reducer(), bridge = NULL) {
+  .validate_relation(left)
+  same_relation <- is.null(right)
+  if (same_relation) right <- left else .validate_relation(right)
+  left$capabilities <- .relation_source_capabilities(left)
+  right$capabilities <- if (same_relation) left$capabilities else
+    .relation_source_capabilities(right)
+  normalizer <- .validate_edge_normalizer(normalizer)
+  if (is.null(transform)) transform <- .identity_edge_transform()
+  transform <- .validate_edge_transform(transform)
+  reducer <- .validate_partition_reducer(reducer)
+  operation <- .edge_operation_plan(normalizer, transform, reducer)
+  bridge <- if (is.null(bridge)) {
+    .identity_measurement_bridge(left, right)
+  } else {
+    .validate_measurement_bridge(bridge, left, right)
+  }
+  edges <- .ordered_partition_edges(
+    over, left$partitions, right$partitions, same_relation
+  )
+  left_id <- .relation_family_identity(left)
+  right_id <- if (same_relation) left_id else .relation_family_identity(right)
+
+  query_identity <- if (is.null(query)) {
+    list(kind = "complete_form", query = NULL)
+  } else if (.is_pair_difference_query(query)) {
+    .validate_pair_difference_for_task(
+      query, left$effect_space$coordinates, right$effect_space$coordinates,
+      same_relation
+    )
+    list(kind = "pair_difference_self_query", query = query)
+  } else if (inherits(query, "effect_pair_query")) {
+    .validate_query_for_compile(query)
+    if (!.same_effect_space(query$left_space, left$effect_space) ||
+        !.same_effect_space(query$right_space, right$effect_space)) {
+      stop("Pair-query axes must match the ordered relation effect spaces.",
+        call. = FALSE)
+    }
+    list(kind = "pair_query", query = query)
+  } else if (inherits(query, "effect_query")) {
+    .validate_query_for_compile(query)
+    if (!identical(query$kind, "bilinear") || !isTRUE(query$fixed) ||
+        !.same_effect_space(left$effect_space, right$effect_space) ||
+        (!is.null(query$effect_space) &&
+          !.same_effect_space(query$effect_space, left$effect_space))) {
+      stop("A bilinear query requires matching self-form relation axes.",
+        call. = FALSE)
+    }
+    list(kind = "bilinear_compatibility", query = query)
+  } else if (is.matrix(query) && is.numeric(query) &&
+      all(is.finite(query)) && nrow(query) > 0L && ncol(query) > 0L) {
+    if (!same_relation) {
+      stop("Raw physical queries are only compatible with self-form tasks.",
+        call. = FALSE)
+    }
+    q <- length(left$effect_space$coordinates)
+    if (nrow(query) != q * (q + 1L) / 2L) {
+      stop("A raw self-form query must match the symmetric-packed width.",
+        call. = FALSE)
+    }
+    list(kind = "physical_self_query", query = query)
+  } else {
+    stop("Task queries must be NULL, axis-bound queries, or finite matrices.",
+      call. = FALSE)
+  }
+  semantic <- .effect_task_semantic(
+    left_id, right_id, left$effect_space, right$effect_space,
+    edges, bridge, normalizer, transform, reducer, query_identity
+  )
+  .new_effect_evidence_task(
+    left, right, same_relation, edges, bridge, normalizer, transform, reducer,
+    query_identity, semantic
+  )
+}
+
+.compile_effect_task <- function(left, over, right = NULL, query = NULL,
+                                 normalizer = inner_product(), transform = NULL,
+                                 reducer = .partition_reducer(), bridge = NULL) {
+  .as_compiled_effect_task(.compile_effect_evidence_task(
+    left = left,
+    over = over,
+    right = right,
+    query = query,
+    normalizer = normalizer,
+    transform = transform,
+    reducer = reducer,
+    bridge = bridge
+  ))
+}
+
+.validate_compiled_effect_task <- function(task) {
+  expected <- c(
+    "left_relation", "right_relation", "same_relation", "left_relation_id",
+    "right_relation_id", "left_space", "right_space", "ordered_edges",
+    "bridge", "normalizer", "transform", "lowering", "reducer",
+    "query_identity", "source_uses",
+    "distinct_handle_keys", "task_id"
+  )
+  if (!inherits(task, "effect_compiled_task") || !is.list(task) ||
+      !identical(names(task), expected) || !is.logical(task$same_relation) ||
+      length(task$same_relation) != 1L || is.na(task$same_relation)) {
+    stop("Compiled effect-task fields are missing or noncanonical.",
+      call. = FALSE)
+  }
+  .validate_relation(task$left_relation)
+  .validate_relation(task$right_relation)
+  left_id <- .relation_family_identity(task$left_relation)
+  right_id <- .relation_family_identity(task$right_relation)
+  if (!identical(task$left_relation_id, left_id) ||
+      !identical(task$right_relation_id, right_id) ||
+      (task$same_relation && !identical(left_id, right_id)) ||
+      !identical(task$left_space, task$left_relation$effect_space) ||
+      !identical(task$right_space, task$right_relation$effect_space)) {
+    stop("Compiled effect-task relation or axis identity is inconsistent.",
+      call. = FALSE)
+  }
+  .validate_ordered_partition_edges(
+    task$ordered_edges,
+    task$left_relation$partitions,
+    task$right_relation$partitions,
+    task$same_relation
+  )
+  .validate_measurement_bridge(task$bridge, task$left_relation,
+    task$right_relation)
+  .validate_edge_normalizer(task$normalizer)
+  .validate_edge_transform(task$transform)
+  .validate_partition_reducer(task$reducer)
+  operation <- .edge_operation_plan(
+    task$normalizer, task$transform, task$reducer
+  )
+  if (!identical(task$lowering, operation$lowering)) {
+    stop("Compiled effect-task lowering is inconsistent with its operations.",
+      call. = FALSE)
+  }
+  sources <- .effect_task_source_uses(
+    task$left_relation, task$right_relation, left_id, right_id
+  )
+  if (!identical(task$source_uses, sources$uses) ||
+      !identical(task$distinct_handle_keys, sources$distinct_handle_keys)) {
+    stop("Compiled effect-task source-use identity is inconsistent.",
+      call. = FALSE)
+  }
+  semantic <- .effect_task_semantic(
+    left_id, right_id, task$left_space, task$right_space,
+    task$ordered_edges, task$bridge, task$normalizer, task$transform,
+    task$reducer, task$query_identity
+  )
+  if (!identical(task$task_id, .effect_task_id(semantic))) {
+    stop("Compiled effect-task identity is inconsistent with its semantics.",
+      call. = FALSE)
+  }
+  invisible(task)
+}
+
+.effect_task_plan_id <- function(x, at, over, materialization, query, component,
+                              normalizer = inner_product(), transform = NULL,
+                              reducer = .partition_reducer()) {
+  task <- .compile_effect_task(
+    x, over, query = query, normalizer = normalizer,
+    transform = transform, reducer = reducer
+  )
+  semantic <- list(
+    effect_task_id = task$task_id,
+    left_space = task$left_space,
+    right_space = task$right_space,
+    ordered_edges = unclass(as.data.frame(task$ordered_edges)),
+    edge_expansion = attr(task$ordered_edges, "expansion"),
+    bridge = task$bridge$signature,
+    normalizer = unclass(task$normalizer),
+    transform = unclass(task$transform),
+    lowering = task$lowering,
+    reducer = unclass(task$reducer),
+    frame = list(weights = at$weights, normalization = at$normalization,
+      domain = at$domain),
+    materialization = materialization,
+    component = component
+  )
+  .sha256_signature(semantic)
 }

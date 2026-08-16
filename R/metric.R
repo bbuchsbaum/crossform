@@ -550,6 +550,67 @@ metric_capabilities <- function(x) {
   }
 }
 
+# The geometry metric schedule is built in the plan layer, but it is a
+# statement about a metric, so its validator lives beside the metric it
+# constrains and the plan calls down into it.
+.validate_geometry_metric_schedule <- function(x, deep = TRUE) {
+  expected <- c("role", "kind", "frame_composition", "feature_additive",
+    "support_dense", "materialization", "scope", "lowering",
+    "metric_signature", "metric", "signature")
+  if (!inherits(x, "effect_metric_schedule") || !is.list(x) ||
+      !identical(names(x), expected) ||
+      !identical(x$role, "same_space_metric_schedule") ||
+      !x$kind %in% c(
+        "implicit_identity_before_frame", "fixed_metric_before_frame"
+      ) ||
+      !identical(x$frame_composition, "sqrt_weight_congruence") ||
+      !is.logical(x$feature_additive) || length(x$feature_additive) != 1L ||
+      is.na(x$feature_additive) ||
+      !is.logical(x$support_dense) || length(x$support_dense) != 1L ||
+      is.na(x$support_dense) || identical(x$feature_additive, x$support_dense) ||
+      !x$materialization %in% c("implicit", "fixed_metric") ||
+      !x$scope %in% c("domain_operator", "single_node") ||
+      !x$lowering %in% c(
+        "additive_contraction", "support_streamed_pair_contraction"
+      ) ||
+      !.strong_sha256(x$signature)) {
+    stop("Geometry metric-schedule fields are missing or noncanonical.",
+      call. = FALSE)
+  }
+  if (identical(x$kind, "implicit_identity_before_frame")) {
+    if (!identical(x$feature_additive, TRUE) ||
+        !identical(x$support_dense, FALSE) ||
+        !identical(x$materialization, "implicit") ||
+        !identical(x$lowering, "additive_contraction") ||
+        !is.null(x$metric_signature) || !is.null(x$metric)) {
+      stop("The implicit identity metric schedule is inconsistent.",
+        call. = FALSE)
+    }
+  } else {
+    # The `metric_signature` comparison below binds the metric to the schedule
+    # identity at either depth; only the metric-internal rebuild is gated. That
+    # rebuild is O(p^3) in a domain-wide metric, and every plan has already
+    # passed it at its compile boundary.
+    metric <- .validate_neural_metric(x$metric, deep = deep)
+    if (!identical(x$materialization, "fixed_metric") ||
+        !identical(x$metric_signature, metric$signature) ||
+        !identical(x$feature_additive,
+          metric$capabilities$feature_additive) ||
+        !identical(x$support_dense, metric$capabilities$support_dense) ||
+        !identical(x$lowering, .metric_lowering(metric))) {
+      stop("The fixed neural metric schedule is inconsistent.", call. = FALSE)
+    }
+  }
+  semantic <- c(list(schema_version = 1L), unclass(x[
+    !names(x) %in% c("metric", "signature")
+  ]))
+  expected_signature <- .sha256_signature(semantic)
+  if (!identical(x$signature, expected_signature)) {
+    stop("Geometry metric-schedule identity is inconsistent.", call. = FALSE)
+  }
+  x
+}
+
 .metric_additive_frame <- function(frame, metric_schedule) {
   .validate_frame_for_compile(frame)
   schedule <- .validate_geometry_metric_schedule(metric_schedule)

@@ -56,7 +56,7 @@
   # codec reporting `6` and the other `6L` for the same quantity. This field
   # reaches no signature: it is compared against `nrow(query)`, used as an
   # output width, and returned. The same expression is still computed as a
-  # double for local widths in R/memory.R and R/kernel.R, which are not
+  # double for local widths in R/memory-plan.R and R/kernel.R, which are not
   # reported anywhere; R/geometry-plan.R already coerces its `packed_width`.
   physical_width <- if (codec == "rectangular") {
     logical_width

@@ -313,7 +313,7 @@ plan_crossnobis <- function(
   .validate_relation_fit(x, deep = FALSE)
   compute <- .validate_compute_policy(compute)
   .require_crossnobis_pairing(over)
-  .validate_compiler_inputs(x$relation, at, over)
+  .validate_geometry_plan_inputs(x$relation, at, over)
   metric <- .validate_metric_recipe(metric)
   if (identical(metric$kind, "identity")) {
     stop(paste0(
@@ -326,7 +326,7 @@ plan_crossnobis <- function(
     metric, x$relation$partitions, over, training
   )
   capabilities <- .execution_preflight(compute, function() {
-    .compiler_capabilities(x$relation)
+    .relation_source_capabilities(x$relation)
   })$source_capabilities
   relation <- x$relation
   relation$capabilities <- capabilities
@@ -441,7 +441,7 @@ print.effect_crossnobis_plan <- function(x, ...) {
     completion_status = "planned",
     task_count = as.double(nrow(plan$frame$weights)),
     completed_task_count = 0L,
-    blas = .compiler_blas(),
+    blas = .execution_blas_record(),
     domain_signature = plan$task$left_relation$domain$signature
   )
 }
@@ -513,7 +513,7 @@ print.effect_crossnobis_plan <- function(x, ...) {
       list(evaluated = evaluated, source_summary = source_summary)
     },
     receipt = planned_receipt,
-    reporter = .compiler_reporter(reporter, final_receipt),
+    reporter = .execution_reporter(reporter, final_receipt),
     observations = function() observed_state$value,
     receipt_sink = function(receipt) final_receipt$value <- receipt
   )
@@ -559,7 +559,7 @@ print.effect_crossnobis_plan <- function(x, ...) {
     estimand = "crossvalidated_squared_mahalanobis_contrast",
     metric = plan$metric_schedule$signature,
     pairing = .metric_pairing_identity(plan$pairing),
-    index = .compiler_index(plan$frame),
+    index = .execution_measurement_index(plan$frame),
     receipt = final_receipt$value,
     metadata = metadata
   ), class = "effect_crossnobis_view")
@@ -657,7 +657,9 @@ crossnobis <- function(x, weights) {
     weights, x$task$left_relation$effect_space$coordinates
   )
   query <- bilinear_query(tcrossprod(weights))
-  evaluated <- evaluate_geometry(x, query = query, component = "total")
+  # The internal runner rather than `evaluate_geometry()`: this is the plan
+  # layer, and the public entry point sits above the views it feeds.
+  evaluated <- .run_geometry_compiler(x, query = query, component = "total")
   values <- drop(evaluated$values)
   structure(list(
     values = values,

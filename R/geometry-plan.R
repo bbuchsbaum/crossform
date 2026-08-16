@@ -60,64 +60,6 @@
   )), class = "effect_metric_schedule")
 }
 
-.validate_geometry_metric_schedule <- function(x, deep = TRUE) {
-  expected <- c("role", "kind", "frame_composition", "feature_additive",
-    "support_dense", "materialization", "scope", "lowering",
-    "metric_signature", "metric", "signature")
-  if (!inherits(x, "effect_metric_schedule") || !is.list(x) ||
-      !identical(names(x), expected) ||
-      !identical(x$role, "same_space_metric_schedule") ||
-      !x$kind %in% c(
-        "implicit_identity_before_frame", "fixed_metric_before_frame"
-      ) ||
-      !identical(x$frame_composition, "sqrt_weight_congruence") ||
-      !is.logical(x$feature_additive) || length(x$feature_additive) != 1L ||
-      is.na(x$feature_additive) ||
-      !is.logical(x$support_dense) || length(x$support_dense) != 1L ||
-      is.na(x$support_dense) || identical(x$feature_additive, x$support_dense) ||
-      !x$materialization %in% c("implicit", "fixed_metric") ||
-      !x$scope %in% c("domain_operator", "single_node") ||
-      !x$lowering %in% c(
-        "additive_contraction", "support_streamed_pair_contraction"
-      ) ||
-      !.strong_sha256(x$signature)) {
-    stop("Geometry metric-schedule fields are missing or noncanonical.",
-      call. = FALSE)
-  }
-  if (identical(x$kind, "implicit_identity_before_frame")) {
-    if (!identical(x$feature_additive, TRUE) ||
-        !identical(x$support_dense, FALSE) ||
-        !identical(x$materialization, "implicit") ||
-        !identical(x$lowering, "additive_contraction") ||
-        !is.null(x$metric_signature) || !is.null(x$metric)) {
-      stop("The implicit identity metric schedule is inconsistent.",
-        call. = FALSE)
-    }
-  } else {
-    # The `metric_signature` comparison below binds the metric to the schedule
-    # identity at either depth; only the metric-internal rebuild is gated. That
-    # rebuild is O(p^3) in a domain-wide metric, and every plan has already
-    # passed it at its compile boundary.
-    metric <- .validate_neural_metric(x$metric, deep = deep)
-    if (!identical(x$materialization, "fixed_metric") ||
-        !identical(x$metric_signature, metric$signature) ||
-        !identical(x$feature_additive,
-          metric$capabilities$feature_additive) ||
-        !identical(x$support_dense, metric$capabilities$support_dense) ||
-        !identical(x$lowering, .metric_lowering(metric))) {
-      stop("The fixed neural metric schedule is inconsistent.", call. = FALSE)
-    }
-  }
-  semantic <- c(list(schema_version = 1L), unclass(x[
-    !names(x) %in% c("metric", "signature")
-  ]))
-  expected_signature <- .sha256_signature(semantic)
-  if (!identical(x$signature, expected_signature)) {
-    stop("Geometry metric-schedule identity is inconsistent.", call. = FALSE)
-  }
-  x
-}
-
 .geometry_plan_scientific_id <- function(task, frame, metric_schedule,
                                          component = "full",
                                          signed_query = NULL,
@@ -202,6 +144,37 @@
     compute = unclass(compute),
     dense_payload_bytes = dense_payload_bytes
   ))
+}
+
+# Shared entry validation for the plan constructors: a relation, the frame
+# it is measured at, and the pairing it may form must agree on the exact
+# neural domain and on the feature and partition axes before anything is
+# compiled.
+.validate_geometry_plan_inputs <- function(x, at, over, right = NULL) {
+  .validate_relation(x)
+  if (!is.null(right)) .validate_relation(right)
+  .validate_frame_for_compile(at)
+  .validate_pairing(over)
+  if (!identical(at$representation, "additive_diagonal")) {
+    stop("crossform 0.1 executes only additive diagonal frames.", call. = FALSE)
+  }
+  if (!.same_domain_reference(at$domain, x$domain) ||
+      (!is.null(right) && !.same_domain_reference(at$domain, right$domain))) {
+    stop("Relation and frame exact neural-domain identities must agree.",
+      call. = FALSE)
+  }
+  if (ncol(at$weights) != x$n_features ||
+      (!is.null(right) && ncol(at$weights) != right$n_features)) {
+    stop("The frame feature dimension must equal the relation feature dimension.",
+      call. = FALSE)
+  }
+  right_partitions <- if (is.null(right)) x$partitions else right$partitions
+  if (any(!over$left %in% x$partitions) ||
+      any(!over$right %in% right_partitions)) {
+    stop("Every pairing endpoint must identify a relation partition.",
+      call. = FALSE)
+  }
+  invisible(TRUE)
 }
 
 #' Compile a reusable query-first geometry plan
@@ -302,7 +275,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     ), call. = FALSE)
   }
   compute <- .validate_compute_policy(compute)
-  .validate_compiler_inputs(x, at, over, right = right)
+  .validate_geometry_plan_inputs(x, at, over, right = right)
   if (!is.null(right) && !is.null(metric)) {
     .capability_refusal(paste0(
       "Fixed neural metrics are not yet admitted on rectangular ",
@@ -319,11 +292,11 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     )
   }
   capabilities <- .execution_preflight(compute, function() {
-    .compiler_capabilities(x)
+    .relation_source_capabilities(x)
   })$source_capabilities
   x$capabilities <- capabilities
   if (!is.null(right)) {
-    right$capabilities <- .compiler_capabilities(right)
+    right$capabilities <- .relation_source_capabilities(right)
   }
   task <- .compile_effect_evidence_task(x, over, right = right)
   metric_schedule <- .geometry_metric_schedule(at, metric)
@@ -465,339 +438,5 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     }
   }
   .record_validated(x, "geometry_plan", deep)
-  invisible(x)
-}
-
-.geometry_execution_signature <- function(fields) {
-  .sha256_signature(list(
-    schema_version = 1L,
-    parent = fields$parent_signature,
-    scientific_plan_id = fields$scientific_plan_id,
-    task = fields$task$task_id,
-    storage = fields$storage,
-    storage_path = fields$storage_path,
-    component = fields$component,
-    signed_query = fields$signed_query,
-    requirements = fields$requirements,
-    output_width = fields$output_width,
-    feature_block = fields$feature_block,
-    row_tile = fields$row_tile,
-    coordinate_tile = fields$coordinate_tile,
-    memory = unclass(fields$memory),
-    lowering = fields$lowering,
-    kernel_version = fields$kernel_version
-  ))
-}
-
-.compile_geometry_execution_plan <- function(
-    plan, query = NULL, component = NULL,
-    storage = c("memory", "block"), storage_path = NULL,
-    signed_query = NULL) {
-  .validate_geometry_plan(plan)
-  storage <- match.arg(storage)
-  rectangular <- identical(plan$codec, "rectangular")
-  if (!is.null(query)) {
-    physical_query <- .compiler_query(
-      query, plan$task$left_relation$effect_space,
-      right_space = plan$task$right_relation$effect_space,
-      codec = plan$codec
-    )
-    component <- match.arg(component,
-      c("total", "coherent", "configuration", "contrast"))
-    if (rectangular && identical(component, "contrast")) {
-      stop("Signed contrast execution requires a self-form plan.",
-        call. = FALSE)
-    }
-    if (storage != "memory" || !is.null(storage_path)) {
-      stop(paste0(
-        "Query-first execution returns an in-memory view and does not create ",
-        "geometry stores."
-      ), call. = FALSE)
-    }
-    task <- .compile_effect_evidence_task(
-      plan$task$left_relation, plan$pairing,
-      right = if (rectangular) plan$task$right_relation else NULL,
-      query = query
-    )
-  } else {
-    if (!is.null(signed_query)) {
-      stop("Signed query weights require a fixed contrast query.",
-        call. = FALSE)
-    }
-    physical_query <- NULL
-    component <- "full"
-    task <- plan$task
-  }
-  if (identical(component, "contrast")) {
-    effects <- plan$task$left_relation$effect_space$coordinates
-    signed_query <- .align_contrast(signed_query, effects)
-    expected_query <- matrix(
-      .svec_symmetric(tcrossprod(signed_query)), ncol = 1L
-    )
-    if (!identical(dim(physical_query), dim(expected_query)) ||
-        !isTRUE(all.equal(
-          unname(physical_query), expected_query, tolerance = 0
-        ))) {
-      stop("A contrast plan's energy query must equal the signed outer product.",
-        call. = FALSE)
-    }
-    requirements <- list(
-      total = TRUE,
-      coherent = TRUE,
-      marginals = TRUE,
-      materialization = "direct_contrast"
-    )
-  } else {
-    if (!is.null(signed_query)) {
-      stop("Signed query weights are valid only for contrast execution.",
-        call. = FALSE)
-    }
-    requirements <- .component_requirements(physical_query, component)
-    if (rectangular) {
-      # Signed endpoint marginals are a self-form concept; a rectangular
-      # materialization carries total and coherent components only.
-      requirements$marginals <- FALSE
-    }
-  }
-  q <- plan$logical_shape[[1L]]
-  output_width <- if (is.null(physical_query)) {
-    plan$packed_width
-  } else {
-    .query_output_width(physical_query)
-  }
-  explicit_metric <- identical(
-    plan$metric_schedule$kind, "fixed_metric_before_frame"
-  )
-  support_streamed <- identical(
-    plan$metric_schedule$lowering, "support_streamed_pair_contraction"
-  ) || (explicit_metric &&
-    (isTRUE(requirements$coherent) || isTRUE(requirements$marginals)))
-  if (support_streamed && storage == "block") {
-    stop(paste0(
-      "Support-streamed metric materialization currently requires in-memory ",
-      "output; query-first execution remains bounded and is preferred."
-    ), call. = FALSE)
-  }
-  selected <- if (support_streamed) {
-    .support_metric_memory_plan(
-      plan$task$left_relation, plan$frame, plan$metric_schedule,
-      plan$compute, output_width, storage, requirements
-    )
-  } else {
-    .select_compiler_memory_plan(
-      plan$task$left_relation, plan$frame, plan$compute, output_width,
-      storage, requirements, query = physical_query,
-      right_relation = if (rectangular) plan$task$right_relation else NULL
-    )
-  }
-  if (identical(selected$memory$fits_budget, FALSE)) {
-    stop(sprintf(
-      paste0("The conservative memory plan requires %.0f bytes, exceeding ",
-        "the %.0f-byte budget."),
-      selected$memory$planned_workspace_bytes,
-      plan$compute$workspace_bytes
-    ), call. = FALSE)
-  }
-  query_fused <- !is.null(physical_query)
-  lowering <- if (support_streamed && query_fused) {
-    "support_streamed_metric_query_contraction"
-  } else if (support_streamed) {
-    "support_streamed_metric_form_contraction"
-  } else if (explicit_metric && query_fused) {
-    "additive_metric_query_fused_contraction"
-  } else if (explicit_metric) {
-    "additive_metric_form_contraction"
-  } else if (query_fused) {
-    "additive_query_fused_contraction"
-  } else {
-    "additive_form_contraction"
-  }
-  kernel_version <- if (support_streamed) {
-    "support-streamed-metric-v1"
-  } else if (explicit_metric) {
-    "additive-fixed-metric-v1"
-  } else if (query_fused) {
-    "additive-query-fused-v2"
-  } else {
-    "additive-effect-form-v2"
-  }
-  scientific_plan_id <- if (is.null(physical_query)) {
-    # Full materialization executes the plan's own estimand.
-    plan$scientific_plan_id
-  } else {
-    # A fused query is an execution strategy for a view of the parent
-    # estimand; its identity derives from the parent id plus the view
-    # semantics, exactly as the projected route derives it.
-    .geometry_view_scientific_id(
-      plan$scientific_plan_id, component, physical_query, signed_query
-    )
-  }
-  fields <- list(
-    parent_signature = plan$signature,
-    estimand_id = plan$scientific_plan_id,
-    task = task,
-    frame = plan$frame,
-    metric_schedule = plan$metric_schedule,
-    compute = plan$compute,
-    storage = storage,
-    storage_path = storage_path,
-    query = physical_query,
-    component = component,
-    signed_query = signed_query,
-    requirements = requirements,
-    output_width = as.integer(output_width),
-    feature_block = selected$feature_block,
-    row_tile = selected$row_tile,
-    coordinate_tile = selected$coordinate_tile,
-    memory = selected$memory,
-    task_count = if (support_streamed) {
-      as.double(plan$measurements)
-    } else {
-      ceiling(plan$task$left_relation$n_features / selected$feature_block)
-    },
-    lowering = lowering,
-    query_fused = query_fused,
-    kernel_version = kernel_version,
-    scientific_plan_id = scientific_plan_id
-  )
-  structure(c(fields, list(
-    signature = .geometry_execution_signature(fields)
-  )), class = "effect_geometry_execution_plan")
-}
-
-.validate_geometry_execution_plan <- function(x) {
-  expected <- c("parent_signature", "estimand_id", "task", "frame",
-    "metric_schedule",
-    "compute", "storage", "storage_path", "query", "component",
-    "signed_query", "requirements", "output_width", "feature_block", "row_tile",
-    "coordinate_tile", "memory", "task_count", "lowering", "query_fused",
-    "kernel_version", "scientific_plan_id", "signature")
-  if (!inherits(x, "effect_geometry_execution_plan") || !is.list(x) ||
-      !identical(names(x), expected) || !.strong_sha256(x$parent_signature) ||
-      !.strong_sha256(sub("^geometry-", "", x$estimand_id)) ||
-      !x$storage %in% c("memory", "block") ||
-      !x$component %in% c(
-        "full", "total", "coherent", "configuration", "contrast"
-      ) ||
-      !is.logical(x$query_fused) || length(x$query_fused) != 1L ||
-      is.na(x$query_fused) || !.strong_sha256(x$signature) ||
-      !.strong_sha256(sub("^geometry-", "", x$scientific_plan_id))) {
-    stop("Geometry execution-plan fields are missing or noncanonical.",
-      call. = FALSE)
-  }
-  .validate_evidence_task(x$task)
-  .validate_frame_for_compile(x$frame)
-  .validate_geometry_metric_schedule(x$metric_schedule)
-  .validate_compute_policy(x$compute)
-  .validate_memory_plan_for_receipt(x$memory)
-  for (name in c("output_width", "feature_block", "row_tile",
-      "coordinate_tile")) {
-    value <- x[[name]]
-    if (!is.integer(value) || length(value) != 1L || is.na(value) || value < 1L) {
-      stop("Geometry execution-plan dimensions are invalid.", call. = FALSE)
-    }
-  }
-  if (!is.numeric(x$task_count) || length(x$task_count) != 1L ||
-      is.na(x$task_count) || !is.finite(x$task_count) || x$task_count < 1 ||
-      x$task_count %% 1 != 0) {
-    stop("Geometry execution-plan task count is invalid.", call. = FALSE)
-  }
-  expected_requirements <- if (identical(x$component, "contrast")) {
-    list(
-      total = TRUE,
-      coherent = TRUE,
-      marginals = TRUE,
-      materialization = "direct_contrast"
-    )
-  } else {
-    .component_requirements(x$query, x$component)
-  }
-  if (!isTRUE(x$task$same_relation)) {
-    expected_requirements$marginals <- FALSE
-  }
-  if (identical(x$component, "contrast")) {
-    expected_query <- matrix(
-      .svec_symmetric(tcrossprod(x$signed_query)), ncol = 1L
-    )
-    if (!identical(dim(x$query), dim(expected_query)) ||
-        !isTRUE(all.equal(unname(x$query), expected_query, tolerance = 0))) {
-      stop("Contrast execution query and signed weights are inconsistent.",
-        call. = FALSE)
-    }
-  }
-  explicit_metric <- identical(
-    x$metric_schedule$kind, "fixed_metric_before_frame"
-  )
-  support_streamed <- identical(
-    x$metric_schedule$lowering, "support_streamed_pair_contraction"
-  ) || (explicit_metric &&
-    (isTRUE(x$requirements$coherent) || isTRUE(x$requirements$marginals)))
-  expected_lowering <- if (support_streamed && x$query_fused) {
-    "support_streamed_metric_query_contraction"
-  } else if (support_streamed) {
-    "support_streamed_metric_form_contraction"
-  } else if (explicit_metric && x$query_fused) {
-    "additive_metric_query_fused_contraction"
-  } else if (explicit_metric) {
-    "additive_metric_form_contraction"
-  } else if (x$query_fused) {
-    "additive_query_fused_contraction"
-  } else {
-    "additive_form_contraction"
-  }
-  expected_kernel <- if (support_streamed) {
-    "support-streamed-metric-v1"
-  } else if (explicit_metric) {
-    "additive-fixed-metric-v1"
-  } else if (x$query_fused) {
-    "additive-query-fused-v2"
-  } else {
-    "additive-effect-form-v2"
-  }
-  expected_id <- if (is.null(x$query)) {
-    x$estimand_id
-  } else {
-    .geometry_view_scientific_id(
-      x$estimand_id, x$component, x$query, x$signed_query
-    )
-  }
-  # The claimed estimand id is bound two ways: to the stored task through the
-  # query-stripped base task id, and to the parent plan through the parent
-  # signature, which digests exactly (estimand id, compute, payload bytes).
-  expected_estimand_id <- .sha256_signature(list(
-    schema_version = 1L,
-    evidence_task = .effect_task_base_id(x$task),
-    frame = .additive_frame_signature(x$frame),
-    metric_schedule = x$metric_schedule$signature,
-    component = "full",
-    signed_query = NULL
-  ), "geometry-sha256:")
-  relation <- x$task$left_relation
-  right_relation <- x$task$right_relation
-  same <- isTRUE(x$task$same_relation)
-  q <- length(relation$effect_space$coordinates)
-  q_right <- length(right_relation$effect_space$coordinates)
-  expected_parent_signature <- .geometry_plan_signature(
-    x$estimand_id, x$compute,
-    .geometry_dense_payload_bytes(
-      nrow(x$frame$weights),
-      if (same) q * (q + 1L) / 2L else q * q_right,
-      if (same) q else q + q_right,
-      length(unique(c(relation$partitions, if (same) NULL else
-        right_relation$partitions)))
-    )
-  )
-  fields <- x[names(x) != "signature"]
-  if (!identical(x$requirements, expected_requirements) ||
-      !identical(x$estimand_id, expected_estimand_id) ||
-      !identical(x$parent_signature, expected_parent_signature) ||
-      !identical(x$query_fused, !is.null(x$query)) ||
-      !identical(x$lowering, expected_lowering) ||
-      !identical(x$kernel_version, expected_kernel) ||
-      !identical(x$scientific_plan_id, expected_id) ||
-      !identical(x$signature, .geometry_execution_signature(fields))) {
-    stop("Geometry execution-plan identity or lowering is inconsistent.",
-      call. = FALSE)
-  }
   invisible(x)
 }

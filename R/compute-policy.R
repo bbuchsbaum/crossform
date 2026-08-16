@@ -1,4 +1,11 @@
-# Sequential execution policy -----------------------------------------------
+# Compute-policy declarations ------------------------------------------------
+#
+# Layer 2 (values). Everything here is a declaration: `compute_policy()`
+# records how much work a caller will allow, `.validate_compute_policy()`
+# canonicalizes it, and `.execution_preflight()` fixes the ordering contract
+# that policy validation precedes source inspection. No worker is started and
+# no source is opened, so values and plans may declare a budget without
+# reaching into the executor.
 
 #' Construct the version 0.1 compute policy
 #'

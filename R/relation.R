@@ -619,7 +619,7 @@ relation_block <- function(x, partition, features) {
 
 .relation_family_identity <- function(x) {
   .validate_relation(x)
-  capabilities <- .compiler_capabilities(x)
+  capabilities <- .relation_source_capabilities(x)
   semantic <- list(
     schema_version = 1L,
     source_revisions = vapply(capabilities, `[[`, character(1),

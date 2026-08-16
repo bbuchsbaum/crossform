@@ -193,7 +193,7 @@ test_that("legacy compiler plan hashes use canonical ordered task semantics", {
   reordered <- pairing(
     rev(over$left), rev(over$right), rev(over$weight), directed = FALSE
   )
-  plan <- function(pairing) crossform:::.compiler_plan_id(
+  plan <- function(pairing) crossform:::.effect_task_plan_id(
     rel, frame, pairing, "full_geometry", NULL, "full"
   )
 

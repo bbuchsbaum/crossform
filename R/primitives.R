@@ -9,13 +9,15 @@
 #   1. primitives   R/primitives.R, R/message-helpers.R, R/conditions.R
 #   2. values       R/domain.R, R/frame.R, R/pairing.R, R/relation.R,
 #                   R/effect-space.R, R/effect-map.R, R/metric.R, R/source.R,
-#                   R/study.R, R/receipt.R, R/measurement.R, R/bridge.R, ...
+#                   R/study.R, R/receipt.R, R/measurement.R, R/bridge.R,
+#                   R/capabilities.R, R/compute-policy.R, R/memory-plan.R, ...
 #   3. plans        R/geometry-plan.R, R/relation-plan.R, R/crossnobis.R,
 #                   R/evidence-*.R, R/coupling-plan.R, ...
-#   4. compiler     R/compiler.R, R/kernel.R, R/task.R, R/execution.R,
-#      /execution   R/memory.R, R/storage.R, R/measurement-kernel.R
-#   5. results      R/result.R, R/views.R, R/coupling-views.R, R/tomography.R,
-#      /views       R/measurement-result.R, R/format-results.R,
+#   4. compiler     R/compiler.R, R/execution-driver.R, R/kernel.R, R/task.R,
+#      /execution   R/storage.R, R/measurement-kernel.R
+#   5. results      R/result.R, R/views.R, R/geometry-entry.R,
+#      /views       R/coupling-views.R, R/tomography.R,
+#                   R/measurement-result.R, R/format-results.R,
 #                   R/print-methods.R, R/plot-methods.R
 #   6. adapters     R/adapter-*.R, R/neuroim2-adapter.R, R/benchmark.R,
 #      /facade      R/example-data.R, R/evidence-api.R

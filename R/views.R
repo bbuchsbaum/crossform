@@ -209,7 +209,7 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
       kind = "plan",
       effects = space$coordinates,
       codec = "symmetric_packed",
-      index = .compiler_index(x$frame)
+      index = .execution_measurement_index(x$frame)
     ))
   }
   if (!inherits(x, "effect_form")) {

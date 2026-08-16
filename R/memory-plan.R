@@ -1,4 +1,8 @@
-# Conservative owned-workspace planning -------------------------------------
+# Memory-plan declarations ---------------------------------------------------
+#
+# Layer 2 (values). A memory plan is a statement about bytes, computed from
+# shapes and policies; nothing here allocates the buffers it is deciding on.
+# That is why values, plans, and the executor may all build one.
 
 # Exact size of a base-R double matrix on the current R runtime.
 # Keeping this arithmetic here is deliberate: a memory preflight must not
@@ -349,5 +353,207 @@ memory_plan <- function(frame_bytes = 0,
       (if (form_total && storage == "memory") 2 * product else 0) +
       (if (retain_first_moments) 2 * first_product else 0),
     safety_factor = 1.25
+  )
+}
+
+# Conservative plans for the streaming geometry compiler ---------------------
+#
+# These are declarations too: they compute byte counts from shapes and
+# policies and allocate nothing. The compiler selects among them before it
+# opens a source.
+
+.compiler_memory_plan <- function(x, at, compute, feature_block, row_tile,
+                                  coordinate_tile, output_width, storage,
+                                  requirements, query = NULL,
+                                  right_relation = NULL) {
+  q <- length(x$effects)
+  h <- q * (q + 1L) / 2L
+  p <- x$n_features
+  m <- nrow(at$weights)
+  r <- length(x$partitions)
+  f <- min(feature_block, p)
+  rows <- min(row_tile, m)
+  coordinates <- min(coordinate_tile, output_width)
+  max_observations <- max(vapply(x$sources, function(source) source$dim[[1L]],
+    integer(1)))
+  source_shared <- sum(vapply(x$sources, function(source) {
+    if (identical(source$kind, "matrix")) {
+      prod(as.double(source$dim)) * 8 +
+        as.double(utils::object.size(source))
+    } else {
+      0
+    }
+  }, numeric(1)))
+  distinct_handles <- unique(vapply(x$sources, function(source) {
+    descriptor <- source$descriptor
+    if (is.null(descriptor) || identical(descriptor$access, "coordinator")) {
+      return(NA_character_)
+    }
+    .source_descriptor_key(descriptor)
+  }, character(1)))
+  distinct_handles <- sum(!is.na(distinct_handles))
+  source_block <- max_observations * f * 8
+  relation_block <- r * q * f * 8 +
+    if (is.null(right_relation)) 0 else
+      length(right_relation$partitions) *
+        length(right_relation$effects) * f * 8
+  atom_coordinates <- if (identical(
+      requirements$materialization, "full_geometry")) {
+    h
+  } else {
+    output_width
+  }
+  # Query-fused execution forms only the requested per-feature coordinates.
+  # The live query representation is accounted explicitly: a structured
+  # pair-difference query stores index vectors plus its coefficient map and
+  # a pair-by-feature-block workspace; a dense physical query stores its
+  # full matrix plus one reconstructed q-by-q operator at a time.
+  query_operator <- if (requirements$total &&
+      !identical(requirements$materialization, "full_geometry")) {
+    if (!is.null(query) && .is_pair_difference_query(query)) {
+      .query_payload_bytes(query) + 8 * length(query$pair_left) * f
+    } else {
+      .query_payload_bytes(query) + q * q * 8
+    }
+  } else {
+    0
+  }
+  atom_block <- if (requirements$total) {
+    f * atom_coordinates * 8 + query_operator
+  } else {
+    0
+  }
+  local_bytes <- if (requirements$coherent) m * q * r * 8 else 0
+  marginal_bytes <- if (requirements$marginals) 2 * m * q * 8 else 0
+  component_count <- as.integer(requirements$total) +
+    as.integer(requirements$coherent)
+  durable_geometry <- if (storage == "memory") {
+    component_count * m * output_width * 8
+  } else {
+    0
+  }
+  output_bytes <- marginal_bytes + durable_geometry
+  total_contraction <- if (requirements$total) (
+    rows * f + f * coordinates + rows * coordinates + rows * q +
+      rows * h
+  ) * 8 else 0
+  coherent_contraction <- if (requirements$coherent) (
+    rows * f + rows * q * 3 + rows * h + rows * output_width
+  ) * 8 else 0
+  contraction <- max(total_contraction, coherent_contraction)
+  replacement <- if (requirements$total) {
+    (2 * rows * coordinates + 2 * rows * q) * 8
+  } else {
+    2 * rows * q * 8
+  }
+
+  memory_plan(
+    frame_bytes = as.double(utils::object.size(at$weights)),
+    resident_source_bytes = source_shared,
+    source_handle_bytes = distinct_handles * 4096,
+    source_block_bytes = source_block,
+    relation_block_bytes = relation_block,
+    atom_block_bytes = atom_block,
+    local_state_bytes = local_bytes,
+    output_bytes = output_bytes,
+    contraction_bytes = contraction,
+    replacement_copy_bytes = replacement,
+    workers = 1L,
+    n_active = 1L,
+    budget_bytes = compute$workspace_bytes
+  )
+}
+
+.descending_tiles <- function(maximum, initial = maximum) {
+  value <- min(as.integer(maximum), as.integer(initial))
+  out <- integer()
+  while (value > 1L) {
+    out <- c(out, value)
+    value <- max(1L, as.integer(floor(value / 2)))
+  }
+  unique(c(out, 1L))
+}
+
+.select_compiler_memory_plan <- function(x, at, compute, output_width, storage,
+                                         requirements, query = NULL,
+                                         right_relation = NULL) {
+  if (is.null(compute$workspace_bytes)) {
+    feature <- min(if (is.null(compute$block_features)) 1024L else
+      compute$block_features, x$n_features)
+    rows <- min(256L, nrow(at$weights))
+    coordinates <- min(64L, output_width)
+    return(list(feature_block = feature, row_tile = rows,
+      coordinate_tile = coordinates,
+      memory = .compiler_memory_plan(x, at, compute, feature, rows,
+        coordinates, output_width, storage, requirements, query = query,
+        right_relation = right_relation)))
+  }
+  feature_candidates <- if (is.null(compute$block_features)) {
+    .descending_tiles(x$n_features)
+  } else {
+    min(as.integer(compute$block_features), x$n_features)
+  }
+  row_candidates <- .descending_tiles(nrow(at$weights))
+  coordinate_candidates <- .descending_tiles(output_width)
+  smallest <- NULL
+  for (feature in feature_candidates) {
+    for (rows in row_candidates) {
+      for (coordinates in coordinate_candidates) {
+        memory <- .compiler_memory_plan(x, at, compute, feature, rows,
+          coordinates, output_width, storage, requirements, query = query,
+          right_relation = right_relation)
+        smallest <- list(feature_block = feature, row_tile = rows,
+          coordinate_tile = coordinates, memory = memory)
+        if (isTRUE(memory$fits_budget)) return(smallest)
+      }
+    }
+  }
+  smallest
+}
+
+.support_metric_memory_plan <- function(x, at, metric_schedule, compute,
+                                        output_width, storage, requirements) {
+  schedule <- .validate_geometry_metric_schedule(metric_schedule)
+  if (!identical(schedule$materialization, "fixed_metric")) {
+    stop("Support-metric planning requires a fixed metric schedule.",
+      call. = FALSE)
+  }
+  support_sizes <- if (!is.null(at$support_index)) {
+    diff(at$support_index$ptr)
+  } else if (inherits(at$weights, "Matrix")) {
+    as.numeric(Matrix::rowSums(at$weights != 0))
+  } else {
+    rowSums(at$weights != 0)
+  }
+  k <- max(support_sizes)
+  q <- length(x$effects)
+  r <- length(x$partitions)
+  m <- nrow(at$weights)
+  components <- as.integer(requirements$total) +
+    as.integer(requirements$coherent)
+  output <- if (storage == "memory") 8 * components * m * output_width else 0
+  first <- if (requirements$marginals) 8 * m * q * r else 0
+  metric_bytes <- as.double(utils::object.size(schedule$metric$value))
+  plan <- memory_plan(
+    frame_bytes = as.double(utils::object.size(at$weights)),
+    resident_source_bytes = metric_bytes,
+    source_block_bytes = 8 * max(vapply(
+      x$sources, function(source) source$dim[[1L]], integer(1)
+    )) * k,
+    relation_block_bytes = 8 * r * q * k,
+    atom_block_bytes = 0,
+    local_state_bytes = first,
+    output_bytes = output,
+    contraction_bytes = 8 * (2 * k * k + 3 * q * k + q * q),
+    replacement_copy_bytes = 8 * max(output_width, q * q),
+    workers = 1L,
+    n_active = 1L,
+    budget_bytes = compute$workspace_bytes
+  )
+  list(
+    feature_block = as.integer(k),
+    row_tile = 1L,
+    coordinate_tile = as.integer(min(output_width, 64L)),
+    memory = plan
   )
 }

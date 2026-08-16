@@ -25,6 +25,7 @@ layer_of <- c(
   "extractor.R" = 2L, "scope.R" = 2L, "support-index.R" = 2L,
   "numerics.R" = 2L, "query-structured.R" = 2L, "pair-query.R" = 2L,
   "operations.R" = 2L, "receipt.R" = 2L, "reliability.R" = 2L,
+  "compute-policy.R" = 2L, "memory-plan.R" = 2L, "capabilities.R" = 2L,
   "validation-memo.R" = 2L, "measurement.R" = 2L,
   "measurement-storage.R" = 2L, "relation-fit.R" = 2L,
   "residual-statistics.R" = 2L, "bridge.R" = 2L, "crossform-package.R" = 2L,
@@ -36,11 +37,12 @@ layer_of <- c(
   "compiler-conformance.R" = 3L,
 
   ## 4. compiler / execution
-  "compiler.R" = 4L, "kernel.R" = 4L, "task.R" = 4L, "execution.R" = 4L,
-  "memory.R" = 4L, "storage.R" = 4L, "measurement-kernel.R" = 4L,
+  "compiler.R" = 4L, "execution-driver.R" = 4L, "kernel.R" = 4L,
+  "task.R" = 4L, "storage.R" = 4L, "measurement-kernel.R" = 4L,
 
   ## 5. results / views
-  "result.R" = 5L, "views.R" = 5L, "coupling-views.R" = 5L,
+  "result.R" = 5L, "views.R" = 5L, "geometry-entry.R" = 5L,
+  "coupling-views.R" = 5L,
   "tomography.R" = 5L, "measurement-result.R" = 5L,
   "measurement-decomposition.R" = 5L, "format-results.R" = 5L,
   "print-methods.R" = 5L, "plot-methods.R" = 5L,
@@ -54,47 +56,24 @@ layer_of <- c(
 # Known upward edges, as "caller.R -> callee.R", each with the follow-up that
 # would remove it. Sorted by layer of the caller.
 allowed_upward <- c(
-  # `.validate_geometry_metric_schedule()` is a plan-level validator reached
-  # from a metric value. Follow-up: move the schedule validator to metric.R
-  # and have geometry-plan.R call down into it.
-  "metric.R -> geometry-plan.R",
+  # `.validate_compiled_effect_task()` now sits beside the task value it
+  # validates, in the plan layer; a source session still validates the task it
+  # is handed. Follow-up: hand `.open_effect_task_source_session()` an already
+  # validated task so the session stops re-checking a plan-layer value.
+  "source.R -> evidence-task.R",
 
-  # `compute_policy()` and `memory_plan()` are pure declaration constructors
-  # that the audit's grouping files under "execution". Every edge below is a
-  # value or a plan declaring a budget, not reaching into the executor.
-  # Follow-up: move both constructors into the values layer (they call nothing
-  # above it) and this block disappears without moving any other code.
-  "receipt.R -> execution.R",
-  "receipt.R -> memory.R",
-  "residual-statistics.R -> memory.R",
-  "coupling-plan.R -> execution.R",
-  "crossnobis.R -> execution.R",
-  "crossnobis.R -> memory.R",
-  "geometry-plan.R -> execution.R",
-
-  # `.compiler_capabilities()` is a version/capability record, not compilation.
-  # Follow-up: extract it into a leaf `R/capabilities.R`.
-  "relation-fit.R -> compiler.R",
-  "relation.R -> compiler.R",
-
-  # `.validate_compiled_effect_task()` lives in the compiler but validates a
-  # value. Follow-up: move it beside the task value it validates.
-  "source.R -> compiler.R",
-
-  # Plans reach into the compiler to build and identify effect tasks.
-  # Follow-up (largest remaining item): extract task construction and task
-  # identity from compiler.R into a plan-layer `R/effect-task-build.R`, so
-  # plans stop depending on the executor's file.
-  "crossnobis.R -> compiler.R",
+  # `crossnobis()` is both a plan and its own executor: it builds a crossnobis
+  # plan and then runs geometry and the learned-metric kernel from the plan
+  # layer. Follow-up: split the executor out of crossnobis.R into layer 4, as
+  # the geometry executor was split out of the compiler.
+  "crossnobis.R -> execution-driver.R",
   "crossnobis.R -> kernel.R",
-  "evidence-task.R -> compiler.R",
-  "geometry-plan.R -> compiler.R",
 
-  # The compiler constructs its own result objects and the contrast view.
+  # The executor constructs its own result objects and the contrast view.
   # Follow-up: give result.R/views.R constructor entry points that the
-  # compiler is handed, or invert with a small result-builder in layer 4.
-  "compiler.R -> result.R",
-  "compiler.R -> views.R",
+  # executor is handed, or invert with a small result-builder in layer 4.
+  "execution-driver.R -> result.R",
+  "execution-driver.R -> views.R",
   "storage.R -> result.R",
 
   # evidence-api.R is both the public facade and the home of three measurement
@@ -231,7 +210,11 @@ test_that("values never reach into the compiler or the executor", {
   engine <- names(layer_of)[layer_of == 4L]
   values <- names(layer_of)[layer_of == 2L]
   offending <- edges[edges$from %in% values & edges$to %in% engine, ]
-  pairs <- sort(unique(paste(offending$from, "->", offending$to)))
+  pairs <- if (nrow(offending)) {
+    sort(unique(paste(offending$from, "->", offending$to)))
+  } else {
+    character()
+  }
 
   expect_identical(setdiff(pairs, allowed_upward), character())
 })
