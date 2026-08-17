@@ -426,7 +426,7 @@
 #'
 #' @param x A view object: `effect_contrast_view`, `effect_rdm_view`,
 #'   `effect_rsa_view`, `effect_crossnobis_view`, or
-#'   `effect_rdm_sampling_covariance`.
+#'   `effect_sampling_covariance`.
 #' @param which Which contrast panels to draw: `"both"` (the default
 #'   two-panel figure), `"decomposition"` for the coherent/configuration
 #'   plane alone, or `"profile"` for the total-energy index plot alone.
@@ -915,11 +915,29 @@ plot.effect_crossnobis_view <- function(x, highlight = NULL,
   list(values = as.numeric(estimate), centered = TRUE)
 }
 
+# A sampling covariance names its own coordinates. The RDM basis draws signed
+# squared distances at one measurement; the general evidence basis draws
+# evidence coordinates, and says so rather than borrowing the distance words.
+.sampling_covariance_noun <- function(x) {
+  if (identical(x$basis, "rdm")) {
+    return("Signed squared distance")
+  }
+  "Signed evidence coordinate"
+}
+
+.sampling_covariance_title <- function(x) {
+  subject <- if (identical(x$basis, "rdm")) "Distance" else "Coordinate"
+  if (is.null(x$source$node)) {
+    return(sprintf("%s uncertainty", subject))
+  }
+  sprintf("%s uncertainty at measurement %s", subject, x$source$node)
+}
+
 #' @rdname plot_views
 #' @export
-plot.effect_rdm_sampling_covariance <- function(x, estimate = NULL,
-                                                level = 0.95, sort = TRUE,
-                                                main = NULL, ...) {
+plot.effect_sampling_covariance <- function(x, estimate = NULL,
+                                            level = 0.95, sort = TRUE,
+                                            main = NULL, ...) {
   if (!.is_number(level) || level <= 0 || level >= 1) {
     .input_error("`level` must be one number strictly between 0 and 1.")
   }
@@ -950,16 +968,14 @@ plot.effect_rdm_sampling_covariance <- function(x, estimate = NULL,
     xlim = .finite_range(values - half, values + half, 0),
     ylim = c(0.5, length(positions) + 0.5), yaxt = "n",
     xlab = if (center$centered) {
-      sprintf("Signed squared distance with %g %% sampling interval",
-        100 * level)
+      sprintf("%s with %g %% sampling interval",
+        .sampling_covariance_noun(x), 100 * level)
     } else {
       sprintf("%g %% sampling interval (no point estimate supplied)",
         100 * level)
     },
     ylab = "",
-    main = .main_or(main, sprintf(
-      "Distance uncertainty at measurement %s", x$source$node
-    ))[[1L]]
+    main = .main_or(main, .sampling_covariance_title(x))[[1L]]
   )
   do.call(graphics::plot.default, .merge_graphics_args(defaults, list(...)))
   graphics::abline(v = 0, lty = 3, col = .geometry_colors[["black"]])

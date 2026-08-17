@@ -320,7 +320,10 @@
     residual_df = shared$total_df,
     labels = shared$distances$labels,
     source = source,
-    xi_factor = shared$xi_factor
+    xi_factor = shared$xi_factor,
+    # The coordinates are crossvalidated squared distances, so the form says
+    # so from the moment it is built rather than being relabelled afterwards.
+    basis = "rdm"
   )
 }
 
@@ -475,9 +478,9 @@
 #'   supports.
 #' @param residual_workspace_bytes Positive crossform-owned workspace budget
 #'   for shared residual pair statistics.
-#' @return An `effect_rdm_sampling_covariance` for one measurement, or an
-#'   `effect_rdm_sampling_covariance_batch` list of those objects when `at`
-#'   names several measurements. Each object is queryable by
+#' @return An `effect_sampling_covariance` with `basis = "rdm"` for one
+#'   measurement, or an `effect_sampling_covariance_batch` list of those
+#'   objects when `at` names several measurements. Each object is queryable by
 #'   [sampling_covariance()]. It contains within-measurement uncertainty only;
 #'   it does not imply covariance between spatial locations. Its `$source`
 #'   records `residual_df` (\eqn{\nu}{nu}), `residual_effective_dimension`
@@ -625,20 +628,30 @@ rdm_sampling_covariance <- function(
     strategy = residual_strategy
   )
   if (length(at) == 1L) {
-    value <- .fixed_metric_rdm_sampling_covariance(
+    return(.fixed_metric_rdm_sampling_covariance(
       plan, node = at, resources = resources
-    )
-    class(value) <- c("effect_rdm_sampling_covariance", class(value))
-    return(value)
+    ))
   }
-  values <- .fixed_metric_rdm_sampling_covariances(
+  .sampling_covariance_batch(.fixed_metric_rdm_sampling_covariances(
     plan, nodes = at, resources = resources
-  )
-  values <- lapply(values, function(value) {
-    class(value) <- c("effect_rdm_sampling_covariance", class(value))
-    value
-  })
-  structure(values, class = c("effect_rdm_sampling_covariance_batch", "list"))
+  ))
+}
+
+# One container for a batch of sampling covariances over several measurements.
+# The container carries the basis its elements agree on, so a reader never has
+# to reach into the first element to learn what it is holding.
+.sampling_covariance_batch <- function(values) {
+  if (!length(values)) {
+    .contract_error("A sampling-covariance batch must hold one form per node.")
+  }
+  bases <- unique(vapply(values, function(value) value$basis, character(1)))
+  if (length(bases) != 1L) {
+    .contract_error(
+      "A sampling-covariance batch must share one coordinate basis."
+    )
+  }
+  structure(values, basis = bases,
+    class = c("effect_sampling_covariance_batch", "list"))
 }
 
 #' Ask whether the analytic sampling law is available before provoking it
@@ -815,12 +828,12 @@ sampling_covariance <- function(
       "quadratic_form", "transport", "materialize"),
     query = NULL,
     max_bytes = 512 * 1024^2) {
-  if (inherits(x, "effect_rdm_sampling_covariance_batch")) {
+  if (inherits(x, "effect_sampling_covariance_batch")) {
     operation <- match.arg(operation)
     return(lapply(x, sampling_covariance, operation = operation,
       query = query, max_bytes = max_bytes))
   }
-  if (!inherits(x, "effect_rdm_sampling_covariance")) {
+  if (!inherits(x, "effect_sampling_covariance")) {
     .input_error("`x` must come from `rdm_sampling_covariance()`.",
       arg = "x", received = .msg_value(x),
       expected = "an object from `rdm_sampling_covariance()`")

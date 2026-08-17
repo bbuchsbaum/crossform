@@ -52,9 +52,9 @@ supports.}
 for shared residual pair statistics.}
 }
 \value{
-An \code{effect_rdm_sampling_covariance} for one measurement, or an
-\code{effect_rdm_sampling_covariance_batch} list of those objects when \code{at}
-names several measurements. Each object is queryable by
+An \code{effect_sampling_covariance} with \code{basis = "rdm"} for one
+measurement, or an \code{effect_sampling_covariance_batch} list of those
+objects when \code{at} names several measurements. Each object is queryable by
 \code{\link[=sampling_covariance]{sampling_covariance()}}. It contains within-measurement uncertainty only;
 it does not imply covariance between spatial locations. Its \verb{$source}
 records \code{residual_df} (\eqn{\nu}{nu}), \code{residual_effective_dimension}

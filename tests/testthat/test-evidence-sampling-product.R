@@ -260,7 +260,8 @@ test_that("batched sampling covariance matches repeated single-node calls", {
     residual_strategy = "node_local"
   )
 
-  expect_s3_class(batched, "effect_rdm_sampling_covariance_batch")
+  expect_s3_class(batched, "effect_sampling_covariance_batch")
+  expect_identical(attr(batched, "basis"), "rdm")
   expect_length(batched, length(nodes))
   expect_identical(batched[[1L]]$plan$scientific_plan_id,
     repeated[[1L]]$plan$scientific_plan_id)
@@ -328,7 +329,8 @@ test_that("public RDM sampling covariance is explicit and exactly queryable", {
   vector <- seq_len(nrow(dense)) / 10
   map <- rbind(first = vector, second = rev(vector))
 
-  expect_s3_class(covariance, "effect_rdm_sampling_covariance")
+  expect_s3_class(covariance, "effect_sampling_covariance")
+  expect_identical(covariance$basis, "rdm")
   expect_match(format(covariance), "factorized")
   expect_equal(
     sampling_covariance(covariance),
@@ -366,4 +368,40 @@ test_that("public RDM sampling covariance is explicit and exactly queryable", {
   expect_true("missing_error_channel" %in% beta_only$reasons)
   expect_match(conditionMessage(beta_only),
     "lm_relation_fit.*beta matrices alone")
+})
+
+# Rendering ------------------------------------------------------------------
+#
+# The RDM basis of a sampling covariance is a field, not a subclass, so what a
+# reader sees for that basis is pinned here rather than left to whichever
+# method happens to dispatch. The content digest is masked: it hashes
+# double-precision row factors, so it is a platform fact rather than a
+# rendering choice.
+
+mask_sampling_digest <- function(lines) {
+  sub("(signature:\\s+sha256:)[0-9a-f]+", "\\1<digest>", lines)
+}
+
+test_that("an RDM sampling covariance and its batch render for a reader", {
+  fixture <- sampling_product_fixture(features = 9L)
+  frame <- compile_frame(searchlights(2.01), fixture$domain)
+  evidence <- plan_geometry(
+    fixture$fit$relation, frame,
+    cross_partitions(fixture$fit$relation, independence = "independent"),
+    metric = noise_precision(
+      solve(fixture$covariance), fixture$domain,
+      covariance = fixture$covariance,
+      provenance = list(source = "simulation_truth")
+    )
+  )
+  single <- rdm_sampling_covariance(
+    evidence, fixture$fit, target = "null", at = 1L
+  )
+  batched <- rdm_sampling_covariance(
+    evidence, fixture$fit, target = "null", at = c(1L, 4L, 7L)
+  )
+
+  expect_snapshot(print(single), transform = mask_sampling_digest)
+  expect_snapshot(format(single))
+  expect_snapshot(print(batched), transform = mask_sampling_digest)
 })

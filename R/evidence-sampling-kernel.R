@@ -1,4 +1,15 @@
 # Exact structured sampling-covariance forms -------------------------------
+#
+# One class carries every structured sampling covariance. What differs between
+# an RDM covariance and the general evidence form is not its fields but the
+# basis its coordinates live in, so `basis` is a field of the form rather than
+# a subclass: `"rdm"` for crossvalidated squared distances, `"evidence"` for
+# the general evidence coordinates the kernel builds. Readers of the object
+# (print, format, plot, the query entry point) branch on that field, and the
+# basis enters the content signature because two forms over the same numbers
+# in different bases are different artifacts.
+
+.sampling_covariance_bases <- c("evidence", "rdm")
 
 .sampling_covariance_signature <- function(fields) {
   .sha256_signature(list(
@@ -10,6 +21,7 @@
     noise_trace = fields$noise_trace,
     partitions = fields$partitions,
     labels = fields$labels,
+    basis = fields$basis,
     source = fields$source
   ))
 }
@@ -17,7 +29,8 @@
 .sampling_covariance_form <- function(plan, signal_factor, xi_factor,
                                       noise_trace,
                                       partitions, labels = NULL,
-                                      source = list()) {
+                                      source = list(),
+                                      basis = "evidence") {
   .validate_evidence_sampling_plan(plan, deep = FALSE)
   .require_sampling_covariance(plan)
   if (!.is_finite_matrix(signal_factor) || nrow(signal_factor) < 1L ||
@@ -50,6 +63,12 @@
   if (!is.list(source)) {
     .input_error("Sampling covariance source metadata must be a list.")
   }
+  if (!.is_string(basis) || !basis %in% .sampling_covariance_bases) {
+    .input_error(sprintf(
+      "Sampling covariance basis must be one of %s.",
+      paste(sQuote(.sampling_covariance_bases, q = FALSE), collapse = ", ")
+    ))
+  }
   rownames(signal_factor) <- labels
   rownames(xi_factor) <- labels
   fields <- list(
@@ -60,6 +79,7 @@
     partitions = as.integer(partitions),
     labels = labels,
     dimension = as.integer(dimension),
+    basis = basis,
     source = source,
     signature = NA_character_
   )
@@ -199,7 +219,7 @@
     plan, contrasts, signal_patterns, effect_covariance,
     residual_covariance, normalization = ncol(signal_patterns),
     residual_df = NULL, labels = NULL, source = list(),
-    xi_factor = NULL) {
+    xi_factor = NULL, basis = "evidence") {
   .validate_evidence_sampling_plan(plan, deep = FALSE)
   .require_sampling_covariance(plan)
   plan_coordinates <-
@@ -273,6 +293,7 @@
     noise_trace = noise_trace,
     partitions = plan$partition$count,
     labels = labels,
+    basis = basis,
     source = c(source, list(
       construction = "diedrichsen_eq13_components_general_metric",
       signal_rank = ncol(signal_factor),
@@ -292,8 +313,9 @@
 .validate_sampling_covariance <- function(x, deep = TRUE) {
   if (.validated_before(x, "sampling_covariance", deep)) return(invisible(x))
   expected <- c("plan", "signal_factor", "xi_factor", "noise_trace", "partitions",
-    "labels", "dimension", "source", "signature")
+    "labels", "dimension", "basis", "source", "signature")
   if (!.sealed_fields(x, "effect_sampling_covariance", expected) ||
+      !.is_string(x$basis) || !x$basis %in% .sampling_covariance_bases ||
       !is.matrix(x$signal_factor) || !is.matrix(x$xi_factor) ||
       nrow(x$signal_factor) != nrow(x$xi_factor) ||
       !.is_number(x$noise_trace) || x$noise_trace < 0 ||

@@ -366,3 +366,17 @@ test_that("sampling covariance detects plan and source mutation", {
     "different scientific identities"
   , class = "effect_contract_error")
 })
+
+test_that("a sampling covariance in the general evidence basis renders", {
+  fixture <- sampling_kernel_fixture()
+
+  # The digest hashes double-precision row factors, so it is masked; every
+  # other line is a rendering decision this snapshot is here to hold.
+  expect_snapshot(
+    print(fixture$covariance),
+    transform = function(lines) {
+      sub("(signature:\\s+sha256:)[0-9a-f]+", "\\1<digest>", lines)
+    }
+  )
+  expect_snapshot(format(fixture$covariance))
+})

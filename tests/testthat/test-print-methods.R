@@ -52,7 +52,8 @@ print_fixture <- local({
     pairing <- cross_partitions(relation, independence = "independent")
     plan <- plan_geometry(relation, example$frame, pairing)
     geometry <- materialize_geometry(plan)
-    covariance <- rdm_sampling_covariance(plan, example$fit, target = "null", at = 1L)
+    covariance <- rdm_sampling_covariance(plan, example$fit,
+      target = "null", at = 1L)
     cached <<- list(
       example = example,
       relation = relation,
@@ -373,12 +374,31 @@ test_that("an execution receipt prints no platform-dependent identity", {
   expect_match(paste(output, collapse = "\n"), "status:\\s+complete")
 })
 
-test_that("the base sampling covariance class has its own compact print", {
+test_that("one sampling covariance class prints in the basis it carries", {
   fixture <- print_fixture()
-  base <- fixture$covariance
-  class(base) <- "effect_sampling_covariance"
-  expect_compact_print(base, "effect_sampling_covariance")
-  expect_compact_format(base, "effect_sampling_covariance")
+  rdm_basis <- fixture$covariance
+  expect_identical(rdm_basis$basis, "rdm")
+  expect_identical(class(rdm_basis), "effect_sampling_covariance")
+
+  # The general evidence basis is what the kernel builds before the RDM
+  # product path claims it, and it is the rendering the compact contract
+  # covers: one screen, one `<class>` header, nothing over 80 columns.
+  general <- rdm_basis
+  general$basis <- "evidence"
+  expect_compact_print(general, "effect_sampling_covariance")
+  expect_compact_format(general, "effect_sampling_covariance")
+  expect_match(
+    paste(utils::capture.output(print(general)), collapse = "\n"),
+    "basis:\\s+evidence"
+  )
+
+  # The RDM basis renders under the same class and says which basis it is,
+  # rather than announcing a subclass that no longer exists.
+  rdm_output <- utils::capture.output(print(rdm_basis))
+  expect_identical(rdm_output[[1L]], "<effect_sampling_covariance>")
+  expect_match(paste(rdm_output, collapse = "\n"), "basis:\\s+rdm")
+  expect_match(format(rdm_basis), "^<effect_sampling_covariance: ")
+  expect_prints_invisibly(rdm_basis)
 })
 
 # Study facts ----------------------------------------------------------------
@@ -616,6 +636,88 @@ test_that("the weight formatter caps long contrasts and handles odd input", {
   expect_match(format_weights(long), "\\(\\+3 more\\)$")
   # Four significant digits, never LAPACK-length floats.
   expect_identical(format_weights(c(a = 1 / 3)), "a 0.3333")
+})
+
+# Coupling result kinds ------------------------------------------------------
+#
+# `$values` is a named list of matrix blocks for two kinds and a data frame
+# for the other five, and only some kinds carry a regularization record. The
+# print method has to branch on both, so every kind is exercised here.
+
+test_that("every coupling kind reports its true value shape", {
+  fixture <- coupling_fixture()
+  form <- fixture$form
+  ridge <- crossform:::.measurement_regularization("ridge", 0.05, 0.02)
+  results <- list(
+    effect_coupling = effect_coupling(form),
+    covariance_coupling = covariance_coupling(form),
+    pearson_correlation = crossform:::.pearson_coupling(form),
+    partitioned_pearson_coupling =
+      crossform:::.partitioned_pearson_coupling(list(form, form)),
+    canonical_coupling = canonical_coupling(form, ridge = 0.05),
+    geometry_alignment = geometry_alignment(form),
+    gaussian_mutual_information = crossform:::.gaussian_information(
+      form, ridge, gaussian_covariance_model())
+  )
+  expect_setequal(names(results), names(crossform:::.coupling_kinds))
+  for (name in names(results)) {
+    result <- results[[name]]
+    expect_identical(result$kind, name)
+    output <- expect_compact_print(result, "effect_coupling_result")
+    values <- grep("^  values:", output, value = TRUE)
+    expect_length(values, 1L)
+    # The reported shape must match the object, not the column count of a
+    # data frame read through length().
+    if (identical(crossform:::.coupling_value_shape(result), "edge_blocks")) {
+      expect_match(values, paste0(length(result$values), " blocks"),
+        fixed = TRUE)
+    } else {
+      expect_match(values, paste0(nrow(result$values), " rows x ",
+        ncol(result$values), " columns"), fixed = TRUE)
+    }
+  }
+})
+
+test_that("printing a coupling result never warns and never prints NA", {
+  fixture <- coupling_fixture()
+  form <- fixture$form
+  ridge <- crossform:::.measurement_regularization("ridge", 0.05, 0.02)
+  results <- list(
+    canonical_coupling(form, ridge = 0.05),
+    crossform:::.gaussian_information(form, ridge,
+      gaussian_covariance_model()),
+    geometry_alignment(form),
+    effect_coupling(form)
+  )
+  for (result in results) {
+    expect_silent(output <- utils::capture.output(print(result)))
+    regularization <- grep("^  regularization:", output, value = TRUE)
+    expect_length(regularization, 1L)
+    expect_false(grepl("NA", regularization, fixed = TRUE))
+  }
+  ridge_line <- grep("^  regularization:",
+    utils::capture.output(print(canonical_coupling(form, ridge = 0.05))),
+    value = TRUE)
+  expect_match(ridge_line, "ridge 0.05", fixed = TRUE)
+  # Unequal lambdas are reported per side rather than collapsed.
+  asymmetric <- grep("^  regularization:",
+    utils::capture.output(print(crossform:::.gaussian_information(
+      form, ridge, gaussian_covariance_model()))), value = TRUE)
+  expect_match(asymmetric, "ridge (left 0.05, right 0.02)", fixed = TRUE)
+})
+
+test_that("the number formatter never emits a coercion warning", {
+  format_number <- crossform:::.pf_num
+  expect_identical(format_number(NULL), "none")
+  # format() pads to a common number of decimals within one vector.
+  expect_identical(format_number(c(1, 2.5)), "1.0, 2.5")
+  expect_identical(format_number(2.5), "2.5")
+  # A genuine NA is still shown as NA.
+  expect_match(format_number(c(1, NA)), "NA")
+  # A non-numeric vector degrades to text instead of warning.
+  expect_silent(text <- format_number(c("ridge", "none")))
+  expect_identical(text, "ridge, none")
+  expect_silent(format_number(list(kind = "ridge", lambda = 0.05)))
 })
 
 # Small value records --------------------------------------------------------

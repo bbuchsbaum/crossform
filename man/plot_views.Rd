@@ -6,7 +6,7 @@
 \alias{plot.effect_rdm_view}
 \alias{plot.effect_rsa_view}
 \alias{plot.effect_crossnobis_view}
-\alias{plot.effect_rdm_sampling_covariance}
+\alias{plot.effect_sampling_covariance}
 \title{Plot geometry views}
 \usage{
 \method{plot}{effect_contrast_view}(
@@ -40,12 +40,12 @@
   ...
 )
 
-\method{plot}{effect_rdm_sampling_covariance}(x, estimate = NULL, level = 0.95, sort = TRUE, main = NULL, ...)
+\method{plot}{effect_sampling_covariance}(x, estimate = NULL, level = 0.95, sort = TRUE, main = NULL, ...)
 }
 \arguments{
 \item{x}{A view object: \code{effect_contrast_view}, \code{effect_rdm_view},
 \code{effect_rsa_view}, \code{effect_crossnobis_view}, or
-\code{effect_rdm_sampling_covariance}.}
+\code{effect_sampling_covariance}.}
 
 \item{which}{Which contrast panels to draw: \code{"both"} (the default
 two-panel figure), \code{"decomposition"} for the coherent/configuration

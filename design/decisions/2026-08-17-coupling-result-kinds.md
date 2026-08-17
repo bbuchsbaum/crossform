@@ -94,29 +94,38 @@ are consistent applications of the same rule, not an inconsistency.
 
 ## Two print defects found while testing the shared-reader claim
 
-Both are in `R/print-methods.R`, which this ticket did not own. Neither is a
-counter-argument to KEEP — neither is a *per-kind* branch; both are one
-shared reader mis-reading kind-dependent content, and both are one-line fixes
-in one place, which is exactly the cost profile a single class should have.
-Iterating print over all seven kinds is what surfaced them: two of the seven
-had never been printed anywhere in the suite.
+Both were in `R/print-methods.R`, which this ticket did not own; both were
+handed to that file's owner and are **now fixed**. Neither is a
+counter-argument to KEEP — neither was a *per-kind* branch; both were one
+shared reader mis-reading kind-dependent content, and both were one-line
+fixes in one place, which is exactly the cost profile a single class should
+have. Iterating print over all seven kinds is what surfaced them: two of the
+seven had never been printed anywhere in the suite, because the only prior
+print test used `effect_coupling()`, the one kind that triggers neither.
 
-1. `R/print-methods.R:1391` renders
-   `values = paste0(length(x$values), " blocks")`. For the five `edge_table`
+1. `values = paste0(length(x$values), " blocks")`. For the five `edge_table`
    kinds `length()` is the **column count**, so a `canonical_coupling` over 4
-   edges with 8 rows prints `values: 3 blocks`. Correct for the two
-   `edge_blocks` kinds only. Fix: branch on `.coupling_value_shape(x)` (a
-   sideways call, layer 5 to layer 5, permitted).
+   edges with 8 rows printed `values: 3 blocks`. Correct for the two
+   `edge_blocks` kinds only. Fixed by branching on `.coupling_value_shape(x)`
+   — a sideways call, layer 5 to layer 5, permitted — to print
+   `n rows x m columns` for table kinds.
 
-2. `R/print-methods.R:1395` renders
-   `.pf_num(unlist(x$regularization, use.names = FALSE))`. The
+2. `.pf_num(unlist(x$regularization, use.names = FALSE))`. The
    `effect_measurement_regularization` record holds `kind`, `applied`, and
-   `signature` alongside the two lambdas, so `unlist()` coerces the whole
-   record to character and `.pf_num()`'s `as.numeric()` yields
+   `signature` alongside the two lambdas, so `unlist()` coerced the whole
+   record to character and `.pf_num()`'s `as.numeric()` yielded
    `regularization: NA, 0.05, 0.02, NA, NA` plus two
-   "NAs introduced by coercion" warnings. Affects `canonical_coupling` and
-   `gaussian_mutual_information`. Fix: render
-   `x$regularization$lambda_left` / `$lambda_right` by name.
+   "NAs introduced by coercion" warnings. Affected `canonical_coupling` and
+   `gaussian_mutual_information`. Fixed by a `.pf_regularization()` helper
+   reading `lambda_left` / `lambda_right` by name and keeping the ridge kind
+   visible (`ridge 0.05`, or `ridge (left 0.05, right 0.02)` when the sides
+   differ). `.pf_num()` itself was additionally hardened to fall back to a
+   text rendering rather than a row of `NA`, since it has ~30 call sites and
+   a printer should never warn.
+
+Both `unlist()`-on-a-record and `length()`-on-a-data-frame are shape errors
+that a type would not have caught either: a per-kind subclass would have had
+the same two bugs, in seven places instead of one.
 
 ## Deferred, deliberately
 

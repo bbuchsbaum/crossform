@@ -63,7 +63,31 @@
   if (is.null(x) || !length(x)) {
     return(empty)
   }
-  paste(format(signif(as.numeric(x), digits), trim = TRUE), collapse = ", ")
+  value <- suppressWarnings(as.numeric(x))
+  # A printer must never warn. If the input was not numeric at all, show it
+  # as text rather than emitting a coercion warning and a row of NA.
+  if (anyNA(value) && !anyNA(x)) {
+    return(.pf_set(as.character(x), max = 4L, empty = empty))
+  }
+  paste(format(signif(value, digits), trim = TRUE), collapse = ", ")
+}
+
+# A regularization record carries `kind` and `applied` alongside its lambdas,
+# so the fields are read by name; unlisting it would coerce them all to text.
+.pf_regularization <- function(regularization) {
+  if (is.null(regularization)) {
+    return("none")
+  }
+  kind <- .pf_or(regularization$kind, "none")
+  lambdas <- c(regularization$lambda_left, regularization$lambda_right)
+  if (!length(lambdas)) {
+    return(kind)
+  }
+  if (length(unique(lambdas)) == 1L) {
+    return(paste0(kind, " ", .pf_num(lambdas[[1L]])))
+  }
+  paste0(kind, " (left ", .pf_num(regularization$lambda_left), ", right ",
+    .pf_num(regularization$lambda_right), ")")
 }
 
 # Dimensions as `n x m`, for objects we refuse to print in full.
@@ -990,8 +1014,18 @@ print.effect_evidence_sampling_plan <- function(x, ...) {
   invisible(x)
 }
 
+# A sampling covariance is one class over two coordinate bases, so there is one
+# print method and it reports the basis it is reading. The RDM basis keeps its
+# own block: a reader of crossvalidated distances wants the measurement, the
+# metric status, and the reminder that the law is local, none of which the
+# general evidence basis has to say.
+
 #' @export
 format.effect_sampling_covariance <- function(x, ...) {
+  if (identical(x$basis, "rdm")) {
+    return(.pf_inline("effect_sampling_covariance",
+      paste0(x$dimension, " distances"), x$plan$target$policy, "factorized"))
+  }
   .pf_inline("effect_sampling_covariance",
     paste0(x$dimension, " coordinates"), x$plan$target$policy)
 }
@@ -999,7 +1033,11 @@ format.effect_sampling_covariance <- function(x, ...) {
 #' @export
 print.effect_sampling_covariance <- function(x, ...) {
   .validate_sampling_covariance(x, deep = FALSE)
+  if (identical(x$basis, "rdm")) {
+    return(.print_rdm_sampling_covariance(x))
+  }
   .pf_emit("effect_sampling_covariance", list(
+    basis = x$basis,
     coordinates = x$dimension,
     labels = .pf_set(x$labels, max = 3L),
     partitions = x$partitions,
@@ -1011,6 +1049,56 @@ print.effect_sampling_covariance <- function(x, ...) {
     storage = "exact factorized covariance",
     signature = .pf_sig(x$signature)
   ))
+  invisible(x)
+}
+
+# The RDM block keeps the `cat()` rendering it has always had rather than
+# moving to `.pf_emit()`, because `.pf_emit()` clips at 76 columns and the
+# residual line -- degrees of freedom, effective dimension, and which
+# tr(Sigma^2) estimator produced them -- runs past that. Truncating the one
+# line that says how trustworthy the noise term is would be the wrong saving,
+# so this block is wider than the compact budget on purpose. Everything else
+# is the same aligned key/value form `.pf_emit()` produces.
+.print_rdm_sampling_covariance <- function(x) {
+  cat("<effect_sampling_covariance>\n", sep = "")
+  cat("  basis:        rdm\n", sep = "")
+  cat("  distances:    ", x$dimension, "\n", sep = "")
+  cat("  measurement:  ", x$source$node, "\n", sep = "")
+  cat("  partitions:   ", x$partitions, " (dependent pair products)\n",
+    sep = "")
+  cat("  target:       ", x$plan$target$target, " / ",
+    x$plan$target$policy, "\n", sep = "")
+  cat("  metric:       fixed\n", sep = "")
+  cat("  residual:     ", .pf_residual_noise(x$source), "\n", sep = "")
+  cat("  storage:      exact factorized covariance\n", sep = "")
+  cat("  spatial law:  local marginal only\n", sep = "")
+  if (!is.null(x$source$execution)) {
+    cat("  execution:    ", x$source$execution$route, " / ",
+      x$source$execution$residual_strategy, "\n", sep = "")
+  }
+  invisible(x)
+}
+
+#' @export
+print.effect_sampling_covariance_batch <- function(x, ...) {
+  if (!length(x) || !inherits(x[[1L]], "effect_sampling_covariance")) {
+    .input_error("`x` must come from `rdm_sampling_covariance()`.")
+  }
+  first <- x[[1L]]
+  basis <- .pf_or(attr(x, "basis"), first$basis)
+  execution <- first$source$execution
+  cat("<effect_sampling_covariance_batch>\n", sep = "")
+  cat("  basis:        ", basis, "\n", sep = "")
+  cat("  measurements: ", length(x), "\n", sep = "")
+  cat("  ", if (identical(basis, "rdm")) "distances:   " else "coordinates: ",
+    " ", first$dimension, "\n", sep = "")
+  if (!is.null(execution)) {
+    cat("  execution:    ", execution$route, " / ",
+      execution$residual_strategy, "\n", sep = "")
+    cat("  shared residual statistics: ",
+      if (isTRUE(execution$shared_residual_statistics)) "yes" else "no",
+      "\n", sep = "")
+  }
   invisible(x)
 }
 
@@ -1386,14 +1474,16 @@ print.effect_coupling_result <- function(x, ...) {
     kind = x$kind,
     terminology = x$terminology,
     edges = paste0(nrow(x$edge_index), ", ", x$edge_completeness),
-    values = paste0(length(x$values), " blocks"),
+    # `$values` is a named list of blocks for two kinds and a table for the
+    # other five; `length()` on a data frame would report its column count.
+    values = if (identical(.coupling_value_shape(x), "edge_blocks")) {
+      paste0(length(x$values), " blocks")
+    } else {
+      paste0(nrow(x$values), " rows x ", ncol(x$values), " columns")
+    },
     normalization = .pf_or(x$normalization_axis, "none"),
     summary = .pf_or(x$summary_axis, "none"),
-    regularization = if (is.null(x$regularization)) {
-      "none"
-    } else {
-      .pf_num(unlist(x$regularization, use.names = FALSE))
-    },
+    regularization = .pf_regularization(x$regularization),
     units = .pf_or(x$units, "not claimed"),
     stages = .pf_set(x$stage_order, max = 3L),
     signature = .pf_sig(x$signature)
