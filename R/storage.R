@@ -1,4 +1,47 @@
 # File-backed packed geometry storage ---------------------------------------
+#
+# A geometry store is one dense column-major `dim[1] x dim[2]` block of
+# little-endian float64 with no header and no sidecar. Every access goes
+# through `.tile_io()` in R/primitives.R, which is also what the
+# variable-block measurement store in R/measurement-storage.R transfers
+# through; the two stores share that primitive and nothing else, because
+# their offset arithmetic and their completion bookkeeping are different
+# formats on disk (see the note on `.tile_io()`).
+
+# Element offset of one entry of the dense column-major payload. Vectorized
+# over both arguments, so one call serves a contiguous run per column and a
+# scattered element-at-a-time read alike.
+.geometry_tile_offsets <- function(dim, rows, columns) {
+  (columns - 1) * dim[[1L]] + rows - 1
+}
+
+# Shared prologue for both tile operations: the store must be block backed and
+# the tile must name a contiguous row run inside the store's shape. The write
+# path additionally requires a finite matrix of exactly that shape, and
+# reports the combined failure in one message.
+.geometry_tile_extent <- function(store, rows, coordinates, value = NULL) {
+  if (!inherits(store, "effect_geometry_store") ||
+      !identical(store$representation, "block_backed")) {
+    .input_error("`store` must be a block-backed geometry store.")
+  }
+  rows <- as.integer(rows)
+  coordinates <- as.integer(coordinates)
+  valid <- length(rows) >= 1L && length(coordinates) >= 1L &&
+    all(diff(rows) == 1L) && all(rows >= 1L) &&
+    all(rows <= store$dim[[1L]]) && all(coordinates >= 1L) &&
+    all(coordinates <= store$dim[[2L]])
+  if (is.null(value)) {
+    if (!valid) .input_error("Invalid geometry tile coordinates.")
+  } else {
+    valid <- valid && is.matrix(value) &&
+      identical(dim(value), c(length(rows), length(coordinates))) &&
+      all(is.finite(value))
+    if (!valid) {
+      .input_error("Invalid geometry tile coordinates, shape, or values.")
+    }
+  }
+  list(rows = rows, coordinates = coordinates)
+}
 
 .file_geometry_store <- function(path, dim, create = FALSE,
                                  codec = "symmetric_packed") {
@@ -12,15 +55,7 @@
   expected_bytes <- prod(as.double(dim)) * 8
   if (create) {
     if (file.exists(path)) .input_error("Refusing to overwrite an existing geometry store.")
-    connection <- file(path, open = "w+b")
-    values_remaining <- prod(as.double(dim))
-    zero_block <- rep(0, min(values_remaining, 8192))
-    while (values_remaining > 0) {
-      count <- min(values_remaining, length(zero_block))
-      writeBin(zero_block[seq_len(count)], connection, size = 8, endian = "little")
-      values_remaining <- values_remaining - count
-    }
-    close(connection)
+    .tile_zero_fill(path, prod(as.double(dim)))
   }
   if (!file.exists(path) || file.info(path)$size != expected_bytes) {
     .input_error("Geometry store file has the wrong size.")
@@ -30,23 +65,20 @@
     if (is.null(rows)) rows <- seq_len(dim[[1L]])
     rows <- as.integer(rows)
     out <- matrix(0, length(rows), dim[[2L]])
-    connection <- file(path, open = "rb")
-    on.exit(close(connection), add = TRUE)
+    columns <- seq_len(dim[[2L]])
     consecutive <- length(rows) < 2L || all(diff(rows) == 1L)
-    for (column in seq_len(dim[[2L]])) {
-      if (consecutive) {
-        offset <- ((column - 1) * dim[[1L]] + rows[[1L]] - 1) * 8
-        seek(connection, where = offset, origin = "start", rw = "read")
-        out[, column] <- readBin(connection, "double", n = length(rows),
-          size = 8, endian = "little")
-      } else {
-        for (i in seq_along(rows)) {
-          offset <- ((column - 1) * dim[[1L]] + rows[[i]] - 1) * 8
-          seek(connection, where = offset, origin = "start", rw = "read")
-          out[i, column] <- readBin(connection, "double", n = 1L,
-            size = 8, endian = "little")
-        }
-      }
+    # One run per column when the rows are contiguous, one run per element
+    # otherwise; either way the payload is opened exactly once.
+    if (consecutive) {
+      runs <- .tile_io(path, .geometry_tile_offsets(dim, rows[[1L]], columns),
+        n = length(rows))
+      for (k in seq_along(columns)) out[, columns[[k]]] <- runs[[k]]
+    } else {
+      grid <- expand.grid(row = rows, column = columns)
+      runs <- .tile_io(
+        path, .geometry_tile_offsets(dim, grid$row, grid$column), n = 1L
+      )
+      out[] <- unlist(runs, use.names = FALSE)
     }
     out
   }
@@ -65,50 +97,24 @@
 }
 
 .write_geometry_tile <- function(store, rows, coordinates, value) {
-  if (!inherits(store, "effect_geometry_store") ||
-      !identical(store$representation, "block_backed")) {
-    .input_error("`store` must be a block-backed geometry store.")
-  }
-  rows <- as.integer(rows)
-  coordinates <- as.integer(coordinates)
-  if (length(rows) < 1L || length(coordinates) < 1L ||
-      any(diff(rows) != 1L) || any(rows < 1L) || any(rows > store$dim[[1L]]) ||
-      any(coordinates < 1L) || any(coordinates > store$dim[[2L]]) ||
-      !is.matrix(value) || !identical(dim(value), c(length(rows), length(coordinates))) ||
-      any(!is.finite(value))) {
-    .input_error("Invalid geometry tile coordinates, shape, or values.")
-  }
-  connection <- file(store$path, open = "r+b")
-  on.exit(close(connection), add = TRUE)
-  for (j in seq_along(coordinates)) {
-    offset <- ((coordinates[[j]] - 1) * store$dim[[1L]] + rows[[1L]] - 1) * 8
-    seek(connection, where = offset, origin = "start", rw = "write")
-    writeBin(as.double(value[, j]), connection, size = 8, endian = "little")
-  }
-  invisible(NULL)
+  extent <- .geometry_tile_extent(store, rows, coordinates, value)
+  .tile_io(
+    store$path,
+    .geometry_tile_offsets(store$dim, extent$rows[[1L]], extent$coordinates),
+    mode = "write",
+    values = lapply(seq_along(extent$coordinates), function(j) value[, j])
+  )
 }
 
 .read_geometry_tile <- function(store, rows, coordinates) {
-  if (!inherits(store, "effect_geometry_store") ||
-      !identical(store$representation, "block_backed")) {
-    .input_error("`store` must be a block-backed geometry store.")
-  }
-  rows <- as.integer(rows)
-  coordinates <- as.integer(coordinates)
-  if (length(rows) < 1L || length(coordinates) < 1L ||
-      any(diff(rows) != 1L) || any(rows < 1L) || any(rows > store$dim[[1L]]) ||
-      any(coordinates < 1L) || any(coordinates > store$dim[[2L]])) {
-    .input_error("Invalid geometry tile coordinates.")
-  }
-  out <- matrix(0, length(rows), length(coordinates))
-  connection <- file(store$path, open = "rb")
-  on.exit(close(connection), add = TRUE)
-  for (j in seq_along(coordinates)) {
-    offset <- ((coordinates[[j]] - 1) * store$dim[[1L]] + rows[[1L]] - 1) * 8
-    seek(connection, where = offset, origin = "start", rw = "read")
-    out[, j] <- readBin(connection, "double", n = length(rows),
-      size = 8, endian = "little")
-  }
+  extent <- .geometry_tile_extent(store, rows, coordinates)
+  runs <- .tile_io(
+    store$path,
+    .geometry_tile_offsets(store$dim, extent$rows[[1L]], extent$coordinates),
+    n = length(extent$rows)
+  )
+  out <- matrix(0, length(extent$rows), length(extent$coordinates))
+  for (j in seq_along(extent$coordinates)) out[, j] <- runs[[j]]
   if (any(!is.finite(out))) {
     .input_error("Geometry tile contains non-finite values.")
   }

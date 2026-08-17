@@ -661,19 +661,48 @@ coherent_functional <- function(value, domain, support = NULL,
   x
 }
 
-.frame_metric_node <- function(frame, node) {
+# The two frame-metric node readers below -- the validating one and the
+# trusted accessor the kernels use -- open the same way and close the same
+# way. Both admit the same frame and derive the same measurement labels, and
+# both report the same five fields for a node. Only the middle differs: one
+# indexes a single row of whatever the frame happens to be, the other pays
+# once for an Rsparse view and then does CSR slot arithmetic per node. These
+# two helpers are that shared opening and closing.
+.additive_frame_node_ids <- function(frame) {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
     .input_error(
       "Frame-metric composition requires an additive localization frame."
     )
   }
-  node_ids <- if (!is.null(frame$index) &&
-      "measurement" %in% names(frame$index)) {
+  if (!is.null(frame$index) && "measurement" %in% names(frame$index)) {
     frame$index$measurement
   } else {
     seq_len(nrow(frame$weights))
   }
+}
+
+.frame_metric_node_value <- function(frame, node_ids, position,
+                                     support_positions, weight) {
+  list(
+    position = position,
+    id = node_ids[[position]],
+    weight = weight,
+    support_positions = as.integer(support_positions),
+    support = frame$domain$feature_ids[support_positions]
+  )
+}
+
+# The dense fallback for a frame whose weights are an ordinary matrix: the
+# support is wherever the row is strictly positive.
+.dense_frame_row_support <- function(row) {
+  dense <- as.numeric(row)
+  support_positions <- which(dense > 0)
+  list(support_positions = support_positions, weight = dense[support_positions])
+}
+
+.frame_metric_node <- function(frame, node) {
+  node_ids <- .additive_frame_node_ids(frame)
   if (is.numeric(node) && length(node) == 1L && !is.na(node) &&
       node %% 1 == 0 && node >= 1L && node <= nrow(frame$weights)) {
     position <- as.integer(node)
@@ -693,16 +722,12 @@ coherent_functional <- function(value, domain, support = NULL,
     support_positions <- support_positions[ordering]
     weight <- weight[ordering]
   } else {
-    dense <- as.numeric(row)
-    support_positions <- which(dense > 0)
-    weight <- dense[support_positions]
+    dense <- .dense_frame_row_support(row)
+    support_positions <- dense$support_positions
+    weight <- dense$weight
   }
-  list(
-    position = position,
-    id = node_ids[[position]],
-    weight = weight,
-    support_positions = as.integer(support_positions),
-    support = frame$domain$feature_ids[support_positions]
+  .frame_metric_node_value(
+    frame, node_ids, position, support_positions, weight
   )
 }
 
@@ -711,18 +736,7 @@ coherent_functional <- function(value, domain, support = NULL,
 # indexing. Searchlight frames use the support index as the authoritative
 # support order, while row weights are read from a one-time Rsparse view.
 .frame_metric_node_accessor <- function(frame, argument = "at") {
-  .validate_frame_for_compile(frame)
-  if (!identical(frame$representation, "additive_diagonal")) {
-    .input_error(
-      "Frame-metric composition requires an additive localization frame."
-    )
-  }
-  node_ids <- if (!is.null(frame$index) &&
-      "measurement" %in% names(frame$index)) {
-    frame$index$measurement
-  } else {
-    seq_len(nrow(frame$weights))
-  }
+  node_ids <- .additive_frame_node_ids(frame)
   row_weights <- if (inherits(frame$weights, "sparseMatrix")) {
     methods::as(frame$weights, "RsparseMatrix")
   } else {
@@ -756,16 +770,12 @@ coherent_functional <- function(value, domain, support = NULL,
       support_positions <- as.integer(row_weights@j[slots] + 1L)
       weight <- as.numeric(row_weights@x[slots])
     } else {
-      dense <- as.numeric(frame$weights[position, ])
-      support_positions <- which(dense > 0)
-      weight <- dense[support_positions]
+      dense <- .dense_frame_row_support(frame$weights[position, ])
+      support_positions <- dense$support_positions
+      weight <- dense$weight
     }
-    list(
-      position = position,
-      id = node_ids[[position]],
-      weight = weight,
-      support_positions = as.integer(support_positions),
-      support = frame$domain$feature_ids[support_positions]
+    .frame_metric_node_value(
+      frame, node_ids, position, support_positions, weight
     )
   }
 }

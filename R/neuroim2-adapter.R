@@ -82,6 +82,42 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
     domain$coordinate_units, domain$metadata)
 }
 
+# Both entry points in this file take a `NeuroVol` mask and an optional
+# domain, and both must establish the same thing before they can map a compact
+# index onto a voxel: that the domain is a volume domain and that it names the
+# same volume geometry as the mask. Getting that wrong writes numbers into the
+# wrong voxels silently, which is why the refusal reports both geometries
+# side by side rather than saying they differ.
+.neuroim2_domain_for_mask <- function(mask, domain) {
+  if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
+  .validate_domain(domain)
+  if (!identical(domain$kind, "volume")) {
+    .input_error(sprintf(paste0(
+      "`domain` must be a volume domain from `neuroim2_volume_domain()` or ",
+      "`volume_domain()`; received a `%s` domain."
+    ), domain$kind))
+  }
+  mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
+  if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
+    .contract_error(sprintf(paste0(
+      "`mask` and `domain` have different volume geometry, so a compact ",
+      "index in one does not name the same voxel in the other. The mask is ",
+      "%s with %s and %s; domain `%s` is %s with %s and %s. Pass the mask ",
+      "the domain was built from."
+    ),
+      paste(mask_domain$metadata$dim, collapse = " x "),
+      paste0("spacing ", paste(format(mask_domain$metadata$spacing),
+        collapse = " x ")),
+      .msg_count(mask_domain$n_features, "in-mask voxel"),
+      domain$id,
+      paste(domain$metadata$dim, collapse = " x "),
+      paste0("spacing ", paste(format(domain$metadata$spacing),
+        collapse = " x ")),
+      .msg_count(domain$n_features, "feature")))
+  }
+  domain
+}
+
 #' Compile neuroim2 searchlight indices into a crossform frame
 #'
 #' The function calls only `neuroim2::searchlight_indices()` and maps its stable
@@ -142,32 +178,7 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
   if (!.is_flag(nonzero) || !nonzero) {
     .input_error("crossform neuroim2 searchlights require `nonzero = TRUE`.")
   }
-  if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
-  .validate_domain(domain)
-  if (!identical(domain$kind, "volume")) {
-    .input_error(sprintf(paste0(
-      "`domain` must be a volume domain from `neuroim2_volume_domain()` or ",
-      "`volume_domain()`; received a `%s` domain."
-    ), domain$kind))
-  }
-  mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
-  if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
-    .contract_error(sprintf(paste0(
-      "`mask` and `domain` have different volume geometry, so a compact ",
-      "index in one does not name the same voxel in the other. The mask is ",
-      "%s with %s and %s; domain `%s` is %s with %s and %s. Pass the mask ",
-      "the domain was built from."
-    ),
-      paste(mask_domain$metadata$dim, collapse = " x "),
-      paste0("spacing ", paste(format(mask_domain$metadata$spacing),
-        collapse = " x ")),
-      .msg_count(mask_domain$n_features, "in-mask voxel"),
-      domain$id,
-      paste(domain$metadata$dim, collapse = " x "),
-      paste0("spacing ", paste(format(domain$metadata$spacing),
-        collapse = " x ")),
-      .msg_count(domain$n_features, "feature")))
-  }
+  domain <- .neuroim2_domain_for_mask(mask, domain)
   neighborhoods <- neuroim2::searchlight_indices(mask, radius,
     nonzero = TRUE)
   centers <- attr(neighborhoods, "center_indices", exact = TRUE)
@@ -270,32 +281,7 @@ as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
     ))
   }
   .require_neuroim2_searchlight_indices()
-  if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
-  .validate_domain(domain)
-  if (!identical(domain$kind, "volume")) {
-    .input_error(sprintf(paste0(
-      "`domain` must be a volume domain from `neuroim2_volume_domain()` or ",
-      "`volume_domain()`; received a `%s` domain."
-    ), domain$kind))
-  }
-  mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
-  if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
-    .contract_error(sprintf(paste0(
-      "`mask` and `domain` have different volume geometry, so a compact ",
-      "index in one does not name the same voxel in the other. The mask is ",
-      "%s with %s and %s; domain `%s` is %s with %s and %s. Pass the mask ",
-      "the domain was built from."
-    ),
-      paste(mask_domain$metadata$dim, collapse = " x "),
-      paste0("spacing ", paste(format(mask_domain$metadata$spacing),
-        collapse = " x ")),
-      .msg_count(mask_domain$n_features, "in-mask voxel"),
-      domain$id,
-      paste(domain$metadata$dim, collapse = " x "),
-      paste0("spacing ", paste(format(domain$metadata$spacing),
-        collapse = " x ")),
-      .msg_count(domain$n_features, "feature")))
-  }
+  domain <- .neuroim2_domain_for_mask(mask, domain)
   if (!is.numeric(values) || is.matrix(values)) {
     .input_error(sprintf(paste0(
       "`values` must be a numeric vector with one value per compact domain ",

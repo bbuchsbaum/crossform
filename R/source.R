@@ -393,39 +393,51 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
   session$close()
 }
 
-.open_effect_task_source_session <- function(task,
-                                             open_descriptor = .open_source_descriptor,
-                                             shared_opener = NULL,
-                                             validate = TRUE) {
-  if (isTRUE(validate)) .validate_compiled_effect_task(task)
+# One two-sided source session, shared by the compiled effect task below and
+# by the raw measurement task in R/measurement-kernel.R.
+#
+# The two callers differ in exactly three things, which are the three
+# parameters here: the class the session carries, the noun in its side error,
+# and whether the relations are revalidated on the way in. Everything else --
+# the shared-relation shortcut, the guarantee that a failure opening the right
+# side closes the left one, the idempotent two-sided close, the read
+# dispatcher -- is the same session, and was written out twice.
+#
+# The task itself arrives already validated. This is a layer-2 file and both
+# task types are plan-layer values: `.validate_evidence_task()` runs in the
+# plan validators, and the compiled task is a derived projection of a
+# validated evidence task, so re-checking it here would be a values file
+# auditing a plan.
+.open_two_sided_source_session <- function(task, class, side_noun,
+                                           open_descriptor, shared_opener,
+                                           validate = TRUE) {
+  open_side <- function(relation) {
+    .open_relation_source_session(relation,
+      open_descriptor = open_descriptor, shared_opener = shared_opener,
+      validate = validate)
+  }
+  reject_side <- function() {
+    .input_error(sprintf(
+      "%s source side must be `left` or `right`.", side_noun
+    ))
+  }
   if (isTRUE(task$same_relation)) {
-    session <- .open_relation_source_session(
-      task$left_relation,
-      open_descriptor = open_descriptor,
-      shared_opener = shared_opener,
-      validate = validate
-    )
+    session <- open_side(task$left_relation)
     return(structure(
       list(
         read = function(side, partition, features) {
-          if (!side %in% c("left", "right")) {
-            .input_error("Task source side must be `left` or `right`.")
-          }
+          if (!side %in% c("left", "right")) reject_side()
           session$read(partition, features)
         },
         close = session$close,
         summary = session$summary
       ),
-      class = "effect_task_source_session"
+      class = class
     ))
   }
-  left <- .open_relation_source_session(task$left_relation,
-    open_descriptor = open_descriptor, shared_opener = shared_opener,
-    validate = validate)
+  left <- open_side(task$left_relation)
   right <- tryCatch(
-    .open_relation_source_session(task$right_relation,
-      open_descriptor = open_descriptor, shared_opener = shared_opener,
-      validate = validate),
+    open_side(task$right_relation),
     error = function(error) {
       left$close()
       stop(error)
@@ -443,13 +455,28 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
   structure(
     list(
       read = function(side, partition, features) {
-        if (identical(side, "left")) left$read(partition, features) else if (
-          identical(side, "right")) right$read(partition, features) else
-          .input_error("Task source side must be `left` or `right`.")
+        if (identical(side, "left")) {
+          left$read(partition, features)
+        } else if (identical(side, "right")) {
+          right$read(partition, features)
+        } else {
+          reject_side()
+        }
       },
       close = close_both,
       summary = function() list(left = left$summary(), right = right$summary())
     ),
-    class = "effect_task_source_session"
+    class = class
+  )
+}
+
+.open_effect_task_source_session <- function(task,
+                                             open_descriptor = .open_source_descriptor,
+                                             shared_opener = NULL,
+                                             validate = TRUE) {
+  .open_two_sided_source_session(
+    task, "effect_task_source_session", "Task",
+    open_descriptor = open_descriptor, shared_opener = shared_opener,
+    validate = validate
   )
 }

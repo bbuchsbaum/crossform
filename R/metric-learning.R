@@ -406,6 +406,24 @@ metric_training_policy <- function(
   )), class = "effect_metric_training_record")
 }
 
+# What a compiled schedule can do is a function of its recipe alone. Stated
+# once, so that `compile_metric_schedule()` and the validator that re-derives
+# its capabilities cannot drift: an identity recipe is not learned and needs
+# no metric-uncertainty term in calibration; nothing is ever materialized,
+# because local covariance and precision are derived on demand.
+.metric_schedule_capabilities <- function(recipe) {
+  list(
+    feature_additive = recipe$capabilities$feature_additive,
+    support_dense = recipe$capabilities$support_dense,
+    learned = !identical(recipe$kind, "identity"),
+    provenance_frozen = TRUE,
+    materialized = FALSE,
+    on_demand = TRUE,
+    calibration_requires_metric_uncertainty =
+      !identical(recipe$kind, "identity")
+  )
+}
+
 .metric_schedule_signature <- function(x) {
   .sha256_signature(list(
     schema_version = 1L,
@@ -447,17 +465,7 @@ metric_training_policy <- function(
       "Frozen metric-schedule domains, supports, or edges are inconsistent."
     )
   }
-  expected_capabilities <- list(
-    feature_additive = recipe$capabilities$feature_additive,
-    support_dense = recipe$capabilities$support_dense,
-    learned = !identical(recipe$kind, "identity"),
-    provenance_frozen = TRUE,
-    materialized = FALSE,
-    on_demand = TRUE,
-    calibration_requires_metric_uncertainty =
-      !identical(recipe$kind, "identity")
-  )
-  if (!identical(x$capabilities, expected_capabilities)) {
+  if (!identical(x$capabilities, .metric_schedule_capabilities(recipe))) {
     .input_error("Frozen metric-schedule capabilities are inconsistent.")
   }
   if (isTRUE(deep)) {
@@ -533,16 +541,7 @@ compile_metric_schedule <- function(
     .metric_training_record(edge, over, recipe, statistics, policy)
   })
   names(records) <- paste0("edge_", seq_along(records))
-  capabilities <- list(
-    feature_additive = recipe$capabilities$feature_additive,
-    support_dense = recipe$capabilities$support_dense,
-    learned = !identical(recipe$kind, "identity"),
-    provenance_frozen = TRUE,
-    materialized = FALSE,
-    on_demand = TRUE,
-    calibration_requires_metric_uncertainty =
-      !identical(recipe$kind, "identity")
-  )
+  capabilities <- .metric_schedule_capabilities(recipe)
   value <- structure(list(
     role = "same_space_metric_schedule",
     recipe_specification = recipe_specification,

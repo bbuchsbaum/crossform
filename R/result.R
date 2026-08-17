@@ -1,12 +1,9 @@
 # Complete geometry and query-only result contracts -------------------------
-
-.effect_form_codec_format <- function(codec) {
-  switch(codec,
-    symmetric_packed = "packed-double-v1",
-    rectangular = "rectangular-double-v1",
-    .input_error("Unknown effect-form storage codec.")
-  )
-}
+#
+# `.effect_form_codec_format()`, the codec's recorded storage-format tag, is a
+# leaf in R/primitives.R: the memory store here and the file store in
+# R/storage.R both stamp it into their manifests, and a result file has no
+# business owning a constant the executor's storage layer depends on.
 
 .memory_geometry_store <- function(value, codec = "symmetric_packed") {
   if (!.is_finite_matrix(value)) {
@@ -840,4 +837,43 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
     .svec_symmetric(0.5 * (operator + t(operator)))
   }
   matrix(values, ncol = 1L, dimnames = list(NULL, "view1"))
+}
+
+# The contrast-view record ---------------------------------------------------
+#
+# One weight vector reduces a self-form geometry to four aligned per-measurement
+# series -- signed marginals, coherent, configuration, total -- plus the
+# coherence fraction and the mask saying where that fraction is defined at all.
+# It is a record, not a view computation: it lived in R/views.R, which forced
+# the executor to call up into a view file on the query-first contrast path.
+# The derivation that produces its inputs stays in `contrast_energy()`.
+.new_effect_contrast_view <- function(total, coherent, marginals, weights,
+                                      index, receipt) {
+  total <- drop(total)
+  coherent <- drop(coherent)
+  configuration <- total - coherent
+  signed <- lapply(marginals, function(value) drop(value %*% weights))
+  if (identical(attr(marginals, "semantics"), "undirected_endpoint")) {
+    signed <- signed$endpoint
+  }
+  fraction_valid <- is.finite(total) & total > 0 & coherent >= 0 &
+    configuration >= 0
+  coherence_fraction <- rep(NA_real_, length(total))
+  coherence_fraction[fraction_valid] <- coherent[fraction_valid] /
+    total[fraction_valid]
+
+  structure(
+    list(
+      signed = signed,
+      coherent = coherent,
+      configuration = configuration,
+      total = total,
+      coherence_fraction = coherence_fraction,
+      coherence_fraction_valid = fraction_valid,
+      weights = weights,
+      index = index,
+      receipt = receipt
+    ),
+    class = "effect_contrast_view"
+  )
 }

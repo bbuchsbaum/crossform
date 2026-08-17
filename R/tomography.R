@@ -123,28 +123,38 @@
   invisible(plan)
 }
 
+# Both reconstruction paths refuse on the same grounds and say the same thing.
+# `.assemble_measurement_blocks()` additionally demands the stronger
+# `frame_complete` marker, because it indexes every ordered pair of the two
+# frames directly rather than reconstructing from what is present.
+.tomography_require_complete_edges <- function(form, frame_complete = FALSE) {
+  if (isTRUE(form$capabilities$complete_edge_set) &&
+      (!frame_complete ||
+       identical(form$edge_completeness, "frame_complete"))) {
+    return(invisible(form))
+  }
+  .capability_refusal(sprintf(paste0(
+    "Reconstructing the global neural operator requires a block for every ",
+    "ordered node pair, and this form carries %s (edge completeness: %s). ",
+    "A diagonal-only or requested-edge map has discarded the between-node ",
+    "directions, so no lossless reconstruction exists to return."
+  ), .msg_count(nrow(form$block_index), "edge block"),
+    form$edge_completeness),
+    capability = "complete_edge_set",
+    namespace = "tomography",
+    reasons = "edge_set_is_not_frame_complete",
+    remedies = paste0(
+      "Build the form over every directed node pair, for example with ",
+      "`edge_frame()` on `expand.grid(from = nodes$node_ids, ",
+      "to = nodes$node_ids)`."
+    )
+  )
+}
+
 .assemble_measurement_blocks <- function(form, left_frame, right_frame,
                                          workspace_bytes = NULL) {
   .validate_measurement_form(form, probe = FALSE)
-  if (!isTRUE(form$capabilities$complete_edge_set) ||
-      !identical(form$edge_completeness, "frame_complete")) {
-    .capability_refusal(sprintf(paste0(
-      "Reconstructing the global neural operator requires a block for every ",
-      "ordered node pair, and this form carries %s (edge completeness: %s). ",
-      "A diagonal-only or requested-edge map has discarded the between-node ",
-      "directions, so no lossless reconstruction exists to return."
-    ), .msg_count(nrow(form$block_index), "edge block"),
-      form$edge_completeness),
-      capability = "complete_edge_set",
-      namespace = "tomography",
-      reasons = "edge_set_is_not_frame_complete",
-      remedies = paste0(
-        "Build the form over every directed node pair, for example with ",
-        "`edge_frame()` on `expand.grid(from = nodes$node_ids, ",
-        "to = nodes$node_ids)`."
-      )
-    )
-  }
+  .tomography_require_complete_edges(form, frame_complete = TRUE)
   resource <- .tomography_resource_plan(
     form, left_frame, right_frame, workspace_bytes
   )
@@ -318,24 +328,7 @@
     form, left_frame, right_frame, workspace_bytes
   )
   .tomography_require_budget(resource)
-  if (!isTRUE(form$capabilities$complete_edge_set)) {
-    .capability_refusal(sprintf(paste0(
-      "Reconstructing the global neural operator requires a block for every ",
-      "ordered node pair, and this form carries %s (edge completeness: %s). ",
-      "A diagonal-only or requested-edge map has discarded the between-node ",
-      "directions, so no lossless reconstruction exists to return."
-    ), .msg_count(nrow(form$block_index), "edge block"),
-      form$edge_completeness),
-      capability = "complete_edge_set",
-      namespace = "tomography",
-      reasons = "edge_set_is_not_frame_complete",
-      remedies = paste0(
-        "Build the form over every directed node pair, for example with ",
-        "`edge_frame()` on `expand.grid(from = nodes$node_ids, ",
-        "to = nodes$node_ids)`."
-      )
-    )
-  }
+  .tomography_require_complete_edges(form)
   left <- .tomography_stack_frame(left_frame)
   right <- .tomography_stack_frame(right_frame)
   left_diagnostics <- .tomography_frame_diagnostics(

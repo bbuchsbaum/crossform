@@ -13,7 +13,7 @@
 #                   R/study.R, R/receipt.R, R/measurement.R, R/bridge.R,
 #                   R/capabilities.R, R/compute-policy.R, R/memory-plan.R, ...
 #   3. plans        R/geometry-plan.R, R/relation-plan.R, R/crossnobis.R,
-#                   R/evidence-*.R, R/coupling-plan.R, ...
+#                   R/evidence-*.R, ...
 #   4. compiler     R/compiler.R, R/execution-driver.R, R/kernel.R, R/task.R,
 #      /execution   R/storage.R, R/measurement-kernel.R
 #   5. results      R/result.R, R/views.R, R/geometry-entry.R,
@@ -83,6 +83,83 @@
 .validate_tile_size <- function(x, name) {
   .check_count(x, name, what = "one positive integer")
   as.integer(x)
+}
+
+# Contiguous float64 run I/O, shared by the package's two block stores.
+#
+# `R/storage.R` (`effect_geometry_store`) and `R/measurement-storage.R`
+# (`effect_measurement_store`) do *not* share an on-disk format and are not
+# interchangeable. A geometry store is one dense column-major
+# `dim[1] x dim[2]` matrix addressed by a column stride, with no sidecar. A
+# measurement store is a concatenation of variable-shaped blocks addressed by
+# an offset table, and it requires a `.manifest.rds` sidecar that records
+# which blocks have been written and refuses a second write to any of them.
+# Neither layout can be read with the other's offset arithmetic, so unifying
+# them would change bytes on disk and invalidate recorded store signatures.
+#
+# What the two genuinely share is the transfer primitive underneath both:
+# a headerless little-endian float64 payload, opened once, seeked to an
+# element offset, transferred as one run, and closed once. That is this
+# function, and it is the only place in the package that names the element
+# size, the endianness, and the byte arithmetic `offset * 8`.
+#
+# `offsets` is in elements, not bytes. On read, `n` is the run length (one
+# value, or one per offset) and the result is a list of double vectors; on
+# write, `values` supplies one double vector per offset.
+.tile_io <- function(path, offsets, mode = c("read", "write"), n = NULL,
+                     values = NULL) {
+  mode <- match.arg(mode)
+  reading <- identical(mode, "read")
+  connection <- file(path, open = if (reading) "rb" else "r+b")
+  on.exit(close(connection), add = TRUE)
+  if (reading) {
+    n <- rep_len(n, length(offsets))
+    lapply(seq_along(offsets), function(run) {
+      seek(connection, where = offsets[[run]] * 8, origin = "start",
+        rw = "read")
+      readBin(connection, "double", n = n[[run]], size = 8,
+        endian = "little")
+    })
+  } else {
+    for (run in seq_along(offsets)) {
+      seek(connection, where = offsets[[run]] * 8, origin = "start",
+        rw = "write")
+      writeBin(as.double(values[[run]]), connection, size = 8,
+        endian = "little")
+    }
+    invisible(NULL)
+  }
+}
+
+# The storage-format tag a store records in its manifest for a given effect-
+# form codec. Both stores stamp it -- the in-memory one in R/result.R and the
+# file-backed one in R/storage.R -- and a manifest is compared against it on
+# read, so it is one constant in one place rather than a string a result file
+# owns and the executor's storage layer borrows.
+.effect_form_codec_format <- function(codec) {
+  switch(codec,
+    symmetric_packed = "packed-double-v1",
+    rectangular = "rectangular-double-v1",
+    .input_error("Unknown effect-form storage codec.")
+  )
+}
+
+# Allocate a store payload: `n_values` float64 zeros, written in bounded
+# chunks so that creating a large store never materializes it in memory.
+.tile_zero_fill <- function(path, n_values) {
+  connection <- file(path, open = "w+b")
+  on.exit(if (!is.null(connection)) try(close(connection), silent = TRUE),
+    add = TRUE)
+  remaining <- n_values
+  zero <- numeric(min(8192, remaining))
+  while (remaining > 0) {
+    count <- min(remaining, length(zero))
+    writeBin(zero[seq_len(count)], connection, size = 8, endian = "little")
+    remaining <- remaining - count
+  }
+  close(connection)
+  connection <- NULL
+  invisible(NULL)
 }
 
 # Symmetric packing ----------------------------------------------------------

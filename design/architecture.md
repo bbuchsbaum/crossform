@@ -25,11 +25,11 @@ Six layers. **A file may call downward or sideways. It may never call upward.**
 
 | # | Layer | Files |
 |---|-------|-------|
-| 1 | **primitives** | `primitives.R`, `message-helpers.R`, `conditions.R`, `check.R` |
+| 1 | **primitives** | `primitives.R`, `message-helpers.R`, `conditions.R`, `check.R`, `RcppExports.R` |
 | 2 | **values** | `domain.R`, `frame.R`, `pairing.R`, `relation.R`, `effect-space.R`, `effect-map.R`, `metric.R`, `metric-learning.R`, `source.R`, `capabilities.R`, `study.R`, `study-facts.R`, `design-model.R`, `observation-model.R`, `extractor.R`, `scope.R`, `support-index.R`, `numerics.R`, `query-structured.R`, `pair-query.R`, `operations.R`, `receipt.R`, `reliability.R`, `validation-memo.R`, `measurement.R`, `measurement-storage.R`, `relation-fit.R`, `residual-statistics.R`, `bridge.R`, `compute-policy.R`, `memory-plan.R`, `crossform-package.R` |
-| 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `crossnobis.R`, `coupling-plan.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
-| 4 | **compiler / execution** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R` |
-| 5 | **results / views** | `result.R`, `views.R`, `geometry-entry.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
+| 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `crossnobis.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
+| 4 | **compiler / execution, and the records execution produces** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R`, `crossnobis-driver.R`, `result.R` |
+| 5 | **results / views** | `views.R`, `geometry-entry.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
 | 6 | **adapters and facade** | `adapter-bids.R`, `adapter-fmridesign.R`, `adapter-fmrireg.R`, `neuroim2-adapter.R`, `bridge.R` consumers, `benchmark.R`, `example-data.R`, `evidence-api.R` |
 
 The package deliberately has **no `Collate:` field**. R sources are loaded in
@@ -51,7 +51,16 @@ nothing in the package should own:
   serializeVersion = 2L))` expression appeared at 102 sites; a change to either
   argument at any one of them would silently have invalidated recorded
   signatures without a single test noticing the inconsistency.
-- **Tiling.** `.tile_starts()`, `.validate_tile_size()`.
+- **Tiling and store I/O.** `.tile_starts()`, `.validate_tile_size()`,
+  `.tile_io()`, `.tile_zero_fill()`, `.effect_form_codec_format()`. The
+  package has two block stores with genuinely different on-disk formats — the
+  dense column-major geometry store in `R/storage.R` and the variable-block,
+  manifest-backed measurement store in `R/measurement-storage.R` — and they
+  are not interchangeable. What they share is the transfer primitive
+  underneath both: a headerless little-endian float64 payload, opened once,
+  seeked to an element offset, transferred as one run, closed once.
+  `.tile_io()` is that primitive and the only place in the package that names
+  the element size, the endianness, and the `offset * 8` arithmetic.
 - **Symmetric packing.** `.svec_symmetric()`, `.unsvec_symmetric()`,
   `.physical_query_operator()`, `.physical_query_operators()`.
 - **Contrast alignment.** `.align_contrast()`.
@@ -116,6 +125,31 @@ is what they always were: `R/compute-policy.R` (was `execution.R`),
 relation-source admission check formerly called `.compiler_capabilities()` and
 now named `.relation_source_capabilities()`.
 
+Two files joined layer 4 in the pass that emptied the register:
+
+- `R/crossnobis-driver.R` is the crossnobis runtime, split out of
+  `R/crossnobis.R` on exactly the precedent above. `crossnobis.R` was a plan
+  file that also ran its own plan, reaching up into `.run_geometry_compiler()`
+  and `.support_streamed_scheduled_crossnobis()`. What is left in
+  `crossnobis.R` is the plan — `noise_precision()`, `plan_crossnobis()`, the
+  validator, the print method — and what moved is everything that executes:
+  the planned receipt, the learned-metric runtime, and the exported
+  `crossnobis()` entry that dispatches between the learned route and the
+  ordinary geometry compiler.
+- `R/result.R` holds the sealed result records — `effect_form`,
+  `effect_geometry`, `effect_view`, `effect_contrast_view` — and their
+  validators. It was classified as a view, which made the executor's
+  construction of its own output an upward call. It is not a view: it calls
+  nothing above layer 3, it renders nothing, and every reader of a result
+  (`views.R`, `format-results.R`, `print-methods.R`, `plot-methods.R`) sits
+  above it. It is the executor's output contract, so it sits with the
+  executor. `.new_effect_contrast_view()` moved into it from `views.R` for the
+  same reason; the derivation that feeds it stays in `contrast_energy()`.
+
+The layering permits `kernel.R` to call `result.R` sideways now, but the test
+still forbids it: a kernel that builds a result record has stopped being a
+numerical primitive. Only the executor constructs results.
+
 ## What the test checks
 
 `tests/testthat/test-architecture.R` parses `R/*.R`, builds the internal call
@@ -135,39 +169,55 @@ It runs in about half a second. It reads the package **sources**, not the
 installed namespace, so it skips with an explicit reason when sources are not
 on disk beside the test.
 
-## The register: 9 upward edges that remain
+## The register: empty
 
-Each is real debt with a named follow-up. They are listed in `allowed_upward`
-in the test with the same comments; the summary is:
+`allowed_upward` is `character()`. Every upward edge the 2026-08-15 audit
+found has been removed rather than tolerated, so there is no standing debt to
+summarise here and any new entry is a new violation that has to be argued for
+on its own terms.
 
-**`crossnobis.R` is a plan and its own executor (2 edges).** `crossnobis.R`
-builds a crossnobis plan *and* runs it, calling `.run_geometry_compiler()` in
-`execution-driver.R` and `.support_streamed_scheduled_crossnobis()` in
-`kernel.R` from the plan layer. *Follow-up: split the crossnobis executor out
-into layer 4, exactly as the geometry executor was split out of the compiler.*
+The last nine went as follows.
 
-**A source session validates the task it is handed (1 edge).**
-`.open_effect_task_source_session()` in `source.R` calls
-`.validate_compiled_effect_task()`, which now sits beside the task value it
-validates in `evidence-task.R`. *Follow-up: hand the session an
-already-validated task so a layer-2 file stops re-checking a plan-layer value.*
+**`crossnobis.R` was a plan and its own executor (2 edges).** Split, as its
+follow-up asked: the runtime is now `R/crossnobis-driver.R` in layer 4 and the
+plan file executes nothing. See *Layer 4 in detail* above.
 
-**The executor constructing its own results (3 edges).**
-`execution-driver.R` calls `effect_form()`/`effect_geometry()`/`effect_view()`
-and `.new_effect_contrast_view()`; `storage.R` calls
-`.effect_form_codec_format()`. *Follow-up: a small result-builder in layer 4,
-or explicit constructor entry points handed to the executor.*
+**A source session validated the task it was handed (1 edge).** Inverted.
+`.open_effect_task_source_session()` no longer calls
+`.validate_compiled_effect_task()`; both package callers already passed
+`validate = FALSE`, so nothing changed at runtime. The validator moved to the
+point where the value is *built*, `.as_compiled_effect_task()` in
+`evidence-task.R` — the plan layer validating its own record. The two files
+also stopped duplicating the session: `source.R` and `measurement-kernel.R`
+had 55 near-identical lines of two-sided open/close/read wiring, now one
+`.open_two_sided_source_session()` parameterized by class, side noun, and
+whether the relations are revalidated.
 
-**`evidence-api.R` is two files wearing one name (3 edges).** It is the public
-facade *and* the home of `measurement_frame()`, `measurement_form()`,
-`edge_frame()` and `geometry_alignment()`. Anything that needs those
-constructors must call the facade. *Follow-up: move the constructors down into
-the plan and view layers and leave only the facade.*
+**The executor constructing its own results (3 edges).** Reclassified and
+moved. `result.R` is layer 4 (it is the executor's output contract, not a
+view); `.new_effect_contrast_view()` moved into it from `views.R`; and
+`.effect_form_codec_format()`, which `storage.R` needed, was a leaf constant
+and moved to `primitives.R` where both stores can reach it.
 
-### What left the register
+**`evidence-api.R` was two files wearing one name (3 edges).** Split three
+ways. `edge_frame()` and its validator moved down to `measurement.R`, the
+values file that owns everything they are built from. `coupling()` moved *in*:
+it was `R/coupling-plan.R`, classified as a plan, but it takes a compiled plan
+and returns a completed measurement form — a public entry that plans and
+executes, exactly like the `measurement_form()` it wraps — and being
+misclassified was the sole cause of three of these edges. `coupling-plan.R` is
+gone. `measurement_frame()` stayed in the facade, deliberately: it adapts an
+additive frame through `.measurement_frame_from_additive_decomposition()` in
+the layer-5 `measurement-decomposition.R`, so moving it to a values file would
+have opened a worse edge than it closed. The
+`measurement-decomposition.R -> evidence-api.R` edge was not a call at all —
+a local variable named `geometry_alignment` shadowed the exported view of the
+same name — and was fixed by renaming the local.
 
-Twelve of the original twenty-one edges are gone, and two changed target
-because the code they named moved:
+### What left the register earlier
+
+Twelve of the original twenty-one edges went in the previous pass, and two
+changed target because the code they named moved:
 
 | Removed edge | How |
 |---|---|
@@ -184,14 +234,25 @@ because the code they named moved:
 | `crossnobis.R -> compiler.R` became `crossnobis.R -> execution-driver.R` | the runner crossnobis calls moved out of the compiler |
 | `compiler.R -> result.R`/`views.R` became `execution-driver.R -> result.R`/`views.R` | result construction moved with the executor |
 
-## What is not in the register
+## What remains
 
-`primitives.R`, `kernel.R`, `task.R`, `compiler.R`, `geometry-plan.R`,
-`evidence-task.R`, `geometry-entry.R`, `views.R`, and `result.R` have **zero**
-upward edges; `execution-driver.R` has only the two registered result-builder
-edges. The largest strongly connected component is down from the 26 files it
-held before the layer-4 split to 17,
-and the compiler, the executor, the kernel, the geometry plan, the results,
-and the views are all outside it. What remains is the layer-2 value tangle
-around `relation.R`, `source.R`, and `receipt.R`, which this pass did not
-touch.
+No file has an upward edge. The largest strongly connected component is down
+from the 26 files it held before the layer-4 split, to 17 after it, to **15**
+now: the compiler, both executors, the kernels, the plans, the results, and
+the views are all outside it.
+
+What is left is one genuine tangle, in layer 2 and entirely within it:
+
+```
+capabilities.R  effect-map.R   effect-space.R  extractor.R  measurement.R
+memory-plan.R   metric.R       operations.R    pairing.R    receipt.R
+relation-fit.R  relation.R     scope.R         source.R     study-facts.R
+```
+
+These fifteen value files are mutually recursive. That is a different problem
+from the one this document was written about — it is not a layering violation,
+because a file may call sideways, and there is no direction to restore, only a
+knot to untie. Untangling it means deciding which of `relation`, `source`,
+`metric`, and `receipt` is the more primitive value, and that is a design
+question about the vocabulary rather than a refactor. It is the honest next
+piece of architecture work, and no pass so far has attempted it.

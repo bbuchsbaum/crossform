@@ -731,6 +731,12 @@
   )
 }
 
+# The compiled task is a derived projection of an evidence task, so it is
+# validated here, where it is built, rather than downstream: a caller that
+# opts out of `validate` has already admitted the evidence task and is telling
+# the adapter not to re-audit a value it owns. `.open_effect_task_source_session()`
+# in R/source.R used to run `.validate_compiled_effect_task()` instead, which
+# put a values file in charge of checking a plan-layer record.
 .as_compiled_effect_task <- function(task, validate = TRUE) {
   if (isTRUE(validate)) .validate_evidence_task(task)
   if (task$identity_schema != "effect-form-v1" ||
@@ -741,7 +747,7 @@
       "Only the certified effect-form specialization has a legacy adapter."
     )
   }
-  structure(list(
+  compiled <- structure(list(
     left_relation = task$left_relation,
     right_relation = task$right_relation,
     same_relation = task$same_relation,
@@ -763,6 +769,8 @@
     distinct_handle_keys = task$distinct_handle_keys,
     task_id = task$task_id
   ), class = "effect_compiled_task")
+  if (isTRUE(validate)) .validate_compiled_effect_task(compiled)
+  compiled
 }
 
 # Effect-task construction and identity --------------------------------------

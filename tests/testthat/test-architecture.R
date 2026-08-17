@@ -14,9 +14,11 @@
 # See design/architecture.md for the prose version.
 
 layer_of <- c(
-  ## 1. primitives — pure leaves, no crossform dependency outside this layer
+  ## 1. primitives — pure leaves, no crossform dependency outside this layer.
+  ## `RcppExports.R` is Rcpp-generated `.Call()` glue: it depends on nothing in
+  ## the package, so it is a leaf by construction.
   "primitives.R" = 1L, "message-helpers.R" = 1L, "conditions.R" = 1L,
-  "check.R" = 1L,
+  "check.R" = 1L, "RcppExports.R" = 1L,
 
   ## 2. values — domain, frame, pairing, relation, effect space, metric values
   "domain.R" = 2L, "frame.R" = 2L, "pairing.R" = 2L, "relation.R" = 2L,
@@ -33,16 +35,22 @@ layer_of <- c(
 
   ## 3. plans — scientific estimands and their identities
   "geometry-plan.R" = 3L, "relation-plan.R" = 3L, "crossnobis.R" = 3L,
-  "coupling-plan.R" = 3L, "evidence-task.R" = 3L, "evidence-sampling.R" = 3L,
+  "evidence-task.R" = 3L, "evidence-sampling.R" = 3L,
   "evidence-sampling-kernel.R" = 3L, "evidence-sampling-product.R" = 3L,
   "compiler-conformance.R" = 3L,
 
-  ## 4. compiler / execution
+  ## 4. compiler / execution, and the result records execution produces.
+  ## `result.R` holds the sealed `effect_form` / `effect_geometry` /
+  ## `effect_view` / `effect_contrast_view` records and their validators. It
+  ## is the executor's output contract, not a presentation of one -- it calls
+  ## nothing above layer 3, and every reader of a result (views, formatting,
+  ## printing, plotting) sits above it.
   "compiler.R" = 4L, "execution-driver.R" = 4L, "kernel.R" = 4L,
   "task.R" = 4L, "storage.R" = 4L, "measurement-kernel.R" = 4L,
+  "result.R" = 4L, "crossnobis-driver.R" = 4L,
 
   ## 5. results / views
-  "result.R" = 5L, "views.R" = 5L, "geometry-entry.R" = 5L,
+  "views.R" = 5L, "geometry-entry.R" = 5L,
   "coupling-views.R" = 5L,
   "tomography.R" = 5L, "measurement-result.R" = 5L,
   "measurement-decomposition.R" = 5L, "format-results.R" = 5L,
@@ -56,35 +64,10 @@ layer_of <- c(
 
 # Known upward edges, as "caller.R -> callee.R", each with the follow-up that
 # would remove it. Sorted by layer of the caller.
-allowed_upward <- c(
-  # `.validate_compiled_effect_task()` now sits beside the task value it
-  # validates, in the plan layer; a source session still validates the task it
-  # is handed. Follow-up: hand `.open_effect_task_source_session()` an already
-  # validated task so the session stops re-checking a plan-layer value.
-  "source.R -> evidence-task.R",
-
-  # `crossnobis()` is both a plan and its own executor: it builds a crossnobis
-  # plan and then runs geometry and the learned-metric kernel from the plan
-  # layer. Follow-up: split the executor out of crossnobis.R into layer 4, as
-  # the geometry executor was split out of the compiler.
-  "crossnobis.R -> execution-driver.R",
-  "crossnobis.R -> kernel.R",
-
-  # The executor constructs its own result objects and the contrast view.
-  # Follow-up: give result.R/views.R constructor entry points that the
-  # executor is handed, or invert with a small result-builder in layer 4.
-  "execution-driver.R -> result.R",
-  "execution-driver.R -> views.R",
-  "storage.R -> result.R",
-
-  # evidence-api.R is both the public facade and the home of three measurement
-  # constructors (`measurement_frame()`, `measurement_form()`, `edge_frame()`)
-  # and `geometry_alignment()`. Follow-up: move the constructors down into the
-  # plan and view layers and leave only the facade here.
-  "coupling-plan.R -> evidence-api.R",
-  "measurement-decomposition.R -> evidence-api.R",
-  "print-methods.R -> evidence-api.R"
-)
+# The register is empty. Every upward edge the 2026-08-15 audit found has been
+# removed rather than tolerated, so any new entry here is a new violation and
+# has to be argued for on its own terms.
+allowed_upward <- character()
 
 describe_edges <- function(rows) {
   if (!nrow(rows)) return(character())
@@ -167,7 +150,14 @@ test_that("no file calls upward through the layering, outside the register", {
   edges <- edges[edges$from %in% names(layer_of) &
     edges$to %in% names(layer_of), ]
   upward <- edges[layer_of[edges$to] > layer_of[edges$from], ]
-  observed <- sort(unique(paste(upward$from, "->", upward$to)))
+  # `paste()` recycles its length-one separator against two zero-length
+  # columns and returns `" -> "`, so the clean case has to be spelled out:
+  # no upward edges means no observed edges, not one edge with empty ends.
+  observed <- if (nrow(upward)) {
+    sort(unique(paste(upward$from, "->", upward$to)))
+  } else {
+    character()
+  }
 
   # No unregistered upward edge.
   expect_identical(setdiff(observed, allowed_upward), character())
@@ -179,6 +169,11 @@ test_that("the compute core never calls into results, views, or printing", {
   # This is the edge this refactor removed: kernel.R used to reach up into
   # views.R (`.unsvec_symmetric()`, `.align_contrast()`) and result.R
   # (`.svec_symmetric()`). Those primitives now live in R/primitives.R.
+  #
+  # `result.R` stays on this list even though it is layer 4 now: the layering
+  # would permit a sideways call, but a kernel that builds a result record is
+  # a kernel that has stopped being a numerical primitive. Only the executor
+  # constructs results.
   dir <- find_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)

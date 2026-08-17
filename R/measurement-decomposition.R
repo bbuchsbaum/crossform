@@ -272,7 +272,10 @@
   }
   singular_values <- svd(cross, nu = 0L, nv = 0L)$d
   canonical_values <- subspace_angles <- numeric()
-  geometry_alignment <- NA_real_
+  # Named `alignment` rather than `geometry_alignment` so the local does not
+  # shadow the exported view of the same name; the reported field keeps the
+  # public spelling.
+  alignment <- NA_real_
   if (!is.null(left_self) || !is.null(right_self)) {
     if (is.null(left_self) || is.null(right_self) ||
         !is.matrix(left_self) || !is.matrix(right_self) ||
@@ -296,7 +299,7 @@
     canonical_values <- pmin(1, pmax(0, raw_canonical))
     subspace_angles <- acos(canonical_values)
     denominator <- sqrt(sum(left_self^2) * sum(right_self^2))
-    geometry_alignment <- if (denominator == 0) NA_real_ else
+    alignment <- if (denominator == 0) NA_real_ else
       sum(cross^2) / denominator
   }
   list(
@@ -304,7 +307,7 @@
     singular_values = singular_values,
     canonical_values = canonical_values,
     subspace_angles = subspace_angles,
-    geometry_alignment = geometry_alignment,
+    geometry_alignment = alignment,
     tolerance = tolerance,
     ridge = ridge,
     basis_invariance = "orthogonal_left_right"

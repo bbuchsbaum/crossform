@@ -27,64 +27,16 @@
   task
 }
 
+# The raw-measurement half of the two-sided source session. The task is
+# admitted here, in the layer that owns it, and the session wiring itself is
+# `.open_two_sided_source_session()` in R/source.R.
 .open_evidence_task_source_session <- function(
     task, open_descriptor = .open_source_descriptor, shared_opener = NULL) {
-  task <- .validate_raw_measurement_task(task)
-  if (isTRUE(task$same_relation)) {
-    session <- .open_relation_source_session(
-      task$left_relation,
-      open_descriptor = open_descriptor,
-      shared_opener = shared_opener
-    )
-    return(structure(list(
-      read = function(side, partition, features) {
-        if (!side %in% c("left", "right")) {
-          .input_error("Evidence source side must be `left` or `right`.")
-        }
-        session$read(partition, features)
-      },
-      close = session$close,
-      summary = session$summary
-    ), class = "effect_evidence_source_session"))
-  }
-  left <- .open_relation_source_session(
-    task$left_relation,
-    open_descriptor = open_descriptor,
-    shared_opener = shared_opener
+  .open_two_sided_source_session(
+    .validate_raw_measurement_task(task),
+    "effect_evidence_source_session", "Evidence",
+    open_descriptor = open_descriptor, shared_opener = shared_opener
   )
-  right <- tryCatch(
-    .open_relation_source_session(
-      task$right_relation,
-      open_descriptor = open_descriptor,
-      shared_opener = shared_opener
-    ),
-    error = function(error) {
-      left$close()
-      stop(error)
-    }
-  )
-  closed <- FALSE
-  close_both <- function() {
-    if (!closed) {
-      on.exit(right$close(), add = TRUE)
-      left$close()
-      closed <<- TRUE
-    }
-    invisible(NULL)
-  }
-  structure(list(
-    read = function(side, partition, features) {
-      if (identical(side, "left")) {
-        left$read(partition, features)
-      } else if (identical(side, "right")) {
-        right$read(partition, features)
-      } else {
-        .input_error("Evidence source side must be `left` or `right`.")
-      }
-    },
-    close = close_both,
-    summary = function() list(left = left$summary(), right = right$summary())
-  ), class = "effect_evidence_source_session")
 }
 
 .measurement_requested_nodes <- function(task, side = c("left", "right")) {

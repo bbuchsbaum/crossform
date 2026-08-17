@@ -196,6 +196,33 @@
   )
 }
 
+# The one edge-reduction loop behind the four block-reducing coupling views.
+#
+# Each view walks the same completed edge set, pulls the same cross- and
+# self-blocks for each edge, and rbinds one row per edge. They differ in
+# exactly two places, which are the two parameters here:
+#
+#   * `statistic` -- what one edge reduces to. A view that returns `NULL`
+#     reduces to a validation sweep (`.covariance_coupling()` proves every
+#     edge has symmetric positive self-blocks and then reports the raw
+#     blocks); a view that returns a one-row data frame reports one number per
+#     edge; a view that returns several rows reports a spectrum.
+#   * the ridge, which is where the normalization is *placed*. Pearson and
+#     geometry alignment divide by a scalar built from the untouched
+#     self-blocks, so their ridge is zero; canonical coupling whitens by the
+#     inverse square root of the self-blocks, so its ridge has to be applied
+#     inside `.coupling_self_blocks()`, before this loop sees them.
+.coupling_edge_reduce <- function(x, statistic, tolerance = 1e-10,
+                                  ridge_left = 0, ridge_right = 0) {
+  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
+    statistic(.coupling_self_blocks(
+      x, edge, tolerance, ridge_left, ridge_right
+    ))
+  })
+  if (all(vapply(rows, is.null, logical(1)))) return(invisible(NULL))
+  do.call(rbind, rows)
+}
+
 .require_nondegenerate_variation <- function(x) {
   if (!isTRUE(x$capabilities$repeated_variation) ||
       is.null(x$capabilities$sampling_axis)) {
@@ -253,9 +280,7 @@
   .require_measurement_view_capabilities(
     x, "canonical_coupling", positive_self_blocks = TRUE
   )
-  for (edge in seq_len(nrow(x$block_index))) {
-    .coupling_self_blocks(x, edge, tolerance = tolerance)
-  }
+  .coupling_edge_reduce(x, function(blocks) NULL, tolerance)
   .new_coupling_result(
     "covariance_coupling",
     .coupling_blocks(x),
@@ -273,8 +298,7 @@
   .require_measurement_view_capabilities(
     x, "canonical_coupling", positive_self_blocks = TRUE
   )
-  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
-    blocks <- .coupling_self_blocks(x, edge, tolerance = tolerance)
+  values <- .coupling_edge_reduce(x, function(blocks) {
     if (!identical(dim(blocks$cross), c(1L, 1L))) {
       .input_error("Pearson coupling requires rank-one measurement axes.")
     }
@@ -307,10 +331,10 @@
     }
     data.frame(edge_id = blocks$edge_id,
       correlation = max(-1, min(1, value)), stringsAsFactors = FALSE)
-  })
+  }, tolerance)
   .new_coupling_result(
     "pearson_correlation",
-    do.call(rbind, rows),
+    values,
     x,
     normalization_axis = "experimental_samples",
     summary_axis = "measurement_coordinates",
@@ -479,12 +503,7 @@
       "view applies it to its self-blocks."
     ))
   }
-  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
-    blocks <- .coupling_self_blocks(
-      x, edge, tolerance,
-      regularization$lambda_left,
-      regularization$lambda_right
-    )
+  values <- .coupling_edge_reduce(x, function(blocks) {
     left_inverse <- .decomposition_inverse_sqrt(
       blocks$left_regularized, tolerance
     )
@@ -504,10 +523,10 @@
       canonical_correlation = pmin(1, pmax(0, values)),
       stringsAsFactors = FALSE
     )
-  })
+  }, tolerance, regularization$lambda_left, regularization$lambda_right)
   .new_coupling_result(
     "canonical_coupling",
-    do.call(rbind, rows),
+    values,
     x,
     normalization_axis = "experimental_samples",
     summary_axis = "canonical_modes",
@@ -526,8 +545,7 @@
       "Geometry alignment requires a coherent positive joint covariance."
     )
   }
-  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
-    blocks <- .coupling_self_blocks(x, edge, tolerance)
+  values <- .coupling_edge_reduce(x, function(blocks) {
     denominator <- sqrt(sum(blocks$left_self^2) * sum(blocks$right_self^2))
     if (!is.finite(denominator) || denominator <= tolerance) {
       .input_error("Geometry alignment requires nonzero self-geometries.")
@@ -540,10 +558,10 @@
     }
     data.frame(edge_id = blocks$edge_id,
       geometry_alignment = min(1, max(0, value)), stringsAsFactors = FALSE)
-  })
+  }, tolerance)
   .new_coupling_result(
     "geometry_alignment",
-    do.call(rbind, rows),
+    values,
     x,
     normalization_axis = "form_entries",
     summary_axis = "form_entries",

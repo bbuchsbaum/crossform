@@ -594,3 +594,95 @@
   }
   .measurement_frame(legs, injectivity)
 }
+
+# The public edge-frame constructor ------------------------------------------
+#
+# `edge_frame()` and its validator lived in R/evidence-api.R, the public
+# facade, which meant that R/print-methods.R had to call up into layer 6 to
+# validate a value built entirely out of the private constructors above. It is
+# a value, so it lives with the values.
+
+
+.edge_frame_signature <- function(fields) {
+  .sha256_signature(list(
+    schema_version = 1L,
+    from_frame = fields$from_frame$signature,
+    to_frame = fields$to_frame$signature,
+    edges = fields$edges$signature
+  ))
+}
+
+.validate_edge_frame <- function(x) {
+  expected <- c("from_frame", "to_frame", "edges", "signature")
+  if (!.sealed_fields(x, "effect_edge_frame", expected)) {
+    .input_error("`between` must be a canonical `edge_frame()`.")
+  }
+  from <- .validate_measurement_frame(x$from_frame)
+  to <- .validate_measurement_frame(x$to_frame)
+  .validate_measurement_edges(x$edges, from, to)
+  fields <- x[setdiff(names(x), "signature")]
+  .check_signature(
+    x$signature, .edge_frame_signature(fields),
+    "Edge-frame identity is inconsistent."
+  )
+  x
+}
+
+#' Declare requested neural measurement edges
+#'
+#' Every edge is explicit. The constructor never creates all pairs on the
+#' user's behalf. `from` and `to` name neural measurement nodes; the words
+#' `left` and `right` are reserved for experimental relation sides in
+#' [measurement_form()].
+#'
+#' @param from,to Equal-length vectors of node identifiers.
+#' @param frame Measurement frame containing `from` nodes.
+#' @param to_frame Measurement frame containing `to` nodes. Defaults to
+#'   `frame`.
+#' @param weight Optional finite edge weights recorded as part of edge identity.
+#' @return An `effect_edge_frame` for the `between` argument, holding the
+#'   `$from_frame` and `$to_frame` it draws nodes from, the requested
+#'   `$edges` table (`left`, `right`, `weight`), and a `$signature`.
+#' @seealso [measurement_frame()] for the nodes, [measurement_form()] which
+#'   consumes this edge set, and [reconstruct_evidence()], which needs every
+#'   directed pair.
+#' @family neural domains and frames
+#' @examples
+#' native <- abstract_domain(4, id = "demo:native:v1")
+#' nodes <- measurement_frame(
+#'   list(
+#'     anterior = matrix(c(1, 0, 0, 0), 1),
+#'     posterior = matrix(c(0, 1, 0, 0), 1)
+#'   ),
+#'   domain = native, id = "demo:regional-means:v1"
+#' )
+#'
+#' # Request exactly the edges the question needs. A correlation view also
+#' # needs the two self-pairs, because they supply its denominator.
+#' pairs <- expand.grid(
+#'   from = nodes$node_ids, to = nodes$node_ids, stringsAsFactors = FALSE
+#' )
+#' between <- edge_frame(pairs$from, pairs$to, nodes)
+#' between$edges$edges
+#'
+#' # A seed-to-target edge set is just a shorter list; nothing is created on
+#' # your behalf.
+#' edge_frame("anterior", "posterior", nodes)$edges$edges
+#'
+#' # Node names are checked against the frame, so a typo cannot become a
+#' # silently missing edge.
+#' refused <- try(edge_frame("anterior", "postrior", nodes), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
+#' @export
+edge_frame <- function(from, to, frame, to_frame = frame, weight = NULL) {
+  frame <- .validate_measurement_frame(frame)
+  to_frame <- .validate_measurement_frame(to_frame)
+  fields <- list(
+    from_frame = frame,
+    to_frame = to_frame,
+    edges = .measurement_edges(from, to, frame, to_frame, weight)
+  )
+  structure(c(fields, list(
+    signature = .edge_frame_signature(fields)
+  )), class = "effect_edge_frame")
+}

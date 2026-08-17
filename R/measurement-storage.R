@@ -1,4 +1,15 @@
 # Variable-block measurement-form storage ----------------------------------
+#
+# A measurement store is a concatenation of variable-shaped edge blocks laid
+# out end to end and addressed by the `offset_elements` / `length_elements`
+# columns of its block index, plus a `.manifest.rds` sidecar that records
+# which blocks have been written and refuses a second write to any of them.
+# That is a different on-disk format from the dense column-major geometry
+# store in R/storage.R, and the two are not interchangeable: neither one's
+# offset arithmetic addresses the other's payload, and only this one has a
+# sidecar. What the two do share is the transfer primitive, `.tile_io()` in
+# R/primitives.R, which owns the element size, the endianness, and the byte
+# arithmetic for both.
 
 .measurement_block_index <- function(edges, left_frame, right_frame = left_frame) {
   edges <- .validate_measurement_edges(edges, left_frame, right_frame)
@@ -169,18 +180,7 @@
     if (file.exists(path) || file.exists(manifest_path)) {
       .input_error("Refusing to overwrite an existing measurement store.")
     }
-    connection <- file(path, open = "w+b")
-    on.exit(if (!is.null(connection)) try(close(connection), silent = TRUE),
-      add = TRUE)
-    remaining <- sum(index$length_elements)
-    zero <- numeric(min(8192, remaining))
-    while (remaining > 0) {
-      count <- min(remaining, length(zero))
-      writeBin(zero[seq_len(count)], connection, size = 8, endian = "little")
-      remaining <- remaining - count
-    }
-    close(connection)
-    connection <- NULL
+    .tile_zero_fill(path, sum(index$length_elements))
     manifest <- .measurement_store_manifest(
       index, FALSE, rep(FALSE, nrow(index)), "block_backed", expected_bytes
     )
@@ -212,12 +212,8 @@
     read = function(edge) {
       position <- .measurement_edge_position(index, edge)
       row <- index[position, , drop = FALSE]
-      connection <- file(path, open = "rb")
-      on.exit(close(connection), add = TRUE)
-      seek(connection, where = row$offset_elements[[1L]] * 8,
-        origin = "start", rw = "read")
-      values <- readBin(connection, "double",
-        n = row$length_elements[[1L]], size = 8, endian = "little")
+      values <- .tile_io(path, row$offset_elements[[1L]],
+        n = row$length_elements[[1L]])[[1L]]
       matrix(values, row$d_left[[1L]], row$d_right[[1L]])
     },
     signature = .measurement_store_signature(index, manifest)
@@ -239,14 +235,8 @@
   if (persisted$manifest$written[[position]]) {
     .input_error("Refusing to overwrite an already written measurement block.")
   }
-  connection <- file(store$path, open = "r+b")
-  on.exit(if (!is.null(connection)) try(close(connection), silent = TRUE),
-    add = TRUE)
-  seek(connection, where = row$offset_elements[[1L]] * 8,
-    origin = "start", rw = "write")
-  writeBin(as.double(value), connection, size = 8, endian = "little")
-  close(connection)
-  connection <- NULL
+  .tile_io(store$path, row$offset_elements[[1L]], mode = "write",
+    values = list(value))
   persisted$manifest$written[[position]] <- TRUE
   persisted$manifest$complete <- all(persisted$manifest$written)
   saveRDS(persisted, store$manifest_path, version = 3)

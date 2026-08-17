@@ -136,19 +136,9 @@
     }
     q_left * (q_left + 1L) / 2L
   }
-  if (!is.null(query)) {
-    if (.is_pair_difference_query(query)) {
-      .validate_pair_difference_for_task(
-        query, left_effects, right_effects, same_relation
-      )
-    } else if (!is.matrix(query) || !is.numeric(query) ||
-        nrow(query) != physical_width || ncol(query) < 1L ||
-        any(!is.finite(query))) {
-      .contract_error(
-        "`query` must match the finite physical form coordinates."
-      )
-    }
-  }
+  .validate_task_query(
+    query, physical_width, left_effects, right_effects, same_relation
+  )
   feature_block <- .validate_tile_size(feature_block, "feature_block")
   row_tile <- .validate_tile_size(row_tile, "row_tile")
   coordinate_tile <- .validate_tile_size(coordinate_tile, "coordinate_tile")
@@ -456,14 +446,10 @@
   }
   q <- length(effects)
   packed_width <- q * (q + 1L) / 2L
-  structured_query <- !is.null(query) && .is_pair_difference_query(query)
-  if (structured_query) {
-    .validate_pair_difference_for_task(query, effects, effects, TRUE)
-  } else if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
-      nrow(query) != packed_width || ncol(query) < 1L ||
-      any(!is.finite(query)))) {
-    .contract_error("`query` must match the finite packed effect coordinates.")
-  }
+  structured_query <- .validate_task_query(
+    query, packed_width, effects, effects, TRUE,
+    what = "packed effect coordinates"
+  )
   operators <- if (is.null(query) || structured_query) {
     NULL
   } else {

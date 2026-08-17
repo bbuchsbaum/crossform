@@ -143,36 +143,10 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
   )
 }
 
-.new_effect_contrast_view <- function(total, coherent, marginals, weights,
-                                      index, receipt) {
-  total <- drop(total)
-  coherent <- drop(coherent)
-  configuration <- total - coherent
-  signed <- lapply(marginals, function(value) drop(value %*% weights))
-  if (identical(attr(marginals, "semantics"), "undirected_endpoint")) {
-    signed <- signed$endpoint
-  }
-  fraction_valid <- is.finite(total) & total > 0 & coherent >= 0 &
-    configuration >= 0
-  coherence_fraction <- rep(NA_real_, length(total))
-  coherence_fraction[fraction_valid] <- coherent[fraction_valid] /
-    total[fraction_valid]
-
-  structure(
-    list(
-      signed = signed,
-      coherent = coherent,
-      configuration = configuration,
-      total = total,
-      coherence_fraction = coherence_fraction,
-      coherence_fraction_valid = fraction_valid,
-      weights = weights,
-      index = index,
-      receipt = receipt
-    ),
-    class = "effect_contrast_view"
-  )
-}
+# `.new_effect_contrast_view()` is the `effect_contrast_view` record itself and
+# now lives in R/result.R with the other result records, because the executor
+# builds one directly on the query-first path and had to reach up into this
+# view file to do it.
 
 .self_geometry_source <- function(x, operation, complete = FALSE) {
   if (inherits(x, "effect_geometry_plan")) {
