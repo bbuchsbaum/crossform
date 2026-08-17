@@ -122,6 +122,21 @@ rank_edges <- function(ties = c("average", "first", "last", "min", "max")) {
   )
 }
 
+# The reducer's validator, beside the reducer. It was written in
+# `R/pairing.R`, one file above, so the record and the only statement of what
+# makes it canonical sat on opposite sides of a cycle: operations called up to
+# pairing to check a value pairing had called down to operations to build.
+.validate_partition_reducer <- function(reducer) {
+  expected <- c("kind", "weight_convention", "order")
+  if (!.sealed_fields(reducer, "effect_partition_reducer", expected) ||
+      !identical(reducer$kind, "weighted_sum") ||
+      !identical(reducer$weight_convention, "normalized_unit_mass") ||
+      !reducer$order %in% c("edge_first", "aggregate_first")) {
+    .input_error("Partition reducer fields are missing or noncanonical.")
+  }
+  invisible(reducer)
+}
+
 #' Reduce normalized and transformed partition edges
 #'
 #' This is the default estimand: normalize each declared edge, transform it,

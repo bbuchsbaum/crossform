@@ -1,10 +1,5 @@
 # Condition-vocabulary effect maps ------------------------------------------
 
-.validate_nonempty_id <- function(value, name) {
-  .check_string(value, name, what = "one nonempty identifier")
-  unname(value)
-}
-
 .validate_positive_scale <- function(value, size, name = "scale") {
   if (!.is_finite_numeric(value) || !length(value) %in% c(1L, size) ||
       anyNA(value) || any(value <= 0)) {

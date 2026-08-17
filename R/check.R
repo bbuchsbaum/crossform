@@ -103,6 +103,17 @@
   x
 }
 
+# One nonempty identifier, unnamed. Identifiers reach the package as elements
+# of named vectors often enough that the `unname()` is part of the contract:
+# an id that carried its own name would put that name into a signature.
+# It lived in `R/effect-map.R` because a map was the first record with ids in
+# it, which made `study-facts.R`, `study.R`, `design-model.R` and
+# `observation-model.R` all appear to depend on effect maps to spell a string.
+.validate_nonempty_id <- function(value, name) {
+  .check_string(value, name, what = "one nonempty identifier")
+  unname(value)
+}
+
 # One TRUE or FALSE. NA is not a flag: a guard that admitted it would push the
 # three-valued logic downstream into an `if` that errors far from the cause.
 .check_flag <- function(x, arg, what = "TRUE or FALSE") {

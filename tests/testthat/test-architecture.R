@@ -21,6 +21,12 @@ layer_of <- c(
   "check.R" = 1L, "RcppExports.R" = 1L,
 
   ## 2. values — domain, frame, pairing, relation, effect space, metric values
+  ## Layer 2 has an internal order of its own, recorded in
+  ## design/architecture.md under "The value order": spaces -> maps and
+  ## extractors -> sources -> relations -> fits -> queries, pairings and
+  ## frames. It is not enforced numerically here, because a value file may
+  ## call sideways; what the order buys is that layer 2 now contains no
+  ## cycle at all, which the receipt test below relies on.
   "domain.R" = 2L, "frame.R" = 2L, "pairing.R" = 2L, "relation.R" = 2L,
   "effect-space.R" = 2L, "effect-map.R" = 2L, "metric.R" = 2L,
   "metric-learning.R" = 2L, "source.R" = 2L, "study.R" = 2L,
@@ -31,6 +37,7 @@ layer_of <- c(
   "compute-policy.R" = 2L, "memory-plan.R" = 2L, "capabilities.R" = 2L,
   "validation-memo.R" = 2L, "measurement.R" = 2L,
   "measurement-storage.R" = 2L, "relation-fit.R" = 2L,
+  "relation-session.R" = 2L,
   "residual-statistics.R" = 2L, "bridge.R" = 2L, "crossform-package.R" = 2L,
 
   ## 3. plans — scientific estimands and their identities
@@ -197,18 +204,39 @@ test_that("a receipt records canonical values and depends on none of them", {
   #
   # The list below is that fifteen-file component as design/architecture.md
   # recorded it, minus `receipt.R`. Files may still call *into* the receipt --
-  # `relation.R` and `study-facts.R` do -- and that is the direction the
-  # design wants. What must stay empty is the other one.
+  # `relation.R` and `study-facts.R` did, until the value they were calling
+  # for moved out of it -- and that is the direction the design wants. What
+  # must stay empty is the other one.
+  #
+  # `capabilities.R` is not on the list, and its absence is the point of the
+  # second assertion. `source_capabilities()` and its validator were defined
+  # in `receipt.R`, because a receipt is where a capability is finally
+  # written down; but `relation.R`, `relation-fit.R`, and `study-facts.R` all
+  # have to *state* a capability long before any receipt exists, so the
+  # record moved to `capabilities.R`, the file named for it, and the receipt
+  # now calls down to the value it records. That is a legitimate edge and a
+  # list check cannot tell it from an illegitimate one. What distinguishes
+  # them is whether it closes a loop, so that is what is asserted.
   dir <- find_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
-  value_cycle <- c("capabilities.R", "effect-map.R", "effect-space.R",
+  value_cycle <- c("effect-map.R", "effect-space.R",
     "extractor.R", "measurement.R", "memory-plan.R", "metric.R",
     "operations.R", "pairing.R", "relation-fit.R", "relation.R", "scope.R",
     "source.R", "study-facts.R")
   offending <- edges[edges$from == "receipt.R" & edges$to %in% value_cycle, ]
 
   expect_identical(describe_edges(offending), character())
+
+  # Nothing the receipt calls may reach the receipt again, by any route.
+  reachable <- character()
+  frontier <- unique(edges$to[edges$from == "receipt.R"])
+  while (length(frontier)) {
+    reachable <- union(reachable, frontier)
+    frontier <- setdiff(unique(edges$to[edges$from %in% frontier]), reachable)
+  }
+
+  expect_false("receipt.R" %in% reachable)
 })
 
 test_that("primitives depend on nothing above the primitive layer", {
@@ -238,4 +266,43 @@ test_that("values never reach into the compiler or the executor", {
   }
 
   expect_identical(setdiff(pairs, allowed_upward), character())
+})
+
+test_that("the evidence-sampling triple is a DAG", {
+  # The layering test above only orders files across layers; these three sit
+  # together in layer 3 and so are free to call sideways. Their intended
+  # order is the data flow -- plan (evidence-sampling.R) -> covariance kernel
+  # -> relation-fit product -- and nothing enforces it but this test. A single
+  # sideways call back down the flow turns the triple into one component and
+  # makes the three files unreadable in isolation, which is what ticket C3
+  # removed; see design/architecture.md, "The evidence-sampling triple".
+  dir <- find_source_dir()
+  skip_if(is.null(dir), "package sources are not available under this runner")
+  triple <- c("evidence-sampling.R", "evidence-sampling-kernel.R",
+    "evidence-sampling-product.R")
+  edges <- internal_call_graph(dir)
+  induced <- edges[edges$from %in% triple & edges$to %in% triple, ]
+
+  # Transitive closure of the induced subgraph (Floyd-Warshall over three
+  # nodes). A file that reaches itself sits on a cycle, whether that cycle is
+  # a mutual pair or the full three-step loop.
+  reach <- matrix(FALSE, length(triple), length(triple),
+    dimnames = list(triple, triple))
+  if (nrow(induced)) {
+    reach[cbind(induced$from, induced$to)] <- TRUE
+  }
+  for (k in triple) {
+    for (i in triple) {
+      if (reach[i, k]) reach[i, ] <- reach[i, ] | reach[k, ]
+    }
+  }
+  on_cycle <- triple[as.logical(diag(reach))]
+
+  # Report the offending edges, not just the file names, so a failure names
+  # the call to move rather than sending the reader back to the call graph.
+  expect_identical(
+    if (length(on_cycle)) describe_edges(induced) else character(),
+    character()
+  )
+  expect_identical(on_cycle, character())
 })

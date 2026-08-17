@@ -144,19 +144,19 @@
   separable <- present && identical(model$kind, "separable_glm")
   residuals <- present &&
     inherits(model$residual_source, "effect_residual_source")
-  covariance <- present && is.matrix(model$effect_covariance)
+  has_covariance <- present && is.matrix(model$effect_covariance)
   degrees <- present && is.integer(model$residual_df) &&
     length(model$residual_df) == 1L && !is.na(model$residual_df) &&
     model$residual_df >= 1L
   structure(list(
     error_model = present,
     residual_blocks = residuals,
-    effect_covariance = covariance,
+    effect_covariance = has_covariance,
     residual_df = degrees,
     separable_error = separable,
     learned_metric_input = residuals,
     within_participant_calibration = separable && residuals &&
-      covariance && degrees
+      has_covariance && degrees
   ), class = "effect_error_capabilities")
 }
 
@@ -285,6 +285,16 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
   }
   .record_validated(x, "relation_fit", deep)
   invisible(x)
+}
+
+# `relation_block()` accepts a fit as well as a relation. What that means is
+# stated here, in the file that owns the fit: check the fit's own fields, then
+# hand back the relation inside it. The generic belongs to `relation.R`, so
+# the convenience reads the same to a caller and costs the relation no
+# knowledge of what a fit is.
+.as_read_relation.effect_relation_fit <- function(x) {
+  .validate_relation_fit(x, deep = FALSE)
+  x$relation
 }
 
 .partition_values <- function(value, partitions, what, allow_null = FALSE) {

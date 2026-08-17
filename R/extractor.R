@@ -121,7 +121,7 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
 }
 
 .resolve_observation_whitener <- function(observation_whitener, whiten,
-                                          observations, legacy_supplied) {
+                                          n_observations, legacy_supplied) {
   if (isTRUE(legacy_supplied)) {
     if (!is.null(observation_whitener)) {
       .input_error(
@@ -132,13 +132,14 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
       call. = FALSE)
     observation_whitener <- whiten
   }
-  if (!.is_number(observations, finite = FALSE) || observations < 1L ||
-      observations %% 1 != 0) {
+  if (!.is_number(n_observations, finite = FALSE) || n_observations < 1L ||
+      n_observations %% 1 != 0) {
     .input_error("The observation count must be one positive integer.")
   }
-  observations <- as.integer(observations)
+  n_observations <- as.integer(n_observations)
   if (is.null(observation_whitener)) {
-    semantic <- list(kind = "identity", dim = c(observations, observations))
+    semantic <- list(kind = "identity",
+      dim = c(n_observations, n_observations))
     return(structure(list(
       matrix = NULL,
       identity = TRUE,
@@ -146,7 +147,8 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     ), class = "effect_observation_whitener"))
   }
   if (!.is_finite_matrix(observation_whitener) ||
-      !identical(dim(observation_whitener), c(observations, observations))) {
+      !identical(dim(observation_whitener),
+        c(n_observations, n_observations))) {
     .input_error(paste0(
       "`observation_whitener` must be NULL or a finite square observation ",
       "matrix."
@@ -325,9 +327,10 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     coefficient_whitened_map %*% whitener
   }
   effect_whitened_map <- effects %*% coefficient_whitened_map
-  effect_covariance <- tcrossprod(effect_whitened_map)
-  dimnames(effect_covariance) <- list(coordinate_names, coordinate_names)
-  residual_df <- as.integer(n - rank)
+  coordinate_covariance <- tcrossprod(effect_whitened_map)
+  dimnames(coordinate_covariance) <-
+    list(coordinate_names, coordinate_names)
+  residual_degrees <- as.integer(n - rank)
   extractor <- effect_extractor(
     effects %*% coefficient_map,
     effects = effect_names,
@@ -370,40 +373,14 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
   )
   list(
     extractor = extractor,
-    effect_covariance = effect_covariance,
+    effect_covariance = coordinate_covariance,
     effect_covariance_convention =
       "neural_covariance_factor_excluded",
-    residual_df = residual_df,
+    residual_df = residual_degrees,
     residualize = residualize,
     observation_whitener = observation_whitener$descriptor,
     estimator_provenance = c(semantic, list(signature = .sha256_signature(semantic)))
   )
-}
-
-.validate_effect_names <- function(effects, expected) {
-  if (is.null(effects)) effects <- paste0("effect", seq_len(expected))
-  if (!is.character(effects)) {
-    .input_error(sprintf(
-      "Effect coordinates must be a character vector; received %s.",
-      .msg_value(effects)))
-  }
-  if (length(effects) != expected) {
-    .input_error(sprintf(
-      "Effect coordinates must name %s; received %s (%s).",
-      .msg_count(expected, "coordinate"),
-      .msg_count(length(effects), "name"), .msg_names(effects)))
-  }
-  if (anyNA(effects) || any(!nzchar(effects)) || anyDuplicated(effects)) {
-    .input_error(sprintf(
-      "Effect coordinates must have unique nonempty names%s.",
-      if (anyDuplicated(effects)) {
-        sprintf("; %s appears more than once",
-          .msg_names(unique(effects[duplicated(effects)])))
-      } else {
-        "; some are missing or empty"
-      }))
-  }
-  effects
 }
 
 .validate_effect_extractor <- function(x) {
