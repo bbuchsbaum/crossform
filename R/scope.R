@@ -358,12 +358,20 @@ compile_lowering <- function(frame, query) {
   } else {
     .input_error("Unknown frame representation.")
   }
-  optional_names <- c("index", "domain_kind", "specification", "support_index")
+  # Optional fields keep one canonical order, but they are not all produced
+  # together: `compile_frame()` attaches the leading three (plus
+  # `support_index` for neighborhood scopes), while `.metric_additive_frame()`
+  # attaches `metric_folded` to a declared frame that has none of them. The
+  # admitted trailing block is therefore an ordered *subsequence* of
+  # `optional_names`, not a prefix of it. Unknown names, duplicates, and
+  # reordering are still refused.
+  optional_names <- c("index", "domain_kind", "specification", "support_index",
+    "metric_folded")
   trailing_names <- names(frame)[length(expected_names) +
     seq_len(max(0L, length(frame) - length(expected_names)))]
-  valid_trailing <- identical(trailing_names, character()) ||
-    identical(trailing_names, utils::head(optional_names,
-      length(trailing_names)))
+  positions <- match(trailing_names, optional_names)
+  valid_trailing <- !anyNA(positions) &&
+    (length(positions) < 2L || all(diff(positions) > 0L))
   if (!identical(names(frame)[seq_along(expected_names)], expected_names) ||
       !valid_trailing || anyDuplicated(names(frame))) {
     .input_error("Frame fields are missing or noncanonical.")
@@ -445,7 +453,52 @@ compile_lowering <- function(frame, query) {
       )
     }
   }
+  if (!is.null(frame$metric_folded)) .validate_frame_metric_fold(frame)
   invisible(frame)
+}
+
+# A metric-folded frame is a composed object: its weights are a declared
+# frame's weights times a diagonal metric. Folding rescales every column by
+# that diagonal, so folded weights cannot satisfy the "conservative"
+# column-mass law (nor, generally, the "local" row-mass law) that
+# `.validate_frame_for_compile()` checks. The composed frame therefore
+# declares `normalization = "none"`, which is true of the weights it actually
+# carries, and keeps the frame's declared normalization here as provenance
+# rather than asserting it of the composed weights. `reference_mass` is the
+# per-feature mass a conserving fold must reach -- the metric diagonal -- so
+# `frame_conservation()` can certify the fold instead of comparing against a
+# unit mass the folded weights were never supposed to have.
+.validate_frame_metric_fold <- function(frame) {
+  fold <- frame$metric_folded
+  expected <- c("folded", "declared_normalization", "metric_kind",
+    "metric_signature", "schedule_kind", "composition", "reference_mass")
+  if (!identical(frame$representation, "additive_diagonal")) {
+    .input_error("Only an additive frame can carry a folded metric.")
+  }
+  if (!is.list(fold) || !identical(names(fold), expected) ||
+      !isTRUE(fold$folded) ||
+      !.is_string(fold$declared_normalization) ||
+      !fold$declared_normalization %in% c("none", "local", "conservative") ||
+      !.is_string(fold$metric_kind) || !.is_string(fold$metric_signature) ||
+      !.is_string(fold$schedule_kind) || !.is_string(fold$composition) ||
+      !identical(frame$normalization, "none")) {
+    .input_error("Frame metric-fold provenance is missing or noncanonical.")
+  }
+  reference <- fold$reference_mass
+  if (!is.numeric(reference) || length(reference) != ncol(frame$weights) ||
+      any(!is.finite(reference)) || any(reference < 0)) {
+    .input_error("Frame metric-fold provenance is missing or noncanonical.")
+  }
+  invisible(frame)
+}
+
+# The per-feature mass a frame's columns must carry for local `total`
+# geometries to sum to the whole-support geometry. It is one for a declared
+# frame and the folded metric diagonal for a metric-folded frame, because the
+# global comparator is then read under the same metric.
+.frame_conservation_reference <- function(frame) {
+  fold <- frame$metric_folded
+  if (is.null(fold)) rep(1, ncol(frame$weights)) else fold$reference_mass
 }
 
 .validate_query_for_compile <- function(query) {

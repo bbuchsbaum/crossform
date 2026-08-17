@@ -369,8 +369,13 @@ compile_frame <- function(specification, domain) {
 #' @param x A compiled `effect_frame`.
 #' @param tolerance Nonnegative absolute per-feature mass tolerance.
 #' @return An `effect_frame_conservation` list reporting `conserved`, the
-#'   covered `component` (`"total"`), the frame `normalization`, the maximum
-#'   per-feature mass deviation from one, and the per-feature mass vector.
+#'   covered `component` (`"total"`), the frame `normalization`, its
+#'   `declared_normalization` together with `metric_folded` (whether a
+#'   diagonal metric has been folded into the weights), the maximum
+#'   per-feature deviation from the conserving `reference_mass`, and the
+#'   per-feature mass vector. `reference_mass` is one for a declared frame and
+#'   the folded metric diagonal for a metric-folded one, because that frame's
+#'   global comparator is read under the same metric.
 #' @family neural domains and frames
 #' @seealso [compile_frame()] and the normalization argument of [voxelwise()],
 #'   [searchlights()], [regions()], and [whole_brain()].
@@ -392,13 +397,27 @@ frame_conservation <- function(x, tolerance = 1e-10) {
   .validate_frame_for_compile(x)
   .check_number(tolerance, "tolerance", nonnegative = TRUE)
   mass <- as.numeric(Matrix::colSums(x$weights))
-  max_deviation <- max(abs(mass - 1))
+  # The target mass is one for a declared frame. A frame that has had a
+  # diagonal metric folded into it carries weights `w_xv d_v`, and its global
+  # comparator is read under the same metric, so the conserving target is the
+  # metric diagonal rather than one. Comparing such a frame against one would
+  # report a conservative frame as unconserved purely because of the metric.
+  reference <- .frame_conservation_reference(x)
+  fold <- x$metric_folded
+  max_deviation <- max(abs(mass - reference))
   structure(list(
     conserved = max_deviation <= tolerance,
     component = "total",
     normalization = x$normalization,
+    declared_normalization = if (is.null(fold)) {
+      x$normalization
+    } else {
+      fold$declared_normalization
+    },
+    metric_folded = !is.null(fold),
     max_deviation = max_deviation,
     feature_mass = mass,
+    reference_mass = reference,
     tolerance = tolerance
   ), class = "effect_frame_conservation")
 }

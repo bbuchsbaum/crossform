@@ -602,7 +602,38 @@ metric_capabilities <- function(x) {
   diagonal <- numeric(frame$domain$n_features)
   diagonal[metric$positions] <- diag(metric$value)
   effective <- frame$weights %*% Matrix::Diagonal(x = diagonal)
-  additive_frame(effective, normalization = "none", domain = frame$domain)
+  # The fold scales column `v` by `diagonal[v]`, so the composed weights no
+  # longer satisfy the declared column-mass ("conservative") or row-mass
+  # ("local") law, and declaring one would make the frame validator refuse a
+  # numerically correct operator. The composed frame therefore declares
+  # `normalization = "none"` -- the truth about the weights it carries -- and
+  # records the declared normalization as provenance under `$metric_folded`,
+  # so a reader can still tell what the weights were before composition and
+  # that they are post-composition now.
+  #
+  # Conservation survives the fold. For a conservative frame
+  # `sum_x w_xv d_v = d_v`, which is exactly the whole-support mass of feature
+  # `v` read under the same diagonal metric, so `sum_x G_x = G_Omega` still
+  # holds against the metric-folded global comparator. `reference_mass` is
+  # that per-feature target, which is what `frame_conservation()` and
+  # `.metric_frame_conservation()` certify against.
+  folded <- additive_frame(effective, normalization = "none",
+    domain = frame$domain)
+  folded$metric_folded <- list(
+    folded = TRUE,
+    declared_normalization = frame$normalization,
+    metric_kind = if (isTRUE(metric$capabilities$native_diagonal)) {
+      "native_diagonal"
+    } else {
+      "feature_additive"
+    },
+    metric_signature = metric$signature,
+    schedule_kind = schedule$kind,
+    composition = "diagonal_metric_fold",
+    reference_mass = diagonal
+  )
+  .validate_frame_for_compile(folded)
+  folded
 }
 
 #' Identify an oriented coherent neural functional
@@ -980,6 +1011,13 @@ metric_components <- function(metric, coherent = NULL) {
   additive <- all(vapply(composed, function(value) {
     value$metric$capabilities$feature_additive
   }, logical(1)))
+  # The composed diagonals must sum to the mass the frame's columns are meant
+  # to carry: one for a declared frame, and the folded metric diagonal for a
+  # frame that already has a diagonal metric folded in, whose global
+  # comparator is read under that same metric. This keeps the certificate
+  # agreeing with `frame_conservation()` on the same frame.
+  fold <- frame$metric_folded
+  reference <- .frame_conservation_reference(frame)
   global_diagonal <- NULL
   identity_conservation <- FALSE
   if (additive) {
@@ -988,7 +1026,7 @@ metric_components <- function(metric, coherent = NULL) {
       global_diagonal[value$metric$positions] <-
         global_diagonal[value$metric$positions] + diag(value$metric$value)
     }
-    identity_conservation <- max(abs(global_diagonal - 1)) <= tolerance
+    identity_conservation <- max(abs(global_diagonal - reference)) <= tolerance
   }
   semantic <- list(
     schema_version = 1L,
@@ -998,6 +1036,13 @@ metric_components <- function(metric, coherent = NULL) {
     }, character(1)),
     feature_additive = additive,
     global_diagonal = global_diagonal,
+    reference_mass = reference,
+    metric_folded = !is.null(fold),
+    declared_normalization = if (is.null(fold)) {
+      frame$normalization
+    } else {
+      fold$declared_normalization
+    },
     identity_conservation = identity_conservation,
     tolerance = tolerance
   )
@@ -1006,6 +1051,13 @@ metric_components <- function(metric, coherent = NULL) {
     global_metric_kind = if (additive) "native_diagonal" else
       "support_pair_operator",
     global_diagonal = global_diagonal,
+    reference_mass = reference,
+    metric_folded = !is.null(fold),
+    declared_normalization = if (is.null(fold)) {
+      frame$normalization
+    } else {
+      fold$declared_normalization
+    },
     identity_conservation = identity_conservation,
     reason = if (!additive) {
       paste0(
@@ -1013,9 +1065,18 @@ metric_components <- function(metric, coherent = NULL) {
         "metric schedule."
       )
     } else if (!identity_conservation) {
-      "The summed diagonal metric is not the native identity metric."
-    } else {
+      if (is.null(fold)) {
+        "The summed diagonal metric is not the native identity metric."
+      } else {
+        "The summed diagonal metric is not the folded reference mass."
+      }
+    } else if (is.null(fold)) {
       "The composed feature-additive metrics resolve the native identity."
+    } else {
+      paste0(
+        "The composed feature-additive metrics resolve the folded metric ",
+        "diagonal."
+      )
     },
     signature = .sha256_signature(semantic)
   ), class = "effect_metric_conservation")

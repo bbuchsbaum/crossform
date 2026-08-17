@@ -13,8 +13,13 @@ frame_conservation(x, tolerance = 1e-10)
 }
 \value{
 An \code{effect_frame_conservation} list reporting \code{conserved}, the
-covered \code{component} (\code{"total"}), the frame \code{normalization}, the maximum
-per-feature mass deviation from one, and the per-feature mass vector.
+covered \code{component} (\code{"total"}), the frame \code{normalization}, its
+\code{declared_normalization} together with \code{metric_folded} (whether a
+diagonal metric has been folded into the weights), the maximum
+per-feature deviation from the conserving \code{reference_mass}, and the
+per-feature mass vector. \code{reference_mass} is one for a declared frame and
+the folded metric diagonal for a metric-folded one, because that frame's
+global comparator is read under the same metric.
 }
 \description{
 Under a conservative frame every domain feature carries total weight mass
