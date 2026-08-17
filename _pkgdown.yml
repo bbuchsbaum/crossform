@@ -52,6 +52,11 @@ articles:
   - failure-gallery
   - correlation-distance-policy
 
+- title: For package authors
+  desc: The surface an extension package may build against, and what is closed to it.
+  contents:
+  - crossform-extending
+
 reference:
 - title: Package overview
   desc: What crossform is for, and the boundaries it will not cross.
