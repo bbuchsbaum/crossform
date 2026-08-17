@@ -60,6 +60,7 @@ Other coupling and connectivity views:
 \code{\link{coupling}()},
 \code{\link{coupling_contrast}()},
 \code{\link{coupling_views}},
+\code{\link{effect_coupling_result}},
 \code{\link{match_control}()},
 \code{\link{measurement_bridge}()},
 \code{\link{measurement_components}()},

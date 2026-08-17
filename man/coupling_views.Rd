@@ -131,6 +131,7 @@ Other coupling and connectivity views:
 \code{\link{control_coupling}()},
 \code{\link{coupling}()},
 \code{\link{coupling_contrast}()},
+\code{\link{effect_coupling_result}},
 \code{\link{match_control}()},
 \code{\link{match_coupling}()},
 \code{\link{measurement_bridge}()},

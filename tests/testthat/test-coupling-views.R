@@ -418,3 +418,172 @@ test_that("coupling() takes the adjoint closure from the plan vocabulary", {
   expect_identical(refusal$reasons, "rectangular_cross_axis_plan")
   expect_match(conditionMessage(refusal), "self-form plan")
 })
+
+# The "one class, seven kinds" contract -------------------------------------
+#
+# `effect_coupling_result` deliberately carries seven scientifically distinct
+# readings in one class, discriminated by `$kind`. That is only honest if the
+# enumeration is closed and the readers really are shared, so both are tested
+# here rather than asserted in a comment. See
+# design/decisions/2026-08-17-coupling-result-kinds.md.
+
+coupling_all_kinds <- function() {
+  scalar <- coupling_test_fixture()
+  multivariate <- coupling_test_fixture(multivariate = TRUE)
+  ridge <- crossform:::.measurement_regularization("ridge", 0.05, 0.05)
+  model <- gaussian_covariance_model(list(assumption = "test fixture"))
+  list(
+    effect_coupling = crossform:::.effect_coupling(scalar$form),
+    covariance_coupling = crossform:::.covariance_coupling(scalar$form),
+    pearson_correlation = crossform:::.pearson_coupling(scalar$form),
+    partitioned_pearson_coupling =
+      crossform:::.partitioned_pearson_coupling(
+        list(scalar$form, scalar$form)
+      ),
+    canonical_coupling =
+      crossform:::.canonical_coupling(multivariate$form, ridge),
+    geometry_alignment =
+      crossform:::.geometry_alignment(multivariate$form),
+    gaussian_mutual_information =
+      crossform:::.gaussian_information(multivariate$form, ridge, model)
+  )
+}
+
+test_that("the coupling kind enumeration is closed and exhaustive", {
+  results <- coupling_all_kinds()
+
+  # Every registered kind is reachable, and every reachable kind is
+  # registered. A view added without a registry entry fails here rather than
+  # quietly widening the class.
+  expect_identical(
+    sort(names(crossform:::.coupling_kinds)), sort(names(results))
+  )
+  expect_identical(
+    sort(vapply(results, function(x) x$kind, character(1)),
+      method = "radix"),
+    sort(names(crossform:::.coupling_kinds), method = "radix"),
+    ignore_attr = TRUE
+  )
+
+  # The enumeration is closed at construction, not merely documented.
+  expect_error(
+    crossform:::.new_coupling_result(
+      "spearman_correlation", results$effect_coupling$values,
+      coupling_test_fixture()$form,
+      normalization_axis = "none",
+      summary_axis = "measurement_coordinates", stage_order = "made_up"
+    ),
+    "kind must be one of", class = "effect_input_error"
+  )
+})
+
+test_that("every coupling kind satisfies the one shared reader contract", {
+  results <- coupling_all_kinds()
+  sealed <- c("kind", "values", "edge_index", "source_plan",
+    "source_receipt", "normalization_axis", "summary_axis", "stage_order",
+    "regularization", "units", "terminology", "partition_policy",
+    "edge_completeness", "signature")
+
+  for (kind in names(results)) {
+    result <- results[[kind]]
+    contract <- crossform:::.coupling_kinds[[kind]]
+    info <- paste0("kind: ", kind)
+
+    # One class. No subclass, so no reader can dispatch per kind by accident.
+    expect_identical(class(result), "effect_coupling_result", info = info)
+    expect_identical(result$kind, kind, info = info)
+
+    # The same fourteen sealed fields, in the same order, for every kind.
+    expect_identical(names(result), sealed, info = info)
+    expect_silent(crossform:::.validate_coupling_result(result))
+
+    # `$values` takes one of exactly two shapes, and the shape a reader must
+    # branch on is derivable from the kind alone.
+    expect_identical(
+      crossform:::.coupling_value_shape(result), contract$shape, info = info
+    )
+    edges <- result$edge_index$edge_id
+    if (contract$shape == "edge_table") {
+      expect_s3_class(result$values, "data.frame")
+      expect_identical(names(result$values), contract$columns, info = info)
+      expect_true(all(result$values$edge_id %in% edges), info = info)
+    } else {
+      expect_type(result$values, "list")
+      expect_false(is.data.frame(result$values), info = info)
+      expect_identical(names(result$values), edges, info = info)
+      expect_true(
+        all(vapply(result$values, is.matrix, logical(1))), info = info
+      )
+    }
+
+    # Fields that record what changed the numbers are present exactly when
+    # the kind changed them.
+    expect_identical(
+      !is.null(result$regularization), contract$regularization, info = info
+    )
+    expect_identical(
+      !is.null(result$partition_policy), contract$partition_policy,
+      info = info
+    )
+
+    # The two registered readers run for every kind and report the kind
+    # itself, rather than branching on it.
+    rendered <- format(result)
+    expect_true(
+      is.character(rendered) && length(rendered) == 1L, info = info
+    )
+    expect_match(rendered, kind, fixed = TRUE)
+    printed <- capture.output(print(result))
+    expect_true(length(printed) > 1L, info = info)
+    expect_true(any(grepl(kind, printed, fixed = TRUE)), info = info)
+  }
+})
+
+test_that("a coupling kind refuses values that disagree with its shape", {
+  fixture <- coupling_test_fixture()
+  blocks <- crossform:::.effect_coupling(fixture$form)$values
+  table <- crossform:::.pearson_coupling(fixture$form)$values
+
+  # A table kind handed blocks, and a block kind handed a table.
+  expect_error(
+    crossform:::.new_coupling_result(
+      "pearson_correlation", blocks, fixture$form,
+      normalization_axis = "experimental_samples",
+      summary_axis = "measurement_coordinates", stage_order = "swapped"
+    ),
+    "reports the columns", class = "effect_contract_error"
+  )
+  expect_error(
+    crossform:::.new_coupling_result(
+      "effect_coupling", table, fixture$form,
+      normalization_axis = "none",
+      summary_axis = "measurement_coordinates", stage_order = "swapped"
+    ),
+    "one matrix block per edge", class = "effect_contract_error"
+  )
+
+  # A table kind whose columns are not the ones its readers were promised.
+  renamed <- table
+  names(renamed)[[2L]] <- "r"
+  expect_error(
+    crossform:::.new_coupling_result(
+      "pearson_correlation", renamed, fixture$form,
+      normalization_axis = "experimental_samples",
+      summary_axis = "measurement_coordinates", stage_order = "renamed"
+    ),
+    "reports the columns", class = "effect_contract_error"
+  )
+
+  # A kind that applied a ridge must say so, and a kind that did not must
+  # not claim one.
+  ridge <- crossform:::.measurement_regularization("ridge", 0.05, 0.05)
+  expect_error(
+    crossform:::.new_coupling_result(
+      "pearson_correlation", table, fixture$form,
+      normalization_axis = "experimental_samples",
+      summary_axis = "measurement_coordinates", stage_order = "extra",
+      regularization = ridge
+    ),
+    "must not record the regularization", class = "effect_contract_error"
+  )
+})
