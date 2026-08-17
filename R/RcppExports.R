@@ -5,3 +5,15 @@
     .Call(`_crossform_fused_pair_difference_atoms_cpp`, left_blocks, right_blocks, left_index, right_index, edge_weight, pair_left, pair_right)
 }
 
+.local_residual_gather_cpp <- function(column_ptr, row_index, values, support) {
+    .Call(`_crossform_local_residual_gather_cpp`, column_ptr, row_index, values, support)
+}
+
+.packed_effect_form_atoms_cpp <- function(left_blocks, right_blocks, left_index, right_index, edge_weight, packed) {
+    .Call(`_crossform_packed_effect_form_atoms_cpp`, left_blocks, right_blocks, left_index, right_index, edge_weight, packed)
+}
+
+.coherent_effect_form_atoms_cpp <- function(left_first, right_first, left_index, right_index, edge_weight, mass, row_start, n_rows, packed) {
+    .Call(`_crossform_coherent_effect_form_atoms_cpp`, left_first, right_first, left_index, right_index, edge_weight, mass, row_start, n_rows, packed)
+}
+

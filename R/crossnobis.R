@@ -154,7 +154,9 @@ noise_precision <- function(value, domain, support = NULL,
 .learned_crossnobis_memory_plan <- function(fit, frame, support_index, over,
                                             compute) {
   relation <- fit$relation
-  support_index <- .validate_support_index(support_index)
+  support_index <- .support_index_materialize_pair_pattern(
+    .validate_support_index(support_index)
+  )
   .validate_pairing(over)
   support_sizes <- support_index$cost$support_size
   k <- as.double(support_sizes[["max"]])

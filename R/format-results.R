@@ -179,6 +179,30 @@ print.effect_rdm_sampling_covariance <- function(x, ...) {
   cat("  residual:     ", .pf_residual_noise(x$source), "\n", sep = "")
   cat("  storage:      exact factorized covariance\n", sep = "")
   cat("  spatial law:  local marginal only\n", sep = "")
+  if (!is.null(x$source$execution)) {
+    cat("  execution:    ", x$source$execution$route, " / ",
+      x$source$execution$residual_strategy, "\n", sep = "")
+  }
+  invisible(x)
+}
+
+#' @export
+print.effect_rdm_sampling_covariance_batch <- function(x, ...) {
+  if (!length(x) || !inherits(x[[1L]], "effect_rdm_sampling_covariance")) {
+    .input_error("`x` must come from `rdm_sampling_covariance()`.")
+  }
+  first <- x[[1L]]
+  execution <- first$source$execution
+  cat("<effect_rdm_sampling_covariance_batch>\n", sep = "")
+  cat("  measurements: ", length(x), "\n", sep = "")
+  cat("  distances:    ", first$dimension, "\n", sep = "")
+  if (!is.null(execution)) {
+    cat("  execution:    ", execution$route, " / ",
+      execution$residual_strategy, "\n", sep = "")
+    cat("  shared residual statistics: ",
+      if (isTRUE(execution$shared_residual_statistics)) "yes" else "no",
+      "\n", sep = "")
+  }
   invisible(x)
 }
 

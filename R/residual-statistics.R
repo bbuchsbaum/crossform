@@ -18,11 +18,13 @@
       "The residual fit and support index use different neural domains."
     )
   }
-  index
+  .support_index_materialize_pair_pattern(index)
 }
 
 .residual_pair_coordinates <- function(index) {
-  index <- .validate_support_index(index)
+  index <- .support_index_materialize_pair_pattern(
+    .validate_support_index(index)
+  )
   pattern <- methods::as(index$pair_pattern, "CsparseMatrix")
   columns <- rep.int(seq_len(ncol(pattern)), diff(pattern@p))
   rows <- as.integer(pattern@i + 1L)

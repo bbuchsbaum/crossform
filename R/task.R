@@ -72,6 +72,52 @@
   )
 }
 
+.packed_effect_form_atoms_oracle <- function(left_relations, right_relations,
+                                             left_index, right_index,
+                                             edge_weight, codec) {
+  q_left <- nrow(left_relations[[1L]])
+  q_right <- nrow(right_relations[[1L]])
+  n_features <- ncol(left_relations[[1L]])
+  packed <- identical(codec, "symmetric_packed")
+  n_coords <- if (packed) {
+    as.integer(q_left * (q_left + 1L) / 2L)
+  } else {
+    q_left * q_right
+  }
+  atoms <- matrix(0, n_features, n_coords)
+  coordinate <- 0L
+  for (column in seq_len(q_right)) {
+    rows <- if (packed) column:q_left else seq_len(q_left)
+    for (row in rows) {
+      coordinate <- coordinate + 1L
+      work <- numeric(n_features)
+      for (edge in seq_along(edge_weight)) {
+        work <- work + edge_weight[[edge]] *
+          left_relations[[left_index[[edge]]]][row, ] *
+          right_relations[[right_index[[edge]]]][column, ]
+      }
+      if (packed && row != column) {
+        work <- sqrt(2) * work
+      }
+      atoms[, coordinate] <- work
+    }
+  }
+  atoms
+}
+
+.packed_effect_form_atoms <- function(left_relations, right_relations,
+                                      left_index, right_index,
+                                      edge_weight, codec) {
+  .packed_effect_form_atoms_cpp(
+    unname(left_relations),
+    unname(right_relations),
+    as.integer(left_index),
+    as.integer(right_index),
+    as.numeric(edge_weight),
+    identical(codec, "symmetric_packed")
+  )
+}
+
 # The universal numerical primitive. Every edge forms one ordered outer
 # product; symmetry is supplied only by an explicit reverse half-edge.
 .effect_form_feature_task <- function(left_relations, right_relations,
@@ -110,7 +156,8 @@
   max_atom_work_bytes <- if (!form_atoms) {
     0
   } else if (is.null(query)) {
-    8 * feature_count
+    # Native packed/rectangular accumulation writes directly to atoms.
+    0
   } else if (structured_query) {
     # Native fused evaluation writes directly to atoms. Difference and
     # product tiles are never allocated, and there is no per-tile gc().
@@ -132,33 +179,15 @@
       )
     }
   } else if (form_atoms && is.null(query)) {
-    coordinate <- 0L
-    for (column in seq_len(q_right)) {
-      rows <- if (identical(validated$codec, "symmetric_packed")) {
-        column:q_left
-      } else {
-        seq_len(q_left)
-      }
-      for (row in rows) {
-        coordinate <- coordinate + 1L
-        work <- numeric(length(feature_ids))
-        for (edge in seq_len(nrow(ordered_edges))) {
-          left <- left_relations[[left_index[[edge]]]]
-          right <- right_relations[[right_index[[edge]]]]
-          work <- work + ordered_edges$weight[[edge]] *
-            left[row, ] * right[column, ]
-        }
-        if (identical(validated$codec, "symmetric_packed") && row != column) {
-          work <- sqrt(2) * work
-        }
-        if (any(!is.finite(work))) {
-          .input_error(
-            paste0("Effect-form atom formation produced non-finite values.",
-          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
-          )
-        }
-        atoms[, coordinate] <- work
-      }
+    atoms <- .packed_effect_form_atoms(
+      left_relations, right_relations, left_index, right_index,
+      ordered_edges$weight, validated$codec
+    )
+    if (any(!is.finite(atoms))) {
+      .input_error(
+        paste0("Effect-form atom formation produced non-finite values.",
+      " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+      )
     }
   } else if (form_atoms) {
     for (view in seq_len(ncol(query))) {

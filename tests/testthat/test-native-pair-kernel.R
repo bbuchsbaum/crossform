@@ -132,7 +132,7 @@ test_that("fused RDM and RSA agree with memory and block materialization", {
     fused_rdm$receipt$kernel_version, "additive-query-fused-native-v1"
   )
   expect_identical(
-    late_rdm$receipt$kernel_version, "additive-effect-form-v2"
+    late_rdm$receipt$kernel_version, "additive-packed-native-v1"
   )
   direct <- evaluate_geometry(
     plan,

@@ -13,7 +13,8 @@ sampling_covariance(
 )
 }
 \arguments{
-\item{x}{An object from \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}.}
+\item{x}{An object from \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, or a batch of those
+objects. A batch returns one result per measurement.}
 
 \item{operation}{One exact covariance operation.}
 

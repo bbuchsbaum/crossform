@@ -1027,25 +1027,13 @@
     rows <- row_start:min(row_start + row_tile - 1L, measurements)
     tile <- matrix(0, length(rows), output_width)
     if (is.null(query)) {
-      coordinate <- 0L
-      for (column in seq_len(q_right)) {
-        form_rows <- if (codec == "symmetric_packed") column:q_left else
-          seq_len(q_left)
-        for (row in form_rows) {
-          coordinate <- coordinate + 1L
-          work <- numeric(length(rows))
-          for (edge in seq_len(nrow(ordered_edges))) {
-            work <- work + ordered_edges$weight[[edge]] *
-              left_first[rows, row, left_index[[edge]]] *
-              right_first[rows, column, right_index[[edge]]]
-          }
-          work <- work / mass[rows]
-          if (codec == "symmetric_packed" && row != column) {
-            work <- sqrt(2) * work
-          }
-          tile[, coordinate] <- work
-        }
-      }
+      tile <- .coherent_effect_form_atoms_cpp(
+        left_first, right_first,
+        as.integer(left_index), as.integer(right_index),
+        as.numeric(ordered_edges$weight), as.numeric(mass),
+        as.integer(rows[[1L]]), as.integer(length(rows)),
+        identical(codec, "symmetric_packed")
+      )
     } else if (structured_query) {
       pair_tile <- matrix(0, length(rows), length(query$pair_left))
       for (edge in seq_len(nrow(ordered_edges))) {

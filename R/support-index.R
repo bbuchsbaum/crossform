@@ -17,14 +17,13 @@
 }
 
 .support_index_signature <- function(domain, node_ids, ptr, members,
-                                     pair_pattern, construction) {
+                                     construction) {
   semantic <- list(
     schema_version = 1L,
     domain = domain$signature,
     node_ids = node_ids,
     ptr = ptr,
     members = members,
-    pair_pattern = .support_index_pattern_identity(pair_pattern),
     construction = construction
   )
   .sha256_signature(semantic)
@@ -41,24 +40,38 @@
 .support_index_cost <- function(domain, node_ids, ptr, members,
                                 pair_pattern, construction) {
   sizes <- diff(ptr)
-  diagonal <- as.numeric(Matrix::diag(pair_pattern) != 0)
-  degree <- as.numeric(Matrix::colSums(pair_pattern)) - diagonal
-  structural_bytes <- sum(vapply(list(
+  payload <- list(
     domain = domain,
     node_ids = node_ids,
     ptr = ptr,
     members = members,
-    pair_pattern = pair_pattern,
     construction = construction
-  ), function(value) as.double(utils::object.size(value)), numeric(1)))
+  )
+  if (!is.null(pair_pattern)) {
+    payload$pair_pattern <- pair_pattern
+    diagonal <- as.numeric(Matrix::diag(pair_pattern) != 0)
+    degree <- as.numeric(Matrix::colSums(pair_pattern)) - diagonal
+    pair_pattern_nnz <- as.double(Matrix::nnzero(pair_pattern))
+    pair_pattern_stored_nnz <- as.double(length(pair_pattern@i))
+    union_degree <- .support_index_summary(degree)
+  } else {
+    pair_pattern_nnz <- NA_real_
+    pair_pattern_stored_nnz <- NA_real_
+    union_degree <- stats::setNames(
+      rep(NA_real_, 4L), c("min", "median", "mean", "max")
+    )
+  }
+  structural_bytes <- sum(vapply(payload, function(value) {
+    as.double(utils::object.size(value))
+  }, numeric(1)))
   structure(list(
     nodes = as.double(length(node_ids)),
     features = as.double(domain$n_features),
     support_memberships = as.double(length(members)),
     support_size = .support_index_summary(sizes),
-    pair_pattern_nnz = as.double(Matrix::nnzero(pair_pattern)),
-    pair_pattern_stored_nnz = as.double(length(pair_pattern@i)),
-    union_degree = .support_index_summary(degree),
+    pair_pattern_nnz = pair_pattern_nnz,
+    pair_pattern_stored_nnz = pair_pattern_stored_nnz,
+    union_degree = union_degree,
     diagonal_metric_entries = sum(sizes),
     dense_metric_entries = sum(sizes^2),
     one_dense_factorization_pass_units = sum(sizes^3),
@@ -87,8 +100,11 @@
 }
 
 .support_index_from_membership <- function(membership, domain, node_ids,
-                                           construction) {
+                                           construction,
+                                           pair_pattern_route = c("lazy",
+                                                                  "eager")) {
   .validate_domain(domain)
+  pair_pattern_route <- match.arg(pair_pattern_route)
   if (!inherits(membership, "Matrix") || length(dim(membership)) != 2L ||
       any(dim(membership) < 1L) || ncol(membership) != domain$n_features) {
     .input_error(paste0(
@@ -110,13 +126,17 @@
   row_membership <- methods::as(membership, "RsparseMatrix")
   ptr <- as.double(row_membership@p)
   members <- as.integer(row_membership@j + 1L)
-  pair_pattern <- .support_pair_pattern(membership)
+  pair_pattern <- if (identical(pair_pattern_route, "eager")) {
+    .support_pair_pattern(membership)
+  } else {
+    NULL
+  }
   domain_reference <- domain$reference
   cost <- .support_index_cost(
     domain_reference, node_ids, ptr, members, pair_pattern, construction
   )
   signature <- .support_index_signature(
-    domain_reference, node_ids, ptr, members, pair_pattern, construction
+    domain_reference, node_ids, ptr, members, construction
   )
   structure(list(
     domain = domain_reference,
@@ -127,11 +147,41 @@
     construction = construction,
     cost = cost,
     signature = signature
-  ), class = "effect_support_index")
+  ), class = "effect_support_index", pair_pattern_route = pair_pattern_route)
+}
+
+.support_index_pair_pattern_route <- function(index) {
+  route <- attr(index, "pair_pattern_route", exact = TRUE)
+  if (is.null(route)) {
+    if (is.null(index$pair_pattern)) "lazy" else "eager"
+  } else {
+    route
+  }
+}
+
+.support_index_materialize_pair_pattern <- function(index) {
+  if (!is.null(index$pair_pattern)) {
+    return(index)
+  }
+  index <- .validate_support_index(index)
+  membership <- .support_index_membership(index)
+  pair_pattern <- .support_pair_pattern(membership)
+  index$pair_pattern <- pair_pattern
+  index$cost <- .support_index_cost(
+    index$domain, index$node_ids, index$ptr, index$members,
+    pair_pattern, index$construction
+  )
+  index
+}
+
+.support_index_pair_pattern <- function(index) {
+  .support_index_materialize_pair_pattern(index)$pair_pattern
 }
 
 .support_index_from_members <- function(members, domain, node_ids,
-                                        construction) {
+                                        construction,
+                                        pair_pattern_route = c("lazy",
+                                                               "eager")) {
   .validate_domain(domain)
   if (!is.list(members) || length(members) < 1L) {
     .input_error("Support members must be a nonempty list.")
@@ -150,7 +200,8 @@
     dims = c(length(members), domain$n_features)
   )
   .support_index_from_membership(
-    membership, domain, node_ids, construction
+    membership, domain, node_ids, construction,
+    pair_pattern_route = pair_pattern_route
   )
 }
 
@@ -492,10 +543,11 @@
       any(index$members > domain$n_features)) {
     .input_error("Support-index nodes or CSR membership are invalid.")
   }
-  if (!inherits(index$pair_pattern, "symmetricMatrix") ||
-      !inherits(index$pair_pattern, "nMatrix") ||
-      !identical(as.integer(dim(index$pair_pattern)),
-        c(domain$n_features, domain$n_features))) {
+  if (!is.null(index$pair_pattern) &&
+      (!inherits(index$pair_pattern, "symmetricMatrix") ||
+       !inherits(index$pair_pattern, "nMatrix") ||
+       !identical(as.integer(dim(index$pair_pattern)),
+         c(domain$n_features, domain$n_features)))) {
     .input_error("Support-index pair pattern is invalid.")
   }
   if (!is.list(index$construction) ||
@@ -516,12 +568,16 @@
         "Support-index CSR rows must be strictly increasing and unique."
       )
     }
-    membership <- .support_index_membership(index)
-    expected_pattern <- methods::as(
-      Matrix::crossprod(membership), "nMatrix"
-    )
-    if (!identical(index$pair_pattern, expected_pattern)) {
-      .contract_error("Support-index pair pattern does not match its supports.")
+    if (!is.null(index$pair_pattern)) {
+      membership <- .support_index_membership(index)
+      expected_pattern <- methods::as(
+        Matrix::crossprod(membership), "nMatrix"
+      )
+      if (!identical(index$pair_pattern, expected_pattern)) {
+        .contract_error(
+          "Support-index pair pattern does not match its supports."
+        )
+      }
     }
     expected_cost <- .support_index_cost(
       domain, index$node_ids, index$ptr, index$members,
@@ -529,7 +585,7 @@
     )
     expected_signature <- .support_index_signature(
       domain, index$node_ids, index$ptr, index$members,
-      index$pair_pattern, index$construction
+      index$construction
     )
     if (!identical(index$cost, expected_cost) ||
         !identical(index$signature, expected_signature)) {

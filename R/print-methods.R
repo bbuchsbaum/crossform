@@ -445,7 +445,11 @@ print.effect_support_index <- function(x, ...) {
     memberships = length(x$members),
     "support size" = paste0("min ", .pf_num(sizes[["min"]]), ", median ",
       .pf_num(sizes[["median"]]), ", max ", .pf_num(sizes[["max"]])),
-    "overlapping pairs" = cost$pair_pattern_stored_nnz,
+    "overlapping pairs" = if (is.na(cost$pair_pattern_stored_nnz)) {
+      "not materialized"
+    } else {
+      cost$pair_pattern_stored_nnz
+    },
     domain = x$domain$id,
     signature = .pf_sig(x$signature)
   ))
@@ -464,8 +468,12 @@ print.effect_support_cost <- function(x, ...) {
     nodes = .pf_num(x$nodes),
     features = .pf_num(x$features),
     memberships = .pf_num(x$support_memberships),
-    "pair pattern" = paste0(.pf_num(x$pair_pattern_stored_nnz),
-      " stored of ", .pf_num(x$pair_pattern_nnz)),
+    "pair pattern" = if (is.na(x$pair_pattern_stored_nnz)) {
+      "not materialized"
+    } else {
+      paste0(.pf_num(x$pair_pattern_stored_nnz),
+        " stored of ", .pf_num(x$pair_pattern_nnz))
+    },
     "diagonal metric" = paste0(.pf_num(x$diagonal_metric_entries), " entries"),
     "dense metric" = paste0(.pf_num(x$dense_metric_entries), " entries, ",
       .pf_bytes(x$materialized_dense_metric_bytes)),

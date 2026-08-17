@@ -589,11 +589,14 @@ compile_metric_schedule <- function(
 }
 
 .local_residual_covariance <- function(index, support, covariance) {
-  index <- .validate_support_index(index)
+  index <- .support_index_materialize_pair_pattern(
+    .validate_support_index(index)
+  )
   .local_residual_covariance_trusted(index, support, covariance)
 }
 
-.local_residual_covariance_trusted <- function(index, support, covariance) {
+.local_residual_covariance_oracle <- function(index, support, covariance) {
+  index <- .support_index_materialize_pair_pattern(index)
   pattern <- index$pair_pattern
   if (!identical(pattern@uplo, "U") ||
       length(covariance) != length(pattern@i)) {
@@ -623,6 +626,14 @@ compile_metric_schedule <- function(
   value
 }
 
+.local_residual_covariance_trusted <- function(index, support, covariance) {
+  # Native CSC gather was prototyped and rejected: isolated speedup was
+  # 1.69x against the R gather (bar: 2x) on 800 supports of mean size 61.
+  # Keep the R gather as the production path; `.local_residual_gather_cpp`
+  # remains as the recorded prototype.
+  .local_residual_covariance_oracle(index, support, covariance)
+}
+
 .local_residual_scope_covariance <- function(statistics, index, support,
                                              partitions) {
   if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
@@ -633,11 +644,14 @@ compile_metric_schedule <- function(
   # This avoids an edge-specific vector over the complete union pair graph
   # while retaining the same elementwise floating-point reduction order.
   partitions <- partitions[order(partitions, method = "radix")]
+  if (is.null(index$pair_pattern)) {
+    index <- .support_index_materialize_pair_pattern(index)
+  }
   combined <- matrix(0, length(support), length(support))
   residual_df <- 0
   for (partition in partitions) {
     atomic <- statistics$atomic[[partition]]
-    local <- .local_residual_covariance_trusted(
+    local <- .local_residual_covariance_oracle(
       index, support, atomic$cross_products
     )
     combined[] <- combined + local

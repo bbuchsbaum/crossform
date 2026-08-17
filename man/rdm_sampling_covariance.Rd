@@ -33,10 +33,13 @@ dominates the true distances. Prefer \code{"null"} for calibrating a test of
 no effect, where it is exact; use \code{"plugin"} when reporting uncertainty
 around an estimated nonzero distance and read it as mildly conservative.}
 
-\item{at}{One measurement position or identifier in the compiled frame.
-Required, with no default: the analytic law is local, so a covariance
-without a named measurement would be a covariance of nothing in
-particular. One measurement per call.}
+\item{at}{One measurement position, or a vector of positions, in the
+compiled frame. Required, with no default: the analytic law is local, so
+a covariance without a named measurement would be a covariance of
+nothing in particular. A length-1 \code{at} keeps the historical single-node
+object. A longer \code{at} compiles the plan, contrast transport, and any
+eligible shared residual statistics once, then returns one covariance
+object per requested node.}
 
 \item{residual_strategy}{\code{"node_local"} reads residual blocks only for the
 requested measurement. \code{"shared_pair_statistics"} explicitly compiles
@@ -47,11 +50,15 @@ supports.}
 for shared residual pair statistics.}
 }
 \value{
-An \code{effect_rdm_sampling_covariance}, queryable by
+An \code{effect_rdm_sampling_covariance} for one measurement, or an
+\code{effect_rdm_sampling_covariance_batch} list of those objects when \code{at}
+names several measurements. Each object is queryable by
 \code{\link[=sampling_covariance]{sampling_covariance()}}. It contains within-measurement uncertainty only;
 it does not imply covariance between spatial locations. Its \verb{$source}
 records \code{residual_df} (\eqn{\nu}), \code{residual_effective_dimension}
-(\eqn{P_{\mathrm{eff}}}), and \code{noise_trace_estimator}.
+(\eqn{P_{\mathrm{eff}}}), and \code{noise_trace_estimator}. A batch also
+records the shared-resource execution route on each element's
+\verb{$source$execution}.
 }
 \description{
 Builds the local sampling-covariance form from Diedrichsen, Provost, and

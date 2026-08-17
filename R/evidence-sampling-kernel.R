@@ -198,7 +198,8 @@
 .sampling_covariance_from_components <- function(
     plan, contrasts, signal_patterns, effect_covariance,
     residual_covariance, normalization = ncol(signal_patterns),
-    residual_df = NULL, labels = NULL, source = list()) {
+    residual_df = NULL, labels = NULL, source = list(),
+    xi_factor = NULL) {
   .validate_evidence_sampling_plan(plan, deep = FALSE)
   .require_sampling_covariance(plan)
   plan_coordinates <-
@@ -235,9 +236,17 @@
       "Sampling covariance normalization must be one positive finite value."
     )
   }
-  effect_root <- .sampling_psd_root(
-    effect_covariance, "Effect covariance", empty = "refuse"
-  )
+  if (is.null(xi_factor)) {
+    effect_root <- .sampling_psd_root(
+      effect_covariance, "Effect covariance", empty = "refuse"
+    )
+    xi_factor <- contrasts %*% effect_root
+  } else if (!.is_finite_matrix(xi_factor) ||
+      nrow(xi_factor) != nrow(contrasts)) {
+    .contract_error(
+      "A hoisted sampling xi factor must share the contrast evidence axis."
+    )
+  }
   # The signal term of the exact law is
   #
   #   (4 / M) Xi_rs (mu_r Sigma_w mu_s') / nu^2,
@@ -257,7 +266,6 @@
   noise_trace <- quadratic$value / normalization^2
   signal_factor <- (contrasts %*% signal_patterns %*% residual_root) /
     normalization
-  xi_factor <- contrasts %*% effect_root
   .sampling_covariance_form(
     plan,
     signal_factor = signal_factor,

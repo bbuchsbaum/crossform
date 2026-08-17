@@ -82,7 +82,7 @@ test_that("compatibility and plan calls execute one identical lowering", {
   )
   expect_false(planned$metadata$execution_plan$query_fused)
   expect_identical(planned$receipt$kernel_version,
-    "additive-effect-form-v2")
+    "additive-packed-native-v1")
   expect_identical(planned$receipt$scientific_plan_id,
     planned$metadata$scientific_plan_id)
 })

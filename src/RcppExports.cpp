@@ -26,9 +26,58 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// local_residual_gather_cpp
+Rcpp::NumericMatrix local_residual_gather_cpp(const Rcpp::IntegerVector& column_ptr, const Rcpp::IntegerVector& row_index, const Rcpp::NumericVector& values, const Rcpp::IntegerVector& support);
+RcppExport SEXP _crossform_local_residual_gather_cpp(SEXP column_ptrSEXP, SEXP row_indexSEXP, SEXP valuesSEXP, SEXP supportSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type column_ptr(column_ptrSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type row_index(row_indexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type values(valuesSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type support(supportSEXP);
+    rcpp_result_gen = Rcpp::wrap(local_residual_gather_cpp(column_ptr, row_index, values, support));
+    return rcpp_result_gen;
+END_RCPP
+}
+// packed_effect_form_atoms_cpp
+Rcpp::NumericMatrix packed_effect_form_atoms_cpp(const Rcpp::List& left_blocks, const Rcpp::List& right_blocks, const Rcpp::IntegerVector& left_index, const Rcpp::IntegerVector& right_index, const Rcpp::NumericVector& edge_weight, bool packed);
+RcppExport SEXP _crossform_packed_effect_form_atoms_cpp(SEXP left_blocksSEXP, SEXP right_blocksSEXP, SEXP left_indexSEXP, SEXP right_indexSEXP, SEXP edge_weightSEXP, SEXP packedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type left_blocks(left_blocksSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type right_blocks(right_blocksSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type left_index(left_indexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type right_index(right_indexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type edge_weight(edge_weightSEXP);
+    Rcpp::traits::input_parameter< bool >::type packed(packedSEXP);
+    rcpp_result_gen = Rcpp::wrap(packed_effect_form_atoms_cpp(left_blocks, right_blocks, left_index, right_index, edge_weight, packed));
+    return rcpp_result_gen;
+END_RCPP
+}
+// coherent_effect_form_atoms_cpp
+Rcpp::NumericMatrix coherent_effect_form_atoms_cpp(const Rcpp::NumericVector& left_first, const Rcpp::NumericVector& right_first, const Rcpp::IntegerVector& left_index, const Rcpp::IntegerVector& right_index, const Rcpp::NumericVector& edge_weight, const Rcpp::NumericVector& mass, int row_start, int n_rows, bool packed);
+RcppExport SEXP _crossform_coherent_effect_form_atoms_cpp(SEXP left_firstSEXP, SEXP right_firstSEXP, SEXP left_indexSEXP, SEXP right_indexSEXP, SEXP edge_weightSEXP, SEXP massSEXP, SEXP row_startSEXP, SEXP n_rowsSEXP, SEXP packedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type left_first(left_firstSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type right_first(right_firstSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type left_index(left_indexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type right_index(right_indexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type edge_weight(edge_weightSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type mass(massSEXP);
+    Rcpp::traits::input_parameter< int >::type row_start(row_startSEXP);
+    Rcpp::traits::input_parameter< int >::type n_rows(n_rowsSEXP);
+    Rcpp::traits::input_parameter< bool >::type packed(packedSEXP);
+    rcpp_result_gen = Rcpp::wrap(coherent_effect_form_atoms_cpp(left_first, right_first, left_index, right_index, edge_weight, mass, row_start, n_rows, packed));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_crossform_fused_pair_difference_atoms_cpp", (DL_FUNC) &_crossform_fused_pair_difference_atoms_cpp, 7},
+    {"_crossform_local_residual_gather_cpp", (DL_FUNC) &_crossform_local_residual_gather_cpp, 4},
+    {"_crossform_packed_effect_form_atoms_cpp", (DL_FUNC) &_crossform_packed_effect_form_atoms_cpp, 6},
+    {"_crossform_coherent_effect_form_atoms_cpp", (DL_FUNC) &_crossform_coherent_effect_form_atoms_cpp, 9},
     {NULL, NULL, 0}
 };
 

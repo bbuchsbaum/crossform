@@ -115,6 +115,28 @@
   as.integer(value)
 }
 
+# One or more measurement positions. A length-1 vector is the historical
+# single-node contract; longer vectors name an explicit batch.
+.msg_measurement_indices <- function(value, measurements, argument = "at",
+                                     subject = "plan") {
+  measurements <- as.integer(measurements)
+  usable <- is.numeric(value) && length(value) >= 1L &&
+    all(is.finite(value)) && all(value %% 1 == 0)
+  if (!usable) {
+    .input_error(sprintf(paste0(
+      "`%s` must be one or more measurement indices in 1..%d; received %s."
+    ), argument, measurements, .msg_value(value)))
+  }
+  value <- as.integer(value)
+  bad <- value < 1L | value > measurements
+  if (any(bad)) {
+    .input_error(sprintf(paste0(
+      "`%s` contains indices outside the %s's 1..%d measurements: %s."
+    ), argument, subject, measurements, .msg_positions(bad)))
+  }
+  value
+}
+
 # Which positions of a numeric vector are not usable, for a message that can
 # point at the offending entries rather than restating the rule.
 .msg_positions <- function(index, labels = NULL, max_shown = 6L) {

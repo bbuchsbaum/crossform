@@ -230,6 +230,95 @@ test_that("one-node sampling queries do not compile whole-frame residual state",
   )))
 })
 
+test_that("batched sampling covariance matches repeated single-node calls", {
+  fixture <- sampling_product_fixture(features = 9L)
+  frame <- compile_frame(searchlights(2.01), fixture$domain)
+  evidence <- plan_geometry(
+    fixture$fit$relation, frame,
+    cross_partitions(fixture$fit$relation, independence = "independent"),
+    metric = noise_precision(
+      solve(fixture$covariance), fixture$domain,
+      covariance = fixture$covariance,
+      provenance = list(source = "simulation_truth")
+    )
+  )
+  nodes <- c(1L, 4L, 7L, 9L)
+  query_vector <- c(1, -1, 0, 0, 0, 0)
+  selected <- cbind(1L, 2L)
+  transport <- rbind(first = query_vector, second = rev(query_vector))
+
+  repeated <- lapply(nodes, function(node) {
+    rdm_sampling_covariance(
+      evidence, fixture$fit, target = "null", at = node
+    )
+  })
+  batched <- rdm_sampling_covariance(
+    evidence, fixture$fit, target = "null", at = nodes
+  )
+  explicit_local <- rdm_sampling_covariance(
+    evidence, fixture$fit, target = "null", at = nodes,
+    residual_strategy = "node_local"
+  )
+
+  expect_s3_class(batched, "effect_rdm_sampling_covariance_batch")
+  expect_length(batched, length(nodes))
+  expect_identical(batched[[1L]]$plan$scientific_plan_id,
+    repeated[[1L]]$plan$scientific_plan_id)
+  expect_identical(batched[[1L]]$source$execution$route, "batched")
+  expect_identical(
+    batched[[1L]]$source$execution$residual_strategy,
+    "shared_pair_statistics"
+  )
+  expect_true(batched[[1L]]$source$execution$shared_residual_statistics)
+  expect_null(repeated[[1L]]$source$execution)
+  expect_identical(
+    explicit_local[[1L]]$source$execution$residual_strategy,
+    "node_local"
+  )
+  expect_false(explicit_local[[1L]]$source$execution$shared_residual_statistics)
+
+  for (index in seq_along(nodes)) {
+    expect_equal(
+      sampling_covariance(batched[[index]]),
+      sampling_covariance(repeated[[index]]),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      sampling_covariance(
+        batched[[index]], "selected_entries", query = selected
+      ),
+      sampling_covariance(
+        repeated[[index]], "selected_entries", query = selected
+      ),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      sampling_covariance(
+        batched[[index]], "quadratic_form", query = query_vector
+      ),
+      sampling_covariance(
+        repeated[[index]], "quadratic_form", query = query_vector
+      ),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      sampling_covariance(
+        batched[[index]], "transport", query = transport
+      ),
+      sampling_covariance(
+        repeated[[index]], "transport", query = transport
+      ),
+      tolerance = 1e-12
+    )
+  }
+  expect_equal(
+    sampling_covariance(batched, "quadratic_form", query = query_vector),
+    lapply(repeated, sampling_covariance, "quadratic_form",
+      query = query_vector),
+    tolerance = 1e-12
+  )
+})
+
 test_that("public RDM sampling covariance is explicit and exactly queryable", {
   fixture <- sampling_product_fixture()
   covariance <- rdm_sampling_covariance(

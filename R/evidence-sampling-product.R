@@ -246,8 +246,7 @@
   Reduce(`+`, residuals) / total_df
 }
 
-.fixed_metric_rdm_sampling_covariance <- function(
-    plan, node = 1L, resources = NULL) {
+.fixed_metric_rdm_sampling_shared <- function(plan, resources = NULL) {
   .validate_evidence_sampling_plan(plan)
   .require_sampling_covariance(plan)
   evidence <- plan$evidence_plan
@@ -256,51 +255,97 @@
     .input_error("This specialization requires a fixed-metric geometry plan.")
   }
   .validate_geometry_plan(evidence, deep = FALSE)
-  read_node <- .frame_metric_node_accessor(evidence$frame)
-  node_value <- read_node(node)
   if (is.null(resources)) {
     resources <- .fixed_metric_rdm_sampling_resources(plan)
   }
   resources <- .validate_fixed_metric_rdm_sampling_resources(
     resources, plan
   )
-  metric <- .sampling_local_metric(evidence, node_value)
   fit <- plan$error_source
   effect_covariance <- .sampling_common_effect_covariance(fit)
-  residual_covariance <- .sampling_node_residual_covariance(
-    plan, node_value, resources
+  distances <- .sampling_distance_contrasts(fit$relation$effects)
+  effect_root <- .sampling_psd_root(
+    effect_covariance, "Effect covariance", empty = "refuse"
   )
   total_df <- sum(vapply(fit$relation$partitions, function(partition) {
     residual_df(fit, partition)
   }, integer(1)))
-  distances <- .sampling_distance_contrasts(fit$relation$effects)
-  signal <- .sampling_target_signal(plan, node_value, metric)
+  list(
+    plan = plan,
+    evidence = evidence,
+    resources = resources,
+    fit = fit,
+    read_node = .frame_metric_node_accessor(evidence$frame),
+    distances = distances,
+    effect_covariance = effect_covariance,
+    xi_factor = distances$matrix %*% effect_root,
+    total_df = total_df
+  )
+}
+
+.fixed_metric_rdm_sampling_covariance_with_shared <- function(
+    shared, node, execution = NULL) {
+  node_value <- shared$read_node(node)
+  metric <- .sampling_local_metric(shared$evidence, node_value)
+  residual_covariance <- .sampling_node_residual_covariance(
+    shared$plan, node_value, shared$resources
+  )
+  signal <- .sampling_target_signal(shared$plan, node_value, metric)
   whitened <- .sampling_whitened_components(
     signal, metric, residual_covariance
   )
+  source <- list(
+    specialization = "fixed_metric_equal_partition_rdm",
+    node = as.character(node_value$id),
+    support = node_value$support,
+    metric = metric$signature,
+    effect_covariance = shared$fit$error_models[[1L]]$signature,
+    residual_df = as.integer(shared$total_df),
+    target = shared$plan$target$signature,
+    local_only = TRUE
+  )
+  if (!is.null(execution)) {
+    source$execution <- execution
+  }
   .sampling_covariance_from_components(
-    plan,
-    contrasts = distances$matrix,
+    shared$plan,
+    contrasts = shared$distances$matrix,
     signal_patterns = whitened$signal,
-    effect_covariance = effect_covariance,
+    effect_covariance = shared$effect_covariance,
     residual_covariance = whitened$residual,
     normalization = 1,
     # The residual covariance is a plug-in pooled over partitions, not the
     # true Sigma_w, so the quadratic noise term is corrected for its nu
     # degrees of freedom rather than taking tr(S_w^2) at face value.
-    residual_df = total_df,
-    labels = distances$labels,
-    source = list(
-      specialization = "fixed_metric_equal_partition_rdm",
-      node = as.character(node_value$id),
-      support = node_value$support,
-      metric = metric$signature,
-      effect_covariance = fit$error_models[[1L]]$signature,
-      residual_df = as.integer(total_df),
-      target = plan$target$signature,
-      local_only = TRUE
+    residual_df = shared$total_df,
+    labels = shared$distances$labels,
+    source = source,
+    xi_factor = shared$xi_factor
+  )
+}
+
+.fixed_metric_rdm_sampling_covariance <- function(
+    plan, node = 1L, resources = NULL) {
+  shared <- .fixed_metric_rdm_sampling_shared(plan, resources)
+  .fixed_metric_rdm_sampling_covariance_with_shared(shared, node)
+}
+
+.fixed_metric_rdm_sampling_covariances <- function(
+    plan, nodes, resources = NULL) {
+  shared <- .fixed_metric_rdm_sampling_shared(plan, resources)
+  execution <- list(
+    route = "batched",
+    nodes = as.integer(length(nodes)),
+    residual_strategy = shared$resources$strategy,
+    shared_residual_statistics = !is.null(
+      shared$resources$residual_statistics
     )
   )
+  lapply(nodes, function(node) {
+    .fixed_metric_rdm_sampling_covariance_with_shared(
+      shared, node, execution = execution
+    )
+  })
 }
 
 .execute_fixed_metric_rdm_sampling <- function(plan, node = 1L,
@@ -322,15 +367,18 @@
 #' factorized and queryable; it does not allocate the complete distance-by-
 #' distance covariance.
 #'
-#' Writing \eqn{\mu_r} for the whitened contrast pattern of distance \eqn{r},
-#' \eqn{\Sigma_w} for the residual covariance in the same whitened
-#' coordinates, \eqn{\Xi} for the effect-coordinate contrast cross-products,
-#' and \eqn{M} for the partition count, the law evaluated here is
+#' Writing \eqn{\mu_r}{mu_r} for the whitened contrast pattern of distance \eqn{r}{r},
+#' \eqn{\Sigma_w}{Sigma_w} for the residual covariance in the same whitened
+#' coordinates, \eqn{\Xi}{Xi} for the effect-coordinate contrast cross-products,
+#' and \eqn{M}{M} for the partition count, the law evaluated here is
 #' \deqn{\mathrm{Cov}(d_r, d_s) = \frac{4}{M}\,\Xi_{rs}\,
 #'   \mu_r\Sigma_w\mu_s^\top
-#'   + \frac{2}{M(M-1)}\,\Xi_{rs}^2\,\mathrm{tr}(\Sigma_w\Sigma_w).}
+#'   + \frac{2}{M(M-1)}\,\Xi_{rs}^2\,\mathrm{tr}(\Sigma_w\Sigma_w).}{
+#'   Cov(d_r, d_s) = (4/M) Xi_rs mu_r Sigma_w mu_s^T
+#'                   + [2/(M(M-1))] Xi_rs^2 tr(Sigma_w Sigma_w).
+#' }
 #' The residual covariance enters the signal term as a metric on the whitened
-#' patterns, so the law is correct for a general anisotropic \eqn{\Sigma_w}
+#' patterns, so the law is correct for a general anisotropic \eqn{\Sigma_w}{Sigma_w}
 #' and not only for the spherical case.
 #'
 #' @section What is exact and what is estimated:
@@ -338,31 +386,36 @@
 #' signal term vanishes and the remaining expression is the true variance of
 #' the estimator, not an approximation to it.
 #'
-#' What is estimated is \eqn{\Sigma_w} itself. crossform substitutes the
-#' partition-pooled sample residual covariance \eqn{S_w}, a plug-in with
-#' \eqn{\nu=\sum_m \mathrm{df}_m} degrees of freedom. That matters because the
-#' signal-independent term is *quadratic* in \eqn{\Sigma_w}. For
-#' \eqn{S_w\sim W_P(\nu,\Sigma_w)/\nu},
+#' What is estimated is \eqn{\Sigma_w}{Sigma_w} itself. crossform substitutes the
+#' partition-pooled sample residual covariance \eqn{S_w}{S_w}, a plug-in with
+#' \eqn{\nu=\sum_m \mathrm{df}_m}{nu = sum_m df_m} degrees of freedom. That matters because the
+#' signal-independent term is *quadratic* in \eqn{\Sigma_w}{Sigma_w}. For
+#' \eqn{S_w\sim W_P(\nu,\Sigma_w)/\nu}{S_w ~ W_P(nu, Sigma_w)/nu},
 #' \deqn{E\,\mathrm{tr}(S_w^2)
 #'   = \frac{\nu+1}{\nu}\mathrm{tr}(\Sigma_w^2)
-#'     + \frac{\mathrm{tr}(\Sigma_w)^2}{\nu},}
-#' so taking \eqn{\mathrm{tr}(S_w^2)} at face value overstates the reported
-#' standard error by \eqn{\sqrt{1+(1+P_{\mathrm{eff}})/\nu}}, where
-#' \eqn{P_{\mathrm{eff}}=\mathrm{tr}(\Sigma_w)^2/\mathrm{tr}(\Sigma_w^2)} is
+#'     + \frac{\mathrm{tr}(\Sigma_w)^2}{\nu},}{
+#'   E tr(S_w^2) = [(nu + 1)/nu] tr(Sigma_w^2) + tr(Sigma_w)^2 / nu,
+#' }
+#' so taking \eqn{\mathrm{tr}(S_w^2)}{tr(S_w^2)} at face value overstates the reported
+#' standard error by \eqn{\sqrt{1+(1+P_{\mathrm{eff}})/\nu}}{sqrt(1 + (1 + P_eff)/nu)}, where
+#' \eqn{P_{\mathrm{eff}}=\mathrm{tr}(\Sigma_w)^2/\mathrm{tr}(\Sigma_w^2)}{P_eff = tr(Sigma_w)^2 / tr(Sigma_w^2)} is
 #' the number of residual directions the support actually spends its variance
 #' on. Since 2026-08-16 the quadratic term therefore uses the
 #' Wishart-unbiased estimator
 #' \deqn{\widehat{\mathrm{tr}}(\Sigma_w^2)
 #'   = \frac{\nu^2}{(\nu-1)(\nu+2)}
-#'     \left(\mathrm{tr}(S_w^2)-\frac{\mathrm{tr}(S_w)^2}{\nu}\right).}
-#' The signal term is linear in \eqn{\Sigma_w} and needs no correction.
-#' Voxelwise frames, where \eqn{P_{\mathrm{eff}}=1}, were never materially
-#' affected; a 50-voxel searchlight at \eqn{\nu=168} was reporting standard
+#'     \left(\mathrm{tr}(S_w^2)-\frac{\mathrm{tr}(S_w)^2}{\nu}\right).}{
+#'   tr_hat(Sigma_w^2) = [nu^2/((nu - 1)(nu + 2))]
+#'                       (tr(S_w^2) - tr(S_w)^2 / nu).
+#' }
+#' The signal term is linear in \eqn{\Sigma_w}{Sigma_w} and needs no correction.
+#' Voxelwise frames, where \eqn{P_{\mathrm{eff}}=1}{P_eff = 1}, were never materially
+#' affected; a 50-voxel searchlight at \eqn{\nu=168}{nu = 168} was reporting standard
 #' errors 14% too large and an 800-voxel one more than twice too large.
 #'
-#' Both numbers are reported: \eqn{\nu} is `$source$residual_df` and
-#' \eqn{P_{\mathrm{eff}}} is `$source$residual_effective_dimension`, and the
-#' `print()` method shows them. When \eqn{\nu<P_{\mathrm{eff}}} there is no
+#' Both numbers are reported: \eqn{\nu}{nu} is `$source$residual_df` and
+#' \eqn{P_{\mathrm{eff}}}{P_eff} is `$source$residual_effective_dimension`, and the
+#' `print()` method shows them. When \eqn{\nu<P_{\mathrm{eff}}}{nu < P_eff} there is no
 #' usable estimate of the quadratic term at all, and the call refuses with
 #' capability `"sufficient_residual_df"` rather than returning a confidently
 #' small number.
@@ -371,12 +424,12 @@
 #' The sampling law assumes the observations within a partition are
 #' independent given the design. fMRI residuals are not: they are temporally
 #' autocorrelated. Fitting without `lm_relation_fit(observation_whitener = )`
-#' leaves \eqn{\Xi} as the plain OLS factor \eqn{(X^\top X)^{-1}}, which does
+#' leaves \eqn{\Xi}{Xi} as the plain OLS factor \eqn{(X^\top X)^{-1}}{(X^T X)^{-1}}, which does
 #' not describe the covariance of the estimates under correlated errors, and
-#' leaves \eqn{\nu} counting observations rather than independent ones, so
-#' \eqn{\nu} overstates the residual information. The reported standard error
+#' leaves \eqn{\nu}{nu} counting observations rather than independent ones, so
+#' \eqn{\nu}{nu} overstates the residual information. The reported standard error
 #' can then err in *either* direction, and the size is not small. Under AR(1)
-#' errors with \eqn{\rho=0.75}, 32 trials, four conditions, six runs and 50
+#' errors with \eqn{\rho=0.75}{rho = 0.75}, 32 trials, four conditions, six runs and 50
 #' features, the ratio of the true spread to the reported standard error is
 #'
 #' ```text
@@ -385,9 +438,9 @@
 #' blocked order, whitened      1.03
 #' ```
 #'
-#' Passing a whitener \eqn{L} with \eqn{L^\top L=\Sigma_t^{-1}} makes the
+#' Passing a whitener \eqn{L}{L} with \eqn{L^\top L=\Sigma_t^{-1}}{L^T L = Sigma_t^{-1}} makes the
 #' whitened problem satisfy the assumption and restores calibration; crossform
-#' cannot check that the \eqn{L} you supply matches the autocorrelation
+#' cannot check that the \eqn{L}{L} you supply matches the autocorrelation
 #' actually present in your data. See [lm_relation_fit()], [observation_model()], and
 #' `vignette("from-observations")`.
 #'
@@ -401,27 +454,36 @@
 #'   chosen implicitly. `"plugin"` substitutes the partition mean of the
 #'   *estimates* for the unknown signal, and because
 #'   \eqn{E[\hat\mu_r\Sigma_w\hat\mu_s^\top] = \mu_r\Sigma_w\mu_s^\top +
-#'   \Xi_{rs}\,\mathrm{tr}(\Sigma_w\Sigma_w)/M}, its signal term is biased
-#'   upward by \eqn{4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2}, an
-#'   inflation that shrinks like \eqn{1/M^2} and is largest when the noise
+#'   \Xi_{rs}\,\mathrm{tr}(\Sigma_w\Sigma_w)/M}{
+#'   E[mu_hat_r Sigma_w mu_hat_s^T] = mu_r Sigma_w mu_s^T + Xi_rs tr(Sigma_w Sigma_w)/M
+#' }, its signal term is biased
+#'   upward by \eqn{4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2}{4 Xi_rs^2 tr(Sigma_w Sigma_w)/M^2}, an
+#'   inflation that shrinks like \eqn{1/M^2}{1/M^2} and is largest when the noise
 #'   dominates the true distances. Prefer `"null"` for calibrating a test of
 #'   no effect, where it is exact; use `"plugin"` when reporting uncertainty
 #'   around an estimated nonzero distance and read it as mildly conservative.
-#' @param at One measurement position or identifier in the compiled frame.
-#'   Required, with no default: the analytic law is local, so a covariance
-#'   without a named measurement would be a covariance of nothing in
-#'   particular. One measurement per call.
+#' @param at One measurement position, or a vector of positions, in the
+#'   compiled frame. Required, with no default: the analytic law is local, so
+#'   a covariance without a named measurement would be a covariance of
+#'   nothing in particular. A length-1 `at` keeps the historical single-node
+#'   object. A longer `at` compiles the plan, contrast transport, and any
+#'   eligible shared residual statistics once, then returns one covariance
+#'   object per requested node.
 #' @param residual_strategy `"node_local"` reads residual blocks only for the
 #'   requested measurement. `"shared_pair_statistics"` explicitly compiles
 #'   reusable residual pair sufficient statistics for a batch of overlapping
 #'   supports.
 #' @param residual_workspace_bytes Positive crossform-owned workspace budget
 #'   for shared residual pair statistics.
-#' @return An `effect_rdm_sampling_covariance`, queryable by
+#' @return An `effect_rdm_sampling_covariance` for one measurement, or an
+#'   `effect_rdm_sampling_covariance_batch` list of those objects when `at`
+#'   names several measurements. Each object is queryable by
 #'   [sampling_covariance()]. It contains within-measurement uncertainty only;
 #'   it does not imply covariance between spatial locations. Its `$source`
-#'   records `residual_df` (\eqn{\nu}), `residual_effective_dimension`
-#'   (\eqn{P_{\mathrm{eff}}}), and `noise_trace_estimator`.
+#'   records `residual_df` (\eqn{\nu}{nu}), `residual_effective_dimension`
+#'   (\eqn{P_{\mathrm{eff}}}{P_eff}), and `noise_trace_estimator`. A batch also
+#'   records the shared-resource execution route on each element's
+#'   `$source$execution`.
 #' @references Diedrichsen J, Provost S, Zareamoghaddam H (2016),
 #'   "On the distribution of cross-validated Mahalanobis distances",
 #'   especially Eqs. 10, 13, and 35 and Section 5.1.
@@ -430,7 +492,7 @@
 #'   Srivastava MS (2005), "Some tests concerning the covariance matrix in
 #'   high dimensional data", \emph{Journal of the Japan Statistical Society}
 #'   35(2), 251--272, for the unbiased estimator of
-#'   \eqn{\mathrm{tr}(\Sigma^2)} used here.
+#'   \eqn{\mathrm{tr}(\Sigma^2)}{tr(Sigma^2)} used here.
 #' @seealso [sampling_covariance()] to query the result,
 #'   [sampling_capabilities()] to ask whether the law is available before
 #'   provoking a refusal, and [rdm()] for the point estimates it describes.
@@ -477,7 +539,9 @@ rdm_sampling_covariance <- function(
     .input_error(paste0(
       "`fit` is required: pass the `lm_relation_fit()` whose `$relation` ",
       "built `x`, so the analytic law can read its residual error channel."
-    ))
+    ),
+      arg = "fit", received = "no argument",
+      expected = "the `lm_relation_fit()` whose `$relation` built `x`")
   }
   if (missing(target)) {
     .capability_refusal(paste0(
@@ -494,9 +558,12 @@ rdm_sampling_covariance <- function(
   if (missing(at)) {
     .input_error(paste0(
       "`at` is required: name the measurement whose sampling covariance you ",
-      "want, e.g. `at = which.max(effect$total)`. One measurement per call; ",
-      "the analytic law is local."
-    ))
+      "want, e.g. `at = which.max(effect$total)`. Pass a vector of indices ",
+      "to evaluate several measurements after one shared compile; the ",
+      "analytic law remains local to each measurement."
+    ),
+      arg = "at", received = "no argument",
+      expected = "one measurement position, or a vector of them")
   }
   descriptor <- .sampling_evidence_descriptor(x)
   if (identical(descriptor$record$metric_status, "learned")) {
@@ -531,14 +598,20 @@ rdm_sampling_covariance <- function(
     )
   }
   target <- match.arg(target, c("plugin", "null"))
+  explicit_strategy <- !missing(residual_strategy) &&
+    length(residual_strategy) == 1L
   residual_strategy <- match.arg(residual_strategy)
   # Checked here, against the plan the caller passed, so the message can name
   # the plan's own measurement count instead of a compiled node position.
-  at <- .msg_measurement_index(
+  at <- .msg_measurement_indices(
     at,
     if (is.null(x$measurements)) nrow(x$frame$weights) else x$measurements,
     argument = "at", subject = "plan"
   )
+  if (length(at) > 1L && !explicit_strategy &&
+      !is.null(x$frame$support_index)) {
+    residual_strategy <- "shared_pair_statistics"
+  }
   target_record <- if (identical(target, "null")) {
     .sampling_target("null")
   } else {
@@ -551,11 +624,21 @@ rdm_sampling_covariance <- function(
     plan, residual_workspace_bytes = residual_workspace_bytes,
     strategy = residual_strategy
   )
-  value <- .fixed_metric_rdm_sampling_covariance(
-    plan, node = at, resources = resources
+  if (length(at) == 1L) {
+    value <- .fixed_metric_rdm_sampling_covariance(
+      plan, node = at, resources = resources
+    )
+    class(value) <- c("effect_rdm_sampling_covariance", class(value))
+    return(value)
+  }
+  values <- .fixed_metric_rdm_sampling_covariances(
+    plan, nodes = at, resources = resources
   )
-  class(value) <- c("effect_rdm_sampling_covariance", class(value))
-  value
+  values <- lapply(values, function(value) {
+    class(value) <- c("effect_rdm_sampling_covariance", class(value))
+    value
+  })
+  structure(values, class = c("effect_rdm_sampling_covariance_batch", "list"))
 }
 
 #' Ask whether the analytic sampling law is available before provoking it
@@ -659,14 +742,15 @@ print.effect_sampling_capabilities <- function(x, ...) {
 #' the variance scale.
 #'
 #' In both cases the residual covariance behind the law is a plug-in with
-#' \eqn{\nu} degrees of freedom, so its *quadratic* contribution carries the
+#' \eqn{\nu}{nu} degrees of freedom, so its *quadratic* contribution carries the
 #' Wishart finite-sample correction described under
 #' [rdm_sampling_covariance()]. Read `x$source$residual_df` and
-#' `x$source$residual_effective_dimension` to see \eqn{\nu} and
-#' \eqn{P_{\mathrm{eff}}} for the measurement you queried; `print(x)` shows
+#' `x$source$residual_effective_dimension` to see \eqn{\nu}{nu} and
+#' \eqn{P_{\mathrm{eff}}}{P_eff} for the measurement you queried; `print(x)` shows
 #' both.
 #'
-#' @param x An object from [rdm_sampling_covariance()].
+#' @param x An object from [rdm_sampling_covariance()], or a batch of those
+#'   objects. A batch returns one result per measurement.
 #' @param operation One exact covariance operation.
 #' @param query Operation-specific argument: a two-column integer matrix for
 #'   `selected_entries`, an evidence-coordinate vector for `apply` or
@@ -731,8 +815,15 @@ sampling_covariance <- function(
       "quadratic_form", "transport", "materialize"),
     query = NULL,
     max_bytes = 512 * 1024^2) {
+  if (inherits(x, "effect_rdm_sampling_covariance_batch")) {
+    operation <- match.arg(operation)
+    return(lapply(x, sampling_covariance, operation = operation,
+      query = query, max_bytes = max_bytes))
+  }
   if (!inherits(x, "effect_rdm_sampling_covariance")) {
-    .input_error("`x` must come from `rdm_sampling_covariance()`.")
+    .input_error("`x` must come from `rdm_sampling_covariance()`.",
+      arg = "x", received = .msg_value(x),
+      expected = "an object from `rdm_sampling_covariance()`")
   }
   .validate_sampling_covariance(x, deep = TRUE)
   operation <- match.arg(operation)
