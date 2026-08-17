@@ -25,7 +25,7 @@ Six layers. **A file may call downward or sideways. It may never call upward.**
 
 | # | Layer | Files |
 |---|-------|-------|
-| 1 | **primitives** | `primitives.R`, `message-helpers.R`, `conditions.R` |
+| 1 | **primitives** | `primitives.R`, `message-helpers.R`, `conditions.R`, `check.R` |
 | 2 | **values** | `domain.R`, `frame.R`, `pairing.R`, `relation.R`, `effect-space.R`, `effect-map.R`, `metric.R`, `metric-learning.R`, `source.R`, `capabilities.R`, `study.R`, `study-facts.R`, `design-model.R`, `observation-model.R`, `extractor.R`, `scope.R`, `support-index.R`, `numerics.R`, `query-structured.R`, `pair-query.R`, `operations.R`, `receipt.R`, `reliability.R`, `validation-memo.R`, `measurement.R`, `measurement-storage.R`, `relation-fit.R`, `residual-statistics.R`, `bridge.R`, `compute-policy.R`, `memory-plan.R`, `crossform-package.R` |
 | 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `crossnobis.R`, `coupling-plan.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
 | 4 | **compiler / execution** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R` |
@@ -56,8 +56,22 @@ nothing in the package should own:
   `.physical_query_operator()`, `.physical_query_operators()`.
 - **Contrast alignment.** `.align_contrast()`.
 
-`primitives.R` calls only `message-helpers.R`. `message-helpers.R` and
-`conditions.R` call nothing in the package at all.
+`R/conditions.R` holds the condition taxonomy: `.input_error()`,
+`.contract_error()`, `.invariant_error()`, and the older
+`.capability_refusal()`. The first three build conditions that inherit
+`c("<class>", "effect_error", "error", "condition")` and carry `arg`,
+`received`, and `expected`.
+
+`R/check.R` holds the argument guards that raise them —
+`.check_string()`, `.check_flag()`, `.check_count()`, `.check_number()`,
+`.check_matrix()`, `.check_class()` — plus the two halves of the sealed-record
+validator prologue, `.sealed_fields()` and `.check_signature()`. Before this
+file the same five shape tests were hand-rolled at hundreds of sites, each
+with its own phrasing and its own bare `stop()`.
+
+Within layer 1 the direction is `primitives.R` → `check.R` →
+`message-helpers.R` → `conditions.R`. `conditions.R` calls nothing in the
+package at all; everything else in the package may call any of the four.
 
 ### Layer 4 in detail: the compiler is not the executor
 

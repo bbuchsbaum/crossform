@@ -159,7 +159,7 @@ test_that("the memo never re-admits a tampered neural metric", {
   tampered$value[1L, 1L] <- tampered$value[1L, 1L] + 1
   expect_error(
     crossform:::.validate_neural_metric(tampered), "inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("the memo never re-admits a tampered object", {
@@ -173,13 +173,13 @@ test_that("the memo never re-admits a tampered object", {
   expect_error(
     crossform:::.validate_sampling_covariance(tampered),
     "identity is inconsistent"
-  )
+  , class = "effect_contract_error")
   tampered_plan <- covariance$plan
   tampered_plan$spatial_scope <- "modeled"
   expect_error(
     crossform:::.validate_evidence_sampling_plan(tampered_plan),
     "inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("a shallow validation does not satisfy a later deep request", {
@@ -191,7 +191,7 @@ test_that("a shallow validation does not satisfy a later deep request", {
   expect_error(
     crossform:::.validate_geometry_plan(forged, deep = TRUE),
     "identity is inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("shallow geometry-plan validation still binds the metric schedule", {
@@ -204,7 +204,7 @@ test_that("shallow geometry-plan validation still binds the metric schedule", {
   expect_error(
     crossform:::.validate_geometry_plan(broken, deep = FALSE),
     "inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("the memo store is bounded by its fixed key set", {

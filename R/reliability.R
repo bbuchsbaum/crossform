@@ -87,7 +87,7 @@
 .execute_guarded <- function(compute, receipt, reporter = NULL, cleanup = NULL,
                              observations = NULL, receipt_sink = NULL) {
   if (!is.function(compute)) {
-    stop("`compute` must be a function.", call. = FALSE)
+    .input_error("`compute` must be a function.")
   }
   .validate_execution_receipt(receipt)
   state <- new.env(parent = emptyenv())
@@ -97,10 +97,10 @@
   state$observer_failures <- character()
   if (is.null(observations)) observations <- function() receipt$observed
   if (!is.function(observations)) {
-    stop("`observations` must be NULL or a function.", call. = FALSE)
+    .input_error("`observations` must be NULL or a function.")
   }
   if (!is.null(receipt_sink) && !is.function(receipt_sink)) {
-    stop("`receipt_sink` must be NULL or a function.", call. = FALSE)
+    .input_error("`receipt_sink` must be NULL or a function.")
   }
   started <- proc.time()[["elapsed"]]
   report_failure <- .safe_report(reporter, list(type = "start", receipt = receipt))

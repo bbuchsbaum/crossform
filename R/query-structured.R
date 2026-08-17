@@ -13,75 +13,72 @@
 .pair_difference_query <- function(effects, pairs = NULL,
                                    coefficients = NULL, labels = NULL) {
   q <- length(effects)
-  if (!is.character(effects) || q < 2L || anyNA(effects) ||
-      any(!nzchar(effects)) || anyDuplicated(effects)) {
-    stop(sprintf(paste0(
+  if (!.is_strings(effects, unique = TRUE) || q < 2L) {
+    .input_error(sprintf(paste0(
       "Pair-difference views need at least two distinct named effects; the ",
       "relation declares %s (%s). A distance is a comparison between two ",
       "effects."
-    ), .msg_count(q, "effect"), .msg_names(effects)), call. = FALSE)
+    ), .msg_count(q, "effect"), .msg_names(effects)))
   }
   if (is.null(pairs)) {
     pairs <- t(utils::combn(seq_len(q), 2L))
   }
   if (is.character(pairs) || is.factor(pairs)) {
     if (!is.matrix(pairs)) {
-      stop(sprintf(paste0(
+      .input_error(sprintf(paste0(
         "`pairs` must be a two-column matrix naming the effect pairs to ",
         "report, for example `cbind(\"%s\", \"%s\")`; received %s."
-      ), effects[[1L]], effects[[2L]], .msg_value(pairs)), call. = FALSE)
+      ), effects[[1L]], effects[[2L]], .msg_value(pairs)))
     }
     pairs <- matrix(as.character(pairs), nrow(pairs), ncol(pairs))
     resolved <- matrix(match(pairs, effects), nrow(pairs), ncol(pairs))
     if (anyNA(resolved)) {
-      stop(sprintf(paste0(
+      .input_error(sprintf(paste0(
         "`pairs` names %s, which %s a declared experimental effect. The ",
         "relation declares %s."
       ), .msg_names(unique(pairs[is.na(resolved)])),
         if (length(unique(pairs[is.na(resolved)])) == 1L) "is not" else
           "are not",
-        .msg_names(effects)), call. = FALSE)
+        .msg_names(effects)))
     }
     pairs <- resolved
   }
   if (!is.matrix(pairs) || ncol(pairs) != 2L || nrow(pairs) < 1L ||
       !is.numeric(pairs) || anyNA(pairs) || any(pairs %% 1 != 0) ||
       any(pairs < 1L) || any(pairs > q)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`pairs` must be a two-column matrix of effect names or of indices in ",
       "1:%d; received %s."
-    ), q, .msg_value(pairs)), call. = FALSE)
+    ), q, .msg_value(pairs)))
   }
   storage.mode(pairs) <- "integer"
   if (any(pairs[, 1L] == pairs[, 2L])) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`pairs` asks for the distance from %s to itself, which is zero by ",
       "construction; every pair must name two distinct effects."
-    ), .msg_names(unique(effects[pairs[pairs[, 1L] == pairs[, 2L], 1L]]))),
-      call. = FALSE)
+    ), .msg_names(unique(effects[pairs[pairs[, 1L] == pairs[, 2L], 1L]]))))
   }
   swapped <- pairs[, 1L] > pairs[, 2L]
   if (any(swapped)) {
     pairs[swapped, ] <- pairs[swapped, c(2L, 1L), drop = FALSE]
   }
   if (anyDuplicated(paste(pairs[, 1L], pairs[, 2L], sep = "\r"))) {
-    stop("`pairs` contains duplicate effect pairs.", call. = FALSE)
+    .input_error("`pairs` contains duplicate effect pairs.")
   }
   if (is.null(labels)) {
     labels <- paste(effects[pairs[, 1L]], "-", effects[pairs[, 2L]])
   }
   if (!is.character(labels) || length(labels) != nrow(pairs) ||
       anyNA(labels)) {
-    stop("Pair labels must name every pair.", call. = FALSE)
+    .input_error("Pair labels must name every pair.")
   }
   if (!is.null(coefficients)) {
-    if (!is.matrix(coefficients) || !is.numeric(coefficients) ||
-        ncol(coefficients) != nrow(pairs) || nrow(coefficients) < 1L ||
-        any(!is.finite(coefficients))) {
-      stop(paste0(
+    if (!.is_finite_matrix(coefficients) ||
+        ncol(coefficients) != nrow(pairs) || nrow(coefficients) < 1L) {
+      .input_error(paste0(
         "`coefficients` must be a finite output-by-pair matrix aligned ",
         "with `pairs`."
-      ), call. = FALSE)
+      ))
     }
   }
   structure(list(
@@ -100,7 +97,7 @@
 
 .query_output_width <- function(query) {
   if (is.null(query)) {
-    stop("A query is required to report an output width.", call. = FALSE)
+    .input_error("A query is required to report an output width.")
   }
   if (.is_pair_difference_query(query)) {
     if (is.null(query$coefficients)) {
@@ -182,10 +179,10 @@
                                                right_effects, same_relation) {
   if (!isTRUE(same_relation) || !identical(left_effects, right_effects) ||
       !identical(query$effects, left_effects)) {
-    stop(paste0(
+    .input_error(paste0(
       "Pair-difference queries are self-form queries: their effects must ",
       "match one shared relation effect axis."
-    ), call. = FALSE)
+    ))
   }
   invisible(query)
 }

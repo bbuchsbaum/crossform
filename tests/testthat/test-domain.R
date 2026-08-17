@@ -7,7 +7,8 @@ test_that("abstract domains retain explicit feature identity and coordinates", {
   expect_identical(domain$feature_ids, c("a", "b", "c"))
   expect_s3_class(domain$reference, "effect_domain_reference")
   expect_match(domain$reference$signature, "^sha256:[[:xdigit:]]{64}$")
-  expect_error(abstract_domain(3, feature_ids = c("a", "a", "b")), "uniquely")
+  expect_error(abstract_domain(3, feature_ids = c("a", "a", "b")), "uniquely",
+    class = "effect_input_error")
 })
 
 test_that("domain references include ordered features, units, and geometry", {
@@ -36,11 +37,13 @@ test_that("volume domains preserve mask order and physical coordinates", {
   expect_identical(domain$feature_ids, c(1L, 4L, 12L))
   expect_equal(domain$coordinates,
     sweep(domain$metadata$voxel - 1, 2, c(2, 3, 4), `*`), tolerance = 0)
-  expect_error(volume_domain(array(FALSE, c(2, 2, 2))), "selects no voxels")
+  expect_error(volume_domain(array(FALSE, c(2, 2, 2))), "selects no voxels",
+    class = "effect_input_error")
 })
 
 test_that("mutated domains fail closed", {
   domain <- abstract_domain(2, coordinates = matrix(1:4, 2))
   domain$n_features <- 3L
-  expect_error(crossform:::.validate_domain(domain), "identities|coordinates")
+  expect_error(crossform:::.validate_domain(domain), "identities|coordinates",
+    class = "effect_input_error")
 })

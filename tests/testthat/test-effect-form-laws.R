@@ -239,7 +239,7 @@ test_that("querying a form equals the oracle Frobenius pairing", {
       rectangular_operator, impostor, fixture$right_space
     )),
     "The query and form axis identities are incompatible"
-  )
+  , class = "effect_contract_error")
   expect_error(
     oracle_apply_bound_query(
       symmetric, bound, list(id = "laws:impostor:v1",
@@ -345,10 +345,11 @@ test_that("the Fisher transform equals the oracle under both boundary policies",
   expect_error(
     crossform:::.apply_edge_transform(boundary, fisher_z("error")),
     "absolute-correlation boundary"
-  )
+  , class = "effect_input_error")
   expect_error(oracle_fisher(boundary, "error"), "Fisher boundary")
   expect_error(oracle_fisher(values, "clip", delta = 0), "clipping delta")
-  expect_error(fisher_z("clip", delta = 0), "Fisher boundary policy")
+  expect_error(fisher_z("clip", delta = 0), "Fisher boundary policy",
+    class = "effect_input_error")
 
   # Clipping is not the identity: the policy and its delta change the number,
   # so they belong in plan identity.
@@ -370,7 +371,7 @@ test_that("the Fisher transform equals the oracle under both boundary policies",
   expect_error(
     crossform:::.edge_operation_plan(inner_product(), fisher_z("error")),
     "requires correlation-valued edge input"
-  )
+  , class = "effect_input_error")
 })
 
 
@@ -438,7 +439,7 @@ test_that("distinct neural spaces require a bridge, as the oracle demands", {
   expect_error(
     crossform:::.compile_effect_task(fixture$left, over, other),
     "require an explicit"
-  )
+  , class = "effect_contract_error")
 
   bridge <- measurement_bridge(
     matrix(rnorm(2L * fixture$p), 2L, fixture$p),

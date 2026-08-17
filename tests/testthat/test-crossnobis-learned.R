@@ -173,7 +173,7 @@ test_that("invalid training and memory plans fail before residual reads", {
   expect_error(
     plan_crossnobis(fit, fixture$frame, over),
     "leaves no residual partition"
-  )
+  , class = "effect_input_error")
   expect_identical(reads, c(run1 = 0L, run2 = 0L))
 
   setup <- metric_learning_setup()
@@ -185,7 +185,7 @@ test_that("invalid training and memory plans fail before residual reads", {
       residual_workspace_bytes = setup$budgets$wider
     ),
     "exceeding the 1-byte workspace budget"
-  )
+  , class = "effect_input_error")
   expect_identical(setup$fixture$reads(),
     c(run1 = 0L, run2 = 0L, run3 = 0L))
 })

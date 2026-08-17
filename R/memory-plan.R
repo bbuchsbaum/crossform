@@ -10,34 +10,28 @@
 # is measured once from a zero-payload skeleton rather than assumed.
 .dense_double_matrix_bytes <- function(rows, columns) {
   dimensions <- c(rows = rows, columns = columns)
-  if (!is.numeric(dimensions) || length(dimensions) != 2L ||
-      anyNA(dimensions) || any(!is.finite(dimensions)) ||
-      any(dimensions < 0) || any(dimensions %% 1 != 0)) {
-    stop("Matrix dimensions must be finite nonnegative whole scalars.",
-      call. = FALSE)
+  if (!.is_finite_numeric(dimensions) || length(dimensions) != 2L ||
+      anyNA(dimensions) || any(dimensions < 0) || any(dimensions %% 1 != 0)) {
+    .input_error("Matrix dimensions must be finite nonnegative whole scalars.")
   }
   max_exact <- 2^53
   overhead <- as.double(utils::object.size(
     structure(numeric(), dim = c(0L, 0L))
   ))
   if (rows != 0 && columns > floor((max_exact - overhead) / (8 * rows))) {
-    stop("Matrix byte accounting overflows exact representation.",
-      call. = FALSE)
+    .invariant_error("Matrix byte accounting overflows exact representation.")
   }
   8 * rows * columns + overhead
 }
 
 .dense_double_vector_bytes <- function(n) {
-  if (!is.numeric(n) || length(n) != 1L || is.na(n) ||
-      !is.finite(n) || n < 0 || n %% 1 != 0) {
-    stop("Vector length must be one finite nonnegative whole scalar.",
-      call. = FALSE)
+  if (!.is_number(n) || n < 0 || n %% 1 != 0) {
+    .input_error("Vector length must be one finite nonnegative whole scalar.")
   }
   max_exact <- 2^53
   overhead <- as.double(utils::object.size(numeric()))
   if (n > floor((max_exact - overhead) / 8)) {
-    stop("Vector byte accounting overflows exact representation.",
-      call. = FALSE)
+    .invariant_error("Vector byte accounting overflows exact representation.")
   }
   8 * n + overhead
 }
@@ -46,25 +40,21 @@
 # only a zero-payload skeleton so named-array accounting remains exact without
 # materializing the values being planned.
 .named_double_array_bytes <- function(dimensions, dimnames = NULL) {
-  if (!is.numeric(dimensions) || length(dimensions) < 1L ||
-      anyNA(dimensions) || any(!is.finite(dimensions)) ||
-      any(dimensions < 0) || any(dimensions %% 1 != 0)) {
-    stop("Array dimensions must be finite nonnegative whole scalars.",
-      call. = FALSE)
+  if (!.is_finite_numeric(dimensions) || length(dimensions) < 1L ||
+      anyNA(dimensions) || any(dimensions < 0) || any(dimensions %% 1 != 0)) {
+    .input_error("Array dimensions must be finite nonnegative whole scalars.")
   }
   max_exact <- 2^53
   elements <- prod(dimensions)
   if (!is.finite(elements) || elements > floor(max_exact / 8)) {
-    stop("Array byte accounting overflows exact representation.",
-      call. = FALSE)
+    .invariant_error("Array byte accounting overflows exact representation.")
   }
   skeleton_dimensions <- dimensions
   skeleton_dimensions[[1L]] <- 0
   skeleton <- array(numeric(), skeleton_dimensions, dimnames = dimnames)
   bytes <- as.double(utils::object.size(skeleton)) + 8 * elements
   if (!is.finite(bytes) || bytes > max_exact) {
-    stop("Array byte accounting overflows exact representation.",
-      call. = FALSE)
+    .invariant_error("Array byte accounting overflows exact representation.")
   }
   bytes
 }
@@ -131,41 +121,42 @@ memory_plan <- function(frame_bytes = 0,
   max_exact <- 2^53
   whole <- function(value, name, positive = FALSE) {
     lower <- if (positive) 1 else 0
-    if (!is.numeric(value) || length(value) != 1L || is.na(value) ||
-        !is.finite(value) || value < lower || value %% 1 != 0 ||
+    if (!.is_number(value) || value < lower || value %% 1 != 0 ||
         value > max_exact) {
-      stop(sprintf("`%s` must be one %sfinite whole scalar no greater than 2^53.",
-        name, if (positive) "positive " else "nonnegative "), call. = FALSE)
+      .input_error(sprintf(
+        "`%s` must be one %sfinite whole scalar no greater than 2^53.",
+        name, if (positive) "positive " else "nonnegative "))
     }
     value
   }
   for (name in names(categories)) whole(categories[[name]], name)
   workers <- whole(workers, "workers", positive = TRUE)
   n_active <- whole(n_active, "n_active", positive = TRUE)
-  if (n_active > workers) stop("`n_active` cannot exceed `workers`.", call. = FALSE)
-  if (!is.numeric(safety_factor) || length(safety_factor) != 1L ||
-      is.na(safety_factor) || !is.finite(safety_factor) || safety_factor < 1) {
-    stop("`safety_factor` must be one finite number greater than or equal to one.",
-      call. = FALSE)
+  if (n_active > workers) .input_error("`n_active` cannot exceed `workers`.")
+  if (!.is_number(safety_factor) || safety_factor < 1) {
+    .input_error(
+      "`safety_factor` must be one finite number greater than or equal to one."
+    )
   }
   optional <- function(value, name) {
     if (!is.null(value) && (!is.numeric(value) || length(value) != 1L ||
         is.na(value) || !is.finite(value) || value < 0)) {
-      stop(sprintf("`%s` must be NULL or one nonnegative finite byte count.",
-        name), call. = FALSE)
+      .input_error(sprintf(
+        "`%s` must be NULL or one nonnegative finite byte count.",
+        name))
     }
     value
   }
   optional(budget_bytes, "budget_bytes")
   if (!is.null(budget_bytes) && budget_bytes == 0) {
-    stop("`budget_bytes` must be NULL or positive.", call. = FALSE)
+    .input_error("`budget_bytes` must be NULL or positive.")
   }
   optional(measured_workspace_bytes, "measured_workspace_bytes")
   optional(baseline_rss_bytes, "baseline_rss_bytes")
   optional(peak_rss_bytes, "peak_rss_bytes")
   if (!is.null(baseline_rss_bytes) && !is.null(peak_rss_bytes) &&
       peak_rss_bytes < baseline_rss_bytes) {
-    stop("Peak RSS cannot be smaller than baseline RSS.", call. = FALSE)
+    .input_error("Peak RSS cannot be smaller than baseline RSS.")
   }
 
   persistent_names <- c("frame", "resident_source", "source_handles",
@@ -178,8 +169,9 @@ memory_plan <- function(frame_bytes = 0,
   active <- n_active * per_active
   if (!is.finite(active) || active > max_exact ||
       !is.finite(persistent + active) || persistent + active > max_exact) {
-    stop("Workspace byte accounting overflows exact representation.",
-      call. = FALSE)
+    .invariant_error(
+      "Workspace byte accounting overflows exact representation."
+    )
   }
   modeled <- persistent + active
   conservative <- ceiling(modeled * safety_factor)
@@ -228,36 +220,30 @@ memory_plan <- function(frame_bytes = 0,
   coordinate_tile <- .validate_tile_size(
     coordinate_tile, "coordinate_tile"
   )
-  if (!is.logical(same_relation) || length(same_relation) != 1L ||
-      is.na(same_relation)) {
-    stop("`same_relation` must be TRUE or FALSE.", call. = FALSE)
-  }
-  if (!is.logical(retain_first_moments) ||
-      length(retain_first_moments) != 1L || is.na(retain_first_moments) ||
-      !is.logical(form_total) || length(form_total) != 1L ||
-      is.na(form_total)) {
-    stop("First-moment and total planning flags must be TRUE or FALSE.",
-      call. = FALSE)
+  .check_flag(same_relation, "same_relation")
+  if (!.is_flag(retain_first_moments) || !.is_flag(form_total)) {
+    .input_error("First-moment and total planning flags must be TRUE or FALSE.")
   }
   if (!retain_first_moments && !form_total) {
-    stop("A plan must retain first moments, form total output, or both.",
-      call. = FALSE)
+    .input_error(
+      "A plan must retain first moments, form total output, or both."
+    )
   }
   .validate_effect_names(left_effects, length(left_effects))
   .validate_effect_names(right_effects, length(right_effects))
-  if (!is.character(left_partitions) || length(left_partitions) < 1L ||
-      anyNA(left_partitions) || any(!nzchar(left_partitions)) ||
-      anyDuplicated(left_partitions) ||
-      !is.character(right_partitions) || length(right_partitions) < 1L ||
-      anyNA(right_partitions) || any(!nzchar(right_partitions)) ||
-      anyDuplicated(right_partitions)) {
-    stop("Effect-form partition axes must be unique nonempty identifiers.",
-      call. = FALSE)
+  if (!.is_strings(left_partitions, unique = TRUE) ||
+      length(left_partitions) < 1L ||
+      !.is_strings(right_partitions, unique = TRUE) ||
+      length(right_partitions) < 1L) {
+    .input_error(
+      "Effect-form partition axes must be unique nonempty identifiers."
+    )
   }
   if (same_relation && (!identical(left_partitions, right_partitions) ||
       !identical(left_effects, right_effects))) {
-    stop("A shared relation plan requires identical partition and effect axes.",
-      call. = FALSE)
+    .input_error(
+      "A shared relation plan requires identical partition and effect axes."
+    )
   }
 
   q_left <- length(left_effects)
@@ -266,7 +252,7 @@ memory_plan <- function(frame_bytes = 0,
     q_left * q_right
   } else {
     if (!same_relation || !identical(left_effects, right_effects)) {
-      stop("Symmetric-packed planning requires a self-form.", call. = FALSE)
+      .input_error("Symmetric-packed planning requires a self-form.")
     }
     q_left * (q_left + 1L) / 2L
   }
@@ -275,8 +261,7 @@ memory_plan <- function(frame_bytes = 0,
       (!is.matrix(query) || !is.numeric(query) ||
       nrow(query) != physical_width || ncol(query) < 1L ||
       any(!is.finite(query)))) {
-    stop("`query` must match the finite physical form coordinates.",
-      call. = FALSE)
+    .contract_error("`query` must match the finite physical form coordinates.")
   }
 
   features <- ncol(frame$weights)
@@ -515,8 +500,7 @@ memory_plan <- function(frame_bytes = 0,
                                         output_width, storage, requirements) {
   schedule <- .validate_geometry_metric_schedule(metric_schedule)
   if (!identical(schedule$materialization, "fixed_metric")) {
-    stop("Support-metric planning requires a fixed metric schedule.",
-      call. = FALSE)
+    .input_error("Support-metric planning requires a fixed metric schedule.")
   }
   support_sizes <- if (!is.null(at$support_index)) {
     diff(at$support_index$ptr)

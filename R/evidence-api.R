@@ -3,14 +3,14 @@
 .public_measurement_dense_limit_bytes <- 256 * 1024^2
 
 .require_small_node_measurement_regime <- function(bytes, operation) {
-  if (!is.numeric(bytes) || length(bytes) != 1L || is.na(bytes) ||
-      !is.finite(bytes) || bytes < 0) {
-    stop("Measurement resource preflight produced an invalid byte estimate.",
-      call. = FALSE)
+  if (!.is_number(bytes) || bytes < 0) {
+    .invariant_error(
+      "Measurement resource preflight produced an invalid byte estimate."
+    )
   }
   limit <- .public_measurement_dense_limit_bytes
   if (bytes > limit) {
-    stop(sprintf(
+    .input_error(sprintf(
       paste0(
         "%s requires approximately %.0f dense payload bytes, exceeding ",
         "the version 0.1 small-node limit of %.0f bytes. Use the ",
@@ -18,7 +18,7 @@
         "is not yet exported."
       ),
       operation, bytes, limit
-    ), call. = FALSE)
+    ))
   }
   invisible(as.double(bytes))
 }
@@ -62,19 +62,19 @@
   if (!is.list(operators) || length(operators) < 1L ||
       is.null(names(operators)) || anyNA(names(operators)) ||
       any(!nzchar(names(operators))) || anyDuplicated(names(operators))) {
-    stop("Custom measurements require uniquely named operator matrices.",
-      call. = FALSE)
+    .input_error(
+      "Custom measurements require uniquely named operator matrices."
+    )
   }
   .measurement_identifier(id, "Measurement-frame `id`")
   legs <- Map(function(operator, node) {
     if (inherits(operator, "Matrix")) operator <- as.matrix(operator)
-    if (!is.matrix(operator) || !is.numeric(operator) ||
-        nrow(operator) < 1L || ncol(operator) != domain$n_features ||
-        any(!is.finite(operator))) {
-      stop(paste0(
+    if (!.is_finite_matrix(operator) || nrow(operator) < 1L ||
+        ncol(operator) != domain$n_features) {
+      .input_error(paste0(
         "Every custom measurement must be a finite matrix with one column ",
         "per neural feature."
-      ), call. = FALSE)
+      ))
     }
     coordinates <- rownames(operator)
     if (is.null(coordinates) || length(coordinates) != nrow(operator) ||
@@ -86,8 +86,9 @@
       rep(units, nrow(operator))
     } else {
       if (length(units) != nrow(operator)) {
-        stop("Measurement units must be scalar or match every operator row.",
-          call. = FALSE)
+        .input_error(
+          "Measurement units must be scalar or match every operator row."
+        )
       }
       units
     }
@@ -172,8 +173,7 @@ measurement_frame <- function(
   mode <- match.arg(mode)
   if (inherits(x, "effect_frame")) {
     if (!is.null(domain)) {
-      stop("An additive frame already identifies its neural domain.",
-        call. = FALSE)
+      .input_error("An additive frame already identifies its neural domain.")
     }
     .preflight_additive_measurement_frame(x, mode)
     return(if (mode == "coherent_configuration") {
@@ -183,14 +183,15 @@ measurement_frame <- function(
     })
   }
   if (mode != "total") {
-    stop(paste0(
+    .input_error(paste0(
       "Custom operator lists are already explicit measurements; `mode` must ",
       "remain `\"total\"`."
-    ), call. = FALSE)
+    ))
   }
   if (is.null(domain)) {
-    stop("Custom measurement operators require their exact neural `domain`.",
-      call. = FALSE)
+    .input_error(
+      "Custom measurement operators require their exact neural `domain`."
+    )
   }
   .preflight_custom_measurement_frame(x, domain)
   .public_measurement_frame_from_operators(x, domain, id, units)
@@ -207,17 +208,17 @@ measurement_frame <- function(
 
 .validate_edge_frame <- function(x) {
   expected <- c("from_frame", "to_frame", "edges", "signature")
-  if (!inherits(x, "effect_edge_frame") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("`between` must be a canonical `edge_frame()`.", call. = FALSE)
+  if (!.sealed_fields(x, "effect_edge_frame", expected)) {
+    .input_error("`between` must be a canonical `edge_frame()`.")
   }
   from <- .validate_measurement_frame(x$from_frame)
   to <- .validate_measurement_frame(x$to_frame)
   .validate_measurement_edges(x$edges, from, to)
   fields <- x[setdiff(names(x), "signature")]
-  if (!identical(x$signature, .edge_frame_signature(fields))) {
-    stop("Edge-frame identity is inconsistent.", call. = FALSE)
-  }
+  .check_signature(
+    x$signature, .edge_frame_signature(fields),
+    "Edge-frame identity is inconsistent."
+  )
   x
 }
 
@@ -353,7 +354,7 @@ variation_query <- function(
   if (!is.list(capability) || !identical(capability$role, "variation") ||
       is.null(capability$sampling_axis) ||
       !capability$construction %in% c("psd_variation", "joint_covariance")) {
-    stop("Experimental query capability metadata is invalid.", call. = FALSE)
+    .input_error("Experimental query capability metadata is invalid.")
   }
   .validate_variation_pair_query(
     by, capability$sampling_axis, capability$construction
@@ -465,14 +466,16 @@ measurement_form <- function(
       between$from_frame$source_domain, left$domain) ||
       !.same_domain_reference(
         between$to_frame$source_domain, right$domain)) {
-    stop("Measurement frames do not belong to their experimental relation sides.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement frames do not belong to their experimental relation sides."
+    )
   }
   capability <- .public_query_capability(by)
   if (!.same_effect_space(by$left_space, left$effect_space) ||
       !.same_effect_space(by$right_space, right$effect_space)) {
-    stop("`by` does not match the left and right experimental spaces.",
-      call. = FALSE)
+    .contract_error(
+      "`by` does not match the left and right experimental spaces."
+    )
   }
   partition_edges <- .ordered_partition_edges(
     over, left$partitions, right$partitions, same_relation

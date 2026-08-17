@@ -234,7 +234,7 @@ test_that("form_atoms = FALSE compiles the plan without forming any atom", {
       form_atoms = NA
     ),
     "`form_atoms` must be TRUE or FALSE"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("task inputs are validated before any product is formed", {
@@ -255,43 +255,47 @@ test_that("task inputs are validated before any product is formed", {
   }
 
   expect_error(build(feature_ids = c(2, 1)),
-    "strictly increasing positive integers")
+    "strictly increasing positive integers", class = "effect_input_error")
   expect_error(build(feature_ids = c(0, 1)),
-    "strictly increasing positive integers")
+    "strictly increasing positive integers", class = "effect_input_error")
   expect_error(build(feature_ids = c(1, 1)),
-    "strictly increasing positive integers")
+    "strictly increasing positive integers", class = "effect_input_error")
   expect_error(build(feature_ids = integer()),
-    "strictly increasing positive integers")
+    "strictly increasing positive integers", class = "effect_input_error")
 
   expect_error(build(left_relations = unname(fixture$left)),
-    "`left_relations` must match one named partition family")
+    "`left_relations` must match one named partition family",
+    class = "effect_input_error")
   expect_error(
     build(right_partitions = "s1"),
     "`right_relations` must match one named partition family"
-  )
+  , class = "effect_input_error")
   expect_error(
     build(left_partitions = c("run1", "run1")),
     "`left_relations` must match one named partition family"
-  )
+  , class = "effect_input_error")
   # A consistently subset family is fine on its own; it is the ordered edges
   # that then no longer name a declared partition.
   expect_error(
     build(right_relations = fixture$right["s1"]),
     "Ordered partition edges are missing or noncanonical"
-  )
+  , class = "effect_input_error")
   broken <- fixture$left
   broken$run1[1L, 1L] <- NA_real_
   expect_error(build(left_relations = broken),
-    "Every left relation input must be a finite effect-by-feature matrix")
+    "Every left relation input must be a finite effect-by-feature matrix",
+    class = "effect_input_error")
   wrong_width <- fixture$right
   wrong_width$s1 <- wrong_width$s1[, -1L, drop = FALSE]
   expect_error(build(right_relations = wrong_width),
-    "Every right relation input must be a finite effect-by-feature matrix")
+    "Every right relation input must be a finite effect-by-feature matrix",
+    class = "effect_input_error")
 
   expect_error(build(codec = "packed"), "'arg' should be one of")
   # A packed atom is only meaningful for a self-adjoint self-form task.
   expect_error(build(codec = "symmetric_packed"),
-    "Symmetric-packed atoms require a self-adjoint self-form task")
+    "Symmetric-packed atoms require a self-adjoint self-form task",
+    class = "effect_input_error")
   # A half-edge expansion is only admissible on a declared self relation.
   expect_error(
     crossform:::.effect_form_feature_task(
@@ -301,18 +305,21 @@ test_that("task inputs are validated before any product is formed", {
       same_relation = FALSE
     ),
     "Self-adjoint ordered-edge expansion is inconsistent"
-  )
+  , class = "effect_input_error")
 
   expect_error(build(query = matrix(1, 5L, 1L)),
-    "`query` must match the finite physical form coordinates")
+    "`query` must match the finite physical form coordinates",
+    class = "effect_contract_error")
   expect_error(build(query = matrix(NA_real_, 6L, 1L)),
-    "`query` must match the finite physical form coordinates")
+    "`query` must match the finite physical form coordinates",
+    class = "effect_contract_error")
   expect_error(build(query = matrix(0, 6L, 0L)),
-    "`query` must match the finite physical form coordinates")
+    "`query` must match the finite physical form coordinates",
+    class = "effect_contract_error")
   expect_error(
     build(query = crossform:::.pair_difference_query(fixture$left_effects)),
     "self-form queries"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("the same-relation flag only changes the accounted read volume", {

@@ -38,16 +38,16 @@ test_that("pair queries bind independent ordered axes", {
   expect_error(
     query_geometry(fixture$result, wrong_query),
     "axis identities"
-  )
+  , class = "effect_contract_error")
   expect_error(
     query_geometry(
       fixture$result,
       pair_query(t(H), fixture$right, fixture$left)
     ),
     "axis identities"
-  )
+  , class = "effect_contract_error")
   expect_error(pair_query(matrix(1, 3, 2), fixture$left, fixture$right),
-    "dimension")
+    "dimension", class = "effect_contract_error")
 })
 
 test_that("complete rectangular forms answer pair queries by column-major vec", {
@@ -150,32 +150,35 @@ test_that("complete-form and query-only claims cannot be forged", {
 
   forged <- fixture$result
   forged$result_capability <- "query_only"
-  expect_error(crossform:::.validate_effect_form(forged), "complete effect_form")
+  expect_error(crossform:::.validate_effect_form(forged), "complete effect_form",
+    class = "effect_input_error")
 
   forged <- fixture$result
   forged$capabilities$symmetric <- TRUE
   expect_error(crossform:::.validate_effect_form(forged),
-    "symmetric effect form|capabilities")
+    "symmetric effect form|capabilities", class = "effect_input_error")
 
   forged <- fixture$result
   forged$total$manifest$format <- "packed-double-v1"
-  expect_error(crossform:::.validate_effect_form(forged), "manifest")
+  expect_error(crossform:::.validate_effect_form(forged), "manifest",
+    class = "effect_input_error")
 
   self <- result_fixture()
   forged_self <- self
   forged_self$capabilities$guaranteed_psd <- TRUE
   expect_error(crossform:::.validate_effect_form(forged_self),
-    "contract signature")
+    "contract signature", class = "effect_contract_error")
 
   forged_view <- view
   forged_view$result_capability <- "complete_form"
   class(forged_view) <- c("effect_form", class(forged_view))
-  expect_error(crossform:::.validate_effect_view(forged_view), "query-only")
+  expect_error(crossform:::.validate_effect_view(forged_view), "query-only",
+    class = "effect_input_error")
 
   forged_view <- view
   forged_view$query$operator[1, 1] <- 2
   expect_error(crossform:::.validate_effect_view(forged_view),
-    "contract signature")
+    "contract signature", class = "effect_contract_error")
 })
 
 test_that("self-only and component views have explicit capability guards", {
@@ -208,7 +211,7 @@ test_that("self-only and component views have explicit capability guards", {
   expect_error(
     geometry_component(fixture$result, "configuration"),
     "does not carry"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("rectangular block stores preserve codec and bounded queries", {

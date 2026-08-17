@@ -56,9 +56,9 @@ test_that("adapter rejects incompatible domains and unrestricted members", {
   domain <- neuroim2_volume_domain(mask)
 
   expect_error(neuroim2_searchlights(changed, 4, domain = domain),
-    "different volume geometry")
+    "different volume geometry", class = "effect_contract_error")
   expect_error(neuroim2_searchlights(mask, 4, domain = domain,
-    nonzero = FALSE), "require.*TRUE")
+    nonzero = FALSE), "require.*TRUE", class = "effect_input_error")
 })
 
 test_that("compact result values map to exact NeuroVol indices", {
@@ -76,15 +76,16 @@ test_that("compact result values map to exact NeuroVol indices", {
   expect_true(all(is.na(array_value[-domain$feature_ids])))
 
   expect_error(as_neurovol(values[-1L], mask, domain),
-    "has 3 values but domain `result-mask` has 4 features")
+    "has 3 values but domain `result-mask` has 4 features",
+    class = "effect_input_error")
   expect_error(as_neurovol(values[-1L], mask, domain),
-    "one value per \\*measurement\\*")
+    "one value per \\*measurement\\*", class = "effect_input_error")
   expect_error(as_neurovol(replace(values, 1L, NA_real_), mask, domain),
-    "1 of 4 are NA, NaN, or Inf")
+    "1 of 4 are NA, NaN, or Inf", class = "effect_input_error")
   changed <- make_neuroim2_mask(spacing = c(2, 2, 4),
     active = c(1L, 2L, 6L, 55L))
   expect_error(as_neurovol(values, changed, domain),
-    "different volume geometry")
+    "different volume geometry", class = "effect_contract_error")
 })
 
 test_that("missing upstream index API fails with an actionable message", {

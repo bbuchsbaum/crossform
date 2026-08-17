@@ -1,10 +1,9 @@
 # Question-first generated example -----------------------------------------
 
 .with_example_seed <- function(seed, code) {
-  if (!is.numeric(seed) || length(seed) != 1L || is.na(seed) ||
-      !is.finite(seed) || seed %% 1 != 0 || seed < 0 ||
+  if (!.is_number(seed) || seed %% 1 != 0 || seed < 0 ||
       seed > .Machine$integer.max) {
-    stop("`seed` must be one nonnegative integer.", call. = FALSE)
+    .input_error("`seed` must be one nonnegative integer.")
   }
   global <- .GlobalEnv
   had_seed <- exists(".Random.seed", envir = global, inherits = FALSE)
@@ -21,10 +20,10 @@
 }
 
 .example_count <- function(x, name, minimum) {
-  if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
-      x %% 1 != 0 || x < minimum || x > .Machine$integer.max) {
-    stop(sprintf("`%s` must be one integer at least %d.", name, minimum),
-      call. = FALSE)
+  if (!.is_number(x) || x %% 1 != 0 || x < minimum || x > .Machine$integer.max) {
+    .input_error(
+      sprintf("`%s` must be one integer at least %d.", name, minimum)
+    )
   }
   as.integer(x)
 }
@@ -133,32 +132,22 @@ example_fmri_effects <- function(
     spacing = c(3, 3, 3),
     searchlight_radius = 4,
     plant = c("pattern", "mean")) {
-  if (!is.numeric(dimensions) || length(dimensions) != 3L ||
-      anyNA(dimensions) || any(!is.finite(dimensions)) ||
-      any(dimensions %% 1 != 0) || any(dimensions < 3) ||
+  if (!.is_finite_numeric(dimensions) || length(dimensions) != 3L ||
+      anyNA(dimensions) || any(dimensions %% 1 != 0) || any(dimensions < 3) ||
       any(dimensions > .Machine$integer.max)) {
-    stop("`dimensions` must contain three integers of at least three.",
-      call. = FALSE)
+    .input_error("`dimensions` must contain three integers of at least three.")
   }
   dimensions <- as.integer(dimensions)
   partitions <- .example_count(partitions, "partitions", 2L)
   trials_per_condition <- .example_count(
     trials_per_condition, "trials_per_condition", 2L
   )
-  if (!is.numeric(noise_sd) || length(noise_sd) != 1L || is.na(noise_sd) ||
-      !is.finite(noise_sd) || noise_sd <= 0) {
-    stop("`noise_sd` must be one positive finite number.", call. = FALSE)
+  .check_number(noise_sd, "noise_sd", positive = TRUE)
+  if (!.is_finite_numeric(spacing) || length(spacing) != 3L ||
+      anyNA(spacing) || any(spacing <= 0)) {
+    .input_error("`spacing` must contain three positive finite values.")
   }
-  if (!is.numeric(spacing) || length(spacing) != 3L || anyNA(spacing) ||
-      any(!is.finite(spacing)) || any(spacing <= 0)) {
-    stop("`spacing` must contain three positive finite values.", call. = FALSE)
-  }
-  if (!is.numeric(searchlight_radius) || length(searchlight_radius) != 1L ||
-      is.na(searchlight_radius) || !is.finite(searchlight_radius) ||
-      searchlight_radius <= 0) {
-    stop("`searchlight_radius` must be one positive finite number.",
-      call. = FALSE)
-  }
+  .check_number(searchlight_radius, "searchlight_radius", positive = TRUE)
   plant <- match.arg(plant, c("pattern", "mean"), several.ok = TRUE)
 
   .with_example_seed(seed, {

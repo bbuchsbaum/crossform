@@ -1,5 +1,6 @@
 test_that("observation models require an explicit sampling unit", {
-  expect_error(observation_model("ols"), "declared explicitly")
+  expect_error(observation_model("ols"), "declared explicitly",
+    class = "effect_input_error")
   ols <- observation_model("ols", sampling_unit = "scan")
 
   expect_s3_class(ols, "effect_observation_model")
@@ -35,17 +36,17 @@ test_that("learned provenance is mandatory and fixed declarations are honest", {
   whitener <- diag(3)
   expect_error(observation_model(
     "learned_frozen_gls", "scan", whitener = whitener
-  ), "training_revision")
+  ), "training_revision", class = "effect_input_error")
   expect_error(observation_model(
     "learned_frozen_gls", "scan", whitener = whitener,
     training_revision = paste0("sha256:", paste(rep("b", 64), collapse = ""))
-  ), "training_provenance")
+  ), "training_provenance", class = "effect_input_error")
   expect_error(observation_model(
     "fixed_gls", "scan", whitener = whitener,
     training_revision = paste0("sha256:", paste(rep("c", 64), collapse = ""))
-  ), "only valid")
+  ), "only valid", class = "effect_input_error")
   expect_error(observation_model("ols", "scan", whitener = whitener),
-    "must be NULL")
+    "must be NULL", class = "effect_input_error")
 })
 
 test_that("observation-model identity binds sampling and whitener values", {
@@ -65,5 +66,5 @@ test_that("observation-model identity binds sampling and whitener values", {
   tampered <- first
   tampered$whitener[[1L]][1, 1] <- 2
   expect_error(crossform:::.validate_observation_model(tampered),
-    "inconsistent")
+    "inconsistent", class = "effect_contract_error")
 })

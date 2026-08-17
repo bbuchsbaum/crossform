@@ -5,22 +5,24 @@
   if (!is.null(metric)) {
     metric <- .validate_neural_metric(metric)
     if (!.same_domain_reference(metric$domain, frame$domain)) {
-      stop("The neural metric and spatial frame must share one exact domain.",
-        call. = FALSE)
+      .contract_error(
+        "The neural metric and spatial frame must share one exact domain."
+      )
     }
     full_support <- identical(metric$support, frame$domain$feature_ids)
     if (!full_support) {
       if (nrow(frame$weights) != 1L) {
-        stop(paste0(
+        .input_error(paste0(
           "A support-local fixed metric can be used only with its one ",
           "matching frame node. Multi-node plans require a domain-wide ",
           "operator or an on-demand metric recipe."
-        ), call. = FALSE)
+        ))
       }
       node <- .frame_metric_node(frame, 1L)
       if (!identical(metric$support, node$support)) {
-        stop("The support-local metric does not match the frame node.",
-          call. = FALSE)
+        .contract_error(
+          "The support-local metric does not match the frame node."
+        )
       }
     }
     scope <- if (full_support) "domain_operator" else "single_node"
@@ -69,24 +71,19 @@
     .validate_frame_for_compile(frame)
     metric_schedule <- .validate_geometry_metric_schedule(metric_schedule)
   }
-  if (!is.character(component) || length(component) != 1L ||
-      is.na(component) ||
-      !component %in% c(
-        "full", "total", "coherent", "configuration", "contrast"
-      )) {
-    stop("Geometry-plan component identity is invalid.", call. = FALSE)
+  if (!.is_string(component, allow_empty = TRUE) ||
+      !component %in% c("full", "total", "coherent", "configuration", "contrast")) {
+    .input_error("Geometry-plan component identity is invalid.")
   }
   if (identical(component, "contrast")) {
     effects <- task$left_relation$effect_space$coordinates
-    if (!is.numeric(signed_query) || length(signed_query) != length(effects) ||
-        any(!is.finite(signed_query)) ||
+    if (!.is_finite_numeric(signed_query) ||
+        length(signed_query) != length(effects) ||
         !identical(names(signed_query), effects)) {
-      stop("Contrast plans require one named signed weight per effect.",
-        call. = FALSE)
+      .input_error("Contrast plans require one named signed weight per effect.")
     }
   } else if (!is.null(signed_query)) {
-    stop("Signed query weights are valid only for contrast plans.",
-      call. = FALSE)
+    .input_error("Signed query weights are valid only for contrast plans.")
   }
   .sha256_signature(list(
     schema_version = 1L,
@@ -104,10 +101,8 @@
 # geometry are two executions of one estimand and must hash identically.
 .geometry_view_scientific_id <- function(estimand_id, component, query,
                                          signed_query = NULL) {
-  if (!is.character(estimand_id) || length(estimand_id) != 1L ||
-      is.na(estimand_id) || !nzchar(estimand_id)) {
-    stop("A view identity requires its parent geometry estimand id.",
-      call. = FALSE)
+  if (!.is_string(estimand_id)) {
+    .input_error("A view identity requires its parent geometry estimand id.")
   }
   .sha256_signature(list(
     schema_version = 1L,
@@ -123,15 +118,14 @@
                                           effects, partitions) {
   values <- c(measurements, packed_width, effects, partitions)
   if (any(!is.finite(values)) || any(values < 1)) {
-    stop("Geometry logical dimensions must be positive and finite.",
-      call. = FALSE)
+    .input_error("Geometry logical dimensions must be positive and finite.")
   }
   # Two packed components plus one endpoint-equivalent marginal family.  The
   # number is a payload estimate, deliberately separate from R object overhead.
   bytes <- 8 * (2 * measurements * packed_width +
     measurements * effects * partitions)
   if (!is.finite(bytes) || bytes > 2^53) {
-    stop("Dense geometry payload exceeds exact byte accounting.", call. = FALSE)
+    .invariant_error("Dense geometry payload exceeds exact byte accounting.")
   }
   as.double(bytes)
 }
@@ -156,7 +150,7 @@
   .validate_frame_for_compile(at)
   .validate_pairing(over)
   if (!identical(at$representation, "additive_diagonal")) {
-    stop("crossform 0.1 executes only additive diagonal frames.", call. = FALSE)
+    .input_error("crossform 0.1 executes only additive diagonal frames.")
   }
   mismatched <- if (!.same_domain_reference(at$domain, x$domain)) {
     x$domain
@@ -172,7 +166,7 @@
     } else {
       "right relation"
     }
-    stop(sprintf(paste0(
+    .contract_error(sprintf(paste0(
       "The %s and the frame were built on different neural domains, so a ",
       "feature index does not mean the same location on both sides. The %s ",
       "carries domain `%s` (%s, %s), the frame carries `%s` (%s, %s). ",
@@ -184,18 +178,20 @@
       .msg_signature(mismatched$signature),
       at$domain$id, .msg_count(at$domain$n_features, "feature"),
       .msg_signature(at$domain$signature)
-    ), call. = FALSE)
+    ))
   }
   if (ncol(at$weights) != x$n_features ||
       (!is.null(right) && ncol(at$weights) != right$n_features)) {
-    stop("The frame feature dimension must equal the relation feature dimension.",
-      call. = FALSE)
+    .contract_error(
+      "The frame feature dimension must equal the relation feature dimension."
+    )
   }
   right_partitions <- if (is.null(right)) x$partitions else right$partitions
   if (any(!over$left %in% x$partitions) ||
       any(!over$right %in% right_partitions)) {
-    stop("Every pairing endpoint must identify a relation partition.",
-      call. = FALSE)
+    .contract_error(
+      "Every pairing endpoint must identify a relation partition."
+    )
   }
   invisible(TRUE)
 }
@@ -283,19 +279,19 @@
 plan_geometry <- function(x, at, over, compute = compute_policy(),
                           metric = NULL, right = NULL) {
   if (missing(at)) {
-    stop(paste0(
+    .input_error(paste0(
       "`at` is required: pass a compiled frame from `compile_frame()`, for ",
       "example `compile_frame(searchlights(8), domain)`. It declares where ",
       "the geometry is measured."
-    ), call. = FALSE)
+    ))
   }
   if (missing(over)) {
-    stop(paste0(
+    .input_error(paste0(
       "`over` is required: pass a pairing from `cross_partitions()` or ",
       "`pairing()`, for example ",
       "`cross_partitions(x, independence = \"independent\")`. It declares ",
       "which partition products the plan may form."
-    ), call. = FALSE)
+    ))
   }
   compute <- .validate_compute_policy(compute)
   .validate_geometry_plan_inputs(x, at, over, right = right)
@@ -369,9 +365,9 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
 
 .validate_geometry_plan <- function(x, deep = TRUE) {
   if (!inherits(x, "effect_geometry_plan")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "Expected an `effect_geometry_plan` from `plan_geometry()`; received %s."
-    ), .msg_value(x)), call. = FALSE)
+    ), .msg_value(x)))
   }
   if (.validated_before(x, "geometry_plan", deep)) return(invisible(x))
   expected <- c("task", "frame", "pairing", "metric_schedule", "compute",
@@ -381,11 +377,10 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     "additive_contraction",
     "support_streamed_pair_contraction"
   )
-  if (!inherits(x, "effect_geometry_plan") || !is.list(x) ||
-      !identical(names(x), expected) ||
-      !is.character(x$lowering) || length(x$lowering) != 1L ||
-      is.na(x$lowering) || !x$lowering %in% valid_lowering ||
-      !is.character(x$codec) || length(x$codec) != 1L ||
+  if (!.sealed_fields(x, "effect_geometry_plan", expected) ||
+      !.is_string(x$lowering, allow_empty = TRUE) ||
+      !x$lowering %in% valid_lowering || !is.character(x$codec) ||
+      length(x$codec) != 1L ||
       !x$codec %in% c("symmetric_packed", "rectangular") ||
       !is.integer(x$logical_shape) || length(x$logical_shape) != 2L ||
       !is.integer(x$packed_width) || length(x$packed_width) != 1L ||
@@ -395,7 +390,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       !is.finite(x$dense_payload_bytes) || x$dense_payload_bytes < 0 ||
       !.strong_sha256(sub("^geometry-", "", x$scientific_plan_id)) ||
       !.strong_sha256(x$signature)) {
-    stop("Geometry-plan fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Geometry-plan fields are missing or noncanonical.")
   }
   .validate_evidence_task(x$task)
   .validate_frame_for_compile(x$frame)
@@ -435,8 +430,9 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
         length(unique(c(relation$partitions, if (same) NULL else
           right_relation$partitions)))
       ))) {
-    stop("Geometry-plan axes, frame, or materialization are inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Geometry-plan axes, frame, or materialization are inconsistent."
+    )
   }
   if (!is.null(metric_schedule$metric)) {
     metric <- metric_schedule$metric
@@ -444,8 +440,9 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
         (metric_schedule$scope == "domain_operator" &&
          !identical(metric$support, relation$domain$feature_ids)) ||
         (metric_schedule$scope == "single_node" && measurements != 1L)) {
-      stop("Geometry-plan metric support is inconsistent with its frame.",
-        call. = FALSE)
+      .contract_error(
+        "Geometry-plan metric support is inconsistent with its frame."
+      )
     }
   }
   if (isTRUE(deep)) {
@@ -457,7 +454,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     )
     if (!identical(x$scientific_plan_id, expected_id) ||
         !identical(x$signature, expected_signature)) {
-      stop("Geometry-plan identity is inconsistent.", call. = FALSE)
+      .contract_error("Geometry-plan identity is inconsistent.")
     }
   }
   .record_validated(x, "geometry_plan", deep)

@@ -133,15 +133,15 @@ test_that("task semantic failures occur before lazy relation reads", {
     left, over, right,
     pair_query(matrix(1, 2, 3),
       effect_space(c("l1", "l2"), basis_id = "wrong"), right_space)
-  ), "axes")
+  ), "axes", class = "effect_contract_error")
   expect_error(crossform:::.compile_effect_task(
     left, pairing("missing", "r1", directed = TRUE), right
-  ), "endpoints")
+  ), "endpoints", class = "effect_input_error")
   expect_error(crossform:::.compile_effect_task(left, over, wrong_domain),
-    "Distinct neural spaces")
+    "Distinct neural spaces", class = "effect_contract_error")
   expect_error(crossform:::.compile_effect_task(
     left, pairing("e1", "r1", directed = FALSE), right
-  ), "undirected compatibility")
+  ), "undirected compatibility", class = "effect_input_error")
   expect_identical(reads$count, 0L)
 })
 
@@ -181,7 +181,7 @@ test_that("task identity covers axes edges bridge reducer and query", {
   mutated <- base
   mutated$reducer$order <- 2L
   expect_error(crossform:::.validate_compiled_effect_task(mutated),
-    "reducer")
+    "reducer", class = "effect_input_error")
 })
 
 test_that("legacy compiler plan hashes use canonical ordered task semantics", {
@@ -223,7 +223,7 @@ test_that("relation-family provenance is portable and changes identity", {
   expect_error(relation(
     list(r1 = matrix(1, 2, 2)), effects = c("a", "b"),
     domain = domain, provenance = list(callback = identity)
-  ), "nonportable")
+  ), "nonportable", class = "effect_input_error")
 })
 
 test_that("same-relation task sessions deduplicate source handles", {

@@ -6,7 +6,8 @@
 #
 # Layering (a file may only call downward; see design/architecture.md):
 #
-#   1. primitives   R/primitives.R, R/message-helpers.R, R/conditions.R
+#   1. primitives   R/primitives.R, R/message-helpers.R, R/conditions.R,
+#                   R/check.R
 #   2. values       R/domain.R, R/frame.R, R/pairing.R, R/relation.R,
 #                   R/effect-space.R, R/effect-map.R, R/metric.R, R/source.R,
 #                   R/study.R, R/receipt.R, R/measurement.R, R/bridge.R,
@@ -80,10 +81,7 @@
 .tile_starts <- function(n, size) seq.int(1L, n, by = size)
 
 .validate_tile_size <- function(x, name) {
-  if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
-      x < 1 || x %% 1 != 0) {
-    stop(sprintf("`%s` must be one positive integer.", name), call. = FALSE)
-  }
+  .check_count(x, name, what = "one positive integer")
   as.integer(x)
 }
 
@@ -126,10 +124,8 @@
 }
 
 .unsvec_symmetric <- function(value, q) {
-  if (!is.numeric(value) || length(value) != q * (q + 1L) / 2L ||
-      any(!is.finite(value))) {
-    stop("Packed geometry has the wrong width or non-finite values.",
-      call. = FALSE)
+  if (!.is_finite_numeric(value) || length(value) != q * (q + 1L)/2L) {
+    .input_error("Packed geometry has the wrong width or non-finite values.")
   }
   out <- matrix(0, q, q)
   coordinate <- 0L
@@ -148,42 +144,40 @@
 
 .align_contrast <- function(value, effects, label = "weights") {
   if (!is.numeric(value) || is.matrix(value)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`%s` must be a numeric contrast vector with one weight per effect; ",
       "received %s. The relation declares %s: %s."
     ), label, .msg_value(value), .msg_count(length(effects), "effect"),
-      .msg_names(effects)), call. = FALSE)
+      .msg_names(effects)))
   }
   if (length(value) != length(effects)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`%s` has %s but the relation declares %s (%s). Supply one weight per ",
       "effect, or name the weights to have them aligned for you."
     ), label, .msg_count(length(value), "value"),
-      .msg_count(length(effects), "effect"), .msg_names(effects)),
-      call. = FALSE)
+      .msg_count(length(effects), "effect"), .msg_names(effects)))
   }
   if (any(!is.finite(value))) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`%s` must be finite, but the weight%s for %s %s NA, NaN, or Inf. A ",
       "contrast weight of zero excludes an effect."
     ), label, if (sum(!is.finite(value)) == 1L) "" else "s",
       .msg_positions(!is.finite(value),
         if (is.null(names(value))) effects else names(value)),
-      if (sum(!is.finite(value)) == 1L) "is" else "are"), call. = FALSE)
+      if (sum(!is.finite(value)) == 1L) "is" else "are"))
   }
   if (!is.null(names(value))) {
     supplied <- names(value)
     if (anyNA(supplied) || any(!nzchar(supplied))) {
-      stop(sprintf(paste0(
+      .input_error(sprintf(paste0(
         "`%s` is partially named: every weight must be named, or none. The ",
         "relation declares %s."
-      ), label, .msg_names(effects)), call. = FALSE)
+      ), label, .msg_names(effects)))
     }
     if (anyDuplicated(supplied)) {
-      stop(sprintf(
+      .input_error(sprintf(
         "`%s` names %s more than once; each effect takes exactly one weight.",
-        label, .msg_names(unique(supplied[duplicated(supplied)]))),
-        call. = FALSE)
+        label, .msg_names(unique(supplied[duplicated(supplied)]))))
     }
     if (!setequal(supplied, effects)) {
       unknown <- setdiff(supplied, effects)
@@ -193,10 +187,9 @@
           .msg_names(unknown)),
         if (length(absent)) sprintf("%s has no weight", .msg_names(absent))
       )
-      stop(sprintf(
+      .input_error(sprintf(
         "`%s` does not match the relation's effects (%s): %s.",
-        label, .msg_names(effects), paste(detail, collapse = "; ")),
-        call. = FALSE)
+        label, .msg_names(effects), paste(detail, collapse = "; ")))
     }
     value <- value[effects]
   }

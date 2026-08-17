@@ -27,40 +27,45 @@ test_that("contrast weight errors name the count and the declared effects", {
   fixture <- dx_fixture()
 
   expect_error(contrast_energy(fixture$plan, c(1, -1, 0)),
-    "has 3 values but the relation declares 4 effects")
+    "has 3 values but the relation declares 4 effects",
+    class = "effect_input_error")
   expect_error(contrast_energy(fixture$plan, c(1, -1, 0)),
-    "`face`, `house`, `body`, `tool`")
+    "`face`, `house`, `body`, `tool`", class = "effect_input_error")
 
   expect_error(
     contrast_energy(fixture$plan,
       c(face = 1, houses = -1, body = 0, tool = 0)),
-    "`houses` is not a declared effect; `house` has no weight")
+    "`houses` is not a declared effect; `house` has no weight",
+    class = "effect_input_error")
   expect_error(
     contrast_energy(fixture$plan, c(face = 1, face = -1, body = 0, tool = 0)),
-    "names `face` more than once")
+    "names `face` more than once", class = "effect_input_error")
   expect_error(
     contrast_energy(fixture$plan,
       c(face = 1, house = NA, body = 0, tool = 0)),
-    "the weight for `house` is NA, NaN, or Inf")
+    "the weight for `house` is NA, NaN, or Inf", class = "effect_input_error")
   expect_error(contrast_energy(fixture$plan),
-    "`weights` is required")
+    "`weights` is required", class = "effect_input_error")
   expect_error(contrast_energy(fixture$relation, c(1, -1, 0, 0)),
-    "received an object of class `effect_relation`")
+    "received an object of class `effect_relation`",
+    class = "effect_input_error")
 })
 
 test_that("rdm and rsa name the unknown effect and the offending model", {
   fixture <- dx_fixture()
 
   expect_error(rdm(fixture$plan, pairs = cbind("face", "hous")),
-    "`pairs` names `hous`, which is not a declared experimental effect")
+    "`pairs` names `hous`, which is not a declared experimental effect",
+    class = "effect_input_error")
 
   wrong_size <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3L, 3L)
   expect_error(rsa(fixture$plan, models = list(category = wrong_size)),
-    "`models` RDM `category` is 3 x 3; the relation declares 4 effects")
+    "`models` RDM `category` is 3 x 3; the relation declares 4 effects",
+    class = "effect_input_error")
 
   similarity <- matrix(1, 4L, 4L)
   expect_error(rsa(fixture$plan, models = list(category = similarity)),
-    "nonzero diagonal")
+    "nonzero diagonal", class = "effect_input_error")
 
   mislabelled <- matrix(0, 4L, 4L)
   mislabelled[upper.tri(mislabelled)] <- 1
@@ -68,9 +73,10 @@ test_that("rdm and rsa name the unknown effect and the offending model", {
   wrong_names <- c("face", "house", "body", "toolz")
   dimnames(mislabelled) <- list(wrong_names, wrong_names)
   expect_error(rsa(fixture$plan, models = list(category = mislabelled)),
-    "`toolz` is not a declared effect")
+    "`toolz` is not a declared effect", class = "effect_input_error")
 
-  expect_error(rsa(fixture$plan), "`models` is required")
+  expect_error(rsa(fixture$plan), "`models` is required",
+    class = "effect_input_error")
 })
 
 test_that("rank deficiency names the intercept and the collinear columns", {
@@ -106,33 +112,40 @@ test_that("frame and domain errors report the value that was supplied", {
   fixture <- dx_fixture()
 
   expect_error(compile_frame(voxelwise(), NULL),
-    "`domain` must be an `effect_domain`.*received NULL")
+    "`domain` must be an `effect_domain`.*received NULL",
+    class = "effect_input_error")
   expect_error(compile_frame(voxelwise(), data.frame(a = 1)),
-    "received a data frame with 1 row and 1 column")
+    "received a data frame with 1 row and 1 column",
+    class = "effect_input_error")
   expect_error(compile_frame(voxelwise()),
-    "received no argument")
+    "received no argument", class = "effect_input_error")
   expect_error(compile_frame("voxelwise", fixture$domain),
-    "must be a frame specification from `voxelwise\\(\\)`")
+    "must be a frame specification from `voxelwise\\(\\)`",
+    class = "effect_input_error")
 
-  expect_error(searchlights(-2), "received `-2`")
-  expect_error(searchlights(c(3, 4)), "received a numeric vector of length 2")
+  expect_error(searchlights(-2), "received `-2`", class = "effect_input_error")
+  expect_error(searchlights(c(3, 4)), "received a numeric vector of length 2",
+    class = "effect_input_error")
   expect_error(compile_frame(regions(c("a", "b")), fixture$domain),
-    "supplied 2 labels but the domain has 6 features")
+    "supplied 2 labels but the domain has 6 features",
+    class = "effect_input_error")
 })
 
 test_that("required plan arguments name the call that supplies them", {
   fixture <- dx_fixture()
 
   expect_error(plan_geometry(fixture$relation),
-    "`at` is required: pass a compiled frame from `compile_frame\\(\\)`")
+    "`at` is required: pass a compiled frame from `compile_frame\\(\\)`",
+    class = "effect_input_error")
   expect_error(plan_geometry(fixture$relation, fixture$frame),
-    "`over` is required: pass a pairing from `cross_partitions\\(\\)`")
+    "`over` is required: pass a pairing from `cross_partitions\\(\\)`",
+    class = "effect_input_error")
   expect_error(plan_geometry("betas", fixture$frame, fixture$plan$pairing),
-    "Expected an `effect_relation`")
+    "Expected an `effect_relation`", class = "effect_input_error")
   expect_error(plan_geometry(fixture$relation, "voxels", fixture$plan$pairing),
-    "Expected a compiled `effect_frame`")
+    "Expected a compiled `effect_frame`", class = "effect_input_error")
   expect_error(plan_geometry(fixture$relation, fixture$frame, "runs"),
-    "Expected an `effect_pairing`")
+    "Expected an `effect_pairing`", class = "effect_input_error")
 })
 
 test_that("relation and pairing errors quote the partitions involved", {
@@ -144,7 +157,7 @@ test_that("relation and pairing errors quote the partitions involved", {
     domain = fixture$domain
   )
   expect_error(cross_partitions(single, independence = "independent"),
-    "this relation has 1 partition \\(`run1`\\)")
+    "this relation has 1 partition \\(`run1`\\)", class = "effect_input_error")
 
   contaminated <- matrix(rnorm(24), 4L, 6L,
     dimnames = list(fixture$effects, NULL))
@@ -152,11 +165,11 @@ test_that("relation and pairing errors quote the partitions involved", {
   expect_error(
     relation(list(run1 = contaminated), domain = fixture$domain),
     "Partition `run1`: 1 of 24 values is non-finite"
-  )
+  , class = "effect_input_error")
   expect_error(
     relation(list(run1 = contaminated), domain = fixture$domain),
     "in row `house`"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("as_neurovol explains the measurement-versus-feature distinction", {
@@ -212,24 +225,24 @@ test_that("an out-of-range measurement index names the argument and range", {
     rdm_sampling_covariance(plan, example$fit, target = "null", at = 99999),
     sprintf("`at` = 99999 is outside the plan's 1\\.\\.%d measurements",
       measurements)
-  )
+  , class = "effect_input_error")
   expect_error(
     rdm_sampling_covariance(plan, example$fit, target = "null", at = 0),
     sprintf("`at` = 0 is outside the plan's 1\\.\\.%d measurements",
       measurements)
-  )
+  , class = "effect_input_error")
   expect_error(
     rdm_sampling_covariance(plan, example$fit, target = "null", at = "peak"),
     sprintf(
       "`at` must be one measurement index in 1\\.\\.%d; received a character",
       measurements)
-  )
+  , class = "effect_input_error")
 
   # The compiled accessor reports the same way when it is reached directly.
   read_node <- crossform:::.frame_metric_node_accessor(example$frame)
   expect_error(read_node(1e6),
     sprintf("`at` = 1000000 is outside the frame's 1\\.\\.%d measurements",
-      measurements))
+      measurements), class = "effect_input_error")
 })
 
 test_that("`at` is required rather than silently defaulting to measurement 1", {
@@ -242,11 +255,11 @@ test_that("`at` is required rather than silently defaulting to measurement 1", {
   expect_error(
     rdm_sampling_covariance(plan, example$fit, target = "null"),
     "`at` is required: name the measurement"
-  )
+  , class = "effect_input_error")
   expect_error(
     rdm_sampling_covariance(plan, example$fit, target = "null"),
     "which.max\\(effect\\$total\\)"
-  )
+  , class = "effect_input_error")
   # The calibration target is still the first thing asked for, because it
   # names the estimand and `at` only names where to evaluate it.
   target_first <- catch_refusal(rdm_sampling_covariance(plan, example$fit))

@@ -115,7 +115,7 @@ test_that("compiler rejects a same-shaped query from another effect space", {
     c("face", "house"), basis_id = "different:basis"))
 
   expect_error(evaluate_geometry(fixture$relation, fixture$at, fixture$over,
-    query), "effect spaces are incompatible")
+    query), "effect spaces are incompatible", class = "effect_contract_error")
 })
 
 test_that("experimental reparameterization preserves bound scalar queries", {
@@ -223,10 +223,11 @@ test_that("compile and budget failures occur before opaque source reads", {
   over <- cross_partitions(rel$partitions, independence = "independent")
 
   expect_error(evaluate_geometry(rel, at, over, matrix(1, 2, 1)),
-    "packed-coordinate")
+    "packed-coordinate", class = "effect_input_error")
   expect_identical(reads, 0L)
   expect_error(materialize_geometry(rel, at, over,
-    compute = compute_policy(workspace_bytes = 1)), "exceeding")
+    compute = compute_policy(workspace_bytes = 1)), "exceeding",
+    class = "effect_input_error")
   expect_identical(reads, 0L)
 })
 
@@ -354,7 +355,7 @@ test_that("opaque sources without revisions fail before reading", {
 
   expect_error(materialize_geometry(rel, at,
     cross_partitions(rel$partitions, independence = "independent")),
-    "explicit `source_capabilities")
+    "explicit `source_capabilities", class = "effect_input_error")
   expect_identical(reads, 0L)
 })
 

@@ -162,7 +162,8 @@ test_that("`top` is refused rather than guessed", {
     for (view in list(small, large)) {
       for (bad in list(0L, -5L, 2.5, NA_integer_, Inf, "200", NULL,
           c(10L, 20L))) {
-        expect_error(plot(view, top = bad), "`top`")
+        expect_error(plot(view, top = bad), "`top`",
+          class = "effect_input_error")
       }
       # The check does not wait for a view large enough to use the argument.
       expect_silent(plot(view, which = "profile", top = 12L))

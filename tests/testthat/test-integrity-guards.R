@@ -135,7 +135,7 @@ test_that("unequal-length runs get a legible per-partition diagnosis", {
   expect_error(
     lm_relation_fit(sources, design, effects, domain = domain),
     "Partition `run2` supplies 12 observations.*named list"
-  )
+  , class = "effect_input_error")
   per_partition <- list(
     run1 = design,
     run2 = design[seq_len(12L), , drop = FALSE]
@@ -159,7 +159,7 @@ test_that("a covariance artifact cannot claim a plan of another dimension", {
       residual_covariance = diag(4)
     ),
     "declare 120 experimental effects but the bound evidence plan has 3"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("inconsistent canonical blocks refuse instead of clipping", {
@@ -171,5 +171,5 @@ test_that("inconsistent canonical blocks refuse instead of clipping", {
       cross, left_self, right_self
     ),
     "will not be silently clipped"
-  )
+  , class = "effect_input_error")
 })

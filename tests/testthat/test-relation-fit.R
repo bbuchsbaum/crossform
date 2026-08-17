@@ -208,7 +208,7 @@ test_that("deep validation is a boundary operation, not a block-read rebuild", {
   expect_error(
     crossform:::.validate_relation_fit(mutated, deep = TRUE),
     "identity"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("a saturated model cannot claim a residual error channel", {
@@ -220,7 +220,7 @@ test_that("a saturated model cannot claim a residual error channel", {
   expect_error(
     lm_relation_fit(list(run = response), design, target),
     "residual degree of freedom"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("lm relation fits tolerate a forwarded NULL legacy whitener", {

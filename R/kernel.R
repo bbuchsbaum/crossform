@@ -2,24 +2,19 @@
 
 .tiled_contraction <- function(weights, atoms, row_tile, coordinate_tile,
                                feature_tile, write_tile = NULL) {
-  if (!is.matrix(weights) || !is.numeric(weights) || any(!is.finite(weights))) {
-    stop("`weights` must be a finite numeric matrix.", call. = FALSE)
-  }
-  if (!is.matrix(atoms) || !is.numeric(atoms) || any(!is.finite(atoms))) {
-    stop("`atoms` must be a finite numeric matrix.", call. = FALSE)
-  }
+  .check_matrix(weights, "weights", what = "a finite numeric matrix")
+  .check_matrix(atoms, "atoms", what = "a finite numeric matrix")
   if (ncol(weights) != nrow(atoms)) {
-    stop("The feature dimension of `weights` and `atoms` must agree.",
-      call. = FALSE)
+    .input_error("The feature dimension of `weights` and `atoms` must agree.")
   }
   if (nrow(weights) < 1L || ncol(weights) < 1L || ncol(atoms) < 1L) {
-    stop("Contraction inputs must have positive dimensions.", call. = FALSE)
+    .input_error("Contraction inputs must have positive dimensions.")
   }
   row_tile <- .validate_tile_size(row_tile, "row_tile")
   coordinate_tile <- .validate_tile_size(coordinate_tile, "coordinate_tile")
   feature_tile <- .validate_tile_size(feature_tile, "feature_tile")
   if (!is.null(write_tile) && !is.function(write_tile)) {
-    stop("`write_tile` must be NULL or a function.", call. = FALSE)
+    .input_error("`write_tile` must be NULL or a function.")
   }
 
   measurements <- nrow(weights)
@@ -102,32 +97,24 @@
     form_total = TRUE, task_observer = NULL) {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
-    stop("The streamed effect-form lowering requires an additive diagonal frame.",
-      call. = FALSE)
+    .input_error(
+      "The streamed effect-form lowering requires an additive diagonal frame."
+    )
   }
   if (!is.function(read_left) || !is.function(read_right)) {
-    stop("Effect-form relation readers must be functions.", call. = FALSE)
+    .input_error("Effect-form relation readers must be functions.")
   }
-  if (!is.logical(same_relation) || length(same_relation) != 1L ||
-      is.na(same_relation)) {
-    stop("`same_relation` must be TRUE or FALSE.", call. = FALSE)
-  }
-  if (!is.logical(retain_first_moments) ||
-      length(retain_first_moments) != 1L || is.na(retain_first_moments)) {
-    stop("`retain_first_moments` must be TRUE or FALSE.", call. = FALSE)
-  }
-  if (!is.logical(form_total) || length(form_total) != 1L ||
-      is.na(form_total)) {
-    stop("`form_total` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(same_relation, "same_relation")
+  .check_flag(retain_first_moments, "retain_first_moments")
+  .check_flag(form_total, "form_total")
   if (!form_total && !retain_first_moments) {
-    stop("Streaming must form total output, first moments, or both.",
-      call. = FALSE)
+    .input_error("Streaming must form total output, first moments, or both.")
   }
   if (same_relation && (!identical(left_partitions, right_partitions) ||
       !identical(left_effects, right_effects))) {
-    stop("A shared relation reader requires identical partition and effect axes.",
-      call. = FALSE)
+    .input_error(
+      "A shared relation reader requires identical partition and effect axes."
+    )
   }
   .validate_effect_names(left_effects, length(left_effects))
   .validate_effect_names(right_effects, length(right_effects))
@@ -143,8 +130,9 @@
     if (!same_relation || !identical(left_effects, right_effects) ||
         !identical(attr(ordered_edges, "expansion"),
           "self_adjoint_half_edges")) {
-      stop("Symmetric-packed streaming requires a self-adjoint self form.",
-        call. = FALSE)
+      .input_error(
+        "Symmetric-packed streaming requires a self-adjoint self form."
+      )
     }
     q_left * (q_left + 1L) / 2L
   }
@@ -156,21 +144,22 @@
     } else if (!is.matrix(query) || !is.numeric(query) ||
         nrow(query) != physical_width || ncol(query) < 1L ||
         any(!is.finite(query))) {
-      stop("`query` must match the finite physical form coordinates.",
-        call. = FALSE)
+      .contract_error(
+        "`query` must match the finite physical form coordinates."
+      )
     }
   }
   feature_block <- .validate_tile_size(feature_block, "feature_block")
   row_tile <- .validate_tile_size(row_tile, "row_tile")
   coordinate_tile <- .validate_tile_size(coordinate_tile, "coordinate_tile")
   if (!is.null(accumulate_tile) && !is.function(accumulate_tile)) {
-    stop("`accumulate_tile` must be NULL or a function.", call. = FALSE)
+    .input_error("`accumulate_tile` must be NULL or a function.")
   }
   if (!form_total && !is.null(accumulate_tile)) {
-    stop("`accumulate_tile` requires total-form contraction.", call. = FALSE)
+    .input_error("`accumulate_tile` requires total-form contraction.")
   }
   if (!is.null(task_observer) && !is.function(task_observer)) {
-    stop("`task_observer` must be NULL or a function.", call. = FALSE)
+    .input_error("`task_observer` must be NULL or a function.")
   }
 
   features <- ncol(frame$weights)
@@ -309,13 +298,12 @@
       read_family <- function(partitions, effects, reader, side) {
         stats::setNames(lapply(partitions, function(partition) {
           value <- reader(partition, feature_ids)
-          if (!is.matrix(value) || !is.numeric(value) ||
-              !identical(dim(value), c(length(effects), length(feature_ids))) ||
-              any(!is.finite(value))) {
-            stop(sprintf(
+          if (!.is_finite_matrix(value) ||
+              !identical(dim(value), c(length(effects), length(feature_ids)))) {
+            .input_error(sprintf(
               "%s relation reader returned an invalid effect-by-feature block.",
               side
-            ), call. = FALSE)
+            ))
           }
           value
         }), partitions)
@@ -382,8 +370,10 @@
           atom_slice <- task$atoms[, coordinates, drop = FALSE]
           product <- as.matrix(weight_slice %*% atom_slice)
           if (any(!is.finite(product))) {
-            stop("Effect-form spatial contraction produced non-finite values.",
-              call. = FALSE)
+            .input_error(
+              paste0("Effect-form spatial contraction produced non-finite values.",
+          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+            )
           }
           existing <- replacement <- NULL
           if (is.null(accumulate_tile)) {
@@ -447,24 +437,22 @@
   schedule <- .validate_geometry_metric_schedule(metric_schedule)
   if (!identical(schedule$kind, "fixed_metric_before_frame") ||
       !is.function(read_relation)) {
-    stop("Support-streamed execution requires a fixed metric and relation reader.",
-      call. = FALSE)
+    .input_error(
+      "Support-streamed execution requires a fixed metric and relation reader."
+    )
   }
   metric <- .validate_neural_metric(schedule$metric, deep = FALSE)
   .validate_effect_names(effects, length(effects))
   .validate_ordered_partition_edges(
     ordered_edges, partitions, partitions, TRUE
   )
-  if (!is.logical(form_total) || length(form_total) != 1L ||
-      is.na(form_total) || !is.logical(form_coherent) ||
-      length(form_coherent) != 1L || is.na(form_coherent) ||
-      !is.logical(retain_first_moments) ||
-      length(retain_first_moments) != 1L || is.na(retain_first_moments) ||
+  if (!.is_flag(form_total) || !.is_flag(form_coherent) ||
+      !.is_flag(retain_first_moments) ||
       (!form_total && !form_coherent && !retain_first_moments)) {
-    stop("Support-streamed output requirements are invalid.", call. = FALSE)
+    .input_error("Support-streamed output requirements are invalid.")
   }
   if (!is.null(task_observer) && !is.function(task_observer)) {
-    stop("`task_observer` must be NULL or a function.", call. = FALSE)
+    .input_error("`task_observer` must be NULL or a function.")
   }
   q <- length(effects)
   packed_width <- q * (q + 1L) / 2L
@@ -474,8 +462,7 @@
   } else if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
       nrow(query) != packed_width || ncol(query) < 1L ||
       any(!is.finite(query)))) {
-    stop("`query` must match the finite packed effect coordinates.",
-      call. = FALSE)
+    .contract_error("`query` must match the finite packed effect coordinates.")
   }
   operators <- if (is.null(query) || structured_query) {
     NULL
@@ -554,8 +541,9 @@
     tryCatch({
       local_metric_index <- unname(metric_positions[as.character(node$support)])
       if (anyNA(local_metric_index)) {
-        stop("A frame support falls outside the fixed metric operator.",
-          call. = FALSE)
+        .contract_error(
+          "A frame support falls outside the fixed metric operator."
+        )
       }
       base <- metric$value[
         local_metric_index, local_metric_index, drop = FALSE
@@ -568,11 +556,11 @@
       }
       relations <- stats::setNames(lapply(partitions, function(partition) {
         value <- read_relation(partition, node$support_positions)
-        if (!is.matrix(value) || !is.numeric(value) ||
-            !identical(dim(value), c(q, length(node$support_positions))) ||
-            any(!is.finite(value))) {
-          stop("Relation reader returned an invalid local effect block.",
-            call. = FALSE)
+        if (!.is_finite_matrix(value) ||
+            !identical(dim(value), c(q, length(node$support_positions)))) {
+          .input_error(
+            "Relation reader returned an invalid local effect block."
+          )
         }
         value
       }), partitions)
@@ -601,22 +589,22 @@
       }
       if (form_coherent) {
         if (!metric$capabilities$positive_definite) {
-          stop(paste0(
+          .input_error(paste0(
             "Metric-aware coherent/configuration output requires an SPD ",
             "metric on every support."
-          ), call. = FALSE)
+          ))
         }
         a <- node$weight / mass[[node_index]]
         factor <- tryCatch(chol(K), error = function(error) NULL)
         if (is.null(factor)) {
-          stop("The composed local metric is not positive definite.",
-            call. = FALSE)
+          .input_error("The composed local metric is not positive definite.")
         }
         solved <- backsolve(factor, forwardsolve(t(factor), a))
         denominator <- sum(a * solved)
         if (!is.finite(denominator) || denominator <= 0) {
-          stop("The coherent inverse-metric norm is not positive and finite.",
-            call. = FALSE)
+          .invariant_error(
+            "The coherent inverse-metric norm is not positive and finite."
+          )
         }
         value <- if (is.null(query)) matrix(0, q, q) else
           numeric(output_width)
@@ -696,7 +684,7 @@
   schedule <- metric_schedule
   .validate_frozen_metric_schedule(schedule, deep = FALSE)
   if (!is.function(read_relation)) {
-    stop("Scheduled crossnobis requires one relation reader.", call. = FALSE)
+    .input_error("Scheduled crossnobis requires one relation reader.")
   }
   .validate_effect_names(effects, length(effects))
   .validate_ordered_partition_edges(
@@ -704,7 +692,7 @@
   )
   contrast <- .align_contrast(contrast, effects)
   if (!is.null(task_observer) && !is.function(task_observer)) {
-    stop("`task_observer` must be NULL or a function.", call. = FALSE)
+    .input_error("`task_observer` must be NULL or a function.")
   }
   for (edge in seq_len(nrow(ordered_edges))) {
     input <- ordered_edges$input_edge[[edge]]
@@ -713,8 +701,9 @@
     observed <- c(ordered_edges$left[[edge]], ordered_edges$right[[edge]])
     if (!identical(observed, declared) &&
         !identical(observed, rev(declared))) {
-      stop("Scheduled metric records do not match ordered evaluation edges.",
-        call. = FALSE)
+      .contract_error(
+        "Scheduled metric records do not match ordered evaluation edges."
+      )
     }
   }
   endpoints <- partitions[partitions %in%
@@ -748,12 +737,11 @@
       root_weight <- sqrt(node$weight)
       patterns <- stats::setNames(lapply(endpoints, function(partition) {
         relation <- read_relation(partition, node$support_positions)
-        if (!is.matrix(relation) || !is.numeric(relation) ||
-            !identical(dim(relation),
-              c(length(effects), length(node$support_positions))) ||
-            any(!is.finite(relation))) {
-          stop("Relation reader returned an invalid local effect block.",
-            call. = FALSE)
+        if (!.is_finite_matrix(relation) ||
+            !identical(dim(relation), c(length(effects), length(node$support_positions)))) {
+          .input_error(
+            "Relation reader returned an invalid local effect block."
+          )
         }
         drop(contrast %*% relation) * root_weight
       }), endpoints)
@@ -771,8 +759,7 @@
         value <- value + schedule$pairing$weight[[edge]] * edge_value
       }
       if (!is.finite(value)) {
-        stop("Scheduled crossnobis produced a non-finite value.",
-          call. = FALSE)
+        .invariant_error("Scheduled crossnobis produced a non-finite value.")
       }
       values[[node_index]] <- value
       k <- length(node$support_positions)
@@ -823,8 +810,9 @@
   codec <- match.arg(codec)
   component <- match.arg(component)
   if (component == "complete" && !is.null(query)) {
-    stop("A queried effect-form lowering must name one result component.",
-      call. = FALSE)
+    .input_error(
+      "A queried effect-form lowering must name one result component."
+    )
   }
   needs_total <- component %in% c("complete", "total", "configuration")
   needs_coherent <- component %in% c(
@@ -963,19 +951,20 @@
     row_tile = 1024L, write_tile = NULL, query = NULL) {
   validate_first <- function(value, side) {
     if (!is.array(value) || length(dim(value)) != 3L ||
-        !is.numeric(value) || any(!is.finite(value))) {
-      stop(sprintf(
+        !.is_finite_numeric(value)) {
+      .input_error(sprintf(
         "`%s_first` must be a finite measurement-by-effect-by-partition array.",
         side
-      ), call. = FALSE)
+      ))
     }
     effects <- dimnames(value)[[2L]]
     partitions <- dimnames(value)[[3L]]
     if (is.null(effects) || anyNA(effects) || any(!nzchar(effects)) ||
         anyDuplicated(effects) || is.null(partitions) || anyNA(partitions) ||
         any(!nzchar(partitions)) || anyDuplicated(partitions)) {
-      stop("First-moment effect and partition axes must be uniquely named.",
-        call. = FALSE)
+      .input_error(
+        "First-moment effect and partition axes must be uniquely named."
+      )
     }
     list(effects = effects, partitions = partitions)
   }
@@ -983,8 +972,7 @@
   right_axis <- validate_first(right_first, "right")
   measurements <- dim(left_first)[[1L]]
   if (dim(right_first)[[1L]] != measurements) {
-    stop("Left and right first moments must share a measurement axis.",
-      call. = FALSE)
+    .input_error("Left and right first moments must share a measurement axis.")
   }
   .validate_ordered_partition_edges(
     ordered_edges, left_axis$partitions, right_axis$partitions, same_relation
@@ -994,18 +982,20 @@
       (!same_relation || !identical(left_axis, right_axis) ||
        !identical(attr(ordered_edges, "expansion"),
          "self_adjoint_half_edges"))) {
-    stop("Symmetric-packed coherent forms require a self-adjoint self form.",
-      call. = FALSE)
+    .input_error(
+      "Symmetric-packed coherent forms require a self-adjoint self form."
+    )
   }
-  if (!is.numeric(mass) || !(length(mass) %in% c(1L, measurements)) ||
-      any(!is.finite(mass)) || any(mass <= 0)) {
-    stop("`mass` must be one positive finite value or one per measurement.",
-      call. = FALSE)
+  if (!.is_finite_numeric(mass) || !(length(mass) %in% c(1L, measurements)) ||
+      any(mass <= 0)) {
+    .input_error(
+      "`mass` must be one positive finite value or one per measurement."
+    )
   }
   mass <- rep_len(mass, measurements)
   row_tile <- .validate_tile_size(row_tile, "row_tile")
   if (!is.null(write_tile) && !is.function(write_tile)) {
-    stop("`write_tile` must be NULL or a function.", call. = FALSE)
+    .input_error("`write_tile` must be NULL or a function.")
   }
   q_left <- dim(left_first)[[2L]]
   q_right <- dim(right_first)[[2L]]
@@ -1022,8 +1012,7 @@
   } else if (!is.null(query) && (!is.matrix(query) || !is.numeric(query) ||
       nrow(query) != physical_width || ncol(query) < 1L ||
       any(!is.finite(query)))) {
-    stop("`query` must match the finite physical form coordinates.",
-      call. = FALSE)
+    .contract_error("`query` must match the finite physical form coordinates.")
   }
   output_width <- if (is.null(query)) {
     physical_width
@@ -1115,8 +1104,10 @@
       }
     }
     if (any(!is.finite(tile))) {
-      stop("Coherent effect-form contraction produced non-finite values.",
-        call. = FALSE)
+      .input_error(
+        paste0("Coherent effect-form contraction produced non-finite values.",
+          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+      )
     }
     if (is.null(write_tile)) {
       output[rows, ] <- tile
@@ -1144,15 +1135,16 @@
                                           row_tile = 1024L,
                                           write_tile = NULL, query = NULL) {
   if (!is.array(local_relations) || length(dim(local_relations)) != 3L ||
-      !is.numeric(local_relations) || any(!is.finite(local_relations))) {
-    stop("`local_relations` must be a finite measurement-by-effect-by-partition array.",
-      call. = FALSE)
+      !.is_finite_numeric(local_relations)) {
+    .input_error(paste0(
+      "`local_relations` must be a finite measurement-by-effect-by-partition ",
+      "array."
+    ))
   }
   partitions <- dimnames(local_relations)[[3L]]
   effects <- dimnames(local_relations)[[2L]]
   if (is.null(partitions) || is.null(effects)) {
-    stop("Local relation effect and partition axes must be named.",
-      call. = FALSE)
+    .input_error("Local relation effect and partition axes must be named.")
   }
   edges <- .ordered_partition_edges(over, partitions, partitions, TRUE)
   .effect_form_coherent_from_first_moments(

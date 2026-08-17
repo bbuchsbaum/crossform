@@ -62,13 +62,16 @@ test_that("combined tolerance handles scale and rejects real disagreement", {
 })
 
 test_that("non-finite comparisons and invalid tolerances are rejected", {
-  expect_error(numerical_contract(atol = -1), "nonnegative")
-  expect_error(numerical_contract(rtol = Inf), "finite")
-  expect_error(numerical_agreement(NA_real_, 0), "finite numeric")
+  expect_error(numerical_contract(atol = -1), "nonnegative",
+    class = "effect_input_error")
+  expect_error(numerical_contract(rtol = Inf), "finite",
+    class = "effect_input_error")
+  expect_error(numerical_agreement(NA_real_, 0), "finite numeric",
+    class = "effect_input_error")
   expect_error(
     crossform:::.canonical_reduce(list(1, 2), c(1, 1)),
     "unique"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("numerical agreement revalidates mutated contracts", {
@@ -76,7 +79,7 @@ test_that("numerical agreement revalidates mutated contracts", {
   contract$block_partition$guarantee <- "bitwise"
 
   expect_error(numerical_agreement(1, 1, contract = contract),
-    "inconsistent or noncanonical")
+    "inconsistent or noncanonical", class = "effect_input_error")
 })
 
 test_that("the scheduling guarantee is bitwise, distinguishing 0 from -0", {

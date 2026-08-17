@@ -21,8 +21,7 @@
 
 .execution_blas_record <- function() {
   vendor <- tryCatch(unname(extSoftVersion()[["BLAS"]]), error = function(e) NULL)
-  if (is.null(vendor) || !is.character(vendor) || length(vendor) != 1L ||
-      is.na(vendor) || !nzchar(vendor)) vendor <- "unknown"
+  if (is.null(vendor) || !.is_string(vendor)) vendor <- "unknown"
   list(vendor = vendor, requested_threads = 1L,
     observed_threads = NA_integer_)
 }
@@ -68,32 +67,29 @@
   storage <- match.arg(storage, c("memory", "block"))
   if (storage == "memory") {
     if (!is.null(storage_path)) {
-      stop("`storage_path` is only valid for block-backed geometry.",
-        call. = FALSE)
+      .input_error("`storage_path` is only valid for block-backed geometry.")
     }
     return(list(kind = storage, total = NULL, coherent = NULL,
       created = character(), created_directory = FALSE))
   }
-  if (!is.character(storage_path) || length(storage_path) != 1L ||
-      is.na(storage_path) || !nzchar(storage_path)) {
-    stop("Block-backed geometry requires one nonempty `storage_path`.",
-      call. = FALSE)
+  if (!.is_string(storage_path)) {
+    .input_error("Block-backed geometry requires one nonempty `storage_path`.")
   }
   created_directory <- FALSE
   if (!dir.exists(storage_path)) {
     parent <- dirname(storage_path)
     if (!dir.exists(parent)) {
-      stop("The parent of `storage_path` must already exist.", call. = FALSE)
+      .input_error("The parent of `storage_path` must already exist.")
     }
     if (!dir.create(storage_path, recursive = FALSE, showWarnings = FALSE)) {
-      stop("Could not create `storage_path`.", call. = FALSE)
+      .input_error("Could not create `storage_path`.")
     }
     created_directory <- TRUE
   }
   total_path <- file.path(storage_path, "total.egm")
   coherent_path <- file.path(storage_path, "coherent.egm")
   if (file.exists(total_path) || file.exists(coherent_path)) {
-    stop("Refusing to overwrite an existing geometry component.", call. = FALSE)
+    .input_error("Refusing to overwrite an existing geometry component.")
   }
   total <- .file_geometry_store(total_path, dim, create = TRUE)
   coherent <- tryCatch(
@@ -117,13 +113,13 @@
       unlink(storage$created)
       remaining <- storage$created[file.exists(storage$created)]
       if (length(remaining)) {
-        stop("Failed to remove incomplete geometry components.", call. = FALSE)
+        .input_error("Failed to remove incomplete geometry components.")
       }
       if (storage$created_directory) {
         directory <- dirname(storage$created[[1L]])
         unlink(directory, recursive = TRUE)
         if (dir.exists(directory)) {
-          stop("Failed to remove incomplete geometry directory.", call. = FALSE)
+          .input_error("Failed to remove incomplete geometry directory.")
         }
       }
     }
@@ -133,9 +129,10 @@
 
 .ordered_pairing_marginals <- function(local, ordered_edges, mass) {
   if (!is.array(local) || length(dim(local)) != 3L ||
-      !is.numeric(local) || any(!is.finite(local))) {
-    stop("Compiled marginals require finite local relation first moments.",
-      call. = FALSE)
+      !.is_finite_numeric(local)) {
+    .invariant_error(
+      "Compiled marginals require finite local relation first moments."
+    )
   }
   partitions <- dimnames(local)[[3L]]
   effects <- dimnames(local)[[2L]]
@@ -143,9 +140,9 @@
     ordered_edges, partitions, partitions, TRUE
   )
   measurements <- dim(local)[[1L]]
-  if (!is.numeric(mass) || !(length(mass) %in% c(1L, measurements)) ||
-      any(!is.finite(mass)) || any(mass <= 0)) {
-    stop("Compiled marginal mass must be positive and finite.", call. = FALSE)
+  if (!.is_finite_numeric(mass) || !(length(mass) %in% c(1L, measurements)) ||
+      any(mass <= 0)) {
+    .invariant_error("Compiled marginal mass must be positive and finite.")
   }
   mass <- rep_len(mass, measurements)
   normalized <- function(partition) {
@@ -615,14 +612,16 @@
                                    signed_query = NULL) {
   if (inherits(x, "effect_geometry_plan")) {
     if (!is.null(at) || !is.null(over) || !is.null(compute)) {
-      stop("A compiled geometry plan cannot be combined with raw plan inputs.",
-        call. = FALSE)
+      .input_error(
+        "A compiled geometry plan cannot be combined with raw plan inputs."
+      )
     }
     plan <- x
   } else {
     if (is.null(at) || is.null(over)) {
-      stop("A relation requires both `at` and `over` to compile geometry.",
-        call. = FALSE)
+      .input_error(
+        "A relation requires both `at` and `over` to compile geometry."
+      )
     }
     if (is.null(compute)) compute <- compute_policy()
     plan <- plan_geometry(x, at, over, compute)

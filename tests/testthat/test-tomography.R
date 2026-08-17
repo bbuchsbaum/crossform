@@ -284,7 +284,7 @@ test_that("diagonal-only blocks and incompatible bases cannot claim tomography",
   )
   expect_error(crossform:::.reconstruct_neural_evidence(
     complete$form, altered
-  ), "do not match.*bases")
+  ), "do not match.*bases", class = "effect_contract_error")
 })
 
 test_that("ill-conditioning is rejected with frame diagnostics", {
@@ -318,6 +318,6 @@ test_that("resource preflight fails before any measurement block read", {
   expect_silent(crossform:::.validate_tomography_resource_plan(plan))
   expect_error(crossform:::.reconstruct_neural_evidence(
     fixture$form, fixture$frame, workspace_bytes = 1
-  ), "exceeding")
+  ), "exceeding", class = "effect_input_error")
   expect_identical(reads$count, 0L)
 })

@@ -204,29 +204,33 @@ test_that("raw targets bind parameterization and expose narrower capability", {
 })
 
 test_that("semantic constructors reject positional and nonportable ambiguity", {
-  expect_error(effect_map(matrix(1:4, 2)), "condition space")
-  expect_error(condition_space(c("a", "a")), "unique")
+  expect_error(effect_map(matrix(1:4, 2)), "condition space",
+    class = "effect_input_error")
+  expect_error(condition_space(c("a", "a")), "unique",
+    class = "effect_input_error")
   expect_error(condition_space("a", provenance = list(run = function() 1)),
-    "nonportable")
+    "nonportable", class = "effect_input_error")
 
   fixture <- effect_map_fixture()
   wrong_order <- fixture$effects$weights[, c("object", "place", "face")]
-  expect_error(effect_map(wrong_order, fixture$conditions), "must follow")
+  expect_error(effect_map(wrong_order, fixture$conditions), "must follow",
+    class = "effect_input_error")
 })
 
 test_that("semantic object validation detects identity tampering", {
   fixture <- effect_map_fixture()
   tampered <- fixture$effects
   tampered$weights[1, 1] <- tampered$weights[1, 1] + 1
-  expect_error(crossform:::.validate_effect_map(tampered), "inconsistent")
+  expect_error(crossform:::.validate_effect_map(tampered), "inconsistent",
+    class = "effect_contract_error")
 
   tampered_space <- fixture$conditions
   tampered_space$basis_id <- "changed"
   expect_error(crossform:::.validate_condition_space(tampered_space),
-    "inconsistent")
+    "inconsistent", class = "effect_contract_error")
 
   lowered <- lower_effect_map(fixture$effects, fixture$cell)
   lowered$target[1, 1] <- lowered$target[1, 1] + 1
   expect_error(crossform:::.validate_lowered_effect_map(lowered),
-    "identity is inconsistent")
+    "identity is inconsistent", class = "effect_contract_error")
 })

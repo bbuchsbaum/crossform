@@ -92,17 +92,17 @@ coupling <- function(x, between, by, over = NULL,
     )
   }
   if (missing(between)) {
-    stop(paste0(
+    .input_error(paste0(
       "`between` is required: pass a two-column matrix of frame node pairs, ",
       "for example `cbind(from_ids, to_ids)` naming measurements of the ",
       "plan's frame."
-    ), call. = FALSE)
+    ))
   }
   if (missing(by)) {
-    stop(paste0(
+    .input_error(paste0(
       "`by` is required: pass the `variation_query()` that says which ",
       "experimental variation the coupling is read over."
-    ), call. = FALSE)
+    ))
   }
   mode <- match.arg(mode)
   frame <- measurement_frame(x$frame, mode = mode)
@@ -111,32 +111,31 @@ coupling <- function(x, between, by, over = NULL,
     if (is.numeric(value)) {
       if (anyNA(value) || any(value < 1) || any(value > length(node_ids)) ||
           any(value %% 1 != 0)) {
-        stop(sprintf(paste0(
+        .input_error(sprintf(paste0(
           "`between` %s indices must be whole numbers in 1:%d, one per frame ",
           "measurement; received %s."
-        ), side, length(node_ids), .msg_names(format(value))), call. = FALSE)
+        ), side, length(node_ids), .msg_names(format(value))))
       }
       return(node_ids[as.integer(value)])
     }
     value <- as.character(value)
     if (anyNA(value) || any(!value %in% node_ids)) {
       unknown <- unique(value[is.na(value) | !value %in% node_ids])
-      stop(sprintf(paste0(
+      .input_error(sprintf(paste0(
         "`between` %s names %s, which %s a measurement of the plan's frame. ",
         "The frame has %s: %s."
       ), side, .msg_names(unknown),
         if (length(unknown) == 1L) "is not" else "are not",
-        .msg_count(length(node_ids), "measurement"), .msg_names(node_ids)),
-        call. = FALSE)
+        .msg_count(length(node_ids), "measurement"), .msg_names(node_ids)))
     }
     value
   }
   if (is.data.frame(between)) between <- as.matrix(between)
   if (!is.matrix(between) || ncol(between) != 2L || nrow(between) < 1L) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`between` must be a nonempty two-column matrix of frame node pairs ",
       "(from, to); received %s."
-    ), .msg_value(between)), call. = FALSE)
+    ), .msg_value(between)))
   }
   edges <- edge_frame(
     resolve(between[, 1L], "from"),

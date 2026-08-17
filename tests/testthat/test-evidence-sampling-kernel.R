@@ -228,7 +228,7 @@ test_that("a rank-deficient residual covariance keeps a valid factor", {
       labels = rownames(contrasts)
     ),
     "Residual covariance must be positive semidefinite"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("every exact query route agrees with dense covariance", {
@@ -297,7 +297,7 @@ test_that("every exact query route agrees with dense covariance", {
       stats::setNames(vector, paste0("wrong", seq_along(vector)))
     ),
     "identify every sampling-covariance coordinate"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("compiled operation plans execute the requested exact route", {
@@ -336,7 +336,7 @@ test_that("dense materialization is explicit and size-preflighted", {
       materialize, fixture$covariance, max_bytes = 8
     ),
     "exceeding.*materialization budget"
-  )
+  , class = "effect_input_error")
   expect_identical(
     dim(crossform:::.execute_evidence_sampling_plan(
       materialize, fixture$covariance,
@@ -354,7 +354,7 @@ test_that("sampling covariance detects plan and source mutation", {
   expect_error(
     crossform:::.validate_sampling_covariance(forged),
     "identity"
-  )
+  , class = "effect_contract_error")
   different_target <- crossform:::.compile_evidence_sampling_plan(
     fixture$base$evidence, fixture$base$fit,
     target = crossform:::.sampling_target("null")
@@ -364,5 +364,5 @@ test_that("sampling covariance detects plan and source mutation", {
       different_target, fixture$covariance
     ),
     "different scientific identities"
-  )
+  , class = "effect_contract_error")
 })

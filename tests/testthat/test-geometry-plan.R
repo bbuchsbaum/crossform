@@ -251,7 +251,7 @@ test_that("mutated plans fail before source reads", {
   expect_error(
     evaluate_geometry(forged, query = bilinear_query(diag(4))),
     "Locally normalized|identity|inconsistent"
-  )
+  , class = "effect_input_error")
   expect_identical(reads$count, 0L)
 })
 
@@ -263,11 +263,11 @@ test_that("query-only plans cannot silently accept materialization controls", {
     evaluate_geometry(plan, query = bilinear_query(diag(4)),
       compute = compute_policy(block_features = 1)),
     "cannot be combined with raw plan inputs"
-  )
+  , class = "effect_input_error")
   expect_error(
     materialize_geometry(plan, at = fixture$frame),
     "cannot be combined with raw plan inputs"
-  )
+  , class = "effect_input_error")
 })
 
 metric_plan_oracle <- function(fixture, K, contrast = NULL) {

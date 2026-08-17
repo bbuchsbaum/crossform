@@ -14,9 +14,10 @@ test_that("public metric recipes are compact, explicit specifications", {
   expect_false(metric_capabilities(shrinkage)$feature_additive)
   expect_identical(shrinkage$hyperparameters$randomness, "none")
   expect_null(shrinkage$hyperparameters$seed)
-  expect_error(shrinkage_precision(0), "finite number", fixed = TRUE)
+  expect_error(shrinkage_precision(0), "finite number", fixed = TRUE,
+    class = "effect_input_error")
   expect_error(diagonal_precision(relative_variance_floor = 0),
-    "positive relative floor")
+    "positive relative floor", class = "effect_input_error")
 })
 
 test_that("evaluation-residual reuse requires an explicit policy contract", {
@@ -249,7 +250,7 @@ test_that("metric schedules refuse leakage and identity mutations", {
       shrinkage_precision(), only_two, setup$fixture$frame, setup$over
     ),
     "leaves no residual partition"
-  )
+  , class = "effect_input_error")
   schedule <- crossform:::compile_metric_schedule(
     shrinkage_precision(), setup$statistics, setup$fixture$frame, setup$over
   )
@@ -258,5 +259,5 @@ test_that("metric schedules refuse leakage and identity mutations", {
   expect_error(
     crossform:::.validate_frozen_metric_schedule(mutated, deep = TRUE),
     "identity is inconsistent"
-  )
+  , class = "effect_contract_error")
 })

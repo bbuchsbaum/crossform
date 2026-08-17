@@ -62,18 +62,19 @@ compute_policy <- function(workers = 1L, block_features = NULL,
 }
 
 .validate_compute_policy <- function(policy) {
-  if (!inherits(policy, "effect_compute_policy")) {
-    stop("`compute` must be a crossform compute policy.", call. = FALSE)
-  }
+  .check_class(
+    policy, "effect_compute_policy", "compute",
+    what = "a crossform compute policy"
+  )
   expected_names <- c("workers", "block_features", "workspace_bytes",
     "process_backend")
   if (!identical(names(policy), expected_names)) {
-    stop("Compute policy fields are missing, extra, or out of canonical order.",
-      call. = FALSE)
+    .input_error(
+      "Compute policy fields are missing, extra, or out of canonical order."
+    )
   }
   workers <- policy$workers
-  if (!is.numeric(workers) || length(workers) != 1L || is.na(workers) ||
-      !is.finite(workers) || workers != 1) {
+  if (!.is_number(workers) || workers != 1) {
     .capability_refusal(sprintf(paste0(
       "crossform 0.1 owns no process pool, so `workers` must be 1; received ",
       "%s. Sequential execution is a capability boundary, not a performance ",
@@ -98,19 +99,19 @@ compute_policy <- function(workers = 1L, block_features = NULL,
       (!is.numeric(policy$block_features) || length(policy$block_features) != 1L ||
        is.na(policy$block_features) || !is.finite(policy$block_features) ||
        policy$block_features < 1 || policy$block_features %% 1 != 0)) {
-    stop("`block_features` must be NULL or one positive integer.", call. = FALSE)
+    .input_error("`block_features` must be NULL or one positive integer.")
   }
   if (!is.null(policy$workspace_bytes) &&
       (!is.numeric(policy$workspace_bytes) ||
        length(policy$workspace_bytes) != 1L ||
        is.na(policy$workspace_bytes) || !is.finite(policy$workspace_bytes) ||
        policy$workspace_bytes <= 0)) {
-    stop("`workspace_bytes` must be NULL or one positive finite number.",
-      call. = FALSE)
+    .input_error(
+      "`workspace_bytes` must be NULL or one positive finite number."
+    )
   }
   if (!identical(policy$process_backend, "sequential")) {
-    stop("crossform 0.1 supports only the sequential process backend.",
-      call. = FALSE)
+    .input_error("crossform 0.1 supports only the sequential process backend.")
   }
   structure(
     list(
@@ -130,7 +131,7 @@ compute_policy <- function(workers = 1L, block_features = NULL,
 .execution_preflight <- function(compute, inspect_source) {
   compute <- .validate_compute_policy(compute)
   if (!is.function(inspect_source)) {
-    stop("`inspect_source` must be a function.", call. = FALSE)
+    .input_error("`inspect_source` must be a function.")
   }
   capabilities <- inspect_source()
   structure(

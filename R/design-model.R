@@ -3,21 +3,20 @@
 .normalize_partition_matrices <- function(value, name) {
   if (is.matrix(value)) value <- list(value)
   if (!is.list(value) || length(value) < 1L) {
-    stop(sprintf("`%s` must provide at least one matrix.", name), call. = FALSE)
+    .input_error(sprintf("`%s` must provide at least one matrix.", name))
   }
   partitions <- names(value)
   if (is.null(partitions) || any(!nzchar(partitions))) {
-    stop(sprintf("Every `%s` matrix must have a partition name.", name),
-      call. = FALSE)
+    .input_error(sprintf("Every `%s` matrix must have a partition name.", name))
   }
   partitions <- .validate_partition_names(partitions, length(value), name)
   names(value) <- partitions
   for (partition in partitions) {
     matrix <- value[[partition]]
-    if (!is.matrix(matrix) || !is.numeric(matrix) || any(dim(matrix) < 1L) ||
-        any(!is.finite(matrix))) {
-      stop(sprintf("Partition `%s` `%s` is not a finite nonempty matrix.",
-        partition, name), call. = FALSE)
+    if (!.is_finite_matrix(matrix) || any(dim(matrix) < 1L)) {
+      .input_error(sprintf(
+        "Partition `%s` `%s` is not a finite nonempty matrix.",
+        partition, name))
     }
   }
   value
@@ -31,24 +30,25 @@
     row_ids <- list(row_ids)
   }
   if (!is.list(row_ids) || length(row_ids) != length(partitions)) {
-    stop("`row_ids` must provide one ordered observation axis per design.",
-      call. = FALSE)
+    .input_error(
+      "`row_ids` must provide one ordered observation axis per design."
+    )
   }
   names(row_ids) <- partitions
   for (partition in partitions) {
     ids <- row_ids[[partition]]
     if (is.null(ids) || length(ids) != nrow(designs[[partition]]) ||
         anyNA(ids) || anyDuplicated(ids)) {
-      stop(sprintf(
+      .input_error(sprintf(
         "Partition `%s` requires unique row identifiers for every design row.",
         partition
-      ), call. = FALSE)
+      ))
     }
     if (!is.null(rownames(designs[[partition]])) &&
         !identical(rownames(designs[[partition]]), as.character(ids))) {
-      stop(sprintf(
+      .contract_error(sprintf(
         "Partition `%s` design row names disagree with `row_ids`.", partition
-      ), call. = FALSE)
+      ))
     }
     rownames(designs[[partition]]) <- as.character(ids)
     row_ids[[partition]] <- unname(ids)
@@ -60,8 +60,7 @@
   if (!is.character(value) || anyNA(value) ||
       !length(value) %in% c(1L, length(partitions)) ||
       any(!value %in% c("auto", "qr", "svd"))) {
-    stop("`solver` must provide `auto`, `qr`, or `svd` per partition.",
-      call. = FALSE)
+    .input_error("`solver` must provide `auto`, `qr`, or `svd` per partition.")
   }
   if (length(value) == 1L) value <- rep(value, length(partitions))
   stats::setNames(unname(value), partitions)
@@ -159,8 +158,9 @@ design_model <- function(
     protocol_version = "1", package = "crossform",
     package_version = "0.0.0.9000", provenance = list()) {
   if (!is.list(specification)) {
-    stop("`specification` must be a portable semantic declaration list.",
-      call. = FALSE)
+    .input_error(
+      "`specification` must be a portable semantic declaration list."
+    )
   }
   .validate_effect_provenance(specification, "design specification")
   .validate_effect_provenance(provenance, "design-model provenance")
@@ -176,8 +176,9 @@ design_model <- function(
   }
   if (!is.list(parameterizations) ||
       length(parameterizations) != length(partitions)) {
-    stop("`parameterizations` must provide one coding per design partition.",
-      call. = FALSE)
+    .input_error(
+      "`parameterizations` must provide one coding per design partition."
+    )
   }
   names(parameterizations) <- partitions
   parameterizations <- lapply(parameterizations,
@@ -186,16 +187,17 @@ design_model <- function(
     parameterization <- parameterizations[[partition]]
     if (!identical(parameterization$condition_space$signature,
         conditions$signature)) {
-      stop(sprintf("Partition `%s` uses a different condition space.",
-        partition), call. = FALSE)
+      .contract_error(sprintf(
+        "Partition `%s` uses a different condition space.",
+        partition))
     }
     coefficients <- colnames(designs[[partition]])
     if (is.null(coefficients) ||
         !identical(coefficients, parameterization$coefficients)) {
-      stop(sprintf(
+      .input_error(sprintf(
         "Partition `%s` design columns must equal its coefficient axis.",
         partition
-      ), call. = FALSE)
+      ))
     }
   }
   solver <- .normalize_solver_routes(solver, partitions)
@@ -289,8 +291,9 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
   row_ids <- rows$row_ids
   for (partition in partitions) {
     if (is.null(colnames(designs[[partition]]))) {
-      stop(sprintf("Partition `%s` raw design requires coefficient names.",
-        partition), call. = FALSE)
+      .input_error(sprintf(
+        "Partition `%s` raw design requires coefficient names.",
+        partition))
     }
     .validate_effect_names(
       colnames(designs[[partition]]), ncol(designs[[partition]])
@@ -341,9 +344,8 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     "parameterizations", "row_ids", "compiler", "solver", "provenance",
     "design_model_id", "compilation_route_id", "capabilities"
   )
-  if (!inherits(value, "effect_design_model") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Design-model fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_design_model", expected)) {
+    .input_error("Design-model fields are missing or noncanonical.")
   }
   raw <- inherits(value, "effect_raw_design_model")
   rebuilt <- if (raw) {
@@ -369,7 +371,7 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     )
   }
   if (!identical(value, rebuilt)) {
-    stop("Design-model metadata or identity is inconsistent.", call. = FALSE)
+    .contract_error("Design-model metadata or identity is inconsistent.")
   }
   rebuilt
 }

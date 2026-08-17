@@ -70,8 +70,9 @@
 .measurement_frame_from_additive_decomposition <- function(frame) {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
-    stop("Coherent/configuration adaptation requires an additive diagonal frame.",
-      call. = FALSE)
+    .input_error(
+      "Coherent/configuration adaptation requires an additive diagonal frame."
+    )
   }
   weights <- .canonical_additive_weights(frame$weights)
   domain <- frame$domain
@@ -105,8 +106,7 @@
 .measurement_component_ranges <- function(frame_manifest, node) {
   frame_manifest <- .validate_measurement_frame_manifest(frame_manifest)
   if (!node %in% frame_manifest$node_ids) {
-    stop("Measurement-decomposition node is absent from its frame.",
-      call. = FALSE)
+    .input_error("Measurement-decomposition node is absent from its frame.")
   }
   decomposition <- frame_manifest$legs[[node]]$decomposition
   if (is.null(decomposition)) {
@@ -182,25 +182,20 @@
   expected <- c("parent_form", "edge_id", "left_node", "right_node",
     "left_decomposition", "right_decomposition", "index", "blocks",
     "original_dimension", "signature")
-  if (!inherits(x, "effect_measurement_decomposition_view") || !is.list(x) ||
-      !identical(names(x), expected) || !is.data.frame(x$index) ||
-      !is.list(x$blocks) || nrow(x$index) != length(x$blocks) ||
-      !identical(names(x$blocks), paste(
-        x$index$left_component, x$index$right_component, sep = "::"
-      ))) {
-    stop("Measurement-decomposition view is missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_measurement_decomposition_view", expected) ||
+      !is.data.frame(x$index) || !is.list(x$blocks) ||
+      nrow(x$index) != length(x$blocks) ||
+      !identical(names(x$blocks), paste(x$index$left_component, x$index$right_component, sep = "::"))) {
+    .input_error("Measurement-decomposition view is missing or noncanonical.")
   }
   for (i in seq_len(nrow(x$index))) {
     expected_dimension <- c(
       length(x$left_decomposition$ranges[[x$index$left_component[[i]]]]),
       length(x$right_decomposition$ranges[[x$index$right_component[[i]]]])
     )
-    if (!is.matrix(x$blocks[[i]]) || !is.numeric(x$blocks[[i]]) ||
-        !identical(dim(x$blocks[[i]]), expected_dimension) ||
-        any(!is.finite(x$blocks[[i]]))) {
-      stop("A lifted component block has invalid dimensions or values.",
-        call. = FALSE)
+    if (!.is_finite_matrix(x$blocks[[i]]) ||
+        !identical(dim(x$blocks[[i]]), expected_dimension)) {
+      .input_error("A lifted component block has invalid dimensions or values.")
     }
   }
   semantic <- list(
@@ -212,10 +207,10 @@
     index = unclass(x$index)
   )
   expected_signature <- .sha256_signature(semantic)
-  if (!identical(x$signature, expected_signature)) {
-    stop("Measurement-decomposition view signature is inconsistent.",
-      call. = FALSE)
-  }
+  .check_signature(
+    x$signature, expected_signature,
+    "Measurement-decomposition view signature is inconsistent."
+  )
   invisible(x)
 }
 
@@ -243,15 +238,14 @@
       x$index$right_component == right_component
   )
   if (length(position) != 1L) {
-    stop("Requested crossed decomposition component does not exist.",
-      call. = FALSE)
+    .input_error("Requested crossed decomposition component does not exist.")
   }
   if (interpretation == "raw" &&
       !isTRUE(x$index$raw_interpretation[[position]])) {
-    stop(paste0(
+    .input_error(paste0(
       "Raw component entries require scientifically oriented bases; this ",
       "component is identified only as a subspace."
-    ), call. = FALSE)
+    ))
   }
   x$blocks[[position]]
 }
@@ -261,8 +255,7 @@
   if (ridge > 0) value <- value + diag(ridge, nrow(value))
   decomposition <- eigen(value, symmetric = TRUE)
   if (min(decomposition$values) < -tolerance) {
-    stop("Invariant canonical summaries require positive self-blocks.",
-      call. = FALSE)
+    .input_error("Invariant canonical summaries require positive self-blocks.")
   }
   retained <- decomposition$values > tolerance
   scale <- numeric(length(decomposition$values))
@@ -274,9 +267,8 @@
 .measurement_invariant_summary <- function(cross, left_self = NULL,
                                            right_self = NULL,
                                            tolerance = 1e-10, ridge = 0) {
-  if (!is.matrix(cross) || !is.numeric(cross) || any(!is.finite(cross))) {
-    stop("Invariant summaries require one finite cross block.",
-      call. = FALSE)
+  if (!.is_finite_matrix(cross)) {
+    .input_error("Invariant summaries require one finite cross block.")
   }
   singular_values <- svd(cross, nu = 0L, nv = 0L)$d
   canonical_values <- subspace_angles <- numeric()
@@ -287,8 +279,7 @@
         !identical(dim(left_self), c(nrow(cross), nrow(cross))) ||
         !identical(dim(right_self), c(ncol(cross), ncol(cross))) ||
         any(!is.finite(left_self)) || any(!is.finite(right_self))) {
-      stop("Canonical summaries require compatible finite self-blocks.",
-        call. = FALSE)
+      .input_error("Canonical summaries require compatible finite self-blocks.")
     }
     normalized <- .decomposition_inverse_sqrt(
       left_self, tolerance, ridge
@@ -297,10 +288,10 @@
     )
     raw_canonical <- svd(normalized, nu = 0L, nv = 0L)$d
     if (any(raw_canonical > 1 + 10 * tolerance)) {
-      stop(paste0(
+      .input_error(paste0(
         "Canonical values exceed one beyond tolerance; the self-blocks are ",
         "inconsistent with the cross block and will not be silently clipped."
-      ), call. = FALSE)
+      ))
     }
     canonical_values <- pmin(1, pmax(0, raw_canonical))
     subspace_angles <- acos(canonical_values)

@@ -567,7 +567,7 @@ test_that("same-shaped but differently identified boundaries are rejected", {
       native_edges
     ),
     "does not match the left and right experimental spaces"
-  )
+  , class = "effect_contract_error")
   expect_error(
     read(
       pair_query(fixture$h, fixture$left_space, fixture$right_space),
@@ -576,7 +576,7 @@ test_that("same-shaped but differently identified boundaries are rejected", {
       )
     ),
     "do not belong to their experimental relation sides"
-  )
+  , class = "effect_contract_error")
 
   # The oracle refuses the identical mismatch without looking at any value.
   typed <- pairing_law_typed(fixture)

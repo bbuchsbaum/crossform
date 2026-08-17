@@ -31,14 +31,8 @@
 #' numerical_contract(atol = 1e-14, rtol = 1e-12)$rtol
 #' @export
 numerical_contract <- function(atol = 1e-12, rtol = 1e-10) {
-  if (!is.numeric(atol) || length(atol) != 1L || is.na(atol) ||
-      !is.finite(atol) || atol < 0) {
-    stop("`atol` must be one nonnegative finite number.", call. = FALSE)
-  }
-  if (!is.numeric(rtol) || length(rtol) != 1L || is.na(rtol) ||
-      !is.finite(rtol) || rtol < 0) {
-    stop("`rtol` must be one nonnegative finite number.", call. = FALSE)
-  }
+  .check_number(atol, "atol", nonnegative = TRUE)
+  .check_number(rtol, "rtol", nonnegative = TRUE)
   structure(
     list(
       atol = atol,
@@ -99,10 +93,11 @@ numerical_agreement <- function(x, y,
                                 contract = numerical_contract()) {
   guarantee <- match.arg(guarantee)
   contract <- .validate_numerical_contract(contract)
-  if (!is.numeric(x) || !is.numeric(y) || !identical(dim(x), dim(y)) ||
-      length(x) != length(y) || any(!is.finite(x)) || any(!is.finite(y))) {
-    stop("`x` and `y` must be finite numeric objects with identical dimensions.",
-      call. = FALSE)
+  if (!.is_finite_numeric(x) || !.is_finite_numeric(y) ||
+      !identical(dim(x), dim(y)) || length(x) != length(y)) {
+    .input_error(
+      "`x` and `y` must be finite numeric objects with identical dimensions."
+    )
   }
 
   difference <- abs(x - y)
@@ -132,31 +127,32 @@ numerical_agreement <- function(x, y,
 
 .validate_numerical_contract <- function(contract) {
   if (!inherits(contract, "effect_numerical_contract") || !is.list(contract)) {
-    stop("`contract` must be a crossform numerical contract.", call. = FALSE)
+    .input_error("`contract` must be a crossform numerical contract.")
   }
   rebuilt <- numerical_contract(contract$atol, contract$rtol)
   if (!identical(contract, rebuilt)) {
-    stop("Numerical contract fields are inconsistent or noncanonical.",
-      call. = FALSE)
+    .input_error("Numerical contract fields are inconsistent or noncanonical.")
   }
   rebuilt
 }
 
 .canonical_reduce <- function(values, task_id) {
   if (!is.list(values) || length(values) < 1L || length(values) != length(task_id)) {
-    stop("`values` and `task_id` must describe at least one result per task.",
-      call. = FALSE)
+    .input_error(
+      "`values` and `task_id` must describe at least one result per task."
+    )
   }
   if (anyNA(task_id) || anyDuplicated(task_id)) {
-    stop("`task_id` values must be unique and non-missing.", call. = FALSE)
+    .input_error("`task_id` values must be unique and non-missing.")
   }
   first_dim <- dim(values[[1L]])
   valid <- vapply(values, function(x) {
     is.numeric(x) && identical(dim(x), first_dim) && all(is.finite(x))
   }, logical(1))
   if (!all(valid)) {
-    stop("Every task result must be finite numeric data with identical dimensions.",
-      call. = FALSE)
+    .input_error(
+      "Every task result must be finite numeric data with identical dimensions."
+    )
   }
 
   ordered <- values[order(task_id, method = "radix")]

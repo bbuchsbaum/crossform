@@ -31,15 +31,17 @@
   right_frame <- .validate_measurement_frame(right_frame)
   if (!identical(left_frame$signature, form$left_frame$signature) ||
       !identical(right_frame$signature, form$right_frame$signature)) {
-    stop("Tomography frames do not match the measurement-form bases.",
-      call. = FALSE)
+    .contract_error(
+      "Tomography frames do not match the measurement-form bases."
+    )
   }
   if (!is.null(workspace_bytes) &&
       (!is.numeric(workspace_bytes) || length(workspace_bytes) != 1L ||
        is.na(workspace_bytes) || !is.finite(workspace_bytes) ||
        workspace_bytes <= 0)) {
-    stop("Tomography workspace must be NULL or one positive finite byte budget.",
-      call. = FALSE)
+    .input_error(
+      "Tomography workspace must be NULL or one positive finite byte budget."
+    )
   }
   left_rows <- sum(vapply(left_frame$legs, function(leg) {
     nrow(leg$operator)
@@ -71,8 +73,7 @@
       any(dimensions > .Machine$integer.max) ||
       products[["measured_form"]] > .Machine$integer.max ||
       products[["neural_operator"]] > .Machine$integer.max) {
-    stop("Tomography dimensions exceed safe dense-matrix limits.",
-      call. = FALSE)
+    .input_error("Tomography dimensions exceed safe dense-matrix limits.")
   }
   component_bytes <- products * 8
   planned_workspace_bytes <- sum(component_bytes)
@@ -96,31 +97,28 @@
   expected <- c("dimensions", "component_bytes", "planned_workspace_bytes",
     "budget_bytes", "fits_budget", "dense_global_operator", "source_plan",
     "signature")
-  if (!inherits(x, "effect_tomography_resource_plan") || !is.list(x) ||
-      !identical(names(x), expected) || !is.numeric(x$dimensions) ||
-      !is.numeric(x$component_bytes) ||
+  if (!.sealed_fields(x, "effect_tomography_resource_plan", expected) ||
+      !is.numeric(x$dimensions) || !is.numeric(x$component_bytes) ||
       !is.numeric(x$planned_workspace_bytes) ||
       length(x$planned_workspace_bytes) != 1L ||
       !identical(x$dense_global_operator, TRUE)) {
-    stop("Tomography resource plan is missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Tomography resource plan is missing or noncanonical.")
   }
   fields <- x[setdiff(names(x), "signature")]
-  if (!identical(x$signature,
-      .tomography_signature("resource_plan", fields))) {
-    stop("Tomography resource-plan identity is inconsistent.",
-      call. = FALSE)
-  }
+  .check_signature(
+    x$signature, .tomography_signature("resource_plan", fields),
+    "Tomography resource-plan identity is inconsistent."
+  )
   invisible(x)
 }
 
 .tomography_require_budget <- function(plan) {
   .validate_tomography_resource_plan(plan)
   if (identical(plan$fits_budget, FALSE)) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Dense tomography requires %.0f bytes, exceeding the %.0f-byte budget.",
       plan$planned_workspace_bytes, plan$budget_bytes
-    ), call. = FALSE)
+    ))
   }
   invisible(plan)
 }
@@ -160,15 +158,17 @@
       position <- which(form$block_index$left == left_node &
         form$block_index$right == right_node)
       if (length(position) != 1L) {
-        stop("Complete tomography requires one block for every ordered node pair.",
-          call. = FALSE)
+        .input_error(
+          "Complete tomography requires one block for every ordered node pair."
+        )
       }
       block <- .measurement_block(form, position)
       expected <- c(length(left$ranges[[left_node]]),
         length(right$ranges[[right_node]]))
       if (!identical(dim(block), expected)) {
-        stop("Tomography block dimensions disagree with the frame axes.",
-          call. = FALSE)
+        .contract_error(
+          "Tomography block dimensions disagree with the frame axes."
+        )
       }
       value[left$ranges[[left_node]], right$ranges[[right_node]]] <- block
     }
@@ -193,18 +193,17 @@
   expected <- c("value", "left_ranges", "right_ranges", "left_frame",
     "right_frame", "source_plan", "source_receipt", "resource_plan",
     "completeness", "signature")
-  if (!inherits(x, "effect_measured_block_form") || !is.list(x) ||
-      !identical(names(x), expected) || !is.matrix(x$value) ||
-      !is.numeric(x$value) || any(!is.finite(x$value)) ||
+  if (!.sealed_fields(x, "effect_measured_block_form", expected) ||
+      !.is_finite_matrix(x$value) ||
       !identical(x$completeness, "frame_complete")) {
-    stop("Measured block form is missing or noncanonical.", call. = FALSE)
+    .input_error("Measured block form is missing or noncanonical.")
   }
   .validate_tomography_resource_plan(x$resource_plan)
   fields <- x[setdiff(names(x), "signature")]
-  if (!identical(x$signature,
-      .tomography_signature("measured_block_form", fields))) {
-    stop("Measured block-form identity is inconsistent.", call. = FALSE)
-  }
+  .check_signature(
+    x$signature, .tomography_signature("measured_block_form", fields),
+    "Measured block-form identity is inconsistent."
+  )
   invisible(x)
 }
 
@@ -281,24 +280,19 @@
   expected <- c("operator", "method", "status", "lossless", "certified",
     "left_projection", "right_projection", "diagnostics", "measured_form",
     "source_plan", "source_receipt", "reference_signature", "signature")
-  if (!inherits(x, "effect_tomography_result") || !is.list(x) ||
-      !identical(names(x), expected) || !is.matrix(x$operator) ||
-      any(!is.finite(x$operator)) || !is.logical(x$lossless) ||
-      length(x$lossless) != 1L || !is.logical(x$certified) ||
-      length(x$certified) != 1L ||
-      !x$method %in% c("parseval", "canonical_dual",
-        "projected_pseudoinverse") ||
-      !x$status %in% c("exact_algebraic_reconstruction",
-        "numerically_certified_exact_reconstruction",
-        "projected_reconstruction",
-        "numerically_certified_projected_reconstruction")) {
-    stop("Tomography result is missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(x, "effect_tomography_result", expected) ||
+      !is.matrix(x$operator) || any(!is.finite(x$operator)) ||
+      !is.logical(x$lossless) || length(x$lossless) != 1L ||
+      !is.logical(x$certified) || length(x$certified) != 1L ||
+      !x$method %in% c("parseval", "canonical_dual", "projected_pseudoinverse") ||
+      !x$status %in% c("exact_algebraic_reconstruction", "numerically_certified_exact_reconstruction", "projected_reconstruction", "numerically_certified_projected_reconstruction")) {
+    .input_error("Tomography result is missing or noncanonical.")
   }
   fields <- x[setdiff(names(x), "signature")]
-  if (!identical(x$signature,
-      .tomography_signature("reconstruction", fields))) {
-    stop("Tomography-result identity is inconsistent.", call. = FALSE)
-  }
+  .check_signature(
+    x$signature, .tomography_signature("reconstruction", fields),
+    "Tomography-result identity is inconsistent."
+  )
   invisible(x)
 }
 
@@ -310,14 +304,12 @@
     allow_projection = TRUE, workspace_bytes = NULL,
     reference_operator = NULL) {
   method <- match.arg(method)
-  if (!is.numeric(tolerance) || length(tolerance) != 1L ||
-      is.na(tolerance) || !is.finite(tolerance) || tolerance <= 0 ||
-      !is.numeric(max_condition) || length(max_condition) != 1L ||
-      is.na(max_condition) || !is.finite(max_condition) ||
-      max_condition < 1 || !is.logical(allow_projection) ||
-      length(allow_projection) != 1L || is.na(allow_projection)) {
-    stop("Tomography tolerances, condition limit, or projection policy are invalid.",
-      call. = FALSE)
+  if (!.is_number(tolerance) || tolerance <= 0 || !.is_number(max_condition) ||
+      max_condition < 1 || !.is_flag(allow_projection)) {
+    .input_error(paste0(
+      "Tomography tolerances, condition limit, or projection policy are ",
+      "invalid."
+    ))
   }
   .validate_measurement_form(form, probe = FALSE)
   left_frame <- .validate_measurement_frame(left_frame)
@@ -430,11 +422,9 @@
   residual <- relative_residual <- NULL
   certified <- !is.null(reference_operator)
   if (certified) {
-    if (!is.matrix(reference_operator) || !is.numeric(reference_operator) ||
-        !identical(dim(reference_operator), dim(operator)) ||
-        any(!is.finite(reference_operator))) {
-      stop("Tomography reference operator has invalid axes or values.",
-        call. = FALSE)
+    if (!.is_finite_matrix(reference_operator) ||
+        !identical(dim(reference_operator), dim(operator))) {
+      .input_error("Tomography reference operator has invalid axes or values.")
     }
     expected <- left_projection %*% reference_operator %*% right_projection
     residual <- sqrt(sum((operator - expected)^2))

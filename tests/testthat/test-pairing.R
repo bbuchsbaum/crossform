@@ -104,15 +104,16 @@ test_that("undirected reverse duplicates are rejected", {
   expect_error(
     pairing(c("r1", "r2"), c("r2", "r1"), directed = FALSE),
     "duplicate"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("self-products require explicit biased non-independent semantics", {
-  expect_error(pairing("r1", "r1"), "allow_biased")
+  expect_error(pairing("r1", "r1"), "allow_biased",
+    class = "effect_input_error")
   expect_error(
     pairing("r1", "r1", self_pairs = "allow_biased"),
     "not_independent"
-  )
+  , class = "effect_input_error")
   self <- pairing(
     "r1", "r1",
     self_pairs = "allow_biased",
@@ -126,7 +127,7 @@ test_that("self-products require explicit biased non-independent semantics", {
       independence = "not_independent"
     ),
     "cannot mix"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("weight normalization is overflow safe", {
@@ -155,11 +156,13 @@ test_that("pairing use sites reject forged and mutated edge tables", {
 
   negative <- valid
   negative$weight <- -1
-  expect_error(crossform:::pairing_marginals(local, negative), "nonnegative")
+  expect_error(crossform:::pairing_marginals(local, negative), "nonnegative",
+    class = "effect_input_error")
 
   unnormalized <- valid
   unnormalized$weight <- 0.5
-  expect_error(crossform:::pairing_marginals(local, unnormalized), "unit mass")
+  expect_error(crossform:::pairing_marginals(local, unnormalized), "unit mass",
+    class = "effect_input_error")
 
   forged <- structure(
     data.frame(left = "r1", right = "r1", weight = 1),
@@ -169,10 +172,12 @@ test_that("pairing use sites reject forged and mutated edge tables", {
     estimate = "cross_generalized",
     class = c("effect_pairing", "data.frame")
   )
-  expect_error(crossform:::pairing_marginals(local, forged), "explicit biased")
+  expect_error(crossform:::pairing_marginals(local, forged), "explicit biased",
+    class = "effect_input_error")
 
   duplicate <- pairing(c("r1", "r2"), c("r2", "r3"))
   duplicate$left[[2]] <- "r1"
   duplicate$right[[2]] <- "r2"
-  expect_error(crossform:::pairing_marginals(local, duplicate), "duplicate")
+  expect_error(crossform:::pairing_marginals(local, duplicate), "duplicate",
+    class = "effect_input_error")
 })

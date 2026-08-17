@@ -2,20 +2,19 @@
 
 .validate_partition_names <- function(value, expected = NULL,
                                       name = "partitions") {
-  if (!is.character(value) || length(value) < 1L || anyNA(value) ||
-      any(!nzchar(value)) || anyDuplicated(value)) {
-    stop(sprintf("`%s` must contain unique nonempty identifiers%s.", name,
+  if (!.is_strings(value, unique = TRUE) || length(value) < 1L) {
+    .input_error(sprintf(
+      "`%s` must contain unique nonempty identifiers%s.", name,
       if (is.character(value) && anyDuplicated(value)) {
         sprintf("; %s appears more than once",
           .msg_names(unique(value[duplicated(value)])))
       } else {
         sprintf("; received %s", .msg_value(value))
-      }), call. = FALSE)
+      }))
   }
   if (!is.null(expected) && length(value) != expected) {
-    stop(sprintf("`%s` must supply %s; received %s.", name,
-      .msg_count(expected, "name"), .msg_count(length(value), "name")),
-      call. = FALSE)
+    .input_error(sprintf("`%s` must supply %s; received %s.", name,
+      .msg_count(expected, "name"), .msg_count(length(value), "name")))
   }
   unname(value)
 }
@@ -24,19 +23,19 @@
   if (!is.data.frame(value) || nrow(value) < 1L || ncol(value) < 1L ||
       is.null(names(value)) || anyNA(names(value)) || any(!nzchar(names(value))) ||
       anyDuplicated(names(value))) {
-    stop(sprintf(
+    .input_error(sprintf(
       "`%s` must be a nonempty data frame with unique column names; received %s.",
-      name, .msg_value(value)), call. = FALSE)
+      name, .msg_value(value)))
   }
   bad <- vapply(value, function(column) {
     is.list(column) || is.matrix(column) || is.data.frame(column) ||
       anyNA(column) || (is.numeric(column) && any(!is.finite(column)))
   }, logical(1))
   if (any(bad)) {
-    stop(sprintf(
+    .input_error(sprintf(
       "`%s` columns must be complete finite atomic or factor values; invalid: %s.",
       name, paste(names(value)[bad], collapse = ", ")
-    ), call. = FALSE)
+    ))
   }
   rownames(value) <- NULL
   value
@@ -84,24 +83,24 @@ observation_index <- function(observation_id, partition, time = NULL,
                               units = NULL, provenance = list()) {
   if (length(observation_id) < 1L || anyNA(observation_id) ||
       anyDuplicated(observation_id)) {
-    stop("`observation_id` must contain unique complete identifiers.",
-      call. = FALSE)
+    .input_error("`observation_id` must contain unique complete identifiers.")
   }
   if (!(is.character(observation_id) || is.numeric(observation_id) ||
       is.integer(observation_id))) {
-    stop("`observation_id` must be character or numeric.", call. = FALSE)
+    .input_error("`observation_id` must be character or numeric.")
   }
   partition <- .validate_nonempty_id(partition, "partition")
   if (is.null(time)) {
     if (!is.null(units)) {
-      stop("`units` requires an observation `time` axis.", call. = FALSE)
+      .input_error("`units` requires an observation `time` axis.")
     }
     timing <- FALSE
   } else {
-    if (!is.numeric(time) || length(time) != length(observation_id) ||
-        anyNA(time) || any(!is.finite(time)) || any(diff(time) <= 0)) {
-      stop("`time` must be finite, strictly increasing, and match observations.",
-        call. = FALSE)
+    if (!.is_finite_numeric(time) || length(time) != length(observation_id) ||
+        anyNA(time) || any(diff(time) <= 0)) {
+      .input_error(
+        "`time` must be finite, strictly increasing, and match observations."
+      )
     }
     units <- .validate_nonempty_id(units, "units")
     time <- as.numeric(time)
@@ -127,17 +126,15 @@ observation_index <- function(observation_id, partition, time = NULL,
     "observation_id", "partition", "time", "units", "timing",
     "provenance", "signature"
   )
-  if (!inherits(value, "effect_observation_index") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Observation-index fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_observation_index", expected)) {
+    .input_error("Observation-index fields are missing or noncanonical.")
   }
   rebuilt <- observation_index(
     value$observation_id, value$partition, value$time, value$units,
     value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Observation-index metadata or signature is inconsistent.",
-      call. = FALSE)
+    .contract_error("Observation-index metadata or signature is inconsistent.")
   }
   rebuilt
 }
@@ -203,26 +200,26 @@ observations <- function(sources, index, domain, source_dims = NULL,
     sources <- list(sources)
   }
   if (missing(index) || missing(domain)) {
-    stop(paste0(
+    .input_error(paste0(
       "`index` and `domain` are both required: `observations()` binds one ",
       "`observation_index()` per source to the neural domain those sources ",
       "were sampled on."
-    ), call. = FALSE)
+    ))
   }
   if (!is.list(sources) || length(sources) < 1L) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`sources` must provide at least one observation-by-feature source, ",
       "as a matrix, function, descriptor, or a list of them; received %s."
-    ), .msg_value(sources)), call. = FALSE)
+    ), .msg_value(sources)))
   }
   if (inherits(index, "effect_observation_index")) index <- list(index)
   if (!is.list(index) || length(index) != length(sources)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`index` must provide one `observation_index()` per source: received ",
       "%s for %s."
     ), if (is.list(index)) .msg_count(length(index), "index") else
       .msg_value(index),
-      .msg_count(length(sources), "source")), call. = FALSE)
+      .msg_count(length(sources), "source")))
   }
   index <- lapply(index, .validate_observation_index)
   if (is.null(partitions)) {
@@ -237,10 +234,10 @@ observations <- function(sources, index, domain, source_dims = NULL,
   names(sources) <- names(index) <- partitions
   for (partition in partitions) {
     if (!identical(index[[partition]]$partition, partition)) {
-      stop(sprintf(
+      .contract_error(sprintf(
         "Observation index `%s` declares partition `%s`.",
         partition, index[[partition]]$partition
-      ), call. = FALSE)
+      ))
     }
   }
   domain <- .domain_reference(domain)
@@ -248,7 +245,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
 
   if (is.null(source_dims)) source_dims <- vector("list", length(sources))
   if (!is.list(source_dims) || length(source_dims) != length(sources)) {
-    stop("`source_dims` must provide one entry per source.", call. = FALSE)
+    .input_error("`source_dims` must provide one entry per source.")
   }
   compiled <- Map(.observation_source, sources, source_dims)
   names(compiled) <- partitions
@@ -257,7 +254,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
       length(index[[partition]]$observation_id), domain$n_features
     )
     if (!identical(compiled[[partition]]$dim, as.integer(expected))) {
-      stop(sprintf(
+      .input_error(sprintf(
         paste0(
           "Partition `%s` source dimensions are %d x %d; its observation ",
           "index and neural domain require %d x %d."
@@ -265,15 +262,16 @@ observations <- function(sources, index, domain, source_dims = NULL,
         partition,
         compiled[[partition]]$dim[[1L]], compiled[[partition]]$dim[[2L]],
         expected[[1L]], expected[[2L]]
-      ), call. = FALSE)
+      ))
     }
   }
 
   if (is.null(capabilities)) {
     if (any(vapply(compiled, function(value) is.null(value$descriptor),
       logical(1)))) {
-      stop("Function observation sources require explicit `capabilities`.",
-        call. = FALSE)
+      .input_error(
+        "Function observation sources require explicit `capabilities`."
+      )
     }
     capabilities <- lapply(compiled, function(value) {
       descriptor <- value$descriptor
@@ -288,8 +286,9 @@ observations <- function(sources, index, domain, source_dims = NULL,
     capabilities <- rep(list(capabilities), length(partitions))
   }
   if (!is.list(capabilities) || length(capabilities) != length(partitions)) {
-    stop("`capabilities` must provide one value per observation source.",
-      call. = FALSE)
+    .input_error(
+      "`capabilities` must provide one value per observation source."
+    )
   }
   capabilities <- lapply(capabilities, .validate_source_capabilities)
   names(capabilities) <- partitions
@@ -300,15 +299,14 @@ observations <- function(sources, index, domain, source_dims = NULL,
         tolower(descriptor$stable_revision),
         tolower(capability$stable_revision)
       )) {
-      stop(sprintf(
+      .contract_error(sprintf(
         "Partition `%s` source descriptor and capability revisions differ.",
         partition
-      ), call. = FALSE)
+      ))
     }
     if (isTRUE(capability$reopenable) &&
         (is.null(descriptor) || identical(descriptor$access, "coordinator"))) {
-      stop("Reopenable capabilities require a reopenable descriptor.",
-        call. = FALSE)
+      .input_error("Reopenable capabilities require a reopenable descriptor.")
     }
   }
 
@@ -347,12 +345,11 @@ observations <- function(sources, index, domain, source_dims = NULL,
     "sources", "indexes", "partitions", "domain", "n_features",
     "capabilities", "provenance", "observations_id"
   )
-  if (!inherits(value, "effect_observations") || !is.list(value) ||
-      !identical(names(value), expected) ||
+  if (!.sealed_fields(value, "effect_observations", expected) ||
       !identical(names(value$sources), value$partitions) ||
       !identical(names(value$indexes), value$partitions) ||
       !identical(names(value$capabilities), value$partitions)) {
-    stop("Observation fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Observation fields are missing or noncanonical.")
   }
   .validate_partition_names(value$partitions)
   domain <- if (isTRUE(deep)) {
@@ -361,7 +358,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
     .validate_domain_reference_shallow(value$domain)
   }
   if (!identical(value$n_features, domain$n_features)) {
-    stop("Observation neural-domain metadata are inconsistent.", call. = FALSE)
+    .contract_error("Observation neural-domain metadata are inconsistent.")
   }
   source_facts <- lapply(value$partitions, function(partition) {
     index <- .validate_observation_index(value$indexes[[partition]])
@@ -372,7 +369,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
         !identical(source$dim, as.integer(c(
           length(index$observation_id), domain$n_features
         ))) || !is.function(source$read)) {
-      stop("Observation source metadata are inconsistent.", call. = FALSE)
+      .input_error("Observation source metadata are inconsistent.")
     }
     descriptor <- source$descriptor
     if (!is.null(descriptor)) {
@@ -381,8 +378,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
           tolower(descriptor$stable_revision),
           tolower(capability$stable_revision)
         )) {
-        stop("Observation source revision metadata are inconsistent.",
-          call. = FALSE)
+        .input_error("Observation source revision metadata are inconsistent.")
       }
     }
     list(
@@ -404,7 +400,7 @@ observations <- function(sources, index, domain, source_dims = NULL,
   )
   if (!identical(value$observations_id,
       .sha256_signature(semantic, "observations-sha256:"))) {
-    stop("Observation identity is inconsistent.", call. = FALSE)
+    .contract_error("Observation identity is inconsistent.")
   }
   value
 }
@@ -456,25 +452,25 @@ observation_events <- function(data, partition = "partition",
                                duration = "duration", units = "seconds",
                                provenance = list()) {
   if (missing(data)) {
-    stop(paste0(
+    .input_error(paste0(
       "`data` is required: pass an event table with one row per event and, ",
       "at minimum, the partition and event-id columns."
-    ), call. = FALSE)
+    ))
   }
   data <- .canonical_fact_table(data, "data")
   identifiers <- c(partition, event_id)
   if (!all(identifiers %in% names(data))) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`data` is missing the %s column%s. `observation_events()` reads the ",
       "partition and event id from columns you name; `data` has %s."
     ), .msg_names(setdiff(identifiers, names(data))),
       if (length(setdiff(identifiers, names(data))) == 1L) "" else "s",
-      .msg_names(names(data))), call. = FALSE)
+      .msg_names(names(data))))
   }
   partition <- .validate_nonempty_id(partition, "partition")
   event_id <- .validate_nonempty_id(event_id, "event_id")
   if (xor(is.null(onset), is.null(duration))) {
-    stop("Supply both event timing columns or neither.", call. = FALSE)
+    .input_error("Supply both event timing columns or neither.")
   }
   timing <- !is.null(onset)
   if (timing) {
@@ -483,8 +479,10 @@ observation_events <- function(data, partition = "partition",
     if (!all(c(onset, duration) %in% names(data)) ||
         !is.numeric(data[[onset]]) || !is.numeric(data[[duration]]) ||
         any(data[[duration]] < 0)) {
-      stop("Event onset and duration columns must be finite numeric values with nonnegative duration.",
-        call. = FALSE)
+      .input_error(paste0(
+        "Event onset and duration columns must be finite numeric values with ",
+        "nonnegative duration."
+      ))
     }
     units <- .validate_nonempty_id(units, "units")
   } else {
@@ -492,7 +490,7 @@ observation_events <- function(data, partition = "partition",
   }
   keys <- paste(data[[partition]], data[[event_id]], sep = "\r")
   if (anyDuplicated(keys)) {
-    stop("Event identifiers must be unique within partition.", call. = FALSE)
+    .input_error("Event identifiers must be unique within partition.")
   }
   .validate_effect_provenance(provenance, "event provenance")
   semantic <- list(
@@ -517,9 +515,8 @@ observation_events <- function(data, partition = "partition",
     "data", "schema", "partition_column", "event_id_column", "onset_column",
     "duration_column", "units", "timing", "provenance", "events_id"
   )
-  if (!inherits(value, "effect_events") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Event fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_events", expected)) {
+    .input_error("Event fields are missing or noncanonical.")
   }
   rebuilt <- observation_events(
     value$data,
@@ -531,7 +528,7 @@ observation_events <- function(data, partition = "partition",
     provenance = value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Event metadata or identity is inconsistent.", call. = FALSE)
+    .contract_error("Event metadata or identity is inconsistent.")
   }
   rebuilt
 }
@@ -575,14 +572,14 @@ observation_confounds <- function(
     data, partition = "partition", observation_id = "observation_id",
     censor = NULL, provenance = list()) {
   if (missing(data)) {
-    stop(paste0(
+    .input_error(paste0(
       "`data` is required: pass a confound table with one row per ",
       "observation and, at minimum, the partition and observation-id columns."
-    ), call. = FALSE)
+    ))
   }
   data <- .canonical_fact_table(data, "data")
   if (!all(c(partition, observation_id) %in% names(data))) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`data` is missing the %s column%s. `observation_confounds()` reads the ",
       "partition and observation id from columns you name; `data` has %s."
     ), .msg_names(setdiff(c(partition, observation_id), names(data))),
@@ -590,20 +587,19 @@ observation_confounds <- function(
         ""
       } else {
         "s"
-      }, .msg_names(names(data))), call. = FALSE)
+      }, .msg_names(names(data))))
   }
   partition <- .validate_nonempty_id(partition, "partition")
   observation_id <- .validate_nonempty_id(observation_id, "observation_id")
   if (!is.null(censor)) {
     censor <- .validate_nonempty_id(censor, "censor")
     if (!censor %in% names(data) || !is.logical(data[[censor]])) {
-      stop("`censor` must identify a complete logical column.", call. = FALSE)
+      .input_error("`censor` must identify a complete logical column.")
     }
   }
   keys <- paste(data[[partition]], data[[observation_id]], sep = "\r")
   if (anyDuplicated(keys)) {
-    stop("Confound rows must be unique by partition and observation.",
-      call. = FALSE)
+    .input_error("Confound rows must be unique by partition and observation.")
   }
   .validate_effect_provenance(provenance, "confound provenance")
   semantic <- list(
@@ -625,10 +621,8 @@ observation_confounds <- function(
     "data", "schema", "partition_column", "observation_id_column",
     "censor_column", "provenance", "confounds_id"
   )
-  if (!inherits(value, "effect_observation_confounds") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Observation-confound fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(value, "effect_observation_confounds", expected)) {
+    .input_error("Observation-confound fields are missing or noncanonical.")
   }
   rebuilt <- observation_confounds(
     value$data,
@@ -638,8 +632,9 @@ observation_confounds <- function(
     provenance = value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Observation-confound metadata or identity is inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Observation-confound metadata or identity is inconsistent."
+    )
   }
   rebuilt
 }
@@ -682,19 +677,18 @@ observation_confounds <- function(
 partition_hierarchy <- function(data, leaf = names(data)[[1L]],
                                 provenance = list()) {
   data <- .canonical_fact_table(data, "data")
-  if (!is.character(leaf) || length(leaf) != 1L || is.na(leaf) ||
-      !leaf %in% names(data) || !identical(leaf, names(data)[[1L]])) {
-    stop("`leaf` must name the first hierarchy column.", call. = FALSE)
+  if (!.is_string(leaf, allow_empty = TRUE) || !leaf %in% names(data) ||
+      !identical(leaf, names(data)[[1L]])) {
+    .input_error("`leaf` must name the first hierarchy column.")
   }
   for (column in names(data)) {
     data[[column]] <- as.character(data[[column]])
     if (any(!nzchar(data[[column]]))) {
-      stop("Hierarchy levels must be nonempty identifiers.", call. = FALSE)
+      .input_error("Hierarchy levels must be nonempty identifiers.")
     }
   }
   if (anyDuplicated(data[[leaf]])) {
-    stop("The leaf hierarchy axis must identify each partition once.",
-      call. = FALSE)
+    .input_error("The leaf hierarchy axis must identify each partition once.")
   }
   parent_maps <- list()
   if (ncol(data) > 1L) {
@@ -703,10 +697,10 @@ partition_hierarchy <- function(data, leaf = names(data)[[1L]],
       parent <- names(data)[[index + 1L]]
       split_parent <- split(data[[parent]], data[[child]])
       if (any(lengths(lapply(split_parent, unique)) != 1L)) {
-        stop(sprintf(
+        .input_error(sprintf(
           "Hierarchy axis `%s` does not nest uniquely within `%s`.",
           child, parent
-        ), call. = FALSE)
+        ))
       }
       parent_maps[[child]] <- vapply(split_parent, unique, character(1))
     }
@@ -732,17 +726,16 @@ partition_hierarchy <- function(data, leaf = names(data)[[1L]],
     "data", "leaf", "axes", "levels", "parent_maps", "provenance",
     "signature"
   )
-  if (!inherits(value, "effect_partition_hierarchy") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Partition-hierarchy fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(value, "effect_partition_hierarchy", expected)) {
+    .input_error("Partition-hierarchy fields are missing or noncanonical.")
   }
   rebuilt <- partition_hierarchy(
     value$data, leaf = value$leaf, provenance = value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Partition-hierarchy metadata or signature is inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Partition-hierarchy metadata or signature is inconsistent."
+    )
   }
   rebuilt
 }

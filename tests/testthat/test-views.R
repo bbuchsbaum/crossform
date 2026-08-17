@@ -99,7 +99,8 @@ test_that("contrast names are semantic rather than positional when supplied", {
   expect_equal(permuted$total, ordered$total, tolerance = 0)
   expect_error(
     contrast_energy(fixture$geometry, c(a = 1, b = -1, c = 0, x = 0)),
-    "`x` is not a declared effect; `d` has no weight")
+    "`x` is not a declared effect; `d` has no weight",
+    class = "effect_input_error")
 })
 
 test_that("RDM view equals explicit squared geometry distances", {
@@ -180,10 +181,12 @@ test_that("RSA rejects rank-deficient and malformed RDM designs", {
   model <- matrix(1, 4, 4)
   diag(model) <- 0
   expect_error(rsa(fixture$geometry,
-    models = list(first = model, duplicate = model)), "rank deficient")
+    models = list(first = model, duplicate = model)), "rank deficient",
+    class = "effect_input_error")
   asymmetric <- model
   asymmetric[1, 2] <- 2
-  expect_error(rsa(fixture$geometry, list(bad = asymmetric)), "symmetric")
+  expect_error(rsa(fixture$geometry, list(bad = asymmetric)), "symmetric",
+    class = "effect_input_error")
 })
 
 test_that("geometry spectrum preserves negative cross-generalized roots", {

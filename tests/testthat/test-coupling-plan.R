@@ -117,10 +117,11 @@ test_that("both closure declarations are required rather than defaulted", {
   fixture <- coupling_plan_fixture()
 
   expect_error(coupling(fixture$plan, by = fixture$by),
-    "`between` is required")
-  expect_error(coupling(fixture$plan, cbind("r1", "r2")), "`by` is required")
+    "`between` is required", class = "effect_input_error")
+  expect_error(coupling(fixture$plan, cbind("r1", "r2")), "`by` is required",
+    class = "effect_input_error")
   expect_error(coupling(fixture$relation, cbind("r1", "r2"), by = fixture$by),
-    "geometry plan|effect_geometry_plan")
+    "geometry plan|effect_geometry_plan", class = "effect_input_error")
 })
 
 test_that("between resolves node names and indices against the plan frame", {
@@ -143,31 +144,31 @@ test_that("between resolves node names and indices against the plan frame", {
   expect_error(
     coupling(fixture$plan, cbind("r1", "r9"), by = fixture$by),
     "`between` to names `r9`, which is not a measurement of the plan's frame"
-  )
+  , class = "effect_input_error")
   expect_error(
     coupling(fixture$plan, cbind("r9", "r1"), by = fixture$by),
     "`between` from names `r9`"
-  )
+  , class = "effect_input_error")
   expect_error(
     coupling(fixture$plan, cbind(1L, 7L), by = fixture$by),
     "`between` to indices must be whole numbers in 1:2"
-  )
+  , class = "effect_input_error")
   expect_error(
     coupling(fixture$plan, cbind(1.5, 2), by = fixture$by),
     "whole numbers in 1:2"
-  )
+  , class = "effect_input_error")
   expect_error(
     coupling(fixture$plan, c("r1", "r2"), by = fixture$by),
     "nonempty two-column matrix of frame node pairs"
-  )
+  , class = "effect_input_error")
   expect_error(
     coupling(fixture$plan, matrix(character(), 0L, 2L), by = fixture$by),
     "nonempty two-column matrix of frame node pairs"
-  )
+  , class = "effect_input_error")
   expect_error(
     coupling(fixture$plan, cbind("r1", "r2", "r1"), by = fixture$by),
     "nonempty two-column matrix of frame node pairs"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("mode, reducer, and over are recorded in the compiled identity", {

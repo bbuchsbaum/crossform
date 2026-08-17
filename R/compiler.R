@@ -20,49 +20,48 @@
       .validate_query_for_compile(query)
       if (!.same_effect_space(query$left_space, effect_space) ||
           !.same_effect_space(query$right_space, right_space)) {
-        stop("Pair-query axes must match the ordered relation effect spaces.",
-          call. = FALSE)
+        .contract_error(
+          "Pair-query axes must match the ordered relation effect spaces."
+        )
       }
       value <- matrix(as.vector(as.matrix(query$operator)), ncol = 1L)
       colnames(value) <- "view1"
       return(value)
     }
-    stop(paste0(
+    .input_error(paste0(
       "Rectangular plans execute axis-bound `pair_query()` operators; ",
       "materialize with `materialize_geometry()` and use `query_geometry()` ",
       "for raw physical view matrices."
-    ), call. = FALSE)
+    ))
   }
   packed_width <- q * (q + 1L) / 2L
   if (.is_pair_difference_query(query)) {
     if (!identical(query$effects, effect_space$coordinates)) {
-      stop("The query and relation effect spaces are incompatible.",
-        call. = FALSE)
+      .contract_error("The query and relation effect spaces are incompatible.")
     }
     return(query)
   }
   if (inherits(query, "effect_query")) {
     .validate_query_for_compile(query)
     if (!identical(query$kind, "bilinear") || !isTRUE(query$fixed)) {
-      stop("Direct execution requires a fixed bilinear query.", call. = FALSE)
+      .input_error("Direct execution requires a fixed bilinear query.")
     }
     if (nrow(query$operator) != q) {
-      stop("The query operator dimension must equal the effect dimension.",
-        call. = FALSE)
+      .input_error(
+        "The query operator dimension must equal the effect dimension."
+      )
     }
     if (!is.null(query$effect_space) &&
         !.same_effect_space(query$effect_space, effect_space)) {
-      stop("The query and relation effect spaces are incompatible.",
-        call. = FALSE)
+      .contract_error("The query and relation effect spaces are incompatible.")
     }
     value <- matrix(.svec_symmetric(query$operator), ncol = 1L)
     colnames(value) <- "view1"
     return(value)
   }
-  if (!is.matrix(query) || !is.numeric(query) || nrow(query) != packed_width ||
-      ncol(query) < 1L || any(!is.finite(query))) {
-    stop("`query` must be a finite packed-coordinate-by-view matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(query) || nrow(query) != packed_width ||
+      ncol(query) < 1L) {
+    .input_error("`query` must be a finite packed-coordinate-by-view matrix.")
   }
   if (is.null(colnames(query))) colnames(query) <- paste0("view", seq_len(ncol(query)))
   query
@@ -127,14 +126,13 @@
     component <- match.arg(component,
       c("total", "coherent", "configuration", "contrast"))
     if (rectangular && identical(component, "contrast")) {
-      stop("Signed contrast execution requires a self-form plan.",
-        call. = FALSE)
+      .input_error("Signed contrast execution requires a self-form plan.")
     }
     if (storage != "memory" || !is.null(storage_path)) {
-      stop(paste0(
+      .input_error(paste0(
         "Query-first execution returns an in-memory view and does not create ",
         "geometry stores."
-      ), call. = FALSE)
+      ))
     }
     task <- .compile_effect_evidence_task(
       plan$task$left_relation, plan$pairing,
@@ -143,8 +141,7 @@
     )
   } else {
     if (!is.null(signed_query)) {
-      stop("Signed query weights require a fixed contrast query.",
-        call. = FALSE)
+      .input_error("Signed query weights require a fixed contrast query.")
     }
     physical_query <- NULL
     component <- "full"
@@ -160,8 +157,9 @@
         !isTRUE(all.equal(
           unname(physical_query), expected_query, tolerance = 0
         ))) {
-      stop("A contrast plan's energy query must equal the signed outer product.",
-        call. = FALSE)
+      .input_error(
+        "A contrast plan's energy query must equal the signed outer product."
+      )
     }
     requirements <- list(
       total = TRUE,
@@ -171,8 +169,9 @@
     )
   } else {
     if (!is.null(signed_query)) {
-      stop("Signed query weights are valid only for contrast execution.",
-        call. = FALSE)
+      .input_error(
+        "Signed query weights are valid only for contrast execution."
+      )
     }
     requirements <- .component_requirements(physical_query, component)
     if (rectangular) {
@@ -195,10 +194,10 @@
   ) || (explicit_metric &&
     (isTRUE(requirements$coherent) || isTRUE(requirements$marginals)))
   if (support_streamed && storage == "block") {
-    stop(paste0(
+    .input_error(paste0(
       "Support-streamed metric materialization currently requires in-memory ",
       "output; query-first execution remains bounded and is preferred."
-    ), call. = FALSE)
+    ))
   }
   selected <- if (support_streamed) {
     .support_metric_memory_plan(
@@ -213,12 +212,12 @@
     )
   }
   if (identical(selected$memory$fits_budget, FALSE)) {
-    stop(sprintf(
+    .input_error(sprintf(
       paste0("The conservative memory plan requires %.0f bytes, exceeding ",
         "the %.0f-byte budget."),
       selected$memory$planned_workspace_bytes,
       plan$compute$workspace_bytes
-    ), call. = FALSE)
+    ))
   }
   query_fused <- !is.null(physical_query)
   lowering <- if (support_streamed && query_fused) {
@@ -294,18 +293,14 @@
     "signed_query", "requirements", "output_width", "feature_block", "row_tile",
     "coordinate_tile", "memory", "task_count", "lowering", "query_fused",
     "kernel_version", "scientific_plan_id", "signature")
-  if (!inherits(x, "effect_geometry_execution_plan") || !is.list(x) ||
-      !identical(names(x), expected) || !.strong_sha256(x$parent_signature) ||
+  if (!.sealed_fields(x, "effect_geometry_execution_plan", expected) ||
+      !.strong_sha256(x$parent_signature) ||
       !.strong_sha256(sub("^geometry-", "", x$estimand_id)) ||
       !x$storage %in% c("memory", "block") ||
-      !x$component %in% c(
-        "full", "total", "coherent", "configuration", "contrast"
-      ) ||
-      !is.logical(x$query_fused) || length(x$query_fused) != 1L ||
-      is.na(x$query_fused) || !.strong_sha256(x$signature) ||
+      !x$component %in% c("full", "total", "coherent", "configuration", "contrast") ||
+      !.is_flag(x$query_fused) || !.strong_sha256(x$signature) ||
       !.strong_sha256(sub("^geometry-", "", x$scientific_plan_id))) {
-    stop("Geometry execution-plan fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Geometry execution-plan fields are missing or noncanonical.")
   }
   .validate_evidence_task(x$task)
   .validate_frame_for_compile(x$frame)
@@ -316,13 +311,11 @@
       "coordinate_tile")) {
     value <- x[[name]]
     if (!is.integer(value) || length(value) != 1L || is.na(value) || value < 1L) {
-      stop("Geometry execution-plan dimensions are invalid.", call. = FALSE)
+      .input_error("Geometry execution-plan dimensions are invalid.")
     }
   }
-  if (!is.numeric(x$task_count) || length(x$task_count) != 1L ||
-      is.na(x$task_count) || !is.finite(x$task_count) || x$task_count < 1 ||
-      x$task_count %% 1 != 0) {
-    stop("Geometry execution-plan task count is invalid.", call. = FALSE)
+  if (!.is_number(x$task_count) || x$task_count < 1 || x$task_count %% 1 != 0) {
+    .input_error("Geometry execution-plan task count is invalid.")
   }
   expected_requirements <- if (identical(x$component, "contrast")) {
     list(
@@ -343,8 +336,9 @@
     )
     if (!identical(dim(x$query), dim(expected_query)) ||
         !isTRUE(all.equal(unname(x$query), expected_query, tolerance = 0))) {
-      stop("Contrast execution query and signed weights are inconsistent.",
-        call. = FALSE)
+      .contract_error(
+        "Contrast execution query and signed weights are inconsistent."
+      )
     }
   }
   explicit_metric <- identical(
@@ -418,8 +412,9 @@
       !identical(x$kernel_version, expected_kernel) ||
       !identical(x$scientific_plan_id, expected_id) ||
       !identical(x$signature, .geometry_execution_signature(fields))) {
-    stop("Geometry execution-plan identity or lowering is inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Geometry execution-plan identity or lowering is inconsistent."
+    )
   }
   invisible(x)
 }

@@ -1,26 +1,23 @@
 # Identified neural measurement coordinates --------------------------------
 
 .measurement_identifier <- function(x, label) {
-  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x)) {
-    stop(sprintf("%s must be one nonempty identifier.", label), call. = FALSE)
+  if (!.is_string(x)) {
+    .input_error(sprintf("%s must be one nonempty identifier.", label))
   }
   invisible(x)
 }
 
 .measurement_axis <- function(coordinates, id, basis_id = id,
                               units = "arbitrary", provenance = list()) {
-  if (!is.character(coordinates) || length(coordinates) < 1L ||
-      anyNA(coordinates) || any(!nzchar(coordinates)) ||
-      anyDuplicated(coordinates)) {
-    stop("Measurement coordinates must be unique nonempty identifiers.",
-      call. = FALSE)
+  if (!.is_strings(coordinates, unique = TRUE) || length(coordinates) < 1L) {
+    .input_error("Measurement coordinates must be unique nonempty identifiers.")
   }
   .measurement_identifier(id, "Measurement-axis `id`")
   .measurement_identifier(basis_id, "Measurement-axis `basis_id`")
-  if (!is.character(units) || !length(units) %in% c(1L, length(coordinates)) ||
-      anyNA(units) || any(!nzchar(units))) {
-    stop("Measurement-axis units must contain one unit or one per coordinate.",
-      call. = FALSE)
+  if (!.is_strings(units) || !length(units) %in% c(1L, length(coordinates))) {
+    .input_error(
+      "Measurement-axis units must contain one unit or one per coordinate."
+    )
   }
   if (length(units) == 1L) units <- rep(units, length(coordinates))
   .validate_effect_provenance(provenance, "measurement-axis provenance")
@@ -40,16 +37,14 @@
 .validate_measurement_axis <- function(x) {
   expected <- c("id", "coordinates", "basis_id", "units", "provenance",
     "signature")
-  if (!inherits(x, "effect_measurement_axis") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Measurement-axis fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_measurement_axis", expected)) {
+    .input_error("Measurement-axis fields are missing or noncanonical.")
   }
   rebuilt <- .measurement_axis(
     x$coordinates, x$id, x$basis_id, x$units, x$provenance
   )
   if (!identical(x, rebuilt)) {
-    stop("Measurement-axis identity is inconsistent.", call. = FALSE)
+    .contract_error("Measurement-axis identity is inconsistent.")
   }
   rebuilt
 }
@@ -58,10 +53,8 @@
                              support = NULL,
                              estimation = c("fixed", "learned_frozen"),
                              provenance = list(), decomposition = NULL) {
-  if (!is.matrix(operator) || !is.numeric(operator) ||
-      any(dim(operator) < 1L) || any(!is.finite(operator))) {
-    stop("A measurement leg must be a finite nonempty numeric matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(operator) || any(dim(operator) < 1L)) {
+    .input_error("A measurement leg must be a finite nonempty numeric matrix.")
   }
   operator <- unname(operator)
   storage.mode(operator) <- "double"
@@ -71,32 +64,34 @@
   .validate_effect_provenance(provenance, "measurement-leg provenance")
   if (ncol(operator) != source_domain$n_features ||
       nrow(operator) != length(output_space$coordinates)) {
-    stop("Measurement-leg dimensions do not match their identified spaces.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement-leg dimensions do not match their identified spaces."
+    )
   }
   nonzero <- colSums(abs(operator)) > 0
   canonical_support <- source_domain$feature_ids[nonzero]
   if (is.null(support)) support <- canonical_support
   if (length(support) < 1L || anyNA(support) || anyDuplicated(support) ||
       !identical(support, canonical_support)) {
-    stop("Measurement-leg support must exactly identify its nonzero source columns.",
-      call. = FALSE)
+    .input_error(paste0(
+      "Measurement-leg support must exactly identify its nonzero source ",
+      "columns."
+    ))
   }
   if (estimation == "learned_frozen") {
     signature <- provenance$training_signature
     if (!identical(provenance$frozen, TRUE) ||
         !.strong_sha256(signature)) {
-      stop(paste0(
+      .input_error(paste0(
         "Learned measurement legs require frozen training provenance and ",
         "a training signature."
-      ), call. = FALSE)
+      ))
     }
   }
   if (!is.null(decomposition)) {
     decomposition <- .validate_measurement_decomposition(decomposition)
     if (!identical(decomposition$output_space, output_space)) {
-      stop("Measurement decomposition and leg output spaces differ.",
-        call. = FALSE)
+      .contract_error("Measurement decomposition and leg output spaces differ.")
     }
   }
   semantic <- list(
@@ -118,23 +113,23 @@
 .validate_measurement_leg <- function(x, source_domain = NULL) {
   expected <- c("kind", "source_domain", "output_space", "operator",
     "support", "estimation", "provenance", "decomposition", "signature")
-  if (!inherits(x, "effect_measurement_leg") || !is.list(x) ||
-      !identical(names(x), expected) || !identical(x$kind, "linear")) {
-    stop("Measurement-leg fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_measurement_leg", expected) ||
+      !identical(x$kind, "linear")) {
+    .input_error("Measurement-leg fields are missing or noncanonical.")
   }
   rebuilt <- .measurement_leg(
     x$operator, x$source_domain, x$output_space, x$support,
     x$estimation, x$provenance, x$decomposition
   )
   if (!identical(x, rebuilt)) {
-    stop("Measurement-leg identity is inconsistent.", call. = FALSE)
+    .contract_error("Measurement-leg identity is inconsistent.")
   }
   if (!is.null(source_domain) &&
       !.same_domain_reference(x$source_domain,
         .domain_reference(source_domain))) {
-    stop("Measurement leg belongs to a different neural source space.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement leg belongs to a different neural source space."
+    )
   }
   rebuilt
 }
@@ -148,22 +143,20 @@
                                        ranges, provenance = list()) {
   .measurement_identifier(id, "Measurement-decomposition `id`")
   output_space <- .validate_measurement_axis(output_space)
-  if (!is.character(components) || length(components) < 1L ||
-      anyNA(components) || any(!nzchar(components)) ||
-      anyDuplicated(components) || !is.list(ranges) ||
-      length(ranges) != length(components) ||
+  if (!.is_strings(components, unique = TRUE) || length(components) < 1L ||
+      !is.list(ranges) || length(ranges) != length(components) ||
       is.null(names(ranges)) || !identical(names(ranges), components) ||
-      !all(vapply(ranges, function(x) {
-        is.integer(x) && !anyNA(x) &&
-          (length(x) == 0L || identical(x, seq.int(min(x), max(x))))
-      }, logical(1)))) {
-    stop("Measurement decomposition requires named contiguous component ranges.",
-      call. = FALSE)
+      !all(vapply(ranges, function(x) {     is.integer(x) && !anyNA(x) && (length(x) == 0L || identical(x, seq.int(min(x), max(x)))) }, logical(1)))) {
+    .input_error(
+      "Measurement decomposition requires named contiguous component ranges."
+    )
   }
   covered <- unlist(ranges, use.names = FALSE)
   if (!identical(as.integer(covered), seq_along(output_space$coordinates))) {
-    stop("Measurement-decomposition ranges must partition the output axis in order.",
-      call. = FALSE)
+    .input_error(paste0(
+      "Measurement-decomposition ranges must partition the output axis in ",
+      "order."
+    ))
   }
   .validate_effect_provenance(provenance,
     "measurement-decomposition provenance")
@@ -185,10 +178,10 @@
 .validate_measurement_decomposition <- function(x) {
   expected <- c("id", "output_space", "components", "ranges", "orientation",
     "provenance", "signature")
-  if (!inherits(x, "effect_measurement_decomposition") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Measurement-decomposition fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_measurement_decomposition", expected)) {
+    .input_error(
+      "Measurement-decomposition fields are missing or noncanonical."
+    )
   }
   rebuilt <- .measurement_decomposition(
     x$id, x$output_space, x$components, x$ranges, x$provenance
@@ -196,8 +189,7 @@
   if (!is.character(x$orientation) ||
       !identical(names(x$orientation), x$components) ||
       any(!x$orientation %in% c("oriented", "subspace_only"))) {
-    stop("Measurement-decomposition orientation metadata is invalid.",
-      call. = FALSE)
+    .input_error("Measurement-decomposition orientation metadata is invalid.")
   }
   rebuilt$orientation <- x$orientation
   semantic <- list(
@@ -211,8 +203,7 @@
   )
   rebuilt$signature <- .sha256_signature(semantic)
   if (!identical(x, rebuilt)) {
-    stop("Measurement-decomposition identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Measurement-decomposition identity is inconsistent.")
   }
   rebuilt
 }
@@ -224,8 +215,9 @@
       !identical(names(orientation), decomposition$components) ||
       anyNA(orientation) ||
       any(!orientation %in% c("oriented", "subspace_only"))) {
-    stop("Every decomposition component requires an orientation status.",
-      call. = FALSE)
+    .input_error(
+      "Every decomposition component requires an orientation status."
+    )
   }
   decomposition$orientation <- orientation
   semantic <- list(
@@ -247,16 +239,18 @@
   if (!is.list(components) || length(components) < 1L ||
       is.null(names(components)) || anyNA(names(components)) ||
       any(!nzchar(names(components))) || anyDuplicated(names(components))) {
-    stop("Direct sums require uniquely named measurement-leg components.",
-      call. = FALSE)
+    .input_error(
+      "Direct sums require uniquely named measurement-leg components."
+    )
   }
   components <- lapply(components, .validate_measurement_leg)
   source <- components[[1L]]$source_domain
   if (!all(vapply(components, function(x) {
     .same_domain_reference(x$source_domain, source)
   }, logical(1)))) {
-    stop("Direct-sum components must share one exact neural source space.",
-      call. = FALSE)
+    .contract_error(
+      "Direct-sum components must share one exact neural source space."
+    )
   }
   coordinates <- unlist(Map(function(name, leg) {
     paste0(name, "::", leg$output_space$coordinates)
@@ -310,16 +304,16 @@
   if (!is.list(legs) || length(legs) < 1L || is.null(names(legs)) ||
       anyNA(names(legs)) || any(!nzchar(names(legs))) ||
       anyDuplicated(names(legs))) {
-    stop("Measurement frames require uniquely named ordered legs.",
-      call. = FALSE)
+    .input_error("Measurement frames require uniquely named ordered legs.")
   }
   legs <- lapply(legs, .validate_measurement_leg)
   source <- legs[[1L]]$source_domain
   if (!all(vapply(legs, function(x) {
     .same_domain_reference(x$source_domain, source)
   }, logical(1)))) {
-    stop("Every measurement-frame leg must share one exact source space.",
-      call. = FALSE)
+    .contract_error(
+      "Every measurement-frame leg must share one exact source space."
+    )
   }
   operator <- Reduce(`+`, lapply(legs, .measurement_leg_metric))
   operator <- unname(operator)
@@ -334,10 +328,10 @@
   if (injectivity == "positive_diagonal_coverage") {
     off_diagonal <- operator - diag(diag(operator), nrow(operator))
     if (max(abs(off_diagonal)) > 1e-12 || any(diag(operator) <= 0)) {
-      stop(paste0(
+      .input_error(paste0(
         "Positive-diagonal injectivity requires a strictly positive diagonal ",
         "frame operator."
-      ), call. = FALSE)
+      ))
     }
     injectivity_record <- list(
       guaranteed = TRUE,
@@ -385,16 +379,14 @@
 .validate_measurement_frame <- function(x) {
   expected <- c("source_domain", "node_ids", "legs", "frame_operator",
     "coverage", "decomposition_identity", "injectivity", "dual", "signature")
-  if (!inherits(x, "effect_measurement_frame") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_measurement_frame", expected) ||
       !identical(names(x$legs), x$node_ids)) {
-    stop("Measurement-frame fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Measurement-frame fields are missing or noncanonical.")
   }
   mode <- x$injectivity$construction
   rebuilt <- .measurement_frame(x$legs, injectivity = mode)
   if (!identical(x, rebuilt)) {
-    stop("Measurement-frame identity is inconsistent.", call. = FALSE)
+    .contract_error("Measurement-frame identity is inconsistent.")
   }
   rebuilt
 }
@@ -403,21 +395,19 @@
                                weight = NULL) {
   left_frame <- .validate_measurement_frame(left_frame)
   right_frame <- .validate_measurement_frame(right_frame)
-  if (!is.character(left) || !is.character(right) || length(left) < 1L ||
-      length(left) != length(right) || anyNA(left) || anyNA(right) ||
-      any(!nzchar(left)) || any(!nzchar(right)) ||
-      any(!left %in% left_frame$node_ids) ||
+  if (!.is_strings(left) || !.is_strings(right) || length(left) < 1L ||
+      length(left) != length(right) || any(!left %in% left_frame$node_ids) ||
       any(!right %in% right_frame$node_ids) ||
       anyDuplicated(paste(left, right, sep = "\r"))) {
-    stop("Measurement edges must be unique explicit ordered frame-node pairs.",
-      call. = FALSE)
+    .input_error(
+      "Measurement edges must be unique explicit ordered frame-node pairs."
+    )
   }
   weighted <- !is.null(weight)
   if (is.null(weight)) weight <- rep(1, length(left))
-  if (!is.numeric(weight) || length(weight) != length(left) || anyNA(weight) ||
-      any(!is.finite(weight))) {
-    stop("Measurement-edge weights must be finite when supplied.",
-      call. = FALSE)
+  if (!.is_finite_numeric(weight) || length(weight) != length(left) ||
+      anyNA(weight)) {
+    .input_error("Measurement-edge weights must be finite when supplied.")
   }
   table <- data.frame(
     left = unname(left), right = unname(right), weight = unname(weight),
@@ -441,20 +431,17 @@
 
 .validate_measurement_edges <- function(x, left_frame, right_frame = left_frame) {
   expected <- c("left_frame", "right_frame", "weighted", "edges", "signature")
-  if (!inherits(x, "effect_measurement_edges") || !is.list(x) ||
-      !identical(names(x), expected) || !is.logical(x$weighted) ||
-      length(x$weighted) != 1L || is.na(x$weighted) ||
-      !is.data.frame(x$edges) ||
+  if (!.sealed_fields(x, "effect_measurement_edges", expected) ||
+      !.is_flag(x$weighted) || !is.data.frame(x$edges) ||
       !identical(names(x$edges), c("left", "right", "weight"))) {
-    stop("Measurement-edge fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Measurement-edge fields are missing or noncanonical.")
   }
   rebuilt <- .measurement_edges(
     x$edges$left, x$edges$right, left_frame, right_frame,
     if (x$weighted) x$edges$weight else NULL
   )
   if (!identical(x, rebuilt)) {
-    stop("Measurement-edge identity is inconsistent.", call. = FALSE)
+    .contract_error("Measurement-edge identity is inconsistent.")
   }
   rebuilt
 }
@@ -475,8 +462,7 @@
     return(Matrix::drop0(value))
   }
   if (!is.matrix(weights) || !is.numeric(weights)) {
-    stop("Additive weights must be a numeric matrix or sparse Matrix.",
-      call. = FALSE)
+    .input_error("Additive weights must be a numeric matrix or sparse Matrix.")
   }
   unname(weights)
 }
@@ -498,10 +484,8 @@
 
 .additive_weight_row <- function(weights, row) {
   weights <- .canonical_additive_weights(weights)
-  if (!is.numeric(row) || length(row) != 1L || is.na(row) ||
-      !is.finite(row) || row %% 1 != 0 || row < 1L || row > nrow(weights)) {
-    stop("An additive weight row must identify one measurement.",
-      call. = FALSE)
+  if (!.is_number(row) || row %% 1 != 0 || row < 1L || row > nrow(weights)) {
+    .input_error("An additive weight row must identify one measurement.")
   }
   value <- weights[as.integer(row), , drop = FALSE]
   if (!inherits(value, "Matrix")) {
@@ -531,8 +515,9 @@
   component <- match.arg(component)
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
-    stop("Only additive diagonal frames have a canonical square-root adapter.",
-      call. = FALSE)
+    .input_error(
+      "Only additive diagonal frames have a canonical square-root adapter."
+    )
   }
   weights <- .canonical_additive_weights(frame$weights)
   domain <- frame$domain
@@ -544,8 +529,9 @@
     paste0("measurement_", seq_len(nrow(weights)))
   }
   if (anyNA(node_ids) || any(!nzchar(node_ids)) || anyDuplicated(node_ids)) {
-    stop("Additive-frame measurement identities must be unique and nonempty.",
-      call. = FALSE)
+    .input_error(
+      "Additive-frame measurement identities must be unique and nonempty."
+    )
   }
   legs <- lapply(seq_len(nrow(weights)), function(index) {
     weight <- .additive_weight_row(weights, index)

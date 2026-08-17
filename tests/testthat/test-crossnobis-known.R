@@ -328,14 +328,15 @@ test_that("crossnobis refuses undeclared metrics and coordinate identity errors"
       )
     ),
     "share one exact domain"
-  )
+  , class = "effect_contract_error")
   biased <- pairing("run1", "run1", self_pairs = "allow_biased",
     independence = "not_independent")
   biased_plan <- plan_geometry(
     fixture$relation, fixture$frame, biased, metric = fixture$metric
   )
   expect_error(crossnobis(biased_plan, fixture$contrast),
-    "requires cross-partition edges declared independent")
+    "requires cross-partition edges declared independent",
+    class = "effect_input_error")
 })
 
 test_that("known-metric Monte Carlo recovers null and planted targets", {

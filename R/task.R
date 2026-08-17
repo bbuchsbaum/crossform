@@ -9,32 +9,29 @@
     if (!is.list(relations) || length(relations) < 1L ||
         is.null(names(relations)) || anyNA(names(relations)) ||
         any(!nzchar(names(relations))) || anyDuplicated(names(relations)) ||
-        !is.character(partitions) || length(partitions) < 1L ||
-        anyNA(partitions) || any(!nzchar(partitions)) ||
-        anyDuplicated(partitions) || !setequal(names(relations), partitions)) {
-      stop(sprintf("`%s_relations` must match one named partition family.", side),
-        call. = FALSE)
+        !.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
+        !setequal(names(relations), partitions)) {
+      .input_error(
+        sprintf("`%s_relations` must match one named partition family.", side)
+      )
     }
     .validate_effect_names(effects, length(effects))
     expected <- c(length(effects), length(feature_ids))
     for (partition in partitions) {
       value <- relations[[partition]]
-      if (!is.matrix(value) || !is.numeric(value) ||
-          !identical(dim(value), expected) || any(!is.finite(value))) {
-        stop(sprintf(
+      if (!.is_finite_matrix(value) || !identical(dim(value), expected)) {
+        .input_error(sprintf(
           "Every %s relation input must be a finite effect-by-feature matrix.",
           side
-        ), call. = FALSE)
+        ))
       }
     }
     invisible(TRUE)
   }
-  if (!is.numeric(feature_ids) || length(feature_ids) < 1L ||
-      anyNA(feature_ids) || any(!is.finite(feature_ids)) ||
-      any(feature_ids < 1) || any(feature_ids %% 1 != 0) ||
+  if (!.is_finite_numeric(feature_ids) || length(feature_ids) < 1L ||
+      anyNA(feature_ids) || any(feature_ids < 1) || any(feature_ids %% 1 != 0) ||
       is.unsorted(feature_ids, strictly = TRUE)) {
-    stop("`feature_ids` must be strictly increasing positive integers.",
-      call. = FALSE)
+    .input_error("`feature_ids` must be strictly increasing positive integers.")
   }
   feature_ids <- as.integer(feature_ids)
   validate_family(left_relations, left_partitions, left_effects, "left")
@@ -47,8 +44,9 @@
       (!same_relation || !identical(left_effects, right_effects) ||
        !identical(attr(ordered_edges, "expansion"),
          "self_adjoint_half_edges"))) {
-    stop("Symmetric-packed atoms require a self-adjoint self-form task.",
-      call. = FALSE)
+    .input_error(
+      "Symmetric-packed atoms require a self-adjoint self-form task."
+    )
   }
   logical_width <- length(left_effects) * length(right_effects)
   # Both codecs report `$physical_width` as an integer. `q * (q + 1L) / 2L` is
@@ -71,8 +69,9 @@
     } else if (!is.matrix(query) || !is.numeric(query) ||
         nrow(query) != physical_width || ncol(query) < 1L ||
         any(!is.finite(query))) {
-      stop("`query` must match the finite physical form coordinates.",
-        call. = FALSE)
+      .contract_error(
+        "`query` must match the finite physical form coordinates."
+      )
     }
   }
   list(
@@ -98,9 +97,7 @@
     left_partitions, right_partitions, ordered_edges, codec, query,
     same_relation
   )
-  if (!is.logical(form_atoms) || length(form_atoms) != 1L || is.na(form_atoms)) {
-    stop("`form_atoms` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(form_atoms, "form_atoms")
   feature_ids <- validated$feature_ids
   left_relations <- left_relations[left_partitions]
   right_relations <- right_relations[right_partitions]
@@ -163,8 +160,10 @@
         pair_work <- pair_work + ordered_edges$weight[[edge]] * edge_product
       }
       if (any(!is.finite(pair_work))) {
-        stop("Direct effect-form querying produced non-finite values.",
-          call. = FALSE)
+        .input_error(
+          paste0("Direct effect-form querying produced non-finite values.",
+          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+        )
       }
       if (is.null(query$coefficients)) {
         atom_tiles[[tile_index]] <- t(pair_work)
@@ -200,8 +199,10 @@
           work <- sqrt(2) * work
         }
         if (any(!is.finite(work))) {
-          stop("Effect-form atom formation produced non-finite values.",
-            call. = FALSE)
+          .input_error(
+            paste0("Effect-form atom formation produced non-finite values.",
+          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+          )
         }
         atoms[, coordinate] <- work
       }
@@ -219,8 +220,10 @@
           colSums(left * (operator %*% right))
       }
       if (any(!is.finite(work))) {
-        stop("Direct effect-form querying produced non-finite values.",
-          call. = FALSE)
+        .input_error(
+          paste0("Direct effect-form querying produced non-finite values.",
+          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+        )
       }
       atoms[, view] <- work
     }

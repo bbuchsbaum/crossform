@@ -38,32 +38,30 @@ effect_space <- function(coordinates, basis_id = "unspecified",
                          units = "arbitrary", scale = 1,
                          provenance = list()) {
   if (missing(coordinates)) {
-    stop(paste0(
+    .input_error(paste0(
       "`coordinates` is required: name the experimental effects this space ",
       "holds, for example `effect_space(c(\"face\", \"house\"))`."
-    ), call. = FALSE)
+    ))
   }
   if (!is.character(coordinates) || length(coordinates) < 1L) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`coordinates` must be a nonempty character vector naming the ",
       "experimental effects; received %s."
-    ), .msg_value(coordinates)), call. = FALSE)
+    ), .msg_value(coordinates)))
   }
   coordinates <- .validate_effect_names(coordinates, length(coordinates))
-  if (!is.character(basis_id) || length(basis_id) != 1L || is.na(basis_id) ||
-      !nzchar(basis_id)) {
-    stop("`basis_id` must be one nonempty identifier.", call. = FALSE)
-  }
-  if (!is.character(units) || !length(units) %in% c(1L, length(coordinates)) ||
-      anyNA(units) || any(!nzchar(units))) {
-    stop("`units` must provide one nonempty unit or one per coordinate.",
-      call. = FALSE)
+  .check_string(basis_id, "basis_id", what = "one nonempty identifier")
+  if (!.is_strings(units) || !length(units) %in% c(1L, length(coordinates))) {
+    .input_error(
+      "`units` must provide one nonempty unit or one per coordinate."
+    )
   }
   if (length(units) == 1L) units <- rep(units, length(coordinates))
   if (!is.numeric(scale) || !length(scale) %in% c(1L, length(coordinates)) ||
       anyNA(scale) || any(!is.finite(scale)) || any(scale <= 0)) {
-    stop("`scale` must provide one positive finite value or one per coordinate.",
-      call. = FALSE)
+    .input_error(
+      "`scale` must provide one positive finite value or one per coordinate."
+    )
   }
   if (length(scale) == 1L) scale <- rep(as.numeric(scale), length(coordinates))
   .validate_effect_provenance(provenance)
@@ -87,12 +85,12 @@ effect_space <- function(coordinates, basis_id = "unspecified",
 
 .validate_effect_provenance <- function(x, path = "provenance") {
   if (!is.list(x)) {
-    stop("`provenance` must be a list.", call. = FALSE)
+    .input_error("`provenance` must be a list.")
   }
   inspect <- function(value, location) {
     if (is.environment(value) || is.function(value) ||
         typeof(value) %in% c("externalptr", "weakref")) {
-      stop(sprintf("`%s` contains a nonportable value.", location), call. = FALSE)
+      .input_error(sprintf("`%s` contains a nonportable value.", location))
     }
     if (is.list(value)) {
       for (index in seq_along(value)) {
@@ -110,14 +108,13 @@ effect_space <- function(coordinates, basis_id = "unspecified",
 .validate_effect_space <- function(x) {
   expected <- c("coordinates", "basis_id", "units", "scale", "provenance",
     "signature")
-  if (!inherits(x, "effect_space") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Effect-space fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(x, "effect_space", expected)) {
+    .input_error("Effect-space fields are missing or noncanonical.")
   }
   rebuilt <- effect_space(x$coordinates, x$basis_id, x$units, x$scale,
     x$provenance)
   if (!identical(x, rebuilt)) {
-    stop("Effect-space metadata or signature is inconsistent.", call. = FALSE)
+    .contract_error("Effect-space metadata or signature is inconsistent.")
   }
   rebuilt
 }
@@ -132,8 +129,9 @@ effect_space <- function(coordinates, basis_id = "unspecified",
     effect_space(x)
   }
   if (!is.null(expected) && length(value$coordinates) != expected) {
-    stop("The effect-space dimension does not match the declared data.",
-      call. = FALSE)
+    .contract_error(
+      "The effect-space dimension does not match the declared data."
+    )
   }
   value
 }

@@ -59,12 +59,12 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
                     independence = NULL,
                     generalizes_over = NULL) {
   if (missing(left) || missing(right)) {
-    stop(paste0(
+    .input_error(paste0(
       "`left` and `right` are both required: each edge pairs one left ",
       "partition with one right partition, as in ",
       "`pairing(c(\"run1\", \"run1\"), c(\"run2\", \"run3\"))`. Use ",
       "`cross_partitions()` for every distinct pair."
-    ), call. = FALSE)
+    ))
   }
   self_pairs <- match.arg(self_pairs)
   independence <- if (is.null(independence)) {
@@ -75,53 +75,51 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
   if (!is.null(generalizes_over) &&
       (!is.character(generalizes_over) || length(generalizes_over) != 1L ||
        is.na(generalizes_over) || !nzchar(generalizes_over))) {
-    stop("`generalizes_over` must be NULL or one nonempty axis name.",
-      call. = FALSE)
+    .input_error("`generalizes_over` must be NULL or one nonempty axis name.")
   }
   if (length(left) != length(right) || length(left) < 1L) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`left` and `right` must name one partition each per edge, so they ",
       "must have the same positive length; received %s and %s."
     ), .msg_count(length(left), "left endpoint"),
-      .msg_count(length(right), "right endpoint")), call. = FALSE)
+      .msg_count(length(right), "right endpoint")))
   }
-  if (!is.logical(directed) || length(directed) != 1L || is.na(directed)) {
-    stop("`directed` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(directed, "directed")
 
   left <- as.character(left)
   right <- as.character(right)
   if (anyNA(left) || anyNA(right) || any(left == "") || any(right == "")) {
-    stop("Pairing endpoints must be non-missing, nonempty identifiers.", call. = FALSE)
+    .input_error("Pairing endpoints must be non-missing, nonempty identifiers.")
   }
 
   if (is.null(weight)) {
     weight <- rep(1, length(left))
   }
-  if (!is.numeric(weight) || length(weight) != length(left) ||
-      any(!is.finite(weight)) || any(weight < 0) || max(weight) <= 0) {
-    stop("`weight` must be finite, nonnegative, and have positive total mass.",
-      call. = FALSE)
+  if (!.is_finite_numeric(weight) || length(weight) != length(left) ||
+      any(weight < 0) || max(weight) <= 0) {
+    .input_error(
+      "`weight` must be finite, nonnegative, and have positive total mass."
+    )
   }
 
   is_self <- left == right
   if (any(is_self) && any(!is_self)) {
-    stop("A pairing cannot mix self-products with cross-partition products.",
-      call. = FALSE)
+    .input_error(
+      "A pairing cannot mix self-products with cross-partition products."
+    )
   }
   if (any(is_self) && self_pairs != "allow_biased") {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "Edge %s pairs %s with itself, which is a noise-biased estimate rather ",
       "than a cross-generalized one. Declare it with ",
       "`self_pairs = \"allow_biased\"` if that is what you mean."
-    ), .msg_positions(is_self), .msg_names(unique(left[is_self]))),
-      call. = FALSE)
+    ), .msg_positions(is_self), .msg_names(unique(left[is_self]))))
   }
   if (any(is_self) && independence != "not_independent") {
-    stop(paste0(
+    .input_error(paste0(
       "Self-products must declare `independence = \"not_independent\"`: a ",
       "partition's estimate is not independent of itself."
-    ), call. = FALSE)
+    ))
   }
 
   key <- if (directed) {
@@ -130,15 +128,16 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
     paste(pmin(left, right), pmax(left, right), sep = "\r")
   }
   if (anyDuplicated(key)) {
-    stop("The pairing contains duplicate edges.", call. = FALSE)
+    .input_error("The pairing contains duplicate edges.")
   }
 
   scaled_weight <- weight / max(weight)
   normalized_weight <- scaled_weight / sum(scaled_weight)
   if (any(!is.finite(normalized_weight)) || sum(normalized_weight) <= 0 ||
       abs(sum(normalized_weight) - 1) > 1e-12) {
-    stop("Normalized pairing weights must be finite and have positive unit mass.",
-      call. = FALSE)
+    .input_error(
+      "Normalized pairing weights must be finite and have positive unit mass."
+    )
   }
 
   ans <- data.frame(
@@ -215,16 +214,16 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 cross_partitions <- function(partitions, independence = NULL,
                              generalizes_over = NULL) {
   if (missing(partitions)) {
-    stop(paste0(
+    .input_error(paste0(
       "`partitions` is required: pass an `effect_relation` (or ",
       "`fit$relation`), or the partition identifiers to pair."
-    ), call. = FALSE)
+    ))
   }
   if (inherits(partitions, "effect_relation_fit")) {
-    stop(paste0(
+    .input_error(paste0(
       "`partitions` must be partition identifiers or an `effect_relation`; ",
       "pass `fit$relation` rather than the fit itself."
-    ), call. = FALSE)
+    ))
   }
   if (inherits(partitions, "effect_relation")) {
     .validate_relation(partitions)
@@ -233,18 +232,17 @@ cross_partitions <- function(partitions, independence = NULL,
   supplied <- as.character(partitions)
   partitions <- unique(supplied)
   if (anyNA(partitions) || any(partitions == "")) {
-    stop(paste0(
+    .input_error(paste0(
       "Partition identifiers must be non-missing and nonempty; ",
       "cross-generalization needs a name for every fold."
-    ), call. = FALSE)
+    ))
   }
   if (length(partitions) < 2L) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "Cross-generalization needs at least two partitions, and this ",
       "relation has %s (%s). Split the data into folds that can be paired, ",
       "for example one partition per run or session."
-    ), .msg_count(length(partitions), "partition"), .msg_names(partitions)),
-      call. = FALSE)
+    ), .msg_count(length(partitions), "partition"), .msg_names(partitions)))
   }
   edges <- utils::combn(partitions, 2L)
   pairing(edges[1L, ], edges[2L, ], directed = FALSE,
@@ -253,21 +251,19 @@ cross_partitions <- function(partitions, independence = NULL,
 }
 
 .partition_reducer <- function(kind = "weighted_sum") {
-  if (!is.character(kind) || length(kind) != 1L || is.na(kind) ||
-      !identical(kind, "weighted_sum")) {
-    stop("The supported partition reducer is `weighted_sum`.", call. = FALSE)
+  if (!.is_string(kind, allow_empty = TRUE) || !identical(kind, "weighted_sum")) {
+    .input_error("The supported partition reducer is `weighted_sum`.")
   }
   .new_partition_reducer("edge_first")
 }
 
 .validate_partition_reducer <- function(reducer) {
   expected <- c("kind", "weight_convention", "order")
-  if (!inherits(reducer, "effect_partition_reducer") || !is.list(reducer) ||
-      !identical(names(reducer), expected) ||
+  if (!.sealed_fields(reducer, "effect_partition_reducer", expected) ||
       !identical(reducer$kind, "weighted_sum") ||
       !identical(reducer$weight_convention, "normalized_unit_mass") ||
       !reducer$order %in% c("edge_first", "aggregate_first")) {
-    stop("Partition reducer fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Partition reducer fields are missing or noncanonical.")
   }
   invisible(reducer)
 }
@@ -275,28 +271,23 @@ cross_partitions <- function(partitions, independence = NULL,
 .ordered_partition_edges <- function(over, left_partitions, right_partitions,
                                      same_relation = FALSE) {
   .validate_pairing(over)
-  if (!is.character(left_partitions) || !is.character(right_partitions) ||
-      anyNA(left_partitions) || anyNA(right_partitions) ||
-      any(!nzchar(left_partitions)) || any(!nzchar(right_partitions)) ||
-      anyDuplicated(left_partitions) || anyDuplicated(right_partitions)) {
-    stop("Task partition families must have unique nonempty names.",
-      call. = FALSE)
+  if (!.is_strings(left_partitions, unique = TRUE) ||
+      !.is_strings(right_partitions, unique = TRUE)) {
+    .input_error("Task partition families must have unique nonempty names.")
   }
-  if (!is.logical(same_relation) || length(same_relation) != 1L ||
-      is.na(same_relation)) {
-    stop("`same_relation` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(same_relation, "same_relation")
   if (any(!over$left %in% left_partitions) ||
       any(!over$right %in% right_partitions)) {
-    stop("Ordered edge endpoints must identify their declared relation side.",
-      call. = FALSE)
+    .input_error(
+      "Ordered edge endpoints must identify their declared relation side."
+    )
   }
   undirected <- !isTRUE(attr(over, "directed"))
   if (undirected && !same_relation) {
-    stop(paste0(
+    .input_error(paste0(
       "An undirected compatibility pairing can only be expanded within one ",
       "relation; cross-relation tasks require ordered endpoints."
-    ), call. = FALSE)
+    ))
   }
 
   if (undirected) {
@@ -347,24 +338,21 @@ cross_partitions <- function(partitions, independence = NULL,
       anyNA(edges$left) || anyNA(edges$right) ||
       any(!edges$left %in% left_partitions) ||
       any(!edges$right %in% right_partitions) ||
-      !is.numeric(edges$weight) || anyNA(edges$weight) ||
-      any(!is.finite(edges$weight)) || any(edges$weight < 0) ||
-      abs(sum(edges$weight) - 1) > 1e-12 ||
+      !.is_finite_numeric(edges$weight) || anyNA(edges$weight) ||
+      any(edges$weight < 0) || abs(sum(edges$weight) - 1) > 1e-12 ||
       !is.integer(edges$input_edge) || any(edges$input_edge < 1L) ||
       !is.character(edges$orientation)) {
-    stop("Ordered partition edges are missing or noncanonical.", call. = FALSE)
+    .input_error("Ordered partition edges are missing or noncanonical.")
   }
   expansion <- attr(edges, "expansion", exact = TRUE)
   if (!expansion %in% c("self_adjoint_half_edges", "declared_order")) {
-    stop("Ordered partition-edge expansion is missing or invalid.",
-      call. = FALSE)
+    .input_error("Ordered partition-edge expansion is missing or invalid.")
   }
   if (identical(expansion, "self_adjoint_half_edges")) {
     if (!isTRUE(same_relation) || nrow(edges) %% 2L != 0L ||
         !identical(edges$orientation, rep(c("forward", "reverse"),
           nrow(edges) / 2L))) {
-      stop("Self-adjoint ordered-edge expansion is inconsistent.",
-        call. = FALSE)
+      .input_error("Self-adjoint ordered-edge expansion is inconsistent.")
     }
     for (position in seq(1L, nrow(edges), by = 2L)) {
       reverse <- position + 1L
@@ -372,13 +360,11 @@ cross_partitions <- function(partitions, independence = NULL,
           !identical(edges$right[[position]], edges$left[[reverse]]) ||
           !identical(edges$weight[[position]], edges$weight[[reverse]]) ||
           !identical(edges$input_edge[[position]], edges$input_edge[[reverse]])) {
-        stop("Self-adjoint half edges do not form exact reverse pairs.",
-          call. = FALSE)
+        .input_error("Self-adjoint half edges do not form exact reverse pairs.")
       }
     }
   } else if (any(edges$orientation != "declared")) {
-    stop("Declared ordered edges have invalid orientation metadata.",
-      call. = FALSE)
+    .input_error("Declared ordered edges have invalid orientation metadata.")
   }
   invisible(edges)
 }
@@ -393,35 +379,36 @@ cross_partitions <- function(partitions, independence = NULL,
 #'   directed pairings, a list containing `left` and `right`.
 #' @keywords internal
 pairing_marginals <- function(local, over, mass = 1) {
-  if (!is.array(local) || length(dim(local)) != 3L || !is.numeric(local) ||
-      any(!is.finite(local))) {
-    stop("`local` must be a finite numeric measurement-by-effect-by-partition array.",
-      call. = FALSE)
+  if (!is.array(local) || length(dim(local)) != 3L ||
+      !.is_finite_numeric(local)) {
+    .input_error(paste0(
+      "`local` must be a finite numeric measurement-by-effect-by-partition ",
+      "array."
+    ))
   }
-  if (!inherits(over, "effect_pairing")) {
-    stop("`over` must be an effect pairing.", call. = FALSE)
-  }
+  .check_class(over, "effect_pairing", "over", what = "an effect pairing")
   .validate_pairing(over)
 
   partition_ids <- dimnames(local)[[3L]]
   if (is.null(partition_ids) || anyNA(partition_ids) || any(partition_ids == "")) {
-    stop("The partition dimension of `local` must have unique names.", call. = FALSE)
+    .input_error("The partition dimension of `local` must have unique names.")
   }
   if (anyDuplicated(partition_ids)) {
-    stop("The partition dimension of `local` must have unique names.", call. = FALSE)
+    .input_error("The partition dimension of `local` must have unique names.")
   }
   left_index <- match(over$left, partition_ids)
   right_index <- match(over$right, partition_ids)
   if (anyNA(left_index) || anyNA(right_index)) {
-    stop("Every pairing endpoint must identify a partition in `local`.", call. = FALSE)
+    .input_error("Every pairing endpoint must identify a partition in `local`.")
   }
 
   m <- dim(local)[1L]
   q <- dim(local)[2L]
-  if (!is.numeric(mass) || length(mass) == 0L ||
-      !(length(mass) %in% c(1L, m)) || any(!is.finite(mass)) || any(mass <= 0)) {
-    stop("`mass` must be one positive finite value or one per measurement.",
-      call. = FALSE)
+  if (!.is_finite_numeric(mass) || length(mass) == 0L ||
+      !(length(mass) %in% c(1L, m)) || any(mass <= 0)) {
+    .input_error(
+      "`mass` must be one positive finite value or one per measurement."
+    )
   }
   mass <- rep_len(mass, m)
 
@@ -461,60 +448,65 @@ pairing_marginals <- function(local, over, mass = 1) {
 
 .validate_pairing <- function(over) {
   if (!inherits(over, "effect_pairing")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "Expected an `effect_pairing` from `cross_partitions()` or ",
       "`pairing()`; received %s."
-    ), .msg_value(over)), call. = FALSE)
+    ), .msg_value(over)))
   }
   if (!inherits(over, "effect_pairing") || !is.data.frame(over) ||
       !identical(names(over), c("left", "right", "weight")) || nrow(over) < 1L) {
-    stop("Pairing objects must be nonempty left/right/weight edge tables.",
-      call. = FALSE)
+    .input_error(
+      "Pairing objects must be nonempty left/right/weight edge tables."
+    )
   }
   directed <- attr(over, "directed", exact = TRUE)
-  if (!is.logical(directed) || length(directed) != 1L || is.na(directed)) {
-    stop("Pairing directedness must be one logical value.", call. = FALSE)
+  if (!.is_flag(directed)) {
+    .input_error("Pairing directedness must be one logical value.")
   }
   self_policy <- attr(over, "self_pairs", exact = TRUE)
   independence <- attr(over, "independence", exact = TRUE)
   estimate <- attr(over, "estimate", exact = TRUE)
   if (!is.character(self_policy) || length(self_policy) != 1L ||
       !self_policy %in% c("forbid", "allow_biased")) {
-    stop("Pairing self-product policy is missing or invalid.", call. = FALSE)
+    .input_error("Pairing self-product policy is missing or invalid.")
   }
   if (!is.character(independence) || length(independence) != 1L ||
       !independence %in% c("independent", "not_independent", "undeclared")) {
-    stop("Pairing independence semantics are missing or invalid.", call. = FALSE)
+    .input_error("Pairing independence semantics are missing or invalid.")
   }
   generalizes_over <- attr(over, "generalizes_over", exact = TRUE)
   if (!is.null(generalizes_over) &&
       (!is.character(generalizes_over) || length(generalizes_over) != 1L ||
        is.na(generalizes_over) || !nzchar(generalizes_over))) {
-    stop("Pairing generalization axis must be NULL or one nonempty name.",
-      call. = FALSE)
+    .input_error(
+      "Pairing generalization axis must be NULL or one nonempty name."
+    )
   }
   if (!is.character(over$left) || !is.character(over$right) ||
       anyNA(over$left) || anyNA(over$right) ||
       any(over$left == "") || any(over$right == "")) {
-    stop("Pairing endpoints must be non-missing, nonempty identifiers.", call. = FALSE)
+    .input_error("Pairing endpoints must be non-missing, nonempty identifiers.")
   }
-  if (!is.numeric(over$weight) || length(over$weight) != nrow(over) ||
-      any(!is.finite(over$weight)) || any(over$weight < 0) ||
-      sum(over$weight) <= 0 || abs(sum(over$weight) - 1) > 1e-12) {
-    stop("Pairing weights must be finite, nonnegative, and normalized to unit mass.",
-      call. = FALSE)
+  if (!.is_finite_numeric(over$weight) || length(over$weight) != nrow(over) ||
+      any(over$weight < 0) || sum(over$weight) <= 0 ||
+      abs(sum(over$weight) - 1) > 1e-12) {
+    .input_error(paste0(
+      "Pairing weights must be finite, nonnegative, and normalized to unit ",
+      "mass."
+    ))
   }
 
   is_self <- over$left == over$right
   if (any(is_self) && any(!is_self)) {
-    stop("A pairing cannot mix self-products with cross-partition products.",
-      call. = FALSE)
+    .input_error(
+      "A pairing cannot mix self-products with cross-partition products."
+    )
   }
   if (any(is_self) && self_policy != "allow_biased") {
-    stop("Self-products require explicit biased-estimate admission.", call. = FALSE)
+    .input_error("Self-products require explicit biased-estimate admission.")
   }
   if (any(is_self) && independence != "not_independent") {
-    stop("Self-products cannot be declared independent.", call. = FALSE)
+    .input_error("Self-products cannot be declared independent.")
   }
   expected_estimate <- if (any(is_self)) {
     "self_product_biased"
@@ -526,7 +518,9 @@ pairing_marginals <- function(local, over, mass = 1) {
     "nonindependent_cross_product"
   }
   if (!identical(estimate, expected_estimate)) {
-    stop("Pairing estimate semantics are inconsistent with its edges.", call. = FALSE)
+    .contract_error(
+      "Pairing estimate semantics are inconsistent with its edges."
+    )
   }
 
   key <- if (directed) {
@@ -535,7 +529,7 @@ pairing_marginals <- function(local, over, mass = 1) {
     paste(pmin(over$left, over$right), pmax(over$left, over$right), sep = "\r")
   }
   if (anyDuplicated(key)) {
-    stop("The pairing contains duplicate edges.", call. = FALSE)
+    .input_error("The pairing contains duplicate edges.")
   }
   invisible(over)
 }

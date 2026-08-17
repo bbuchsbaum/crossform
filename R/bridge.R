@@ -36,11 +36,9 @@
 #' )
 #' @export
 measurement_space <- function(n_measurements, id, provenance = list()) {
-  if (!is.numeric(n_measurements) || length(n_measurements) != 1L ||
-      is.na(n_measurements) || !is.finite(n_measurements) ||
-      n_measurements < 1L || n_measurements %% 1 != 0 ||
-      n_measurements > .Machine$integer.max) {
-    stop("`n_measurements` must be one positive integer.", call. = FALSE)
+  if (!.is_number(n_measurements) || n_measurements < 1L ||
+      n_measurements %% 1 != 0 || n_measurements > .Machine$integer.max) {
+    .input_error("`n_measurements` must be one positive integer.")
   }
   n_measurements <- as.integer(n_measurements)
   .domain_id(id)
@@ -58,15 +56,12 @@ measurement_space <- function(n_measurements, id, provenance = list()) {
 
 .validate_measurement_space <- function(x) {
   expected <- c("id", "n_measurements", "provenance", "signature")
-  if (!inherits(x, "effect_measurement_space") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Measurement-space fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_measurement_space", expected)) {
+    .input_error("Measurement-space fields are missing or noncanonical.")
   }
   rebuilt <- measurement_space(x$n_measurements, x$id, x$provenance)
   if (!identical(x, rebuilt)) {
-    stop("Measurement-space identity or provenance is inconsistent.",
-      call. = FALSE)
+    .contract_error("Measurement-space identity or provenance is inconsistent.")
   }
   rebuilt
 }
@@ -117,12 +112,9 @@ measurement_space <- function(n_measurements, id, provenance = list()) {
 #' @export
 measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
                                common_space, provenance = list()) {
-  if (!is.matrix(left_leg) || !is.numeric(left_leg) ||
-      !is.matrix(right_leg) || !is.numeric(right_leg) ||
-      any(dim(left_leg) < 1L) || any(dim(right_leg) < 1L) ||
-      any(!is.finite(left_leg)) || any(!is.finite(right_leg))) {
-    stop("Bridge legs must be finite nonempty numeric matrices.",
-      call. = FALSE)
+  if (!.is_finite_matrix(left_leg) || !.is_finite_matrix(right_leg) ||
+      any(dim(left_leg) < 1L) || any(dim(right_leg) < 1L)) {
+    .input_error("Bridge legs must be finite nonempty numeric matrices.")
   }
   left_leg <- unname(left_leg)
   right_leg <- unname(right_leg)
@@ -134,13 +126,13 @@ measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
   .validate_effect_provenance(provenance, "measurement-bridge provenance")
   if (nrow(left_leg) != common_space$n_measurements ||
       nrow(right_leg) != common_space$n_measurements) {
-    stop("Bridge legs must share the declared common measurement dimension.",
-      call. = FALSE)
+    .input_error(
+      "Bridge legs must share the declared common measurement dimension."
+    )
   }
   if (ncol(left_leg) != left_domain$n_features ||
       ncol(right_leg) != right_domain$n_features) {
-    stop("Bridge leg widths must match their exact neural domains.",
-      call. = FALSE)
+    .contract_error("Bridge leg widths must match their exact neural domains.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -162,11 +154,11 @@ measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
                                                     right_domain = NULL) {
   expected <- c("kind", "left_domain", "right_domain", "common_space",
     "left_leg", "right_leg", "provenance", "signature")
-  if (!inherits(bridge, "effect_measurement_bridge") || !is.list(bridge) ||
-      !identical(names(bridge), expected) ||
+  if (!.sealed_fields(bridge, "effect_measurement_bridge", expected) ||
       !identical(bridge$kind, "factorized")) {
-    stop("Factorized measurement-bridge fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error(
+      "Factorized measurement-bridge fields are missing or noncanonical."
+    )
   }
   rebuilt <- measurement_bridge(
     bridge$left_leg, bridge$right_leg,
@@ -174,30 +166,29 @@ measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
     bridge$common_space, bridge$provenance
   )
   if (!identical(bridge, rebuilt)) {
-    stop("Factorized measurement bridge identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Factorized measurement bridge identity is inconsistent.")
   }
   if (!is.null(left_domain) &&
       !.same_domain_reference(bridge$left_domain,
         .domain_reference(left_domain))) {
-    stop("Bridge left neural-space identity is incompatible.", call. = FALSE)
+    .contract_error("Bridge left neural-space identity is incompatible.")
   }
   if (!is.null(right_domain) &&
       !.same_domain_reference(bridge$right_domain,
         .domain_reference(right_domain))) {
-    stop("Bridge right neural-space identity is incompatible.", call. = FALSE)
+    .contract_error("Bridge right neural-space identity is incompatible.")
   }
   rebuilt
 }
 
 .validate_measurement_bridge <- function(bridge, left = NULL, right = NULL) {
-  if (!inherits(bridge, "effect_measurement_bridge")) {
-    stop("`bridge` must be a crossform measurement bridge.", call. = FALSE)
-  }
+  .check_class(
+    bridge, "effect_measurement_bridge", "bridge",
+    what = "a crossform measurement bridge"
+  )
   if (identical(bridge$kind, "identity")) {
     if (is.null(left) || is.null(right)) {
-      stop("Identity bridge validation requires both relation sides.",
-        call. = FALSE)
+      .input_error("Identity bridge validation requires both relation sides.")
     }
     return(.validate_identity_measurement_bridge(bridge, left, right))
   }
@@ -257,14 +248,15 @@ reverse_bridge <- function(bridge) {
   validate_family <- function(relations, width, side) {
     if (!is.list(relations) || length(relations) < 1L ||
         is.null(names(relations))) {
-      stop(sprintf("Bridged %s relations must be a named family.", side),
-        call. = FALSE)
+      .input_error(
+        sprintf("Bridged %s relations must be a named family.", side)
+      )
     }
     for (value in relations) {
-      if (!is.matrix(value) || !is.numeric(value) || ncol(value) != width ||
-          any(!is.finite(value))) {
-        stop(sprintf("Bridged %s relations have invalid neural width.", side),
-          call. = FALSE)
+      if (!.is_finite_matrix(value) || ncol(value) != width) {
+        .input_error(
+          sprintf("Bridged %s relations have invalid neural width.", side)
+        )
       }
     }
   }
@@ -283,7 +275,7 @@ reverse_bridge <- function(bridge) {
   if (!is.matrix(left) || !is.matrix(right) ||
       ncol(left) != ncol(bridge$left_leg) ||
       ncol(right) != ncol(bridge$right_leg)) {
-    stop("Joint bridge inputs do not match the bridge legs.", call. = FALSE)
+    .contract_error("Joint bridge inputs do not match the bridge legs.")
   }
   measured <- rbind(left %*% t(bridge$left_leg),
     right %*% t(bridge$right_leg))

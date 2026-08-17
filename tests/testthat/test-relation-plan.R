@@ -230,7 +230,7 @@ test_that("row alignment and nonestimability refuse before neural reads", {
   model$row_ids$`run-1` <- rev(model$row_ids$`run-1`)
   model$compilation_route_id <- "tampered"
   expect_error(crossform:::.validate_design_model(model),
-    "disagree|inconsistent")
+    "disagree|inconsistent", class = "effect_contract_error")
 
   reversed_designs <- fixture$model$designs
   reversed_ids <- lapply(fixture$model$row_ids, rev)
@@ -290,5 +290,5 @@ test_that("design receipts are portable and identity guarded", {
   tampered <- receipts$`run-1`
   tampered$design[1, 1] <- tampered$design[1, 1] + 1
   expect_error(crossform:::.validate_design_receipt(tampered),
-    "identity is inconsistent")
+    "identity is inconsistent", class = "effect_contract_error")
 })

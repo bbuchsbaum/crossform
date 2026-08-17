@@ -7,9 +7,9 @@ test_that("observation indexes bind ordered identifiers and optional clocks", {
   expect_false(untimed$timing)
   expect_false(identical(timed$signature, untimed$signature))
   expect_error(observation_index(1:3, "run", c(0, 2, 1), "s"),
-    "strictly increasing")
+    "strictly increasing", class = "effect_input_error")
   expect_error(observation_index(1:3, "run", units = "s"),
-    "requires an observation")
+    "requires an observation", class = "effect_input_error")
 })
 
 test_that("observations support unequal partitions on one exact domain", {
@@ -53,13 +53,13 @@ test_that("observation sources fail on row and neural-domain disagreement", {
   expect_error(
     observations(wrong_rows, fixture$indexes, fixture$domain),
     "source dimensions"
-  )
+  , class = "effect_input_error")
 
   wrong_domain <- abstract_domain(4L, id = "wrong")
   expect_error(
     observations(fixture$sources, fixture$indexes, wrong_domain),
     "source dimensions"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("event tables carry schema but no permanent model roles", {
@@ -98,7 +98,7 @@ test_that("observation confounds remain on their own typed axis", {
   expect_s3_class(record, "effect_observation_confounds")
   expect_identical(record$censor_column, "retained")
   expect_error(observation_confounds(rbind(table, table[1, ]),
-    censor = "retained"), "unique")
+    censor = "retained"), "unique", class = "effect_input_error")
 })
 
 test_that("partition hierarchies validate nesting and retain axis order", {
@@ -120,7 +120,8 @@ test_that("partition hierarchies validate nesting and retain axis order", {
     run = c("run-1", "run-1"),
     session = c("s1", "s2")
   )
-  expect_error(partition_hierarchy(bad), "does not nest uniquely")
+  expect_error(partition_hierarchy(bad), "does not nest uniquely",
+    class = "effect_input_error")
 })
 
 test_that("fact identities detect mutation and semantic changes", {
@@ -139,5 +140,5 @@ test_that("fact identities detect mutation and semantic changes", {
   tampered <- first
   tampered$indexes$`run-1`$partition <- "changed"
   expect_error(crossform:::.validate_observations(tampered),
-    "inconsistent|declares")
+    "inconsistent|declares", class = "effect_contract_error")
 })

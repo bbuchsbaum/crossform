@@ -2,15 +2,16 @@
 
 .require_neuroim2_searchlight_indices <- function() {
   if (!requireNamespace("neuroim2", quietly = TRUE)) {
-    stop("The neuroim2 adapter requires the suggested package `neuroim2`.",
-      call. = FALSE)
+    .input_error(
+      "The neuroim2 adapter requires the suggested package `neuroim2`."
+    )
   }
   if (!exists("searchlight_indices", envir = asNamespace("neuroim2"),
       inherits = FALSE)) {
-    stop(paste0(
+    .input_error(paste0(
       "The installed neuroim2 does not provide `searchlight_indices()`; ",
       "install neuroim2 0.19.0 or later (upstream commit 77b1ddb)."
-    ), call. = FALSE)
+    ))
   }
   invisible(TRUE)
 }
@@ -55,11 +56,11 @@
 neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
   .require_neuroim2_searchlight_indices()
   if (!inherits(mask, "NeuroVol") || length(dim(mask)) != 3L) {
-    stop("`mask` must be a three-dimensional neuroim2 NeuroVol.", call. = FALSE)
+    .input_error("`mask` must be a three-dimensional neuroim2 NeuroVol.")
   }
   values <- as.array(mask)
   included <- is.finite(values) & values != 0
-  if (!any(included)) stop("`mask` must include at least one feature.", call. = FALSE)
+  if (!any(included)) .input_error("`mask` must include at least one feature.")
   feature_ids <- which(included)
   grid <- neuroim2::index_to_grid(mask, feature_ids)
   spacing <- as.numeric(neuroim2::spacing(mask))[1:3]
@@ -131,29 +132,27 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 neuroim2_searchlights <- function(mask, radius, domain = NULL,
                                   normalization = "local", nonzero = TRUE) {
   if (missing(mask) || missing(radius)) {
-    stop(paste0(
+    .input_error(paste0(
       "`mask` and `radius` are both required: pass the `NeuroVol` mask and a ",
       "positive spherical radius in millimetres, for example ",
       "`neuroim2_searchlights(mask, radius = 8)`."
-    ), call. = FALSE)
+    ))
   }
   .require_neuroim2_searchlight_indices()
-  if (!is.logical(nonzero) || length(nonzero) != 1L || is.na(nonzero) ||
-      !nonzero) {
-    stop("crossform neuroim2 searchlights require `nonzero = TRUE`.",
-      call. = FALSE)
+  if (!.is_flag(nonzero) || !nonzero) {
+    .input_error("crossform neuroim2 searchlights require `nonzero = TRUE`.")
   }
   if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
   .validate_domain(domain)
   if (!identical(domain$kind, "volume")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`domain` must be a volume domain from `neuroim2_volume_domain()` or ",
       "`volume_domain()`; received a `%s` domain."
-    ), domain$kind), call. = FALSE)
+    ), domain$kind))
   }
   mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
   if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
-    stop(sprintf(paste0(
+    .contract_error(sprintf(paste0(
       "`mask` and `domain` have different volume geometry, so a compact ",
       "index in one does not name the same voxel in the other. The mask is ",
       "%s with %s and %s; domain `%s` is %s with %s and %s. Pass the mask ",
@@ -167,27 +166,30 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
       paste(domain$metadata$dim, collapse = " x "),
       paste0("spacing ", paste(format(domain$metadata$spacing),
         collapse = " x ")),
-      .msg_count(domain$n_features, "feature")), call. = FALSE)
+      .msg_count(domain$n_features, "feature")))
   }
   neighborhoods <- neuroim2::searchlight_indices(mask, radius,
     nonzero = TRUE)
   centers <- attr(neighborhoods, "center_indices", exact = TRUE)
   if (!identical(centers, domain$feature_ids)) {
-    stop("neuroim2 searchlight centers do not match the ordered domain features.",
-      call. = FALSE)
+    .contract_error(
+      "neuroim2 searchlight centers do not match the ordered domain features."
+    )
   }
   members <- lapply(neighborhoods, function(indices) {
     mapped <- match(indices, domain$feature_ids)
     if (anyNA(mapped)) {
-      stop("A neuroim2 searchlight member lies outside the declared domain.",
-        call. = FALSE)
+      .input_error(
+        "A neuroim2 searchlight member lies outside the declared domain."
+      )
     }
     as.integer(mapped)
   })
   counts <- lengths(members)
   if (length(members) < 1L || any(counts < 1L)) {
-    stop("Every neuroim2 searchlight must contain at least one domain feature.",
-      call. = FALSE)
+    .input_error(
+      "Every neuroim2 searchlight must contain at least one domain feature."
+    )
   }
   support_index <- .support_index_from_members(
     members, domain, centers,
@@ -261,24 +263,24 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
 as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
                         label = "crossform result") {
   if (missing(values) || missing(mask)) {
-    stop(paste0(
+    .input_error(paste0(
       "`values` and `mask` are both required: `as_neurovol()` writes one ",
       "number per compact domain feature onto the space of the `NeuroVol` ",
       "mask the domain was built from."
-    ), call. = FALSE)
+    ))
   }
   .require_neuroim2_searchlight_indices()
   if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
   .validate_domain(domain)
   if (!identical(domain$kind, "volume")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`domain` must be a volume domain from `neuroim2_volume_domain()` or ",
       "`volume_domain()`; received a `%s` domain."
-    ), domain$kind), call. = FALSE)
+    ), domain$kind))
   }
   mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
   if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
-    stop(sprintf(paste0(
+    .contract_error(sprintf(paste0(
       "`mask` and `domain` have different volume geometry, so a compact ",
       "index in one does not name the same voxel in the other. The mask is ",
       "%s with %s and %s; domain `%s` is %s with %s and %s. Pass the mask ",
@@ -292,17 +294,17 @@ as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
       paste(domain$metadata$dim, collapse = " x "),
       paste0("spacing ", paste(format(domain$metadata$spacing),
         collapse = " x ")),
-      .msg_count(domain$n_features, "feature")), call. = FALSE)
+      .msg_count(domain$n_features, "feature")))
   }
   if (!is.numeric(values) || is.matrix(values)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`values` must be a numeric vector with one value per compact domain ",
       "feature; received %s. A view's `$values` matrix has one column per ",
       "query, so select the column you want to write out."
-    ), .msg_value(values)), call. = FALSE)
+    ), .msg_value(values)))
   }
   if (length(values) != domain$n_features) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`values` has %s but domain `%s` has %s. crossform result views are ",
       "one value per *measurement* (a searchlight, a region, the whole ",
       "brain), while `as_neurovol()` writes one value per *feature* (a ",
@@ -314,25 +316,25 @@ as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
       "normalization would rescale the numbers. See the \"Measurements are ",
       "not features\" section of `vignette(\"neuroim2-data\")`."
     ), .msg_count(length(values), "value"), domain$id,
-      .msg_count(domain$n_features, "feature")), call. = FALSE)
+      .msg_count(domain$n_features, "feature")))
   }
   if (any(!is.finite(values))) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`values` must be finite; %d of %d are NA, NaN, or Inf. `as_neurovol()` ",
       "will not guess what a missing measurement means -- replace them ",
       "deliberately, or build the domain from the coverage you actually have."
-    ), sum(!is.finite(values)), length(values)), call. = FALSE)
+    ), sum(!is.finite(values)), length(values)))
   }
   if (!is.numeric(fill) || length(fill) != 1L || is.nan(fill) ||
       is.infinite(fill)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`fill` must be one numeric value (`NA_real_` is allowed) written ",
       "outside the compact domain; received %s."
-    ), .msg_value(fill)), call. = FALSE)
+    ), .msg_value(fill)))
   }
-  if (!is.character(label) || length(label) != 1L || is.na(label)) {
-    stop(sprintf("`label` must be one character string; received %s.",
-      .msg_value(label)), call. = FALSE)
+  if (!.is_string(label, allow_empty = TRUE)) {
+    .input_error(sprintf("`label` must be one character string; received %s.",
+      .msg_value(label)))
   }
   payload <- array(as.double(fill), dim = dim(mask))
   payload[domain$feature_ids] <- as.double(values)

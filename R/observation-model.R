@@ -3,21 +3,21 @@
 .normalize_whitener_declaration <- function(value, kind) {
   if (identical(kind, "ols")) {
     if (!is.null(value)) {
-      stop("`whitener` must be NULL for `kind = \"ols\"`.", call. = FALSE)
+      .input_error("`whitener` must be NULL for `kind = \"ols\"`.")
     }
     return(NULL)
   }
   if (is.matrix(value)) value <- list(value)
   if (!is.list(value) || length(value) < 1L) {
-    stop("GLS observation models require at least one whitener matrix.",
-      call. = FALSE)
+    .input_error("GLS observation models require at least one whitener matrix.")
   }
   for (index in seq_along(value)) {
     matrix <- value[[index]]
-    if (!is.matrix(matrix) || !is.numeric(matrix) || nrow(matrix) < 1L ||
-        nrow(matrix) != ncol(matrix) || any(!is.finite(matrix))) {
-      stop("Every declared whitener must be a finite nonempty square matrix.",
-        call. = FALSE)
+    if (!.is_finite_matrix(matrix) || nrow(matrix) < 1L ||
+        nrow(matrix) != ncol(matrix)) {
+      .input_error(
+        "Every declared whitener must be a finite nonempty square matrix."
+      )
     }
   }
   value
@@ -86,10 +86,9 @@ observation_model <- function(
     whitener = NULL, independence = NULL, training_revision = NULL,
     training_provenance = list(), assumptions = list(), provenance = list()) {
   kind <- match.arg(kind)
-  if (missing(sampling_unit) || !is.character(sampling_unit) ||
-      length(sampling_unit) < 1L || anyNA(sampling_unit) ||
-      any(!nzchar(sampling_unit))) {
-    stop("`sampling_unit` must be declared explicitly.", call. = FALSE)
+  if (missing(sampling_unit) || !.is_strings(sampling_unit) ||
+      length(sampling_unit) < 1L) {
+    .input_error("`sampling_unit` must be declared explicitly.")
   }
   if (!is.null(independence)) {
     independence <- .validate_nonempty_id(independence, "independence")
@@ -98,15 +97,13 @@ observation_model <- function(
   learned <- identical(kind, "learned_frozen_gls")
   if (learned) {
     if (!.strong_sha256(training_revision)) {
-      stop("Learned GLS requires one strong `training_revision`.",
-        call. = FALSE)
+      .input_error("Learned GLS requires one strong `training_revision`.")
     }
     if (!is.list(training_provenance) || !length(training_provenance)) {
-      stop("Learned GLS requires nonempty `training_provenance`.",
-        call. = FALSE)
+      .input_error("Learned GLS requires nonempty `training_provenance`.")
     }
   } else if (!is.null(training_revision) || length(training_provenance)) {
-    stop("Training provenance is only valid for learned GLS.", call. = FALSE)
+    .input_error("Training provenance is only valid for learned GLS.")
   }
   .validate_effect_provenance(training_provenance, "training provenance")
   .validate_effect_provenance(assumptions, "observation-model assumptions")
@@ -150,10 +147,8 @@ observation_model <- function(
     "independence", "training_revision", "training_provenance",
     "assumptions", "provenance", "observation_model_id", "capabilities"
   )
-  if (!inherits(value, "effect_observation_model") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Observation-model fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(value, "effect_observation_model", expected)) {
+    .input_error("Observation-model fields are missing or noncanonical.")
   }
   rebuilt <- observation_model(
     kind = value$kind,
@@ -166,8 +161,7 @@ observation_model <- function(
     provenance = value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Observation-model metadata or identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Observation-model metadata or identity is inconsistent.")
   }
   rebuilt
 }
@@ -180,14 +174,12 @@ observation_model <- function(
     sampling <- rep(sampling, length(partitions))
   } else if (!is.null(names(sampling))) {
     if (!setequal(names(sampling), partitions)) {
-      stop("Named sampling units must cover every study partition.",
-        call. = FALSE)
+      .input_error("Named sampling units must cover every study partition.")
     }
     sampling <- sampling[partitions]
   }
   if (length(sampling) != length(partitions)) {
-    stop("`sampling_unit` must provide one value per study partition.",
-      call. = FALSE)
+    .input_error("`sampling_unit` must provide one value per study partition.")
   }
   names(sampling) <- partitions
 
@@ -200,14 +192,12 @@ observation_model <- function(
       whiteners <- rep(whiteners, length(partitions))
     } else if (!is.null(names(whiteners))) {
       if (!setequal(names(whiteners), partitions)) {
-        stop("Named whiteners must cover every study partition.",
-          call. = FALSE)
+        .input_error("Named whiteners must cover every study partition.")
       }
       whiteners <- whiteners[partitions]
     }
     if (length(whiteners) != length(partitions)) {
-      stop("`whitener` must provide one matrix per study partition.",
-        call. = FALSE)
+      .input_error("`whitener` must provide one matrix per study partition.")
     }
     names(whiteners) <- partitions
     for (partition in partitions) {

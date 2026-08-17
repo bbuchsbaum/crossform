@@ -53,8 +53,7 @@ noise_precision <- function(value, domain, support = NULL,
   .validate_effect_provenance(provenance, "noise-precision provenance")
   reserved <- c("metric_role", "estimator_status")
   if (!is.null(names(provenance)) && any(names(provenance) %in% reserved)) {
-    stop("Noise-precision semantic provenance fields are reserved.",
-      call. = FALSE)
+    .input_error("Noise-precision semantic provenance fields are reserved.")
   }
   neural_metric(
     value, domain, support = support, inverse = covariance,
@@ -111,7 +110,7 @@ noise_precision <- function(value, domain, support = NULL,
   if (!identical(attr(over, "independence", exact = TRUE), "independent") ||
       !identical(attr(over, "estimate", exact = TRUE),
         "cross_generalized") || any(over$left == over$right)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "Crossnobis requires cross-partition edges declared independent and ",
       "containing no self-products; this pairing declares independence `%s` ",
       "with estimate `%s`%s. The crossvalidated distance is unbiased only ",
@@ -123,7 +122,7 @@ noise_precision <- function(value, domain, support = NULL,
           .msg_count(sum(over$left == over$right), "self-product"))
       } else {
         ""
-      }), call. = FALSE)
+      }))
   }
   invisible(TRUE)
 }
@@ -218,11 +217,11 @@ noise_precision <- function(value, domain, support = NULL,
     budget_bytes = compute$workspace_bytes
   )
   if (identical(plan$fits_budget, FALSE)) {
-    stop(sprintf(
+    .input_error(sprintf(
       paste0("Learned crossnobis requires %.0f bytes, exceeding the ",
         "%.0f-byte workspace budget."),
       plan$planned_workspace_bytes, compute$workspace_bytes
-    ), call. = FALSE)
+    ))
   }
   plan
 }
@@ -294,16 +293,16 @@ plan_crossnobis <- function(
       compute$workspace_bytes
     }) {
   if (missing(at)) {
-    stop(paste0(
+    .input_error(paste0(
       "`at` is required: pass a compiled frame from `compile_frame()`, for ",
       "example `compile_frame(searchlights(8), domain)`."
-    ), call. = FALSE)
+    ))
   }
   if (missing(over)) {
-    stop(paste0(
+    .input_error(paste0(
       "`over` is required: pass a pairing from `cross_partitions()` or ",
       "`pairing()` declaring which partition products may be formed."
-    ), call. = FALSE)
+    ))
   }
   # Diagnose a missing residual channel before shape validation or any
   # metric-training preflight: a bare relation or a channel-free fit must get
@@ -316,10 +315,10 @@ plan_crossnobis <- function(
   .validate_geometry_plan_inputs(x$relation, at, over)
   metric <- .validate_metric_recipe(metric)
   if (identical(metric$kind, "identity")) {
-    stop(paste0(
+    .input_error(paste0(
       "A learned crossnobis plan requires a residual-derived precision ",
       "recipe; use `noise_precision(diag(...))` for a fixed identity metric."
-    ), call. = FALSE)
+    ))
   }
   training <- .validate_metric_training_policy(training)
   .preflight_metric_training(
@@ -369,17 +368,13 @@ plan_crossnobis <- function(
   expected <- c("relation_fit_signature", "task", "frame", "pairing",
     "metric_schedule", "compute", "memory", "lowering", "kernel_version",
     "scientific_plan_id", "signature")
-  if (!inherits(x, "effect_crossnobis_plan") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_crossnobis_plan", expected) ||
       !.strong_sha256(x$relation_fit_signature) ||
-      !identical(x$lowering,
-        "support_streamed_scheduled_metric_query_contraction") ||
-      !identical(x$kernel_version,
-        "support-streamed-scheduled-metric-v1") ||
-      !grepl("^crossnobis-sha256:[[:xdigit:]]{64}$",
-        x$scientific_plan_id) ||
+      !identical(x$lowering, "support_streamed_scheduled_metric_query_contraction") ||
+      !identical(x$kernel_version, "support-streamed-scheduled-metric-v1") ||
+      !grepl("^crossnobis-sha256:[[:xdigit:]]{64}$", x$scientific_plan_id) ||
       !.strong_sha256(x$signature)) {
-    stop("Crossnobis-plan fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Crossnobis-plan fields are missing or noncanonical.")
   }
   .validate_evidence_task(x$task)
   .validate_frame_for_compile(x$frame)
@@ -393,8 +388,9 @@ plan_crossnobis <- function(
         x$frame$support_index$signature) ||
       !.same_domain_reference(x$frame$domain,
         x$task$left_relation$domain)) {
-    stop("Crossnobis-plan relation, support, pairing, or metric is inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Crossnobis-plan relation, support, pairing, or metric is inconsistent."
+    )
   }
   if (isTRUE(deep)) {
     fields <- x[names(x) != "signature"]
@@ -404,7 +400,7 @@ plan_crossnobis <- function(
     )
     if (!identical(x$scientific_plan_id, expected_scientific) ||
         !identical(x$signature, .crossnobis_plan_signature(fields))) {
-      stop("Crossnobis-plan identity is inconsistent.", call. = FALSE)
+      .contract_error("Crossnobis-plan identity is inconsistent.")
     }
   }
   invisible(x)
@@ -640,16 +636,16 @@ crossnobis <- function(x, weights) {
     return(.execute_learned_crossnobis(x, weights))
   }
   if (!inherits(x, "effect_geometry_plan")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`x` must be an `effect_geometry_plan` from `plan_geometry()` or an ",
       "`effect_crossnobis_plan` from `plan_crossnobis()`; received %s."
-    ), .msg_value(x)), call. = FALSE)
+    ), .msg_value(x)))
   }
   if (missing(weights)) {
-    stop(paste0(
+    .input_error(paste0(
       "`weights` is required: pass one finite weight per experimental ",
       "effect, for example `crossnobis(plan, c(face = 1, house = -1))`."
-    ), call. = FALSE)
+    ))
   }
   metric <- .crossnobis_plan_metric(x)
   .require_crossnobis_pairing(x$pairing)

@@ -56,8 +56,9 @@
       is.null(names(block_map)) || !setequal(names(block_map), partitions) ||
       anyNA(block_map) || any(block_map %% 1 != 0) ||
       any(block_map < 1L | block_map > count) || anyDuplicated(block_map)) {
-    stop("`block_map` must map every study partition to one unique model block.",
-      call. = FALSE)
+    .input_error(
+      "`block_map` must map every study partition to one unique model block."
+    )
   }
   stats::setNames(as.integer(block_map[partitions]), partitions)
 }
@@ -127,10 +128,10 @@
     if (!is.matrix(explicit) || !is.numeric(explicit) ||
         !identical(rownames(explicit), conditions$coordinates) ||
         !identical(colnames(explicit), coefficients)) {
-      stop(paste0(
+      .input_error(paste0(
         "An explicit `semantic_map` must be a numeric condition-by-coefficient ",
         "matrix on the declared axes."
-      ), call. = FALSE)
+      ))
     }
     return(explicit)
   }
@@ -247,8 +248,7 @@ fmridesign_design_model <- function(
   version <- .require_adapter_version("fmridesign", "0.6.0")
   study <- .validate_study(study)
   if (!inherits(model, "event_model")) {
-    stop("`model` must inherit from `fmridesign::event_model()`.",
-      call. = FALSE)
+    .input_error("`model` must inherit from `fmridesign::event_model()`.")
   }
   block_map <- .fmridesign_block_map(study$partitions, model, block_map)
   .fmridesign_assert_event_binding(model, study, block_map)
@@ -264,8 +264,9 @@ fmridesign_design_model <- function(
   if (!is.null(semantic_map) &&
       (!is.list(semantic_map) || !setequal(names(semantic_map),
         study$partitions))) {
-    stop("`semantic_map` must be one matrix or a named matrix per partition.",
-      call. = FALSE)
+    .input_error(
+      "`semantic_map` must be one matrix or a named matrix per partition."
+    )
   }
   designs <- parameterizations <- stats::setNames(
     vector("list", length(study$partitions)), study$partitions

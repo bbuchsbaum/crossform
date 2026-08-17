@@ -57,11 +57,11 @@ test_that("tiled contraction rejects dimension and tile errors", {
   expect_error(
     crossform:::.tiled_contraction(matrix(1, 2, 3), matrix(1, 2, 2), 1, 1, 1),
     "feature dimension"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.tiled_contraction(matrix(1, 2, 2), matrix(1, 2, 2), 0, 1, 1),
     "positive integer"
-  )
+  , class = "effect_input_error")
 })
 
 crossgram_fixture <- function(sparse = TRUE) {
@@ -290,7 +290,7 @@ test_that("streamed cross-Gram fails closed on malformed relation blocks", {
   fixture <- crossgram_fixture()
   bad_reader <- function(partition, features) matrix(1, 1, length(features))
   expect_error(run_streamed_fixture(fixture, reader = bad_reader),
-    "invalid effect-by-feature")
+    "invalid effect-by-feature", class = "effect_input_error")
 
   forged_pairing <- fixture$over
   forged_pairing$weight[[1]] <- -1
@@ -298,7 +298,7 @@ test_that("streamed cross-Gram fails closed on malformed relation blocks", {
     fixture$frame,
     function(partition, features) fixture$relation[[partition]][, features, drop = FALSE],
     fixture$partitions, fixture$effects, forged_pairing
-  ), "nonnegative")
+  ), "nonnegative", class = "effect_input_error")
 })
 
 test_that("task observers record a failed task boundary", {

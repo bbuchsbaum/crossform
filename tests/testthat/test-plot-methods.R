@@ -107,11 +107,11 @@ test_that("a highlight set can be named in the legend", {
         plot(fixture$energy, highlight = fixture$planted,
           highlight_label = bad),
         "one non-empty character string"
-      )
+      , class = "effect_input_error")
       expect_error(
         plot(fixture$coefficients, highlight_label = bad),
         "one non-empty character string"
-      )
+      , class = "effect_input_error")
     }
   })
 })
@@ -120,12 +120,14 @@ test_that("the contrast view refuses a highlight it cannot honour", {
   fixture <- plot_fixture()
   view <- fixture$energy
   with_null_device({
-    expect_error(plot(view, highlight = 0L), "measurement positions")
+    expect_error(plot(view, highlight = 0L), "measurement positions",
+      class = "effect_input_error")
     expect_error(plot(view, highlight = length(view$total) + 1L),
-      "measurement positions")
-    expect_error(plot(view, highlight = c(TRUE, FALSE)), "logical")
+      "measurement positions", class = "effect_input_error")
+    expect_error(plot(view, highlight = c(TRUE, FALSE)), "logical",
+      class = "effect_input_error")
     expect_error(plot(view, highlight = "no-such-measurement"),
-      "not in this view")
+      "not in this view", class = "effect_input_error")
     expect_error(plot(view, which = "spectrum"), "should be one of")
   })
 })
@@ -175,14 +177,17 @@ test_that("the RDM view refuses a measurement outside the view", {
   view <- fixture$distances
   with_null_device({
     expect_error(plot(view, measurement = nrow(view$values) + 1L),
-      "measurement position between")
-    expect_error(plot(view, measurement = 0L), "measurement position between")
-    expect_error(plot(view, measurement = 1.5), "measurement position between")
+      "measurement position between", class = "effect_input_error")
+    expect_error(plot(view, measurement = 0L), "measurement position between",
+      class = "effect_input_error")
+    expect_error(plot(view, measurement = 1.5), "measurement position between",
+      class = "effect_input_error")
     expect_error(plot(view, measurement = "not-a-measurement"),
-      "does not identify a measurement")
+      "does not identify a measurement", class = "effect_input_error")
     expect_error(plot(view, measurement = c(1L, 2L)),
-      "measurement position between")
-    expect_error(plot(view, annotate = NA), "TRUE or FALSE")
+      "measurement position between", class = "effect_input_error")
+    expect_error(plot(view, annotate = NA), "TRUE or FALSE",
+      class = "effect_input_error")
   })
 })
 
@@ -211,8 +216,9 @@ test_that("the RSA view draws one panel per coefficient", {
     expect_silent(plot(view, terms = colnames(view$coefficients),
       main = c("one", "two")))
     expect_error(plot(view, terms = "no-such-model"),
-      "RSA coefficient columns")
-    expect_error(plot(view, terms = character()), "RSA coefficient columns")
+      "RSA coefficient columns", class = "effect_input_error")
+    expect_error(plot(view, terms = character()), "RSA coefficient columns",
+      class = "effect_input_error")
   })
 })
 
@@ -236,9 +242,9 @@ test_that("the crossnobis view draws a signed index plot", {
       view
     )
     expect_error(plot(view, highlight = length(view$values) + 1L),
-      "measurement positions")
+      "measurement positions", class = "effect_input_error")
     expect_error(plot(view, highlight_label = NA_character_),
-      "one non-empty character string")
+      "one non-empty character string", class = "effect_input_error")
   })
   # Signed estimates are drawn where they fall, so the panel must span them.
   expect_true(any(view$values < 0))
@@ -262,16 +268,20 @@ test_that("the sampling covariance refuses mismatched inputs", {
   fixture <- plot_fixture()
   view <- fixture$uncertainty
   with_null_device({
-    expect_error(plot(view, level = 0), "strictly between 0 and 1")
-    expect_error(plot(view, level = 1), "strictly between 0 and 1")
-    expect_error(plot(view, sort = NA), "TRUE or FALSE")
-    expect_error(plot(view, estimate = 1), "finite distances")
+    expect_error(plot(view, level = 0), "strictly between 0 and 1",
+      class = "effect_input_error")
+    expect_error(plot(view, level = 1), "strictly between 0 and 1",
+      class = "effect_input_error")
+    expect_error(plot(view, sort = NA), "TRUE or FALSE",
+      class = "effect_input_error")
+    expect_error(plot(view, estimate = 1), "finite distances",
+      class = "effect_input_error")
     expect_error(
       plot(view, estimate = stats::setNames(
         rep(0, length(view$labels)), rev(seq_along(view$labels))
       )),
       "name every distance exactly once"
-    )
+    , class = "effect_input_error")
     # The estimate must come from the measurement this covariance describes,
     # not merely from a view whose pair labels happen to agree.
     at_peak <- fixture$distances
@@ -283,11 +293,11 @@ test_that("the sampling covariance refuses mismatched inputs", {
     elsewhere$index <- elsewhere$index[keep]
     elsewhere$values <- elsewhere$values[keep, , drop = FALSE]
     expect_error(plot(view, estimate = elsewhere),
-      "does not contain measurement")
+      "does not contain measurement", class = "effect_contract_error")
     mislabelled <- at_peak
     colnames(mislabelled$values) <- paste0("q", seq_along(view$labels))
     expect_error(plot(view, estimate = mislabelled),
-      "different distance pairs")
+      "different distance pairs", class = "effect_contract_error")
   })
 })
 

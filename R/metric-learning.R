@@ -1,13 +1,12 @@
 # Frozen-provenance, on-demand metric learning -----------------------------
 
 .validate_metric_floor <- function(relative_floor, absolute_floor) {
-  if (!is.numeric(relative_floor) || length(relative_floor) != 1L ||
-      is.na(relative_floor) || !is.finite(relative_floor) ||
-      relative_floor <= 0 || !is.numeric(absolute_floor) ||
-      length(absolute_floor) != 1L || is.na(absolute_floor) ||
-      !is.finite(absolute_floor) || absolute_floor < 0) {
-    stop("Metric variance floors must be finite, with a positive relative floor and a nonnegative absolute floor.",
-      call. = FALSE)
+  if (!.is_number(relative_floor) || relative_floor <= 0 ||
+      !.is_number(absolute_floor) || absolute_floor < 0) {
+    .input_error(paste0(
+      "Metric variance floors must be finite, with a positive relative floor ",
+      "and a nonnegative absolute floor."
+    ))
   }
   list(
     relative_variance_floor = as.double(relative_floor),
@@ -157,20 +156,12 @@ shrinkage_precision <- function(shrinkage = 0.1,
                                 absolute_variance_floor = 0,
                                 relative_spectral_floor = 1e-10,
                                 domain = NULL) {
-  if (!is.numeric(shrinkage) || length(shrinkage) != 1L ||
-      is.na(shrinkage) || !is.finite(shrinkage) ||
-      shrinkage <= 0 || shrinkage > 1) {
-    stop("`shrinkage` must be one finite number in (0, 1].",
-      call. = FALSE)
+  if (!.is_number(shrinkage) || shrinkage <= 0 || shrinkage > 1) {
+    .input_error("`shrinkage` must be one finite number in (0, 1].")
   }
-  if (!is.numeric(relative_spectral_floor) ||
-      length(relative_spectral_floor) != 1L ||
-      is.na(relative_spectral_floor) ||
-      !is.finite(relative_spectral_floor) ||
-      relative_spectral_floor <= 0) {
-    stop("`relative_spectral_floor` must be one positive finite number.",
-      call. = FALSE)
-  }
+  .check_number(
+    relative_spectral_floor, "relative_spectral_floor", positive = TRUE
+  )
   floors <- .validate_metric_floor(
     relative_variance_floor, absolute_variance_floor
   )
@@ -196,8 +187,10 @@ shrinkage_precision <- function(shrinkage = 0.1,
   domain <- .domain_reference(domain)
   if (!is.null(recipe$domain)) {
     if (!.same_domain_reference(recipe$domain, domain)) {
-      stop("The metric recipe and residual statistics use different neural domains.",
-        call. = FALSE)
+      .contract_error(paste0(
+        "The metric recipe and residual statistics use different neural ",
+        "domains."
+      ))
     }
     return(recipe)
   }
@@ -269,8 +262,7 @@ metric_training_policy <- function(
     justification = NULL) {
   kind <- match.arg(kind)
   if (identical(kind, "all_partitions_residual_orthogonality")) {
-    if (!is.character(justification) || length(justification) != 1L ||
-        is.na(justification) || !nzchar(justification)) {
+    if (!.is_string(justification)) {
       .capability_refusal(paste0(
         "Reusing evaluation-partition residuals to train a metric requires ",
         "one explicit written `justification`, which is recorded in the plan ",
@@ -292,8 +284,7 @@ metric_training_policy <- function(
   } else if (!is.null(justification) &&
       (!is.character(justification) || length(justification) != 1L ||
        is.na(justification) || !nzchar(justification))) {
-    stop("`justification` must be NULL or one nonempty string.",
-      call. = FALSE)
+    .input_error("`justification` must be NULL or one nonempty string.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -318,14 +309,13 @@ metric_training_policy <- function(
 .validate_metric_training_policy <- function(x) {
   expected <- c("kind", "includes_evaluation_residuals", "assumption",
     "justification", "signature")
-  if (!inherits(x, "effect_metric_training_policy") || !is.list(x) ||
-      !identical(names(x), expected) || !.strong_sha256(x$signature)) {
-    stop("Metric-training-policy fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_metric_training_policy", expected) ||
+      !.strong_sha256(x$signature)) {
+    .input_error("Metric-training-policy fields are missing or noncanonical.")
   }
   rebuilt <- metric_training_policy(x$kind, x$justification)
   if (!identical(x, rebuilt)) {
-    stop("Metric-training-policy identity is inconsistent.", call. = FALSE)
+    .contract_error("Metric-training-policy identity is inconsistent.")
   }
   x
 }
@@ -334,12 +324,11 @@ metric_training_policy <- function(
   recipe <- .validate_metric_recipe(recipe)
   policy <- .validate_metric_training_policy(policy)
   .validate_pairing(over)
-  if (!is.character(partitions) || length(partitions) < 1L ||
-      anyNA(partitions) || any(!nzchar(partitions)) ||
-      anyDuplicated(partitions) || any(!over$left %in% partitions) ||
-      any(!over$right %in% partitions)) {
-    stop("Metric-training partitions and evaluation edges are inconsistent.",
-      call. = FALSE)
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
+      any(!over$left %in% partitions) || any(!over$right %in% partitions)) {
+    .input_error(
+      "Metric-training partitions and evaluation edges are inconsistent."
+    )
   }
   if (identical(recipe$kind, "identity")) {
     return(invisible(TRUE))
@@ -349,10 +338,10 @@ metric_training_policy <- function(
       length(setdiff(partitions, c(over$left[[edge]], over$right[[edge]])))
     }, integer(1))
     if (any(available < 1L)) {
-      stop(sprintf(
+      .input_error(sprintf(
         "Evaluation edge %d leaves no residual partition for metric training.",
         which(available < 1L)[[1L]]
-      ), call. = FALSE)
+      ))
     }
   }
   invisible(TRUE)
@@ -386,10 +375,10 @@ metric_training_policy <- function(
     statistics$partitions
   }
   if (!identical(recipe$kind, "identity") && length(training) < 1L) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Evaluation edge %d leaves no residual partition for metric training.",
       edge
-    ), call. = FALSE)
+    ))
   }
   atomic <- statistics$atomic[training]
   atomic_signatures <- vapply(atomic, `[[`, character(1), "signature")
@@ -436,15 +425,12 @@ metric_training_policy <- function(
   expected <- c("role", "recipe_specification", "recipe", "statistics",
     "support_index", "pairing", "training_policy", "records",
     "capabilities", "execution", "signature")
-  if (!inherits(x, "effect_frozen_metric_schedule") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_frozen_metric_schedule", expected) ||
       !identical(x$role, "same_space_metric_schedule") ||
-      !.strong_sha256(x$recipe_specification) ||
-      !is.list(x$records) || length(x$records) < 1L ||
-      !is.list(x$capabilities) || !is.list(x$execution) ||
-      !.strong_sha256(x$signature)) {
-    stop("Frozen metric-schedule fields are missing or noncanonical.",
-      call. = FALSE)
+      !.strong_sha256(x$recipe_specification) || !is.list(x$records) ||
+      length(x$records) < 1L || !is.list(x$capabilities) ||
+      !is.list(x$execution) || !.strong_sha256(x$signature)) {
+    .input_error("Frozen metric-schedule fields are missing or noncanonical.")
   }
   recipe <- .validate_metric_recipe(x$recipe)
   statistics <- x$statistics
@@ -457,8 +443,9 @@ metric_training_policy <- function(
       !.same_domain_reference(index$domain, statistics$domain) ||
       !identical(index$signature, statistics$support_index) ||
       length(x$records) != nrow(x$pairing)) {
-    stop("Frozen metric-schedule domains, supports, or edges are inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Frozen metric-schedule domains, supports, or edges are inconsistent."
+    )
   }
   expected_capabilities <- list(
     feature_additive = recipe$capabilities$feature_additive,
@@ -471,8 +458,7 @@ metric_training_policy <- function(
       !identical(recipe$kind, "identity")
   )
   if (!identical(x$capabilities, expected_capabilities)) {
-    stop("Frozen metric-schedule capabilities are inconsistent.",
-      call. = FALSE)
+    .input_error("Frozen metric-schedule capabilities are inconsistent.")
   }
   if (isTRUE(deep)) {
     expected_records <- lapply(seq_len(nrow(x$pairing)), function(edge) {
@@ -483,7 +469,7 @@ metric_training_policy <- function(
     names(expected_records) <- paste0("edge_", seq_along(expected_records))
     if (!identical(x$records, expected_records) ||
         !identical(x$signature, .metric_schedule_signature(x))) {
-      stop("Frozen metric-schedule identity is inconsistent.", call. = FALSE)
+      .contract_error("Frozen metric-schedule identity is inconsistent.")
     }
   }
   invisible(x)
@@ -512,15 +498,17 @@ compile_metric_schedule <- function(
   recipe_specification <- .validate_metric_recipe(recipe)$signature
   .validate_residual_pair_statistics(statistics, deep = TRUE)
   index <- .residual_statistics_support_index(at, statistics$domain)
-  if (!identical(index$signature, statistics$support_index)) {
-    stop("Metric compilation requires the exact support index used by the residual statistics.",
-      call. = FALSE)
-  }
+  .check_signature(
+    index$signature, statistics$support_index,
+    "Metric compilation requires the exact support index used by the residual statistics."
+  )
   .validate_pairing(over)
   if (any(!over$left %in% statistics$partitions) ||
       any(!over$right %in% statistics$partitions)) {
-    stop("Every metric evaluation endpoint must identify a residual-statistics partition.",
-      call. = FALSE)
+    .input_error(paste0(
+      "Every metric evaluation endpoint must identify a residual-statistics ",
+      "partition."
+    ))
   }
   policy <- .validate_metric_training_policy(training)
   .preflight_metric_training(
@@ -532,14 +520,14 @@ compile_metric_schedule <- function(
     "fixed_diagonal_shrinkage_precision"
   )
   if (!recipe$kind %in% supported) {
-    stop("This metric recipe has no admitted on-demand learner.",
-      call. = FALSE)
+    .input_error("This metric recipe has no admitted on-demand learner.")
   }
   coordinates <- .residual_pair_coordinates(index)
   if (!identical(coordinates$i, statistics$pair_i) ||
       !identical(coordinates$j, statistics$pair_j)) {
-    stop("Residual statistics do not match the support pair graph order.",
-      call. = FALSE)
+    .contract_error(
+      "Residual statistics do not match the support pair graph order."
+    )
   }
   records <- lapply(seq_len(nrow(over)), function(edge) {
     .metric_training_record(edge, over, recipe, statistics, policy)
@@ -581,11 +569,9 @@ compile_metric_schedule <- function(
       !is.na(edge) && edge %in% names(schedule$records)) {
     return(match(edge, names(schedule$records)))
   }
-  if (!is.numeric(edge) || length(edge) != 1L || is.na(edge) ||
-      !is.finite(edge) || edge %% 1 != 0 || edge < 1L ||
+  if (!.is_number(edge) || edge %% 1 != 0 || edge < 1L ||
       edge > length(schedule$records)) {
-    stop("`edge` must identify one compiled metric evaluation edge.",
-      call. = FALSE)
+    .input_error("`edge` must identify one compiled metric evaluation edge.")
   }
   as.integer(edge)
 }
@@ -598,7 +584,7 @@ compile_metric_schedule <- function(
   }
   position <- match(node, index$node_ids)
   if (length(position) != 1L || is.na(position)) {
-    stop("`node` must identify one compiled metric support.", call. = FALSE)
+    .input_error("`node` must identify one compiled metric support.")
   }
   as.integer(position)
 }
@@ -612,8 +598,9 @@ compile_metric_schedule <- function(
   pattern <- index$pair_pattern
   if (!identical(pattern@uplo, "U") ||
       length(covariance) != length(pattern@i)) {
-    stop("Local covariance extraction requires the canonical upper pair graph.",
-      call. = FALSE)
+    .input_error(
+      "Local covariance extraction requires the canonical upper pair graph."
+    )
   }
   dimension <- length(support)
   value <- matrix(0, dimension, dimension)
@@ -626,8 +613,9 @@ compile_metric_schedule <- function(
     desired <- support[seq_len(column)]
     matched <- match(desired, rows)
     if (anyNA(matched)) {
-      stop("A support pair is absent from its declared union pair graph.",
-        call. = FALSE)
+      .input_error(
+        "A support pair is absent from its declared union pair graph."
+      )
     }
     pair_values <- covariance[slots[matched]]
     value[seq_len(column), column] <- pair_values
@@ -638,12 +626,9 @@ compile_metric_schedule <- function(
 
 .local_residual_scope_covariance <- function(statistics, index, support,
                                              partitions) {
-  if (!is.character(partitions) || length(partitions) < 1L ||
-      anyNA(partitions) || any(!nzchar(partitions)) ||
-      anyDuplicated(partitions) ||
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
       any(!partitions %in% statistics$partitions)) {
-    stop("A local residual scope must select unique atomic partitions.",
-      call. = FALSE)
+    .input_error("A local residual scope must select unique atomic partitions.")
   }
   # Match .canonical_reduce() exactly, but gather only the requested support.
   # This avoids an edge-specific vector over the complete union pair graph
@@ -680,7 +665,7 @@ compile_metric_schedule <- function(
   variance <- diag(covariance)
   positive <- variance[variance > 0]
   if (!length(positive)) {
-    stop("Residual covariance has no positive local variance.", call. = FALSE)
+    .input_error("Residual covariance has no positive local variance.")
   }
   hyper <- recipe$hyperparameters
   floor <- max(
@@ -739,47 +724,42 @@ compile_metric_schedule <- function(
   }
   final_diagnostics <- .metric_covariance_diagnostics(covariance)
   if (!is.finite(final_diagnostics$condition)) {
-    stop("Regularized local covariance is not positive definite.",
-      call. = FALSE)
+    .invariant_error("Regularized local covariance is not positive definite.")
   }
   apply_K <- if (!is.null(precision_diagonal)) {
     function(value) {
       if (is.atomic(value) && is.null(dim(value))) {
-        if (!is.numeric(value) || length(value) != dimension ||
-            any(!is.finite(value))) {
-          stop("Metric application requires one finite local vector.",
-            call. = FALSE)
+        if (!.is_finite_numeric(value) || length(value) != dimension) {
+          .input_error("Metric application requires one finite local vector.")
         }
         return(precision_diagonal * value)
       }
-      if (!is.matrix(value) || !is.numeric(value) ||
-          nrow(value) != dimension || any(!is.finite(value))) {
-        stop("Metric application requires finite local vectors in columns.",
-          call. = FALSE)
+      if (!.is_finite_matrix(value) || nrow(value) != dimension) {
+        .input_error(
+          "Metric application requires finite local vectors in columns."
+        )
       }
       precision_diagonal * value
     }
   } else {
     function(value) {
       if (is.atomic(value) && is.null(dim(value))) {
-        if (!is.numeric(value) || length(value) != dimension ||
-            any(!is.finite(value))) {
-          stop("Metric application requires one finite local vector.",
-            call. = FALSE)
+        if (!.is_finite_numeric(value) || length(value) != dimension) {
+          .input_error("Metric application requires one finite local vector.")
         }
       } else if (!is.matrix(value) || !is.numeric(value) ||
           nrow(value) != dimension || any(!is.finite(value))) {
-        stop("Metric application requires finite local vectors in columns.",
-          call. = FALSE)
+        .input_error(
+          "Metric application requires finite local vectors in columns."
+        )
       }
       backsolve(factor, forwardsolve(t(factor), value))
     }
   }
   quadform_Kinv <- function(value) {
-    if (!is.numeric(value) || is.matrix(value) ||
-        length(value) != dimension || any(!is.finite(value))) {
-      stop("Inverse quadratic forms require one finite local vector.",
-        call. = FALSE)
+    if (!.is_finite_numeric(value) || is.matrix(value) ||
+        length(value) != dimension) {
+      .input_error("Inverse quadratic forms require one finite local vector.")
     }
     drop(crossprod(value, covariance %*% value))
   }
@@ -832,11 +812,11 @@ compile_metric_schedule <- function(
     )
   }
   form <- function(left, right) {
-    if (!is.matrix(left) || !is.numeric(left) || ncol(left) != dimension ||
-        any(!is.finite(left)) || !is.matrix(right) || !is.numeric(right) ||
-        ncol(right) != dimension || any(!is.finite(right))) {
-      stop("Metric forms require finite matrices sharing the local feature axis.",
-        call. = FALSE)
+    if (!.is_finite_matrix(left) || ncol(left) != dimension ||
+        !.is_finite_matrix(right) || ncol(right) != dimension) {
+      .input_error(
+        "Metric forms require finite matrices sharing the local feature axis."
+      )
     }
     left %*% apply_K(t(right))
   }

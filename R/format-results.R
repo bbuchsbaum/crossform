@@ -14,8 +14,7 @@
   if (is.null(dim(values))) values <- matrix(values, ncol = 1L)
   values <- as.matrix(values)
   if (nrow(values) != NROW(index)) {
-    stop("Result values and measurement index have different lengths.",
-      call. = FALSE)
+    .input_error("Result values and measurement index have different lengths.")
   }
   if (is.null(colnames(values))) {
     colnames(values) <- paste0("value", seq_len(ncol(values)))
@@ -199,10 +198,8 @@ print.effect_view <- function(x, ...) {
 #' @export
 as.data.frame.effect_crossnobis_view <- function(x, row.names = NULL,
                                                  optional = FALSE, ...) {
-  if (!is.numeric(x$values) || any(!is.finite(x$values)) ||
-      length(x$values) != NROW(x$index)) {
-    stop("Crossnobis result values or measurement index are invalid.",
-      call. = FALSE)
+  if (!.is_finite_numeric(x$values) || length(x$values) != NROW(x$index)) {
+    .input_error("Crossnobis result values or measurement index are invalid.")
   }
   .bind_result_values(x$index,
     matrix(x$values, ncol = 1L, dimnames = list(NULL, "crossnobis")))

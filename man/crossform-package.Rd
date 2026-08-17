@@ -69,6 +69,8 @@ neural metric.
 errors, available only when the fit retains the required residual channel.
 \item \code{\link[=catch_refusal]{catch_refusal()}} --- capture a refused operation and read the unmet
 requirements and their remedies as data.
+\item \link{crossform_conditions} --- the four classes every crossform failure
+carries, so a caller can branch on the cause instead of the prose.
 }
 }
 
@@ -83,6 +85,12 @@ modeling. Bring fitted effects, or scan responses with a design.
 \item Crossvalidated estimates are retained when negative; they are not clipped.
 \item Uncertainty is refused rather than approximated when the fit cannot
 support the admitted analytic law.
+\item Every failure is a classed condition. A wrong argument raises
+\code{effect_input_error}; two objects that do not belong together raise
+\code{effect_contract_error}; an impossible internal result raises
+\code{effect_invariant_error} and asks for a bug report; an interpretation
+that cannot be earned from the supplied objects raises
+\code{effect_capability_refusal}. See \link{crossform_conditions}.
 }
 }
 

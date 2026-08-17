@@ -128,14 +128,15 @@ test_that("bridge legs have canonical numerical identity", {
   )
 
   expect_identical(canonical, fixture$bridge)
-  expect_error(measurement_space(1.5, "bad"), "n_measurements")
+  expect_error(measurement_space(1.5, "bad"), "n_measurements",
+    class = "effect_input_error")
 })
 
 test_that("distinct neural spaces require an explicit bridge before reads", {
   fixture <- bridge_fixture(lazy = TRUE)
   expect_error(crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right
-  ), "require an explicit")
+  ), "require an explicit", class = "effect_contract_error")
   expect_identical(fixture$reads$count, 0L)
 
   task <- crossform:::.compile_effect_task(
@@ -156,18 +157,18 @@ test_that("bridge incompatibilities fail before lazy source reads", {
   )
   expect_error(crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right, bridge = wrong
-  ), "left neural-space")
+  ), "left neural-space", class = "effect_contract_error")
   expect_identical(fixture$reads$count, 0L)
 
   expect_error(measurement_bridge(
     fixture$left_leg[-1, , drop = FALSE], fixture$right_leg,
     fixture$left_domain, fixture$right_domain, fixture$common
-  ), "common measurement dimension")
+  ), "common measurement dimension", class = "effect_input_error")
   forged <- fixture$bridge
   forged$common_space <- measurement_space(2, "other-common:v1")
   expect_error(crossform:::.validate_measurement_bridge(
     forged, fixture$left, fixture$right
-  ), "identity is inconsistent")
+  ), "identity is inconsistent", class = "effect_contract_error")
   expect_identical(fixture$reads$count, 0L)
 })
 

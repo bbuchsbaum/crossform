@@ -101,27 +101,25 @@
   if (is.null(highlight)) return(integer())
   if (is.logical(highlight)) {
     if (length(highlight) != n || anyNA(highlight)) {
-      stop(paste0(
+      .input_error(paste0(
         "A logical `highlight` must have one non-missing value per ",
         "measurement."
-      ), call. = FALSE)
+      ))
     }
     return(which(highlight))
   }
   if (is.character(highlight)) {
     positions <- match(highlight, .measurement_ids(index))
     if (anyNA(positions)) {
-      stop("`highlight` names measurements that are not in this view.",
-        call. = FALSE)
+      .input_error("`highlight` names measurements that are not in this view.")
     }
     return(sort(unique(positions)))
   }
-  if (!is.numeric(highlight) || anyNA(highlight) ||
-      any(!is.finite(highlight)) || any(highlight %% 1 != 0) ||
-      any(highlight < 1L) || any(highlight > n)) {
-    stop(sprintf(
+  if (!.is_finite_numeric(highlight) || anyNA(highlight) ||
+      any(highlight %% 1 != 0) || any(highlight < 1L) || any(highlight > n)) {
+    .input_error(sprintf(
       "`highlight` must select measurement positions between 1 and %d.", n
-    ), call. = FALSE)
+    ))
   }
   sort(unique(as.integer(highlight)))
 }
@@ -129,32 +127,31 @@
 .resolve_measurement <- function(measurement, index, n) {
   if (is.character(measurement)) {
     if (length(measurement) != 1L || is.na(measurement)) {
-      stop("`measurement` must be one measurement position or identifier.",
-        call. = FALSE)
+      .input_error(
+        "`measurement` must be one measurement position or identifier."
+      )
     }
     position <- match(measurement, .measurement_ids(index))
     if (is.na(position)) {
-      stop("`measurement` does not identify a measurement in this view.",
-        call. = FALSE)
+      .input_error(
+        "`measurement` does not identify a measurement in this view."
+      )
     }
     return(position)
   }
-  if (!is.numeric(measurement) || length(measurement) != 1L ||
-      is.na(measurement) || !is.finite(measurement) ||
-      measurement %% 1 != 0 || measurement < 1L || measurement > n) {
-    stop(sprintf(
+  if (!.is_number(measurement) || measurement %% 1 != 0 || measurement < 1L ||
+      measurement > n) {
+    .input_error(sprintf(
       "`measurement` must be one measurement position between 1 and %d.", n
-    ), call. = FALSE)
+    ))
   }
   as.integer(measurement)
 }
 
 .validate_highlight_label <- function(highlight_label) {
-  if (!is.character(highlight_label) || length(highlight_label) != 1L ||
-      is.na(highlight_label) || !nzchar(highlight_label)) {
-    stop("`highlight_label` must be one non-empty character string.",
-      call. = FALSE)
-  }
+  .check_string(
+    highlight_label, "highlight_label", what = "one non-empty character string"
+  )
   highlight_label
 }
 
@@ -163,17 +160,16 @@
 # ones, so a typo surfaces on the small view the reader is developing against
 # rather than on the large view they finally run.
 .validate_top <- function(top) {
-  if (!is.numeric(top) || length(top) != 1L || is.na(top) ||
-      !is.finite(top)) {
-    stop(sprintf(paste0(
+  if (!.is_number(top)) {
+    .input_error(sprintf(paste0(
       "`top` must be one positive whole number of measurements to draw ",
       "individually; received %s."
-    ), .msg_value(top)), call. = FALSE)
+    ), .msg_value(top)))
   }
   if (top %% 1 != 0 || top < 1) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`top` = %s must be a positive whole number of measurements."
-    ), format(top, scientific = FALSE)), call. = FALSE)
+    ), format(top, scientific = FALSE)))
   }
   as.integer(top)
 }
@@ -190,8 +186,7 @@
 .main_or <- function(main, default) {
   if (is.null(main)) return(default)
   if (!is.character(main) || !length(main) || anyNA(main)) {
-    stop("`main` must be one or more non-missing character titles.",
-      call. = FALSE)
+    .input_error("`main` must be one or more non-missing character titles.")
   }
   main
 }
@@ -284,7 +279,7 @@
       col = c(.fade(.geometry_colors[["faint"]], 0.55),
         .geometry_colors[["neutral"]], if (named) color),
       legend = c(
-        sprintf("central 95%% of %s", .msg_count(length(values),
+        sprintf("central 95 %% of %s", .msg_count(length(values),
           "measurement")),
         sprintf("%s furthest from the reference",
           .msg_count(length(drawn), "measurement")),
@@ -666,9 +661,7 @@ plot.effect_rdm_view <- function(x, measurement = NULL, annotate = NULL,
   effects <- rownames(matrix_values)
   q <- length(effects)
   if (is.null(annotate)) annotate <- q <= 8L
-  if (!is.logical(annotate) || length(annotate) != 1L || is.na(annotate)) {
-    stop("`annotate` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(annotate, "annotate")
   extreme <- max(abs(matrix_values[is.finite(matrix_values)]), 0)
   if (!is.finite(extreme) || extreme <= 0) extreme <- 1
   limits <- c(-extreme, extreme)
@@ -749,8 +742,7 @@ plot.effect_rsa_view <- function(x, terms = NULL, highlight = NULL,
   if (!is.null(terms)) {
     if (!is.character(terms) || !length(terms) || anyNA(terms) ||
         !all(terms %in% labels)) {
-      stop("`terms` must name RSA coefficient columns of this view.",
-        call. = FALSE)
+      .input_error("`terms` must name RSA coefficient columns of this view.")
     }
     coefficients <- coefficients[, terms, drop = FALSE]
     labels <- terms
@@ -835,32 +827,33 @@ plot.effect_crossnobis_view <- function(x, highlight = NULL,
     values <- as.matrix(estimate$values)
     columns <- colnames(values)
     if (is.null(columns) || !setequal(columns, labels)) {
-      stop(paste0(
+      .contract_error(paste0(
         "The `estimate` view reports different distance pairs than this ",
         "sampling covariance."
-      ), call. = FALSE)
+      ))
     }
     position <- match(x$source$node, .measurement_ids(estimate$index))
     if (is.na(position)) {
-      stop(sprintf(paste0(
+      .contract_error(sprintf(paste0(
         "The `estimate` view does not contain measurement %s, which this ",
         "sampling covariance describes."
-      ), x$source$node), call. = FALSE)
+      ), x$source$node))
     }
     return(list(values = as.numeric(values[position, labels]),
       centered = TRUE))
   }
-  if (!is.numeric(estimate) || length(estimate) != length(labels) ||
-      anyNA(estimate) || any(!is.finite(estimate))) {
-    stop(sprintf(
+  if (!.is_finite_numeric(estimate) || length(estimate) != length(labels) ||
+      anyNA(estimate)) {
+    .input_error(sprintf(
       "`estimate` must be %d finite distances or an `effect_rdm_view`.",
       length(labels)
-    ), call. = FALSE)
+    ))
   }
   if (!is.null(names(estimate))) {
     if (!setequal(names(estimate), labels)) {
-      stop("Named `estimate` values must name every distance exactly once.",
-        call. = FALSE)
+      .input_error(
+        "Named `estimate` values must name every distance exactly once."
+      )
     }
     estimate <- estimate[labels]
   }
@@ -872,14 +865,10 @@ plot.effect_crossnobis_view <- function(x, highlight = NULL,
 plot.effect_rdm_sampling_covariance <- function(x, estimate = NULL,
                                                 level = 0.95, sort = TRUE,
                                                 main = NULL, ...) {
-  if (!is.numeric(level) || length(level) != 1L || is.na(level) ||
-      !is.finite(level) || level <= 0 || level >= 1) {
-    stop("`level` must be one number strictly between 0 and 1.",
-      call. = FALSE)
+  if (!.is_number(level) || level <= 0 || level >= 1) {
+    .input_error("`level` must be one number strictly between 0 and 1.")
   }
-  if (!is.logical(sort) || length(sort) != 1L || is.na(sort)) {
-    stop("`sort` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(sort, "sort")
   standard_errors <- sqrt(sampling_covariance(x, "diagonal"))
   center <- .sampling_center(x, estimate)
   labels <- x$labels
@@ -906,10 +895,10 @@ plot.effect_rdm_sampling_covariance <- function(x, estimate = NULL,
     xlim = .finite_range(values - half, values + half, 0),
     ylim = c(0.5, length(positions) + 0.5), yaxt = "n",
     xlab = if (center$centered) {
-      sprintf("Signed squared distance with %g%% sampling interval",
+      sprintf("Signed squared distance with %g %% sampling interval",
         100 * level)
     } else {
-      sprintf("%g%% sampling interval (no point estimate supplied)",
+      sprintf("%g %% sampling interval (no point estimate supplied)",
         100 * level)
     },
     ylab = "",

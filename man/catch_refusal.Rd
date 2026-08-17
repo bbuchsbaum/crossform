@@ -36,3 +36,11 @@ refusal <- catch_refusal(
 refusal$capability
 refusal$reasons
 }
+\seealso{
+\link{crossform_conditions} for the other condition classes crossform
+raises, and how to branch on them.
+
+Other conditions: 
+\code{\link{crossform_conditions}}
+}
+\concept{conditions}

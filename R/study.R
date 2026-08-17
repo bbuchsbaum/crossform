@@ -251,10 +251,10 @@ study <- function(observations, events = NULL, confounds = NULL,
                   hierarchy = NULL, clock_tolerance = 0,
                   provenance = list()) {
   if (missing(observations)) {
-    stop(paste0(
+    .input_error(paste0(
       "`observations` is required: pass the `observations()` record whose ",
       "partitions the events, confounds, and hierarchy are checked against."
-    ), call. = FALSE)
+    ))
   }
   observations <- .validate_observations(observations)
   if (!is.null(events)) events <- .validate_events(events)
@@ -266,12 +266,7 @@ study <- function(observations, events = NULL, confounds = NULL,
   } else {
     hierarchy <- .validate_partition_hierarchy(hierarchy)
   }
-  if (!is.numeric(clock_tolerance) || length(clock_tolerance) != 1L ||
-      is.na(clock_tolerance) || !is.finite(clock_tolerance) ||
-      clock_tolerance < 0) {
-    stop("`clock_tolerance` must be one nonnegative finite number.",
-      call. = FALSE)
-  }
+  .check_number(clock_tolerance, "clock_tolerance", nonnegative = TRUE)
   .validate_effect_provenance(provenance, "study provenance")
 
   leaf <- hierarchy$data[[hierarchy$leaf]]
@@ -363,9 +358,8 @@ study <- function(observations, events = NULL, confounds = NULL,
     "lineage", "clock_coverage", "clock_tolerance", "capabilities",
     "provenance", "study_id"
   )
-  if (!inherits(value, "effect_study") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Study fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_study", expected)) {
+    .input_error("Study fields are missing or noncanonical.")
   }
   observations <- .validate_observations(value$observations, deep = deep)
   events <- if (is.null(value$events)) NULL else .validate_events(value$events)
@@ -377,7 +371,7 @@ study <- function(observations, events = NULL, confounds = NULL,
   hierarchy <- .validate_partition_hierarchy(value$hierarchy)
   if (!identical(value$partitions, observations$partitions) ||
       !identical(hierarchy$data[[hierarchy$leaf]], value$partitions)) {
-    stop("Study partition metadata are inconsistent.", call. = FALSE)
+    .contract_error("Study partition metadata are inconsistent.")
   }
   expected_lineage <- .bind_confounds(observations, confounds)
   expected_clocks <- .bind_event_clocks(
@@ -396,7 +390,7 @@ study <- function(observations, events = NULL, confounds = NULL,
   if (!identical(value$lineage, expected_lineage) ||
       !identical(value$clock_coverage, expected_clocks$coverage) ||
       !identical(value$capabilities, expected_capabilities)) {
-    stop("Study lineage or capabilities are inconsistent.", call. = FALSE)
+    .contract_error("Study lineage or capabilities are inconsistent.")
   }
   .validate_effect_provenance(value$provenance, "study provenance")
   semantic <- list(
@@ -411,7 +405,7 @@ study <- function(observations, events = NULL, confounds = NULL,
     provenance = value$provenance
   )
   if (!identical(value$study_id, .sha256_signature(semantic, "study-sha256:"))) {
-    stop("Study identity is inconsistent.", call. = FALSE)
+    .contract_error("Study identity is inconsistent.")
   }
   value
 }

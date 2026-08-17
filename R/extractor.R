@@ -33,18 +33,15 @@
 #' @export
 effect_extractor <- function(map, effects = rownames(map),
                              estimator = "explicit", diagnostics = list()) {
-  if (!is.matrix(map) || !is.numeric(map) || any(dim(map) < 1L) ||
-      any(!is.finite(map))) {
-    stop("`map` must be a finite nonempty effect-by-observation matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(map) || any(dim(map) < 1L)) {
+    .input_error(
+      "`map` must be a finite nonempty effect-by-observation matrix."
+    )
   }
   effects <- .as_effect_space(effects, nrow(map))
-  if (!is.character(estimator) || length(estimator) != 1L ||
-      is.na(estimator) || !nzchar(estimator)) {
-    stop("`estimator` must be one nonempty identifier.", call. = FALSE)
-  }
+  .check_string(estimator, "estimator", what = "one nonempty identifier")
   if (!is.list(diagnostics)) {
-    stop("`diagnostics` must be a list.", call. = FALSE)
+    .input_error("`diagnostics` must be a list.")
   }
   rownames(map) <- effects$coordinates
   structure(
@@ -127,16 +124,17 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
                                           observations, legacy_supplied) {
   if (isTRUE(legacy_supplied)) {
     if (!is.null(observation_whitener)) {
-      stop("Supply only `observation_whitener`; `whiten` is its deprecated alias.",
-        call. = FALSE)
+      .input_error(
+        "Supply only `observation_whitener`; `whiten` is its deprecated alias."
+      )
     }
     warning("`whiten` is deprecated; use `observation_whitener`.",
       call. = FALSE)
     observation_whitener <- whiten
   }
-  if (!is.numeric(observations) || length(observations) != 1L ||
-      is.na(observations) || observations < 1L || observations %% 1 != 0) {
-    stop("The observation count must be one positive integer.", call. = FALSE)
+  if (!.is_number(observations, finite = FALSE) || observations < 1L ||
+      observations %% 1 != 0) {
+    .input_error("The observation count must be one positive integer.")
   }
   observations <- as.integer(observations)
   if (is.null(observation_whitener)) {
@@ -147,14 +145,12 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
       descriptor = c(semantic, list(signature = .sha256_signature(semantic)))
     ), class = "effect_observation_whitener"))
   }
-  if (!is.matrix(observation_whitener) ||
-      !is.numeric(observation_whitener) ||
-      !identical(dim(observation_whitener), c(observations, observations)) ||
-      any(!is.finite(observation_whitener))) {
-    stop(paste0(
+  if (!.is_finite_matrix(observation_whitener) ||
+      !identical(dim(observation_whitener), c(observations, observations))) {
+    .input_error(paste0(
       "`observation_whitener` must be NULL or a finite square observation ",
       "matrix."
-    ), call. = FALSE)
+    ))
   }
   semantic <- list(
     kind = "explicit",
@@ -173,40 +169,37 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
                                   solver = c("auto", "qr", "svd")) {
   solver <- match.arg(solver)
   where <- if (is.null(partition)) "" else sprintf("Partition `%s`: ", partition)
-  if (!is.matrix(design) || !is.numeric(design) || any(dim(design) < 1L) ||
-      any(!is.finite(design))) {
-    stop(sprintf(paste0(
+  if (!.is_finite_matrix(design) || any(dim(design) < 1L)) {
+    .input_error(sprintf(paste0(
       "%s`design` must be a finite nonempty observation-by-coefficient ",
       "matrix, one row per observation; received %s."
-    ), where, .msg_value(design)), call. = FALSE)
+    ), where, .msg_value(design)))
   }
-  if (!is.matrix(effects) || !is.numeric(effects) || nrow(effects) < 1L ||
-      any(!is.finite(effects))) {
-    stop(sprintf(paste0(
+  if (!.is_finite_matrix(effects) || nrow(effects) < 1L) {
+    .input_error(sprintf(paste0(
       "%s`effects` must be a finite effect-by-coefficient matrix saying which ",
       "linear combination of design coefficients each effect is; received %s."
-    ), where, .msg_value(effects)), call. = FALSE)
+    ), where, .msg_value(effects)))
   }
   if (ncol(effects) != ncol(design)) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "%s`effects` has %s but the design has %s, and every effect must be a ",
       "combination of the design's coefficients. Supply one `effects` column ",
       "per design column, in design column order."
     ), where, .msg_count(ncol(effects), "column"),
-      .msg_count(ncol(design), "coefficient column")), call. = FALSE)
+      .msg_count(ncol(design), "coefficient column")))
   }
-  if (!is.numeric(tolerance) || length(tolerance) != 1L || is.na(tolerance) ||
-      !is.finite(tolerance) || tolerance <= 0) {
-    stop(sprintf("`tolerance` must be one positive finite number; received %s.",
-      .msg_value(tolerance)), call. = FALSE)
+  if (!.is_number(tolerance) || tolerance <= 0) {
+    .input_error(sprintf(
+      "`tolerance` must be one positive finite number; received %s.",
+      .msg_value(tolerance)))
   }
   n <- nrow(design)
   if (!inherits(observation_whitener, "effect_observation_whitener") ||
       !is.list(observation_whitener) ||
       !identical(names(observation_whitener),
         c("matrix", "identity", "descriptor"))) {
-    stop("Observation-whitener compilation metadata are invalid.",
-      call. = FALSE)
+    .input_error("Observation-whitener compilation metadata are invalid.")
   }
   effect_names <- .as_effect_space(effect_names, nrow(effects))
   coordinate_names <- effect_names$coordinates
@@ -256,7 +249,7 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     keep <- singular$d > cutoff
     rank <- sum(keep)
     if (rank < 1L) {
-      stop("The whitened design has zero estimable rank.", call. = FALSE)
+      .input_error("The whitened design has zero estimable rank.")
     }
     basis <- singular$v[, keep, drop = FALSE]
     projected <- effects %*% basis %*% t(basis)
@@ -352,10 +345,10 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     )
   )
   residualize <- function(response) {
-    if (!is.matrix(response) || !is.numeric(response) ||
-        nrow(response) != n || any(!is.finite(response))) {
-      stop("Residualization requires a finite observation-by-feature block.",
-        call. = FALSE)
+    if (!.is_finite_matrix(response) || nrow(response) != n) {
+      .input_error(
+        "Residualization requires a finite observation-by-feature block."
+      )
     }
     transformed <- if (isTRUE(observation_whitener$identity)) {
       response
@@ -390,26 +383,25 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
 .validate_effect_names <- function(effects, expected) {
   if (is.null(effects)) effects <- paste0("effect", seq_len(expected))
   if (!is.character(effects)) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Effect coordinates must be a character vector; received %s.",
-      .msg_value(effects)), call. = FALSE)
+      .msg_value(effects)))
   }
   if (length(effects) != expected) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Effect coordinates must name %s; received %s (%s).",
       .msg_count(expected, "coordinate"),
-      .msg_count(length(effects), "name"), .msg_names(effects)),
-      call. = FALSE)
+      .msg_count(length(effects), "name"), .msg_names(effects)))
   }
   if (anyNA(effects) || any(!nzchar(effects)) || anyDuplicated(effects)) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Effect coordinates must have unique nonempty names%s.",
       if (anyDuplicated(effects)) {
         sprintf("; %s appears more than once",
           .msg_names(unique(effects[duplicated(effects)])))
       } else {
         "; some are missing or empty"
-      }), call. = FALSE)
+      }))
   }
   effects
 }
@@ -418,16 +410,18 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
   if (!inherits(x, "effect_extractor") || !is.list(x) ||
       !identical(names(x), c("map", "effect_space", "effects",
         "n_observations", "estimator", "diagnostics"))) {
-    stop("Extractor fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Extractor fields are missing or noncanonical.")
   }
   rebuilt <- effect_extractor(x$map, x$effect_space, x$estimator, x$diagnostics)
   if (!identical(x$effects, rebuilt$effects)) {
-    stop("Extractor coordinate labels are inconsistent with its effect space.",
-      call. = FALSE)
+    .contract_error(
+      "Extractor coordinate labels are inconsistent with its effect space."
+    )
   }
   if (!identical(x$n_observations, rebuilt$n_observations)) {
-    stop("Extractor observation metadata is inconsistent with its map.",
-      call. = FALSE)
+    .contract_error(
+      "Extractor observation metadata is inconsistent with its map."
+    )
   }
   rebuilt
 }

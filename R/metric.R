@@ -29,21 +29,22 @@
   domain <- .domain_reference(domain)
   if (is.null(support)) {
     if (dimension != domain$n_features) {
-      stop("A support-local metric requires explicit ordered feature identities.",
-        call. = FALSE)
+      .input_error(
+        "A support-local metric requires explicit ordered feature identities."
+      )
     }
     support <- domain$feature_ids
   }
   if (length(support) != dimension || anyNA(support) ||
       anyDuplicated(support)) {
-    stop("Metric support must uniquely identify every local matrix coordinate.",
-      call. = FALSE)
+    .input_error(
+      "Metric support must uniquely identify every local matrix coordinate."
+    )
   }
   positions <- match(support, domain$feature_ids)
   if (anyNA(positions) ||
       !identical(support, domain$feature_ids[positions])) {
-    stop("Metric support must belong to its exact neural domain.",
-      call. = FALSE)
+    .input_error("Metric support must belong to its exact neural domain.")
   }
   list(domain = domain, support = support, positions = as.integer(positions))
 }
@@ -53,15 +54,17 @@
     inherits(value, "Matrix")
   if (!matrix_like || length(dim(value)) != 2L || any(dim(value) < 1L) ||
       nrow(value) != ncol(value) || any(!is.finite(value))) {
-    stop(sprintf("%s must be one finite nonempty square matrix.", label),
-      call. = FALSE)
+    .input_error(
+      sprintf("%s must be one finite nonempty square matrix.", label)
+    )
   }
   value <- as.matrix(value)
   storage.mode(value) <- "double"
   scale <- max(1, max(abs(value)))
   if (max(abs(value - t(value))) > tolerance * scale) {
-    stop(sprintf("%s must be symmetric within the declared tolerance.", label),
-      call. = FALSE)
+    .input_error(
+      sprintf("%s must be symmetric within the declared tolerance.", label)
+    )
   }
   unname((value + t(value)) / 2)
 }
@@ -77,8 +80,9 @@
     inverse, tolerance, "`inverse`"
   )
   if (!identical(dim(inverse), dim(value))) {
-    stop("A retained inverse metric must match the metric dimensions.",
-      call. = FALSE)
+    .contract_error(
+      "A retained inverse metric must match the metric dimensions."
+    )
   }
   identity <- diag(nrow(value))
   residual <- max(
@@ -87,8 +91,9 @@
   )
   scale <- max(1, max(abs(value)) * max(abs(inverse)))
   if (!is.finite(residual) || residual > tolerance * scale * nrow(value)) {
-    stop("The retained inverse is inconsistent with the neural metric.",
-      call. = FALSE)
+    .contract_error(
+      "The retained inverse is inconsistent with the neural metric."
+    )
   }
   semantic <- list(kind = "retained_inverse_metric", value = inverse)
   structure(c(semantic, list(
@@ -158,34 +163,31 @@
 neural_metric <- function(value, domain, support = NULL, inverse = NULL,
                           estimation = c("fixed", "learned_frozen"),
                           tolerance = 1e-10, provenance = list()) {
-  if (!is.numeric(tolerance) || length(tolerance) != 1L ||
-      is.na(tolerance) || !is.finite(tolerance) || tolerance <= 0) {
-    stop("`tolerance` must be one positive finite number.", call. = FALSE)
-  }
+  .check_number(tolerance, "tolerance", positive = TRUE)
   estimation <- match.arg(estimation)
   .validate_effect_provenance(provenance, "neural-metric provenance")
   value <- .canonical_symmetric_metric(value, tolerance, "`value`")
   identified <- .metric_support(support, domain, nrow(value))
   spectrum <- .metric_spectrum(value, tolerance)
   if (!spectrum$positive_semidefinite) {
-    stop("A same-space neural metric must be positive semidefinite.",
-      call. = FALSE)
+    .input_error("A same-space neural metric must be positive semidefinite.")
   }
   if (estimation == "learned_frozen" &&
       (!identical(provenance$frozen, TRUE) ||
        !.strong_sha256(provenance$training_signature))) {
-    stop(paste0(
+    .input_error(paste0(
       "Learned metrics require frozen training provenance and a strong ",
       "training signature."
-    ), call. = FALSE)
+    ))
   }
   inverse_representation <- .metric_inverse_representation(
     inverse, value, tolerance
   )
   if (!identical(inverse_representation$kind, "none") &&
       !spectrum$positive_definite) {
-    stop("A retained inverse requires a positive-definite neural metric.",
-      call. = FALSE)
+    .input_error(
+      "A retained inverse requires a positive-definite neural metric."
+    )
   }
   off_diagonal <- row(value) != col(value)
   native_diagonal <- all(value[off_diagonal] == 0)
@@ -237,15 +239,12 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
     "learned_frozen", "learned_recipe", "materialized",
     "inverse_quadratic", "inverse_quadratic_shortcut",
     "inverse_quadratic_recipe")
-  if (!inherits(x, "effect_metric_capabilities") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_metric_capabilities", expected) ||
       !identical(x$role, "same_space_metric") ||
-      !all(vapply(x[-1L], function(value) {
-        is.logical(value) && length(value) == 1L && !is.na(value)
-      }, logical(1))) ||
+      !all(vapply(x[-1L], function(value) {     is.logical(value) && length(value) == 1L && !is.na(value) }, logical(1))) ||
       !identical(x$feature_additive, x$native_diagonal) ||
       identical(x$support_dense, x$native_diagonal)) {
-    stop("Metric capabilities are missing or inconsistent.", call. = FALSE)
+    .input_error("Metric capabilities are missing or inconsistent.")
   }
   x
 }
@@ -253,7 +252,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
 .validate_metric_inverse_representation <- function(x, value, tolerance,
                                                     deep = TRUE) {
   if (!inherits(x, "effect_metric_inverse_representation") || !is.list(x)) {
-    stop("Metric inverse representation is invalid.", call. = FALSE)
+    .input_error("Metric inverse representation is invalid.")
   }
   expected <- if (identical(x$kind, "none")) {
     c("kind", "signature")
@@ -263,7 +262,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
   if (!identical(names(x), expected) ||
       !x$kind %in% c("none", "retained_inverse_metric") ||
       !.strong_sha256(x$signature)) {
-    stop("Metric inverse representation is invalid.", call. = FALSE)
+    .input_error("Metric inverse representation is invalid.")
   }
   if (isTRUE(deep)) {
     rebuilt <- .metric_inverse_representation(
@@ -271,7 +270,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
       value, tolerance
     )
     if (!identical(x, rebuilt)) {
-      stop("Metric inverse representation is inconsistent.", call. = FALSE)
+      .contract_error("Metric inverse representation is inconsistent.")
     }
   }
   x
@@ -282,24 +281,19 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
   expected <- c("role", "domain", "support", "positions", "value",
     "estimation", "tolerance", "provenance", "inverse_representation",
     "capabilities", "signature")
-  if (!inherits(x, "effect_neural_metric") || !is.list(x) ||
-      !identical(names(x), expected) ||
-      !identical(x$role, "same_space_metric") ||
-      !is.matrix(x$value) || !is.numeric(x$value) || any(dim(x$value) < 1L) ||
-      nrow(x$value) != ncol(x$value) || any(!is.finite(x$value)) ||
-      !is.character(x$estimation) || length(x$estimation) != 1L ||
-      is.na(x$estimation) ||
+  if (!.sealed_fields(x, "effect_neural_metric", expected) ||
+      !identical(x$role, "same_space_metric") || !.is_finite_matrix(x$value) ||
+      any(dim(x$value) < 1L) || nrow(x$value) != ncol(x$value) ||
+      !.is_string(x$estimation, allow_empty = TRUE) ||
       !x$estimation %in% c("fixed", "learned_frozen") ||
-      !is.numeric(x$tolerance) || length(x$tolerance) != 1L ||
-      is.na(x$tolerance) || !is.finite(x$tolerance) || x$tolerance <= 0 ||
-      !is.list(x$provenance) ||
+      !.is_number(x$tolerance) || x$tolerance <= 0 || !is.list(x$provenance) ||
       !.strong_sha256(x$signature)) {
-    stop("Neural-metric fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Neural-metric fields are missing or noncanonical.")
   }
   domain <- .validate_domain_reference(x$domain)
   identified <- .metric_support(x$support, domain, nrow(x$value))
   if (!identical(x$positions, identified$positions)) {
-    stop("Neural-metric support positions are inconsistent.", call. = FALSE)
+    .contract_error("Neural-metric support positions are inconsistent.")
   }
   inverse <- .validate_metric_inverse_representation(
     x$inverse_representation, x$value, x$tolerance, deep = deep
@@ -314,7 +308,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
       provenance = x$provenance
     )
     if (!identical(x, rebuilt) || !identical(capabilities, rebuilt$capabilities)) {
-      stop("Neural-metric identity is inconsistent.", call. = FALSE)
+      .contract_error("Neural-metric identity is inconsistent.")
     }
   }
   .record_validated(x, "neural_metric", deep)
@@ -326,15 +320,10 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
                            positive_definite = TRUE,
                            inverse_quadratic_recipe = FALSE,
                            hyperparameters = list(), provenance = list()) {
-  if (!is.character(kind) || length(kind) != 1L || is.na(kind) ||
-      !nzchar(kind) || !is.logical(native_diagonal) ||
-      length(native_diagonal) != 1L || is.na(native_diagonal) ||
-      !is.logical(positive_definite) || length(positive_definite) != 1L ||
-      is.na(positive_definite) ||
-      !is.logical(inverse_quadratic_recipe) ||
-      length(inverse_quadratic_recipe) != 1L ||
-      is.na(inverse_quadratic_recipe) || !is.list(hyperparameters)) {
-    stop("Metric-recipe metadata are invalid.", call. = FALSE)
+  if (!.is_string(kind) || !.is_flag(native_diagonal) ||
+      !.is_flag(positive_definite) || !.is_flag(inverse_quadratic_recipe) ||
+      !is.list(hyperparameters)) {
+    .input_error("Metric-recipe metadata are invalid.")
   }
   domain <- if (is.null(domain)) NULL else .domain_reference(domain)
   .validate_effect_provenance(hyperparameters, "metric-recipe hyperparameters")
@@ -377,11 +366,10 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
 .validate_metric_recipe <- function(x) {
   expected <- c("role", "kind", "domain", "support_local", "capabilities",
     "hyperparameters", "provenance", "signature")
-  if (!inherits(x, "effect_metric_recipe") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_metric_recipe", expected) ||
       !identical(x$role, "same_space_metric") ||
       !identical(x$support_local, TRUE) || !.strong_sha256(x$signature)) {
-    stop("Metric-recipe fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Metric-recipe fields are missing or noncanonical.")
   }
   if (!is.null(x$domain)) .validate_domain_reference(x$domain)
   rebuilt <- .metric_recipe(
@@ -393,7 +381,7 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
     provenance = x$provenance
   )
   if (!identical(x, rebuilt)) {
-    stop("Metric-recipe identity is inconsistent.", call. = FALSE)
+    .contract_error("Metric-recipe identity is inconsistent.")
   }
   x
 }
@@ -437,10 +425,10 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
 #' @export
 metric_capabilities <- function(x) {
   if (inherits(x, "effect_measurement_bridge")) {
-    stop(paste0(
+    .input_error(paste0(
       "A measurement bridge relates two neural spaces; it is not a ",
       "same-space PSD metric."
-    ), call. = FALSE)
+    ))
   }
   if (inherits(x, "effect_neural_metric")) {
     return(.validate_neural_metric(x, deep = FALSE)$capabilities)
@@ -448,7 +436,7 @@ metric_capabilities <- function(x) {
   if (inherits(x, "effect_metric_recipe")) {
     return(.validate_metric_recipe(x)$capabilities)
   }
-  stop("`x` must be a neural metric or metric recipe.", call. = FALSE)
+  .input_error("`x` must be a neural metric or metric recipe.")
 }
 
 .metric_handle <- function(metric) {
@@ -458,17 +446,15 @@ metric_capabilities <- function(x) {
   state$factorizations <- 0L
   apply_K <- function(value) {
     if (is.atomic(value) && is.null(dim(value))) {
-      if (!is.numeric(value) || length(value) != nrow(metric$value) ||
-          any(!is.finite(value))) {
-        stop("Metric application requires one finite local vector.",
-          call. = FALSE)
+      if (!.is_finite_numeric(value) || length(value) != nrow(metric$value)) {
+        .input_error("Metric application requires one finite local vector.")
       }
       return(drop(metric$value %*% value))
     }
-    if (!is.matrix(value) || !is.numeric(value) ||
-        nrow(value) != nrow(metric$value) || any(!is.finite(value))) {
-      stop("Metric application requires finite local vectors in columns.",
-        call. = FALSE)
+    if (!.is_finite_matrix(value) || nrow(value) != nrow(metric$value)) {
+      .input_error(
+        "Metric application requires finite local vectors in columns."
+      )
     }
     metric$value %*% value
   }
@@ -476,10 +462,9 @@ metric_capabilities <- function(x) {
   if (identical(inverse$kind, "retained_inverse_metric")) {
     inverse_mode <- "retained_inverse_metric"
     quadform_Kinv <- function(value) {
-      if (!is.numeric(value) || is.matrix(value) ||
-          length(value) != nrow(metric$value) || any(!is.finite(value))) {
-        stop("Inverse quadratic forms require one finite local vector.",
-          call. = FALSE)
+      if (!.is_finite_numeric(value) || is.matrix(value) ||
+          length(value) != nrow(metric$value)) {
+        .input_error("Inverse quadratic forms require one finite local vector.")
       }
       drop(crossprod(value, inverse$value %*% value))
     }
@@ -488,10 +473,9 @@ metric_capabilities <- function(x) {
     inverse_mode <- "diagonal_reciprocal"
     diagonal_inverse <- 1 / diag(metric$value)
     quadform_Kinv <- function(value) {
-      if (!is.numeric(value) || is.matrix(value) ||
-          length(value) != nrow(metric$value) || any(!is.finite(value))) {
-        stop("Inverse quadratic forms require one finite local vector.",
-          call. = FALSE)
+      if (!.is_finite_numeric(value) || is.matrix(value) ||
+          length(value) != nrow(metric$value)) {
+        .input_error("Inverse quadratic forms require one finite local vector.")
       }
       sum(value^2 * diagonal_inverse)
     }
@@ -500,10 +484,9 @@ metric_capabilities <- function(x) {
     factor <- chol(metric$value)
     state$factorizations <- state$factorizations + 1L
     quadform_Kinv <- function(value) {
-      if (!is.numeric(value) || is.matrix(value) ||
-          length(value) != nrow(metric$value) || any(!is.finite(value))) {
-        stop("Inverse quadratic forms require one finite local vector.",
-          call. = FALSE)
+      if (!.is_finite_numeric(value) || is.matrix(value) ||
+          length(value) != nrow(metric$value)) {
+        .input_error("Inverse quadratic forms require one finite local vector.")
       }
       solved <- backsolve(factor, forwardsolve(t(factor), value))
       sum(value * solved)
@@ -511,9 +494,9 @@ metric_capabilities <- function(x) {
   } else {
     inverse_mode <- "unavailable_singular_metric"
     quadform_Kinv <- function(value) {
-      stop(paste0(
+      .input_error(paste0(
         "This metric has no positive-definite inverse-quadratic capability."
-      ), call. = FALSE)
+      ))
     }
   }
   structure(list(
@@ -540,8 +523,9 @@ metric_capabilities <- function(x) {
     })
   }
   if (!capabilities$fixed || !capabilities$materialized) {
-    stop("Only fixed materialized metrics can enter an evidence lowering.",
-      call. = FALSE)
+    .input_error(
+      "Only fixed materialized metrics can enter an evidence lowering."
+    )
   }
   if (capabilities$feature_additive) {
     "additive_contraction"
@@ -557,25 +541,17 @@ metric_capabilities <- function(x) {
   expected <- c("role", "kind", "frame_composition", "feature_additive",
     "support_dense", "materialization", "scope", "lowering",
     "metric_signature", "metric", "signature")
-  if (!inherits(x, "effect_metric_schedule") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_metric_schedule", expected) ||
       !identical(x$role, "same_space_metric_schedule") ||
-      !x$kind %in% c(
-        "implicit_identity_before_frame", "fixed_metric_before_frame"
-      ) ||
+      !x$kind %in% c("implicit_identity_before_frame", "fixed_metric_before_frame") ||
       !identical(x$frame_composition, "sqrt_weight_congruence") ||
-      !is.logical(x$feature_additive) || length(x$feature_additive) != 1L ||
-      is.na(x$feature_additive) ||
-      !is.logical(x$support_dense) || length(x$support_dense) != 1L ||
-      is.na(x$support_dense) || identical(x$feature_additive, x$support_dense) ||
+      !.is_flag(x$feature_additive) || !.is_flag(x$support_dense) ||
+      identical(x$feature_additive, x$support_dense) ||
       !x$materialization %in% c("implicit", "fixed_metric") ||
       !x$scope %in% c("domain_operator", "single_node") ||
-      !x$lowering %in% c(
-        "additive_contraction", "support_streamed_pair_contraction"
-      ) ||
+      !x$lowering %in% c("additive_contraction", "support_streamed_pair_contraction") ||
       !.strong_sha256(x$signature)) {
-    stop("Geometry metric-schedule fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Geometry metric-schedule fields are missing or noncanonical.")
   }
   if (identical(x$kind, "implicit_identity_before_frame")) {
     if (!identical(x$feature_additive, TRUE) ||
@@ -583,8 +559,7 @@ metric_capabilities <- function(x) {
         !identical(x$materialization, "implicit") ||
         !identical(x$lowering, "additive_contraction") ||
         !is.null(x$metric_signature) || !is.null(x$metric)) {
-      stop("The implicit identity metric schedule is inconsistent.",
-        call. = FALSE)
+      .input_error("The implicit identity metric schedule is inconsistent.")
     }
   } else {
     # The `metric_signature` comparison below binds the metric to the schedule
@@ -598,16 +573,17 @@ metric_capabilities <- function(x) {
           metric$capabilities$feature_additive) ||
         !identical(x$support_dense, metric$capabilities$support_dense) ||
         !identical(x$lowering, .metric_lowering(metric))) {
-      stop("The fixed neural metric schedule is inconsistent.", call. = FALSE)
+      .contract_error("The fixed neural metric schedule is inconsistent.")
     }
   }
   semantic <- c(list(schema_version = 1L), unclass(x[
     !names(x) %in% c("metric", "signature")
   ]))
   expected_signature <- .sha256_signature(semantic)
-  if (!identical(x$signature, expected_signature)) {
-    stop("Geometry metric-schedule identity is inconsistent.", call. = FALSE)
-  }
+  .check_signature(
+    x$signature, expected_signature,
+    "Geometry metric-schedule identity is inconsistent."
+  )
   x
 }
 
@@ -615,8 +591,9 @@ metric_capabilities <- function(x) {
   .validate_frame_for_compile(frame)
   schedule <- .validate_geometry_metric_schedule(metric_schedule)
   if (!isTRUE(schedule$feature_additive)) {
-    stop("Only a compiler-proven native-diagonal metric is feature additive.",
-      call. = FALSE)
+    .input_error(
+      "Only a compiler-proven native-diagonal metric is feature additive."
+    )
   }
   if (identical(schedule$kind, "implicit_identity_before_frame")) {
     return(frame)
@@ -643,15 +620,12 @@ metric_capabilities <- function(x) {
 coherent_functional <- function(value, domain, support = NULL,
                                 label = "raw_weighted_mean",
                                 provenance = list()) {
-  if (!is.numeric(value) || is.matrix(value) || length(value) < 1L ||
-      any(!is.finite(value)) || all(value == 0)) {
-    stop("A coherent functional must be one finite nonzero vector.",
-      call. = FALSE)
+  if (!.is_finite_numeric(value) || is.matrix(value) || length(value) < 1L ||
+      all(value == 0)) {
+    .input_error("A coherent functional must be one finite nonzero vector.")
   }
-  if (!is.character(label) || length(label) != 1L || is.na(label) ||
-      !nzchar(label)) {
-    stop("A coherent functional requires one nonempty label.",
-      call. = FALSE)
+  if (!.is_string(label)) {
+    .input_error("A coherent functional requires one nonempty label.")
   }
   .validate_effect_provenance(provenance,
     "coherent-functional provenance")
@@ -674,17 +648,15 @@ coherent_functional <- function(value, domain, support = NULL,
 .validate_coherent_functional <- function(x) {
   expected <- c("domain", "support", "value", "label", "orientation",
     "provenance", "signature")
-  if (!inherits(x, "effect_coherent_functional") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_coherent_functional", expected) ||
       !identical(x$orientation, "fixed") || !.strong_sha256(x$signature)) {
-    stop("Coherent-functional fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Coherent-functional fields are missing or noncanonical.")
   }
   rebuilt <- coherent_functional(
     x$value, x$domain, x$support, x$label, x$provenance
   )
   if (!identical(x, rebuilt)) {
-    stop("Coherent-functional identity is inconsistent.", call. = FALSE)
+    .contract_error("Coherent-functional identity is inconsistent.")
   }
   x
 }
@@ -692,8 +664,9 @@ coherent_functional <- function(value, domain, support = NULL,
 .frame_metric_node <- function(frame, node) {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
-    stop("Frame-metric composition requires an additive localization frame.",
-      call. = FALSE)
+    .input_error(
+      "Frame-metric composition requires an additive localization frame."
+    )
   }
   node_ids <- if (!is.null(frame$index) &&
       "measurement" %in% names(frame$index)) {
@@ -707,8 +680,7 @@ coherent_functional <- function(value, domain, support = NULL,
   } else {
     position <- match(node, node_ids)
     if (length(position) != 1L || is.na(position)) {
-      stop("`node` must identify one additive-frame measurement.",
-        call. = FALSE)
+      .input_error("`node` must identify one additive-frame measurement.")
     }
   }
   row <- frame$weights[position, , drop = FALSE]
@@ -741,8 +713,9 @@ coherent_functional <- function(value, domain, support = NULL,
 .frame_metric_node_accessor <- function(frame, argument = "at") {
   .validate_frame_for_compile(frame)
   if (!identical(frame$representation, "additive_diagonal")) {
-    stop("Frame-metric composition requires an additive localization frame.",
-      call. = FALSE)
+    .input_error(
+      "Frame-metric composition requires an additive localization frame."
+    )
   }
   node_ids <- if (!is.null(frame$index) &&
       "measurement" %in% names(frame$index)) {
@@ -771,8 +744,9 @@ coherent_functional <- function(value, domain, support = NULL,
       weights <- row_weights@x[slots]
       matched <- match(support_positions, columns)
       if (anyNA(matched)) {
-        stop("Compiled frame weights do not match their support index.",
-          call. = FALSE)
+        .contract_error(
+          "Compiled frame weights do not match their support index."
+        )
       }
       weight <- as.numeric(weights[matched])
     } else if (!is.null(row_weights)) {
@@ -809,8 +783,9 @@ coherent_functional <- function(value, domain, support = NULL,
   metric <- .validate_neural_metric(metric)
   if (!.same_domain_reference(metric$domain, frame$domain) ||
       !identical(metric$support, node_value$support)) {
-    stop("The local metric support must exactly match its frame node.",
-      call. = FALSE)
+    .contract_error(
+      "The local metric support must exactly match its frame node."
+    )
   }
   root_weight <- sqrt(node_value$weight)
   effective_value <- if (metric$capabilities$native_diagonal) {
@@ -898,12 +873,15 @@ coherent_functional <- function(value, domain, support = NULL,
 #' @keywords internal
 metric_components <- function(metric, coherent = NULL) {
   if (inherits(metric, "effect_measurement_bridge")) {
-    stop("Cross-space bridges do not admit same-space metric components.",
-      call. = FALSE)
+    .input_error(
+      "Cross-space bridges do not admit same-space metric components."
+    )
   }
   if (inherits(metric, "effect_metric_recipe")) {
-    stop("An on-demand metric recipe must be derived and frozen before decomposition.",
-      call. = FALSE)
+    .input_error(paste0(
+      "An on-demand metric recipe must be derived and frozen before ",
+      "decomposition."
+    ))
   }
   if (inherits(metric, "effect_composed_metric")) {
     if (is.null(coherent)) coherent <- metric$coherent
@@ -911,8 +889,9 @@ metric_components <- function(metric, coherent = NULL) {
   }
   metric <- .validate_neural_metric(metric)
   if (is.null(coherent)) {
-    stop("Metric decomposition requires an oriented coherent functional.",
-      call. = FALSE)
+    .input_error(
+      "Metric decomposition requires an oriented coherent functional."
+    )
   }
   if (is.numeric(coherent) && !is.matrix(coherent)) {
     coherent <- coherent_functional(
@@ -922,36 +901,36 @@ metric_components <- function(metric, coherent = NULL) {
   coherent <- .validate_coherent_functional(coherent)
   if (!.same_domain_reference(metric$domain, coherent$domain) ||
       !identical(metric$support, coherent$support)) {
-    stop("The metric and coherent functional must share one ordered support.",
-      call. = FALSE)
+    .contract_error(
+      "The metric and coherent functional must share one ordered support."
+    )
   }
   if (!metric$capabilities$positive_definite ||
       !metric$capabilities$inverse_quadratic) {
-    stop(paste0(
+    .input_error(paste0(
       "Coherent/configuration decomposition requires an SPD metric with ",
       "inverse-quadratic capability."
-    ), call. = FALSE)
+    ))
   }
   handle <- .metric_handle(metric)
   denominator <- handle$quadform_Kinv(coherent$value)
   if (!is.finite(denominator) || denominator <= 0) {
-    stop("The coherent inverse-metric norm must be positive and finite.",
-      call. = FALSE)
+    .invariant_error(
+      "The coherent inverse-metric norm must be positive and finite."
+    )
   }
   coherent_metric <- tcrossprod(coherent$value) / denominator
   configuration_metric <- metric$value - coherent_metric
   tolerance <- metric$tolerance
   spectrum <- .metric_spectrum(configuration_metric, tolerance)
   if (!spectrum$positive_semidefinite) {
-    stop("The derived configuration metric failed its PSD law.",
-      call. = FALSE)
+    .invariant_error("The derived configuration metric failed its PSD law.")
   }
   coherent_spectrum <- .metric_spectrum(coherent_metric, tolerance)
   coherent_rank <- sum(coherent_spectrum$values >
     tolerance * coherent_spectrum$scale)
   if (coherent_rank != 1L) {
-    stop("The derived coherent metric failed its rank-one law.",
-      call. = FALSE)
+    .invariant_error("The derived coherent metric failed its rank-one law.")
   }
   diagnostic <- handle$diagnostics()
   semantic <- list(
@@ -981,8 +960,9 @@ metric_components <- function(metric, coherent = NULL) {
   nodes <- nrow(frame$weights)
   if (is.null(metrics)) metrics <- rep(list(NULL), nodes)
   if (!is.list(metrics) || length(metrics) != nodes) {
-    stop("Conservation analysis requires one base metric per frame node.",
-      call. = FALSE)
+    .input_error(
+      "Conservation analysis requires one base metric per frame node."
+    )
   }
   composed <- lapply(seq_len(nodes), function(node) {
     .compose_frame_metric(frame, metrics[[node]], node)
@@ -1036,7 +1016,7 @@ metric_components <- function(metric, coherent = NULL) {
                                                     "identity")) {
   target <- match.arg(target)
   if (!inherits(x, "effect_metric_conservation") || !is.list(x)) {
-    stop("`x` must be a metric-conservation certificate.", call. = FALSE)
+    .input_error("`x` must be a metric-conservation certificate.")
   }
   admitted <- if (target == "feature_additive") {
     x$feature_additive
@@ -1044,8 +1024,7 @@ metric_components <- function(metric, coherent = NULL) {
     x$identity_conservation
   }
   if (!isTRUE(admitted)) {
-    stop(sprintf("Metric conservation is not certified: %s", x$reason),
-      call. = FALSE)
+    .input_error(sprintf("Metric conservation is not certified: %s", x$reason))
   }
   invisible(TRUE)
 }

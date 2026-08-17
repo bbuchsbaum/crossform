@@ -41,14 +41,14 @@ test_that("block-backed measurement storage is complete only after every write",
   expect_error(
     crossform:::.validate_measurement_store(store),
     "incomplete"
-  )
+  , class = "effect_input_error")
   written <- crossform:::.write_measurement_block(
     store, 1L, run$blocks[[1L]]
   )
   expect_error(
     crossform:::.validate_measurement_store(store, require_complete = FALSE),
     "stale"
-  )
+  , class = "effect_contract_error")
   expect_false(written$manifest$complete)
   for (edge in 2:length(run$blocks)) {
     written <- crossform:::.write_measurement_block(
@@ -82,17 +82,17 @@ test_that("measurement stores reject overwrite, malformed blocks, and indices", 
 
   expect_error(crossform:::.file_measurement_store(
     path, plan$block_index, create = TRUE
-  ), "overwrite")
+  ), "overwrite", class = "effect_input_error")
   expect_error(crossform:::.write_measurement_block(
     store, 1L, matrix(1, 1, 1)
-  ), "dimensions")
+  ), "dimensions", class = "effect_input_error")
   expect_error(crossform:::.read_measurement_store(store, "missing"),
-    "incomplete|not present")
+    "incomplete|not present", class = "effect_input_error")
 
   forged <- plan$block_index
   forged$left_axis[[1L]] <- forged$right_axis[[1L]]
   expect_error(crossform:::.memory_measurement_store(run$blocks, forged),
-    "index|noncanonical|identity")
+    "index|noncanonical|identity", class = "effect_contract_error")
 })
 
 test_that("storage codec never upgrades a partial edge result", {
@@ -108,7 +108,7 @@ test_that("storage codec never upgrades a partial edge result", {
   forged$manifest$written[] <- TRUE
 
   expect_error(crossform:::.validate_measurement_store(forged),
-    "stale|inconsistent")
+    "stale|inconsistent", class = "effect_contract_error")
   expect_identical(store$codec, "measurement-block-double-v1")
   expect_false(store$manifest$complete)
 })

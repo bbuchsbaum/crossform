@@ -73,22 +73,21 @@ voxelwise <- function(normalization = "conservative") {
 #' @export
 searchlights <- function(radius, normalization = "local") {
   if (missing(radius)) {
-    stop(paste0(
+    .input_error(paste0(
       "`radius` is required: pass one positive radius in the domain's own ",
       "coordinate units, for example `searchlights(8)` for 8 mm on a volume ",
       "domain."
-    ), call. = FALSE)
+    ))
   }
-  if (!is.numeric(radius) || length(radius) != 1L || is.na(radius) ||
-      !is.finite(radius) || radius <= 0) {
-    stop(sprintf(paste0(
+  if (!.is_number(radius) || radius <= 0) {
+    .input_error(sprintf(paste0(
       "`radius` must be one positive finite number in the domain's ",
       "coordinate units; received %s."
     ), if (is.numeric(radius) && length(radius) == 1L) {
       paste0("`", format(radius), "`")
     } else {
       .msg_value(radius)
-    }), call. = FALSE)
+    }))
   }
   .frame_spec("searchlights", normalization, radius = radius)
 }
@@ -125,16 +124,16 @@ searchlights <- function(radius, normalization = "local") {
 #' @export
 regions <- function(labels, normalization = "local") {
   if (missing(labels)) {
-    stop(paste0(
+    .input_error(paste0(
       "`labels` is required: pass one region label per neural feature, in ",
       "domain feature order, for example `regions(atlas_labels)`."
-    ), call. = FALSE)
+    ))
   }
   if (length(labels) < 1L || !(is.atomic(labels) || is.factor(labels))) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`labels` must be a nonempty atomic or factor vector with one region ",
       "label per neural feature; received %s."
-    ), .msg_value(labels)), call. = FALSE)
+    ), .msg_value(labels)))
   }
   .frame_spec("regions", normalization, labels = labels)
 }
@@ -227,19 +226,18 @@ whole_brain <- function(normalization = "local") {
 #' @export
 compile_frame <- function(specification, domain) {
   if (missing(domain) || !inherits(domain, "effect_domain")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`domain` must be an `effect_domain` (see `abstract_domain()`, ",
       "`volume_domain()`, or `neuroim2_volume_domain()`); received %s."
-    ), if (missing(domain)) "no argument" else .msg_value(domain)),
-      call. = FALSE)
+    ), if (missing(domain)) "no argument" else .msg_value(domain)))
   }
   .validate_domain(domain)
   if (missing(specification) || !inherits(specification, "effect_frame_spec")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`specification` must be a frame specification from `voxelwise()`, ",
       "`searchlights()`, `regions()`, or `whole_brain()`; received %s."
     ), if (missing(specification)) "no argument" else
-      .msg_value(specification)), call. = FALSE)
+      .msg_value(specification)))
   }
   specification <- .validate_frame_specification(specification)
   n <- domain$n_features
@@ -256,18 +254,18 @@ compile_frame <- function(specification, domain) {
   } else if (kind == "regions") {
     labels <- specification$labels
     if (length(labels) != n) {
-      stop(sprintf(paste0(
+      .input_error(sprintf(paste0(
         "`regions()` supplied %s but the domain has %s. Labels are read in ",
         "domain feature order, one per feature."
       ), .msg_count(length(labels), "label"),
-        .msg_count(n, "feature")), call. = FALSE)
+        .msg_count(n, "feature")))
     }
     present <- !is.na(labels) & nzchar(as.character(labels))
     if (!any(present)) {
-      stop(paste0(
+      .input_error(paste0(
         "Every region label is missing or empty, so the frame would have no ",
         "measurements. At least one feature must carry a label."
-      ), call. = FALSE)
+      ))
     }
     region_ids <- unique(as.character(labels[present]))
     region_index <- match(as.character(labels[present]), region_ids)
@@ -278,16 +276,15 @@ compile_frame <- function(specification, domain) {
     index <- data.frame(measurement = region_ids, stringsAsFactors = FALSE)
   } else if (kind == "searchlights") {
     radius <- specification$radius
-    if (!is.numeric(radius) || length(radius) != 1L || is.na(radius) ||
-        !is.finite(radius) || radius <= 0) {
-      stop("Searchlight radius is invalid.", call. = FALSE)
+    if (!.is_number(radius) || radius <= 0) {
+      .input_error("Searchlight radius is invalid.")
     }
     support_index <- .euclidean_support_index(domain, radius)
     weights <- .support_index_membership(support_index)
     index <- data.frame(measurement = domain$feature_ids,
       stringsAsFactors = FALSE)
   } else {
-    stop("Unknown additive frame specification.", call. = FALSE)
+    .input_error("Unknown additive frame specification.")
   }
 
   weights <- .normalize_frame(weights, specification$normalization)
@@ -304,33 +301,32 @@ compile_frame <- function(specification, domain) {
 
 .validate_frame_specification <- function(specification) {
   if (!inherits(specification, "effect_frame_spec") ||
-      !is.list(specification) || !is.character(specification$kind) ||
-      length(specification$kind) != 1L || is.na(specification$kind) ||
-      !is.character(specification$normalization) ||
-      length(specification$normalization) != 1L ||
-      is.na(specification$normalization)) {
-    stop("`specification` must be a valid additive frame specification.",
-      call. = FALSE)
+      !is.list(specification) ||
+      !.is_string(specification$kind, allow_empty = TRUE) ||
+      !.is_string(specification$normalization, allow_empty = TRUE)) {
+    .input_error(
+      "`specification` must be a valid additive frame specification."
+    )
   }
   rebuilt <- switch(specification$kind,
     voxels = voxelwise(specification$normalization),
     searchlights = {
       if (!identical(names(specification), c("kind", "normalization", "radius"))) {
-        stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
+        .input_error("Frame specification fields are missing or noncanonical.")
       }
       searchlights(specification$radius, specification$normalization)
     },
     regions = {
       if (!identical(names(specification), c("kind", "normalization", "labels"))) {
-        stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
+        .input_error("Frame specification fields are missing or noncanonical.")
       }
       regions(specification$labels, specification$normalization)
     },
     whole_brain = whole_brain(specification$normalization),
-    stop("Unknown additive frame specification.", call. = FALSE)
+    .input_error("Unknown additive frame specification.")
   )
   if (!identical(specification, rebuilt)) {
-    stop("Frame specification fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Frame specification fields are missing or noncanonical.")
   }
   rebuilt
 }
@@ -373,10 +369,7 @@ compile_frame <- function(specification, domain) {
 #' @export
 frame_conservation <- function(x, tolerance = 1e-10) {
   .validate_frame_for_compile(x)
-  if (!is.numeric(tolerance) || length(tolerance) != 1L ||
-      is.na(tolerance) || !is.finite(tolerance) || tolerance < 0) {
-    stop("`tolerance` must be one nonnegative finite number.", call. = FALSE)
-  }
+  .check_number(tolerance, "tolerance", nonnegative = TRUE)
   mass <- as.numeric(Matrix::colSums(x$weights))
   max_deviation <- max(abs(mass - 1))
   structure(list(
@@ -392,15 +385,14 @@ frame_conservation <- function(x, tolerance = 1e-10) {
 .normalize_frame <- function(weights, normalization) {
   row_mass <- Matrix::rowSums(weights)
   if (any(!is.finite(row_mass)) || any(row_mass <= 0)) {
-    stop("Every frame measurement must contain at least one feature.",
-      call. = FALSE)
+    .input_error("Every frame measurement must contain at least one feature.")
   }
   if (normalization == "local") {
     weights <- Matrix::Diagonal(x = 1 / row_mass) %*% weights
   } else if (normalization == "conservative") {
     coverage <- Matrix::colSums(weights)
     if (any(!is.finite(coverage)) || any(coverage <= 0)) {
-      stop("Conservative frames must cover every domain feature.", call. = FALSE)
+      .input_error("Conservative frames must cover every domain feature.")
     }
     weights <- weights %*% Matrix::Diagonal(x = 1 / coverage)
   }

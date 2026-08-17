@@ -1,10 +1,8 @@
 # Relation-fit specialization of evidence-sampling-v1 ----------------------
 
 .sampling_distance_contrasts <- function(effects) {
-  if (!is.character(effects) || length(effects) < 2L || anyNA(effects) ||
-      any(!nzchar(effects)) || anyDuplicated(effects)) {
-    stop("Sampling distances require at least two identified effects.",
-      call. = FALSE)
+  if (!.is_strings(effects, unique = TRUE) || length(effects) < 2L) {
+    .input_error("Sampling distances require at least two identified effects.")
   }
   pairs <- utils::combn(seq_along(effects), 2L)
   value <- matrix(0, ncol(pairs), length(effects))
@@ -33,10 +31,10 @@
     isTRUE(all.equal(model$effect_covariance, reference,
       tolerance = 1e-12, check.attributes = TRUE))
   }, logical(1)))) {
-    stop(paste0(
+    .input_error(paste0(
       "The fixed-metric Eq. 13 specialization requires one equal ",
       "effect-coordinate covariance across partitions."
-    ), call. = FALSE)
+    ))
   }
   reference
 }
@@ -51,11 +49,11 @@
   }
   if (target$target != "point_estimate" ||
       !identical(target$policy, "partition_mean_plugin")) {
-    stop(paste0(
+    .input_error(paste0(
       "The fixed-metric Eq. 13 product path requires target `null` or ",
       "point-estimate policy `partition_mean_plugin`; no target is chosen ",
       "silently."
-    ), call. = FALSE)
+    ))
   }
   relation <- plan$error_source$relation
   estimates <- lapply(relation$partitions, function(partition) {
@@ -80,8 +78,9 @@
   metric <- .validate_neural_metric(schedule$metric, deep = FALSE)
   positions <- match(node$support, metric$support)
   if (anyNA(positions)) {
-    stop("A sampling frame support falls outside its fixed neural metric.",
-      call. = FALSE)
+    .contract_error(
+      "A sampling frame support falls outside its fixed neural metric."
+    )
   }
   restriction_provenance <- list(
     construction = "fixed_metric_support_restriction",
@@ -109,8 +108,9 @@
                                           residual_covariance) {
   metric <- .validate_neural_metric(metric, deep = FALSE)
   if (!metric$capabilities$positive_definite) {
-    stop("Sampling covariance requires a positive-definite fixed metric.",
-      call. = FALSE)
+    .input_error(
+      "Sampling covariance requires a positive-definite fixed metric."
+    )
   }
   factor <- chol(metric$value)
   # chol() returns R with K = R'R. Row patterns transform by R' so their
@@ -147,8 +147,9 @@
   fit <- plan$error_source
   if (!inherits(evidence, "effect_geometry_plan") ||
       !inherits(fit, "effect_relation_fit")) {
-    stop("Sampling resources require one geometry plan and relation fit.",
-      call. = FALSE)
+    .input_error(
+      "Sampling resources require one geometry plan and relation fit."
+    )
   }
   statistics <- if (identical(strategy, "shared_pair_statistics") &&
       !is.null(evidence$frame$support_index)) {
@@ -156,10 +157,10 @@
       fit, evidence$frame, workspace_bytes = residual_workspace_bytes
     )
   } else if (identical(strategy, "shared_pair_statistics")) {
-    stop(paste0(
+    .input_error(paste0(
       "Shared pair statistics require a frame with an explicit support ",
       "index; use node-local resources for this frame."
-    ), call. = FALSE)
+    ))
   } else {
     NULL
   }
@@ -185,29 +186,30 @@
   expected <- c("plan", "relation_fit", "frame", "strategy",
     "residual_statistics", "signature")
   .validate_evidence_sampling_plan(plan, deep = FALSE)
-  if (!inherits(x, "effect_sampling_resources") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_sampling_resources", expected) ||
       !identical(x$plan, plan$scientific_plan_id) ||
       !identical(x$relation_fit, plan$error_source$signature) ||
-      !identical(x$frame,
-        .additive_frame_signature(plan$evidence_plan$frame)) ||
+      !identical(x$frame, .additive_frame_signature(plan$evidence_plan$frame)) ||
       !x$strategy %in% c("node_local", "shared_pair_statistics") ||
       !.strong_sha256(x$signature)) {
-    stop("Sampling-resource fields or plan identity are inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Sampling-resource fields or plan identity are inconsistent."
+    )
   }
   if (!is.null(x$residual_statistics)) {
     .validate_residual_pair_statistics(x$residual_statistics, deep = FALSE)
   }
   if (identical(x$strategy, "node_local") &&
       !is.null(x$residual_statistics)) {
-    stop("Node-local sampling resources cannot contain frame-wide pair statistics.",
-      call. = FALSE)
+    .input_error(
+      "Node-local sampling resources cannot contain frame-wide pair statistics."
+    )
   }
   if (identical(x$strategy, "shared_pair_statistics") &&
       is.null(x$residual_statistics)) {
-    stop("Shared-pair sampling resources are missing their pair statistics.",
-      call. = FALSE)
+    .input_error(
+      "Shared-pair sampling resources are missing their pair statistics."
+    )
   }
   expected_signature <- .sha256_signature(list(
     schema_version = 1L,
@@ -218,9 +220,10 @@
     residual_statistics = if (is.null(x$residual_statistics)) NULL else
       x$residual_statistics$signature
   ))
-  if (!identical(x$signature, expected_signature)) {
-    stop("Sampling-resource identity is inconsistent.", call. = FALSE)
-  }
+  .check_signature(
+    x$signature, expected_signature,
+    "Sampling-resource identity is inconsistent."
+  )
   x
 }
 
@@ -250,8 +253,7 @@
   evidence <- plan$evidence_plan
   if (!inherits(evidence, "effect_geometry_plan") ||
       plan$evidence$metric_status != "fixed") {
-    stop("This specialization requires a fixed-metric geometry plan.",
-      call. = FALSE)
+    .input_error("This specialization requires a fixed-metric geometry plan.")
   }
   .validate_geometry_plan(evidence, deep = FALSE)
   read_node <- .frame_metric_node_accessor(evidence$frame)
@@ -472,10 +474,10 @@ rdm_sampling_covariance <- function(
     residual_strategy = c("node_local", "shared_pair_statistics"),
     residual_workspace_bytes = 512 * 1024^2) {
   if (missing(fit)) {
-    stop(paste0(
+    .input_error(paste0(
       "`fit` is required: pass the `lm_relation_fit()` whose `$relation` ",
       "built `x`, so the analytic law can read its residual error channel."
-    ), call. = FALSE)
+    ))
   }
   if (missing(target)) {
     .capability_refusal(paste0(
@@ -490,11 +492,11 @@ rdm_sampling_covariance <- function(
     )
   }
   if (missing(at)) {
-    stop(paste0(
+    .input_error(paste0(
       "`at` is required: name the measurement whose sampling covariance you ",
       "want, e.g. `at = which.max(effect$total)`. One measurement per call; ",
       "the analytic law is local."
-    ), call. = FALSE)
+    ))
   }
   descriptor <- .sampling_evidence_descriptor(x)
   if (identical(descriptor$record$metric_status, "learned")) {
@@ -730,7 +732,7 @@ sampling_covariance <- function(
     query = NULL,
     max_bytes = 512 * 1024^2) {
   if (!inherits(x, "effect_rdm_sampling_covariance")) {
-    stop("`x` must come from `rdm_sampling_covariance()`.", call. = FALSE)
+    .input_error("`x` must come from `rdm_sampling_covariance()`.")
   }
   .validate_sampling_covariance(x, deep = TRUE)
   operation <- match.arg(operation)

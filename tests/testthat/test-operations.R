@@ -35,7 +35,7 @@ test_that("normalizer validation rejects every noncanonical shape", {
     value <- valid
     value <- mutate(value)
     expect_error(crossform:::.validate_edge_normalizer(value),
-      "Invalid edge normalizer")
+      "Invalid edge normalizer", class = "effect_input_error")
   }
   reject(function(x) unclass(x))
   reject(function(x) {
@@ -90,11 +90,14 @@ test_that("edge transforms carry exactly the policy their kind requires", {
 
   # A boundary policy and its parameter must agree: `clip` needs a delta in
   # (0, 1), and `error` must not carry one.
-  expect_error(fisher_z("clip"), "Invalid Fisher boundary policy")
-  expect_error(fisher_z("clip", delta = 0), "Invalid Fisher boundary policy")
-  expect_error(fisher_z("clip", delta = 1), "Invalid Fisher boundary policy")
+  expect_error(fisher_z("clip"), "Invalid Fisher boundary policy",
+    class = "effect_input_error")
+  expect_error(fisher_z("clip", delta = 0), "Invalid Fisher boundary policy",
+    class = "effect_input_error")
+  expect_error(fisher_z("clip", delta = 1), "Invalid Fisher boundary policy",
+    class = "effect_input_error")
   expect_error(fisher_z("error", delta = 0.1),
-    "Invalid Fisher boundary policy")
+    "Invalid Fisher boundary policy", class = "effect_input_error")
   expect_error(fisher_z("shrink"), "'arg' should be one of")
 
   # Cross-kind parameters are refused rather than ignored.
@@ -103,26 +106,26 @@ test_that("edge transforms carry exactly the policy their kind requires", {
       crossform:::.new_edge_transform("identity", boundary = "error")
     ),
     "cannot carry policy parameters"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.validate_edge_transform(
       crossform:::.new_edge_transform("fisher_z", boundary = "error",
         ties = "average")
     ),
     "Invalid Fisher boundary policy"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.validate_edge_transform(
       crossform:::.new_edge_transform("rank_edges")
     ),
     "Invalid edge-ranking tie policy"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.validate_edge_transform(
       crossform:::.new_edge_transform("winsorize")
     ),
     "Invalid edge transform"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("partition reducers name two distinct estimands", {
@@ -182,11 +185,11 @@ test_that("the edge operation plan fixes the stage order and its lowering", {
   expect_error(
     crossform:::.edge_operation_plan(inner_product(), fisher_z("error")),
     "requires correlation-valued edge input"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.edge_operation_plan(crossform:::cosine(), fisher_z("error")),
     "requires correlation-valued edge input"
-  )
+  , class = "effect_input_error")
   # The one admitted pairing records both declarations verbatim.
   admitted <- crossform:::.edge_operation_plan(
     crossform:::correlation("zero"), fisher_z("clip", 1e-6)
@@ -216,7 +219,7 @@ test_that("every operation component enters the plan signature", {
   expect_identical(anyDuplicated(signatures), 0L)
 
   expect_error(crossform:::.edge_operation_plan(reducer = "aggregate_first"),
-    "reducer")
+    "reducer", class = "effect_input_error")
 })
 
 test_that("applying an edge transform equals its declared operation", {
@@ -238,7 +241,7 @@ test_that("applying an edge transform equals its declared operation", {
   expect_error(
     crossform:::.apply_edge_transform(boundary, fisher_z("error")),
     "absolute-correlation boundary"
-  )
+  , class = "effect_input_error")
   expect_equal(
     crossform:::.apply_edge_transform(boundary, fisher_z("clip", 1e-8)),
     atanh(pmin(1 - 1e-8, pmax(-1 + 1e-8, boundary))),

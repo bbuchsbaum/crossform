@@ -211,6 +211,6 @@ test_that("study identity includes factual binding and detects tampering", {
   tampered <- value
   tampered$lineage$`run-1`$retained[1] <- FALSE
   expect_error(crossform:::.validate_study(tampered),
-    "lineage or capabilities")
+    "lineage or capabilities", class = "effect_contract_error")
   expect_true(study_capabilities(value)$stable_source_revision)
 })

@@ -5,21 +5,24 @@
   if (task$materialization$kind != "measurement_form" ||
       task$experimental_boundary$state != "closed" ||
       task$neural_boundary$state != "open") {
-    stop("Raw measurement contraction requires closed experimental and open neural boundaries.",
-      call. = FALSE)
+    .input_error(paste0(
+      "Raw measurement contraction requires closed experimental and open ",
+      "neural boundaries."
+    ))
   }
   normalizer <- task$stages$normalization$operation
   transform <- task$stages$transform$operation
   if (!identical(normalizer$kind, "inner_product") ||
       !identical(transform$kind, "identity")) {
-    stop(paste0(
+    .input_error(paste0(
       "Raw measurement blocks require bilinear inner-product stages; ",
       "normalization or nonlinear transformation must remain explicit."
-    ), call. = FALSE)
+    ))
   }
   if (!is.null(task$materialization$projection)) {
-    stop("Complete raw measurement blocks cannot carry an effect-form projection.",
-      call. = FALSE)
+    .input_error(
+      "Complete raw measurement blocks cannot carry an effect-form projection."
+    )
   }
   task
 }
@@ -36,8 +39,7 @@
     return(structure(list(
       read = function(side, partition, features) {
         if (!side %in% c("left", "right")) {
-          stop("Evidence source side must be `left` or `right`.",
-            call. = FALSE)
+          .input_error("Evidence source side must be `left` or `right`.")
         }
         session$read(partition, features)
       },
@@ -77,8 +79,7 @@
       } else if (identical(side, "right")) {
         right$read(partition, features)
       } else {
-        stop("Evidence source side must be `left` or `right`.",
-          call. = FALSE)
+        .input_error("Evidence source side must be `left` or `right`.")
       }
     },
     close = close_both,
@@ -97,10 +98,8 @@
 }
 
 .measurement_h_factorization <- function(h, tolerance = 1e-12) {
-  if (!is.numeric(tolerance) || length(tolerance) != 1L || is.na(tolerance) ||
-      !is.finite(tolerance) || tolerance <= 0) {
-    stop("Factorization tolerance must be one positive finite value.",
-      call. = FALSE)
+  if (!.is_number(tolerance) || tolerance <= 0) {
+    .input_error("Factorization tolerance must be one positive finite value.")
   }
   decomposition <- svd(h, nu = min(dim(h)), nv = min(dim(h)))
   threshold <- if (!length(decomposition$d)) 0 else
@@ -191,8 +190,9 @@
     candidates[[which.min(costs[candidates])]]
   } else {
     if (!isTRUE(eligible[[route]])) {
-      stop(sprintf("Measurement route `%s` is not eligible for this task.",
-        route), call. = FALSE)
+      .input_error(sprintf(
+        "Measurement route `%s` is not eligible for this task.",
+        route))
     }
     route
   }
@@ -217,8 +217,7 @@
                                             budget_bytes = NULL) {
   task <- .validate_raw_measurement_task(task)
   if (!inherits(route_plan, "effect_measurement_route_plan")) {
-    stop("Measurement memory planning requires a route plan.",
-      call. = FALSE)
+    .input_error("Measurement memory planning requires a route plan.")
   }
   storage <- match.arg(storage)
   left_frame <- task$neural_boundary$left_frame
@@ -423,7 +422,7 @@
             crossprod(left_factor, right_factor)
           },
           multivariate_blocks = crossprod(z_left, h %*% z_right),
-          stop("Unknown measurement contraction route.", call. = FALSE)
+          .invariant_error("Unknown measurement contraction route.")
         )
         blocks[[edge]] <- blocks[[edge]] + weight * value
       }
@@ -497,8 +496,9 @@
 
   result <- tryCatch({
     if (!is.na(memory$plan$fits_budget) && !memory$plan$fits_budget) {
-      stop("Measurement contraction exceeds the declared workspace budget.",
-        call. = FALSE)
+      .input_error(
+        "Measurement contraction exceeds the declared workspace budget."
+      )
     }
     session <- .open_evidence_task_source_session(
       task, open_descriptor = open_descriptor
@@ -585,8 +585,7 @@
     left <- left_relations[[partition_edges$left[[partition_edge]]]]
     right <- right_relations[[partition_edges$right[[partition_edge]]]]
     if (!is.matrix(left) || !is.matrix(right)) {
-      stop("Dense reference relations must be named matrix families.",
-        call. = FALSE)
+      .input_error("Dense reference relations must be named matrix families.")
     }
     for (edge in seq_len(nrow(measurement_edges))) {
       left_leg <- task$neural_boundary$left_frame$legs[[

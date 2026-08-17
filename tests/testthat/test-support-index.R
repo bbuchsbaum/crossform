@@ -144,11 +144,11 @@ test_that("support preflight requires explicit valid edge multiplicity", {
   expect_error(
     crossform:::.support_index_preflight(index, evaluation_edges = 0),
     "positive integer"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.support_index_preflight(index, evaluation_edges = 1.5),
     "positive integer"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("compiled searchlights retain their canonical support topology", {
@@ -210,7 +210,7 @@ test_that("deep validation detects changed supports or pair topology", {
   expect_error(
     crossform:::.validate_support_index(index, deep = TRUE),
     "strictly increasing|pair pattern|identity"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("deep validation rejects noncanonical support order", {
@@ -223,7 +223,7 @@ test_that("deep validation rejects noncanonical support order", {
   expect_error(
     crossform:::.validate_support_index(index, deep = TRUE),
     "strictly increasing"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("volume searchlights larger than the volume stay cheap and exact", {

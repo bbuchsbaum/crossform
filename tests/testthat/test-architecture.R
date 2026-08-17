@@ -16,6 +16,7 @@
 layer_of <- c(
   ## 1. primitives — pure leaves, no crossform dependency outside this layer
   "primitives.R" = 1L, "message-helpers.R" = 1L, "conditions.R" = 1L,
+  "check.R" = 1L,
 
   ## 2. values — domain, frame, pairing, relation, effect space, metric values
   "domain.R" = 2L, "frame.R" = 2L, "pairing.R" = 2L, "relation.R" = 2L,

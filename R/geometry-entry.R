@@ -118,8 +118,7 @@ evaluate_geometry <- function(x, at = NULL, over = NULL, query = NULL,
     at <- NULL
   }
   if (is.null(query)) {
-    stop("Query-first execution requires an explicit fixed `query`.",
-      call. = FALSE)
+    .input_error("Query-first execution requires an explicit fixed `query`.")
   }
   component <- match.arg(component)
   .run_geometry_compiler(x, at, over, compute, "memory", NULL,

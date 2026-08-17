@@ -145,7 +145,7 @@ test_that("residual pair preflight refuses before reading", {
       fixture$fit, fixture$frame, workspace_bytes = minimum - 1
     ),
     "requires at least.*workspace budget"
-  )
+  , class = "effect_input_error")
   expect_identical(fixture$reads(), c(run1 = 0L, run2 = 0L, run3 = 0L))
 })
 
@@ -163,5 +163,5 @@ test_that("residual pair statistics require an explicit error and support channe
   expect_error(
     residual_pair_statistics(fixture$fit, unsupported),
     "explicit support index"
-  )
+  , class = "effect_input_error")
 })

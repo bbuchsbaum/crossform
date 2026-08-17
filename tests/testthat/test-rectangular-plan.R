@@ -153,7 +153,7 @@ test_that("rectangular plans refuse what their contract does not cover", {
       right = fixture$retrieval
     ),
     "ordered endpoints"
-  )
+  , class = "effect_input_error")
 
   plan <- plan_geometry(
     fixture$encoding, fixture$frame, fixture$over,
@@ -169,5 +169,5 @@ test_that("rectangular plans refuse what their contract does not cover", {
   expect_error(
     evaluate_geometry(plan, query = bilinear_query(diag(3L))),
     "pair_query"
-  )
+  , class = "effect_input_error")
 })

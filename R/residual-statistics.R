@@ -6,16 +6,17 @@
   } else {
     .validate_frame_for_compile(at)
     if (is.null(at$support_index)) {
-      stop(paste0(
+      .input_error(paste0(
         "Residual pair statistics currently require a frame with an explicit ",
         "support index, such as a compiled searchlight frame."
-      ), call. = FALSE)
+      ))
     }
     index <- .validate_support_index(at$support_index)
   }
   if (!.same_domain_reference(index$domain, domain)) {
-    stop("The residual fit and support index use different neural domains.",
-      call. = FALSE)
+    .contract_error(
+      "The residual fit and support index use different neural domains."
+    )
   }
   index
 }
@@ -33,16 +34,14 @@
     pair_j <- rows
   }
   if (length(pair_i) < 1L) {
-    stop("The support pair graph contains no neural feature pairs.",
-      call. = FALSE)
+    .input_error("The support pair graph contains no neural feature pairs.")
   }
   ordered <- order(pair_j, pair_i, method = "radix")
   pair_i <- pair_i[ordered]
   pair_j <- pair_j[ordered]
   if (any(pair_i > pair_j) || any(pair_i < 1L) ||
       any(pair_j > index$domain$n_features)) {
-    stop("The support pair graph has invalid canonical coordinates.",
-      call. = FALSE)
+    .input_error("The support pair graph has invalid canonical coordinates.")
   }
   list(i = pair_i, j = pair_j)
 }
@@ -51,8 +50,9 @@
   index <- .validate_support_index(index)
   largest <- as.double(index$cost$support_size[["max"]])
   if (!is.finite(largest) || largest < 1) {
-    stop("Support sizes cannot determine a canonical residual tile width.",
-      call. = FALSE)
+    .input_error(
+      "Support sizes cannot determine a canonical residual tile width."
+    )
   }
   bounded <- min(128, largest)
   as.integer(2^ceiling(log2(bounded)))
@@ -62,7 +62,7 @@
   if (!is.integer(pair_i) || !is.integer(pair_j) ||
       length(pair_i) < 1L || !identical(length(pair_i), length(pair_j)) ||
       any(pair_i > pair_j) || any(pair_i < 1L) || any(pair_j > features)) {
-    stop("Residual pair coordinates are invalid.", call. = FALSE)
+    .input_error("Residual pair coordinates are invalid.")
   }
   width <- .validate_tile_size(width, "width")
   tiles <- as.integer(ceiling(features / width))
@@ -90,14 +90,13 @@
                                        workspace_bytes) {
   values <- c(pair_count, partitions, observations, width, tiles)
   if (any(!is.finite(values)) || any(values < 1) || any(values %% 1 != 0)) {
-    stop("Residual pair memory dimensions must be positive whole values.",
-      call. = FALSE)
+    .input_error(
+      "Residual pair memory dimensions must be positive whole values."
+    )
   }
-  if (!is.numeric(workspace_bytes) || length(workspace_bytes) != 1L ||
-      is.na(workspace_bytes) || !is.finite(workspace_bytes) ||
-      workspace_bytes <= 0 || workspace_bytes > 2^53) {
-    stop("`workspace_bytes` must be one positive finite byte budget.",
-      call. = FALSE)
+  if (!.is_number(workspace_bytes) || workspace_bytes <= 0 ||
+      workspace_bytes > 2^53) {
+    .input_error("`workspace_bytes` must be one positive finite byte budget.")
   }
   # Coordinates, values for every atomic partition, canonical grouping arrays,
   # and bounded extraction scratch. The estimate deliberately charges payload
@@ -112,12 +111,12 @@
     pair_state_bytes + 2 * cross_product_bytes + 8 * residual_tile_bytes
   )
   if (minimum_workspace_bytes > workspace_bytes) {
-    stop(sprintf(
+    .input_error(sprintf(
       paste0(
         "Canonical residual pair accumulation requires at least %.0f bytes, ",
         "exceeding the %.0f-byte workspace budget."
       ), minimum_workspace_bytes, workspace_bytes
-    ), call. = FALSE)
+    ))
   }
   extra_tiles <- floor(
     (workspace_bytes - minimum_workspace_bytes) / residual_tile_bytes
@@ -249,24 +248,24 @@
                                                       pair_count) {
   expected <- c("partition", "cross_products", "residual_df", "error_model",
     "source_revision", "residual_revision", "signature")
-  if (!inherits(x, "effect_atomic_residual_pair_statistics") ||
-      !is.list(x) || !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_atomic_residual_pair_statistics", expected) ||
       !identical(x$partition, partition) ||
-      !is.numeric(x$cross_products) || length(x$cross_products) != pair_count ||
-      any(!is.finite(x$cross_products)) || !is.integer(x$residual_df) ||
+      !.is_finite_numeric(x$cross_products) ||
+      length(x$cross_products) != pair_count || !is.integer(x$residual_df) ||
       length(x$residual_df) != 1L || is.na(x$residual_df) ||
       x$residual_df < 1L || !.strong_sha256(x$error_model) ||
       !.strong_sha256(x$source_revision) ||
       !.strong_sha256(x$residual_revision) || !.strong_sha256(x$signature)) {
-    stop("Atomic residual pair statistics are invalid.", call. = FALSE)
+    .input_error("Atomic residual pair statistics are invalid.")
   }
   expected_signature <- .residual_pair_atomic_signature(
     x$partition, x$cross_products, x$residual_df, x$error_model,
     x$source_revision, x$residual_revision
   )
-  if (!identical(x$signature, expected_signature)) {
-    stop("Atomic residual pair identity is inconsistent.", call. = FALSE)
-  }
+  .check_signature(
+    x$signature, expected_signature,
+    "Atomic residual pair identity is inconsistent."
+  )
   x
 }
 
@@ -274,31 +273,29 @@
   expected <- c("relation_fit", "domain", "support_index", "pair_i",
     "pair_j", "partitions", "atomic", "numerical_contract", "execution",
     "signature")
-  if (!inherits(x, "effect_residual_pair_statistics") || !is.list(x) ||
-      !identical(names(x), expected) || !.strong_sha256(x$relation_fit) ||
-      !.strong_sha256(x$support_index) || !is.integer(x$pair_i) ||
-      !is.integer(x$pair_j) || length(x$pair_i) < 1L ||
+  if (!.sealed_fields(x, "effect_residual_pair_statistics", expected) ||
+      !.strong_sha256(x$relation_fit) || !.strong_sha256(x$support_index) ||
+      !is.integer(x$pair_i) || !is.integer(x$pair_j) ||
+      length(x$pair_i) < 1L ||
       !identical(length(x$pair_i), length(x$pair_j)) ||
-      any(x$pair_i > x$pair_j) || !is.character(x$partitions) ||
-      length(x$partitions) < 1L || anyNA(x$partitions) ||
-      any(!nzchar(x$partitions)) || anyDuplicated(x$partitions) ||
-      !is.list(x$atomic) || !identical(names(x$atomic), x$partitions) ||
+      any(x$pair_i > x$pair_j) || !.is_strings(x$partitions, unique = TRUE) ||
+      length(x$partitions) < 1L || !is.list(x$atomic) ||
+      !identical(names(x$atomic), x$partitions) ||
       !is.list(x$numerical_contract) || !is.list(x$execution) ||
       !.strong_sha256(x$signature)) {
-    stop("Residual-pair-statistics fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Residual-pair-statistics fields are missing or noncanonical.")
   }
   domain <- .validate_domain_reference(x$domain)
   if (any(x$pair_i < 1L) || any(x$pair_j > domain$n_features)) {
-    stop("Residual pair coordinates do not belong to their neural domain.",
-      call. = FALSE)
+    .input_error(
+      "Residual pair coordinates do not belong to their neural domain."
+    )
   }
   if (length(x$pair_i) > 1L) {
     canonical <- diff(x$pair_j) > 0L |
       (diff(x$pair_j) == 0L & diff(x$pair_i) > 0L)
     if (!all(canonical)) {
-      stop("Residual pair coordinates must be unique and canonical.",
-        call. = FALSE)
+      .input_error("Residual pair coordinates must be unique and canonical.")
     }
   }
   lapply(seq_along(x$partitions), function(index) {
@@ -320,11 +317,11 @@
       !identical(x$numerical_contract$workspace_invariant_shape, TRUE) ||
       !identical(x$numerical_contract$reduction,
         "one_crossproduct_per_canonical_tile_pair")) {
-    stop("Residual pair numerical contract is invalid.", call. = FALSE)
+    .input_error("Residual pair numerical contract is invalid.")
   }
   if (isTRUE(deep) && !identical(x$signature,
       .residual_pair_statistics_signature(x))) {
-    stop("Residual-pair-statistics identity is inconsistent.", call. = FALSE)
+    .contract_error("Residual-pair-statistics identity is inconsistent.")
   }
   invisible(x)
 }
@@ -382,11 +379,11 @@ residual_pair_statistics <- function(
   index <- .residual_statistics_support_index(at, x$relation$domain)
   available <- x$relation$partitions
   if (is.null(partitions)) partitions <- available
-  if (!is.character(partitions) || length(partitions) < 1L ||
-      anyNA(partitions) || any(!nzchar(partitions)) ||
-      anyDuplicated(partitions) || any(!partitions %in% available)) {
-    stop("`partitions` must uniquely identify fitted relation partitions.",
-      call. = FALSE)
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
+      any(!partitions %in% available)) {
+    .input_error(
+      "`partitions` must uniquely identify fitted relation partitions."
+    )
   }
   partitions <- available[available %in% partitions]
   .require_relation_fit_capability(x, "learned_metric_input", partitions)
@@ -444,11 +441,11 @@ residual_pair_statistics <- function(
 
 .residual_pair_scope <- function(x, partitions = x$partitions) {
   .validate_residual_pair_statistics(x)
-  if (!is.character(partitions) || length(partitions) < 1L ||
-      anyNA(partitions) || any(!nzchar(partitions)) ||
-      anyDuplicated(partitions) || any(!partitions %in% x$partitions)) {
-    stop("A residual training scope must select unique atomic partitions.",
-      call. = FALSE)
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
+      any(!partitions %in% x$partitions)) {
+    .input_error(
+      "A residual training scope must select unique atomic partitions."
+    )
   }
   partitions <- x$partitions[x$partitions %in% partitions]
   values <- lapply(x$atomic[partitions], `[[`, "cross_products")

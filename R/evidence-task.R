@@ -26,19 +26,18 @@
     query, role = c("effect", "variation"), sampling_axis = NULL) {
   .validate_query_for_compile(query)
   if (!inherits(query, "effect_pair_query")) {
-    stop("A closed experimental boundary requires an axis-bound pair query.",
-      call. = FALSE)
+    .input_error(
+      "A closed experimental boundary requires an axis-bound pair query."
+    )
   }
   role <- match.arg(role)
   if (role == "variation" &&
       (!is.character(sampling_axis) || length(sampling_axis) != 1L ||
        is.na(sampling_axis) || !nzchar(sampling_axis))) {
-    stop("A variation boundary requires one declared sampling axis.",
-      call. = FALSE)
+    .input_error("A variation boundary requires one declared sampling axis.")
   }
   if (role == "effect" && !is.null(sampling_axis)) {
-    stop("An effect boundary cannot claim a repeated-sampling axis.",
-      call. = FALSE)
+    .input_error("An effect boundary cannot claim a repeated-sampling axis.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -87,10 +86,10 @@
 
 .neural_pair_query <- function(operator, left_domain, right_domain,
                                provenance = list()) {
-  if (!is.matrix(operator) || !is.numeric(operator) ||
-      any(dim(operator) < 1L) || any(!is.finite(operator))) {
-    stop("A neural pair query must be a finite nonempty numeric matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(operator) || any(dim(operator) < 1L)) {
+    .input_error(
+      "A neural pair query must be a finite nonempty numeric matrix."
+    )
   }
   operator <- unname(operator)
   storage.mode(operator) <- "double"
@@ -98,8 +97,9 @@
   right_domain <- .domain_reference(right_domain)
   if (nrow(operator) != left_domain$n_features ||
       ncol(operator) != right_domain$n_features) {
-    stop("Neural pair-query dimensions do not match their identified domains.",
-      call. = FALSE)
+    .contract_error(
+      "Neural pair-query dimensions do not match their identified domains."
+    )
   }
   .validate_effect_provenance(provenance, "neural pair-query provenance")
   semantic <- list(
@@ -117,16 +117,14 @@
 .validate_neural_pair_query <- function(x) {
   expected <- c("operator", "left_domain", "right_domain", "provenance",
     "signature")
-  if (!inherits(x, "effect_neural_pair_query") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Neural pair-query fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_neural_pair_query", expected)) {
+    .input_error("Neural pair-query fields are missing or noncanonical.")
   }
   rebuilt <- .neural_pair_query(
     x$operator, x$left_domain, x$right_domain, x$provenance
   )
   if (!identical(x, rebuilt)) {
-    stop("Neural pair-query identity is inconsistent.", call. = FALSE)
+    .contract_error("Neural pair-query identity is inconsistent.")
   }
   rebuilt
 }
@@ -203,20 +201,19 @@
   if (!inherits(x, "effect_evidence_boundary") || !is.list(x) ||
       !identical(x$boundary %in% c("experimental", "neural"), TRUE) ||
       !identical(x$state %in% c("open", "closed"), TRUE)) {
-    stop("Evidence-boundary fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Evidence-boundary fields are missing or noncanonical.")
   }
   if (x$boundary == "experimental") {
     expected <- c("boundary", "state", "left_space", "right_space", "query",
       "role", "sampling_axis", "signature")
     if (!identical(names(x), expected)) {
-      stop("Experimental-boundary fields are missing or noncanonical.",
-        call. = FALSE)
+      .input_error("Experimental-boundary fields are missing or noncanonical.")
     }
     rebuilt <- if (x$state == "open") {
       if (!is.null(x$query) || !is.null(x$role) || !is.null(x$sampling_axis)) {
-        stop("An open experimental boundary cannot carry a closure query.",
-          call. = FALSE)
+        .input_error(
+          "An open experimental boundary cannot carry a closure query."
+        )
       }
       .open_experimental_boundary(x$left_space, x$right_space)
     } else {
@@ -227,23 +224,23 @@
       "closure_kind", "bridge", "query", "left_frame", "right_frame",
       "edges", "signature")
     if (!identical(names(x), expected)) {
-      stop("Neural-boundary fields are missing or noncanonical.",
-        call. = FALSE)
+      .input_error("Neural-boundary fields are missing or noncanonical.")
     }
     if (x$state == "closed") {
-      if (!is.character(x$closure_kind) || length(x$closure_kind) != 1L ||
-          is.na(x$closure_kind) ||
+      if (!.is_string(x$closure_kind, allow_empty = TRUE) ||
           !x$closure_kind %in% c("bridge", "query") ||
-          !is.null(x$left_frame) ||
-          !is.null(x$right_frame) || !is.null(x$edges)) {
-        stop("A closed neural boundary requires one bridge or query closure.",
-          call. = FALSE)
+          !is.null(x$left_frame) || !is.null(x$right_frame) ||
+          !is.null(x$edges)) {
+        .input_error(
+          "A closed neural boundary requires one bridge or query closure."
+        )
       }
       if (x$closure_kind == "bridge") {
         if (is.null(x$bridge) || !is.null(x$query) ||
             !inherits(x$bridge, "effect_measurement_bridge")) {
-          stop("A bridge-closed neural boundary requires only its bridge.",
-            call. = FALSE)
+          .input_error(
+            "A bridge-closed neural boundary requires only its bridge."
+          )
         }
         .validate_domain_reference(x$left_space)
         .validate_domain_reference(x$right_space)
@@ -256,15 +253,16 @@
           closure_kind = "bridge",
           bridge = x$bridge$signature
         ))
-        if (!identical(x$signature, expected_signature)) {
-          stop("Closed neural-boundary identity is inconsistent.",
-            call. = FALSE)
-        }
+        .check_signature(
+          x$signature, expected_signature,
+          "Closed neural-boundary identity is inconsistent."
+        )
         rebuilt <- x
       } else {
         if (!is.null(x$bridge) || is.null(x$query)) {
-          stop("A query-closed neural boundary requires only its query.",
-            call. = FALSE)
+          .input_error(
+            "A query-closed neural boundary requires only its query."
+          )
         }
         rebuilt <- .closed_neural_query_boundary(x$query)
       }
@@ -272,8 +270,9 @@
       if (!is.null(x$closure_kind) || !is.null(x$bridge) ||
           !is.null(x$query) || is.null(x$left_frame) ||
           is.null(x$right_frame) || is.null(x$edges)) {
-        stop("An open neural boundary requires two frames and explicit edges.",
-          call. = FALSE)
+        .input_error(
+          "An open neural boundary requires two frames and explicit edges."
+        )
       }
       rebuilt <- .open_neural_boundary(
         x$left_frame, x$right_frame, x$edges
@@ -281,7 +280,7 @@
     }
   }
   if (!identical(x, rebuilt)) {
-    stop("Evidence-boundary identity is inconsistent.", call. = FALSE)
+    .contract_error("Evidence-boundary identity is inconsistent.")
   }
   rebuilt
 }
@@ -292,12 +291,10 @@
   kind <- match.arg(kind)
   completeness <- match.arg(completeness)
   if (kind == "scalar_field" && completeness != "query_only") {
-    stop("A scalar field is necessarily a query-only materialization.",
-      call. = FALSE)
+    .input_error("A scalar field is necessarily a query-only materialization.")
   }
   if (!is.null(projection) && !is.list(projection)) {
-    stop("Materialization projection identity must be a list or NULL.",
-      call. = FALSE)
+    .input_error("Materialization projection identity must be a list or NULL.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -312,17 +309,14 @@
 
 .validate_evidence_materialization <- function(x) {
   expected <- c("kind", "completeness", "projection", "signature")
-  if (!inherits(x, "effect_evidence_materialization") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Evidence-materialization fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_evidence_materialization", expected)) {
+    .input_error("Evidence-materialization fields are missing or noncanonical.")
   }
   rebuilt <- .evidence_materialization(
     x$kind, x$completeness, x$projection
   )
   if (!identical(x, rebuilt)) {
-    stop("Evidence-materialization identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Evidence-materialization identity is inconsistent.")
   }
   rebuilt
 }
@@ -383,10 +377,8 @@
 .validate_evidence_stage_plan <- function(x) {
   expected <- c("order", "partition_product", "normalization", "transform",
     "reduction", "projection", "lowering", "signature")
-  if (!inherits(x, "effect_evidence_stages") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Evidence-stage fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_evidence_stages", expected)) {
+    .input_error("Evidence-stage fields are missing or noncanonical.")
   }
   normalizer <- structure(x$normalization$operation,
     class = "effect_edge_normalizer")
@@ -398,8 +390,9 @@
     normalizer, transform, reducer, x$projection$operation
   )
   if (!identical(x, rebuilt)) {
-    stop("Evidence-stage identity or operation order is inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Evidence-stage identity or operation order is inconsistent."
+    )
   }
   rebuilt
 }
@@ -433,8 +426,9 @@
     FALSE
   )
   if (!isTRUE(valid)) {
-    stop("Requested materialization is incompatible with its open boundaries.",
-      call. = FALSE)
+    .contract_error(
+      "Requested materialization is incompatible with its open boundaries."
+    )
   }
   invisible(TRUE)
 }
@@ -452,10 +446,8 @@
   } else {
     .relation_source_capabilities(right_relation)
   }
-  if (!is.logical(same_relation) || length(same_relation) != 1L ||
-      is.na(same_relation)) {
-    stop("Evidence-task `same_relation` must be TRUE or FALSE.",
-      call. = FALSE)
+  if (!.is_flag(same_relation)) {
+    .input_error("Evidence-task `same_relation` must be TRUE or FALSE.")
   }
   left_id <- .relation_family_identity(left_relation)
   right_id <- if (same_relation) left_id else
@@ -470,22 +462,21 @@
   neural_boundary <- .validate_evidence_boundary(neural_boundary)
   if (experimental_boundary$boundary != "experimental" ||
       neural_boundary$boundary != "neural") {
-    stop("Evidence-task boundaries occupy the wrong typed axes.",
-      call. = FALSE)
+    .input_error("Evidence-task boundaries occupy the wrong typed axes.")
   }
   if (!.same_effect_space(experimental_boundary$left_space,
         left_relation$effect_space) ||
       !.same_effect_space(experimental_boundary$right_space,
         right_relation$effect_space)) {
-    stop("Experimental boundary axes differ from relation effect spaces.",
-      call. = FALSE)
+    .contract_error(
+      "Experimental boundary axes differ from relation effect spaces."
+    )
   }
   if (!.same_domain_reference(neural_boundary$left_space,
         left_relation$domain) ||
       !.same_domain_reference(neural_boundary$right_space,
         right_relation$domain)) {
-    stop("Neural boundary axes differ from relation neural spaces.",
-      call. = FALSE)
+    .contract_error("Neural boundary axes differ from relation neural spaces.")
   }
   if (neural_boundary$state == "closed") {
     if (neural_boundary$closure_kind == "bridge") {
@@ -520,8 +511,9 @@
     if (is.null(compatibility_semantic) ||
         materialization$kind != "effect_form" ||
         neural_boundary$closure_kind != "bridge") {
-      stop("Effect-form compatibility identity requires its legacy semantic.",
-        call. = FALSE)
+      .input_error(
+        "Effect-form compatibility identity requires its legacy semantic."
+      )
     }
     expected_compatibility <- .effect_task_semantic(
       left_id, right_id,
@@ -536,14 +528,16 @@
       materialization$projection
     )
     if (!identical(compatibility_semantic, expected_compatibility)) {
-      stop("Effect-form compatibility semantic differs from certified fields.",
-        call. = FALSE)
+      .contract_error(
+        "Effect-form compatibility semantic differs from certified fields."
+      )
     }
     semantic <- expected_compatibility
   } else {
     if (!is.null(compatibility_semantic)) {
-      stop("Native evidence tasks cannot carry a legacy compatibility semantic.",
-        call. = FALSE)
+      .input_error(
+        "Native evidence tasks cannot carry a legacy compatibility semantic."
+      )
     }
     semantic <- .evidence_task_general_semantic(
       left_id, right_id, spaces, ordered_edges, experimental_boundary,
@@ -583,10 +577,9 @@
     "stages", "materialization", "source_uses", "distinct_handle_keys",
     "identity_schema", "semantic", "task_id"
   )
-  if (!inherits(task, "effect_evidence_task") || !is.list(task) ||
-      !identical(names(task), expected) ||
+  if (!.sealed_fields(task, "effect_evidence_task", expected) ||
       !identical(task$schema_version, 1L)) {
-    stop("Evidence-task fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Evidence-task fields are missing or noncanonical.")
   }
   rebuilt <- .new_evidence_task(
     task$left_relation, task$right_relation, task$same_relation,
@@ -596,8 +589,9 @@
     if (task$identity_schema == "effect-form-v1") task$semantic else NULL
   )
   if (!identical(task, rebuilt)) {
-    stop("Evidence-task identity is inconsistent with its typed semantics.",
-      call. = FALSE)
+    .contract_error(
+      "Evidence-task identity is inconsistent with its typed semantics."
+    )
   }
   invisible(task)
 }
@@ -618,7 +612,7 @@
       "pair_difference_self_query")) {
     return(x)
   }
-  stop("Unknown effect-form projection identity.", call. = FALSE)
+  .input_error("Unknown effect-form projection identity.")
 }
 
 .reverse_evidence_task <- function(task) {
@@ -743,8 +737,9 @@
       task$materialization$kind != "effect_form" ||
       task$experimental_boundary$state != "open" ||
       task$neural_boundary$state != "closed") {
-    stop("Only the certified effect-form specialization has a legacy adapter.",
-      call. = FALSE)
+    .input_error(
+      "Only the certified effect-form specialization has a legacy adapter."
+    )
   }
   structure(list(
     left_relation = task$left_relation,
@@ -893,8 +888,9 @@
     .validate_query_for_compile(query)
     if (!.same_effect_space(query$left_space, left$effect_space) ||
         !.same_effect_space(query$right_space, right$effect_space)) {
-      stop("Pair-query axes must match the ordered relation effect spaces.",
-        call. = FALSE)
+      .contract_error(
+        "Pair-query axes must match the ordered relation effect spaces."
+      )
     }
     list(kind = "pair_query", query = query)
   } else if (inherits(query, "effect_query")) {
@@ -903,25 +899,29 @@
         !.same_effect_space(left$effect_space, right$effect_space) ||
         (!is.null(query$effect_space) &&
           !.same_effect_space(query$effect_space, left$effect_space))) {
-      stop("A bilinear query requires matching self-form relation axes.",
-        call. = FALSE)
+      .input_error(
+        "A bilinear query requires matching self-form relation axes."
+      )
     }
     list(kind = "bilinear_compatibility", query = query)
   } else if (is.matrix(query) && is.numeric(query) &&
       all(is.finite(query)) && nrow(query) > 0L && ncol(query) > 0L) {
     if (!same_relation) {
-      stop("Raw physical queries are only compatible with self-form tasks.",
-        call. = FALSE)
+      .input_error(
+        "Raw physical queries are only compatible with self-form tasks."
+      )
     }
     q <- length(left$effect_space$coordinates)
     if (nrow(query) != q * (q + 1L) / 2L) {
-      stop("A raw self-form query must match the symmetric-packed width.",
-        call. = FALSE)
+      .contract_error(
+        "A raw self-form query must match the symmetric-packed width."
+      )
     }
     list(kind = "physical_self_query", query = query)
   } else {
-    stop("Task queries must be NULL, axis-bound queries, or finite matrices.",
-      call. = FALSE)
+    .input_error(
+      "Task queries must be NULL, axis-bound queries, or finite matrices."
+    )
   }
   semantic <- .effect_task_semantic(
     left_id, right_id, left$effect_space, right$effect_space,
@@ -956,11 +956,9 @@
     "query_identity", "source_uses",
     "distinct_handle_keys", "task_id"
   )
-  if (!inherits(task, "effect_compiled_task") || !is.list(task) ||
-      !identical(names(task), expected) || !is.logical(task$same_relation) ||
-      length(task$same_relation) != 1L || is.na(task$same_relation)) {
-    stop("Compiled effect-task fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(task, "effect_compiled_task", expected) ||
+      !.is_flag(task$same_relation)) {
+    .input_error("Compiled effect-task fields are missing or noncanonical.")
   }
   .validate_relation(task$left_relation)
   .validate_relation(task$right_relation)
@@ -971,8 +969,9 @@
       (task$same_relation && !identical(left_id, right_id)) ||
       !identical(task$left_space, task$left_relation$effect_space) ||
       !identical(task$right_space, task$right_relation$effect_space)) {
-    stop("Compiled effect-task relation or axis identity is inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Compiled effect-task relation or axis identity is inconsistent."
+    )
   }
   .validate_ordered_partition_edges(
     task$ordered_edges,
@@ -989,16 +988,16 @@
     task$normalizer, task$transform, task$reducer
   )
   if (!identical(task$lowering, operation$lowering)) {
-    stop("Compiled effect-task lowering is inconsistent with its operations.",
-      call. = FALSE)
+    .contract_error(
+      "Compiled effect-task lowering is inconsistent with its operations."
+    )
   }
   sources <- .effect_task_source_uses(
     task$left_relation, task$right_relation, left_id, right_id
   )
   if (!identical(task$source_uses, sources$uses) ||
       !identical(task$distinct_handle_keys, sources$distinct_handle_keys)) {
-    stop("Compiled effect-task source-use identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Compiled effect-task source-use identity is inconsistent.")
   }
   semantic <- .effect_task_semantic(
     left_id, right_id, task$left_space, task$right_space,
@@ -1006,8 +1005,9 @@
     task$reducer, task$query_identity
   )
   if (!identical(task$task_id, .effect_task_id(semantic))) {
-    stop("Compiled effect-task identity is inconsistent with its semantics.",
-      call. = FALSE)
+    .contract_error(
+      "Compiled effect-task identity is inconsistent with its semantics."
+    )
   }
   invisible(task)
 }

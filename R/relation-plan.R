@@ -45,9 +45,8 @@
     "aliases", "residual_df", "observation_whitener", "capabilities",
     "design_receipt_id"
   )
-  if (!inherits(value, "effect_design_receipt") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Design-receipt fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_design_receipt", expected)) {
+    .input_error("Design-receipt fields are missing or noncanonical.")
   }
   if (!is.matrix(value$design) || !is.matrix(value$lowered_target) ||
       !is.character(value$coefficient_axis) ||
@@ -55,7 +54,7 @@
       !identical(colnames(value$lowered_target), value$coefficient_axis) ||
       !inherits(value$effect_space, "effect_space") ||
       !is.data.frame(value$row_lineage) || !is.list(value$capabilities)) {
-    stop("Design-receipt values or axes are invalid.", call. = FALSE)
+    .input_error("Design-receipt values or axes are invalid.")
   }
   .validate_effect_space(value$effect_space)
   semantic <- c(list(schema_version = 1L), value[setdiff(
@@ -63,7 +62,7 @@
   )])
   if (!identical(value$design_receipt_id,
       .sha256_signature(semantic, "design-receipt-sha256:"))) {
-    stop("Design-receipt identity is inconsistent.", call. = FALSE)
+    .contract_error("Design-receipt identity is inconsistent.")
   }
   value
 }
@@ -101,7 +100,7 @@
     design <- model$designs[[partition]][rows, , drop = FALSE]
     lowered[[partition]] <- if (raw) {
       if (!inherits(effects, "effect_raw_map")) {
-        stop("Raw design models require `raw_effect_map()`.", call. = FALSE)
+        .input_error("Raw design models require `raw_effect_map()`.")
       }
       if (!identical(colnames(effects$target), colnames(design))) {
         .capability_refusal(
@@ -288,7 +287,7 @@ plan_relation <- function(study, model, effects, observation_model,
   if (raw) {
     effects <- .validate_lowered_effect_map(effects)
     if (!inherits(effects, "effect_raw_map")) {
-      stop("A raw design requires `raw_effect_map()`.", call. = FALSE)
+      .input_error("A raw design requires `raw_effect_map()`.")
     }
   } else {
     effects <- .validate_effect_map(effects)
@@ -306,10 +305,7 @@ plan_relation <- function(study, model, effects, observation_model,
       )
     }
   }
-  if (!is.numeric(tolerance) || length(tolerance) != 1L ||
-      is.na(tolerance) || !is.finite(tolerance) || tolerance <= 0) {
-    stop("`tolerance` must be one positive finite number.", call. = FALSE)
-  }
+  .check_number(tolerance, "tolerance", positive = TRUE)
   effect_map_id <- effects$effect_map_id
   semantic <- list(
     schema_version = 1L,
@@ -359,16 +355,15 @@ plan_relation <- function(study, model, effects, observation_model,
     "lowered_effects", "design_receipts", "retained_rows", "sampling_unit",
     "whiteners", "tolerance", "capabilities", "relation_plan_id"
   )
-  if (!inherits(value, "effect_relation_plan") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Relation-plan fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_relation_plan", expected)) {
+    .input_error("Relation-plan fields are missing or noncanonical.")
   }
   rebuilt <- plan_relation(
     value$study, value$model, value$effects, value$observation_model,
     tolerance = value$tolerance
   )
   if (!identical(value, rebuilt)) {
-    stop("Relation-plan metadata or identity is inconsistent.", call. = FALSE)
+    .contract_error("Relation-plan metadata or identity is inconsistent.")
   }
   rebuilt
 }
@@ -494,7 +489,7 @@ relation_plan_receipts <- function(x) {
 #' @export
 estimate_relation <- function(x, ...) {
   if (length(list(...))) {
-    stop(
+    .input_error(
       "No additional `estimate_relation()` arguments are currently supported.",
       call. = FALSE
     )

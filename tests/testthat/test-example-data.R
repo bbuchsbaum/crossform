@@ -48,13 +48,17 @@ test_that("the generated fixture supports the complete newcomer workflow", {
 })
 
 test_that("the generated fixture rejects ambiguous dimensions and noise", {
-  expect_error(example_fmri_effects(dimensions = c(3, 3)), "three integers")
-  expect_error(example_fmri_effects(partitions = 1L), "at least 2")
+  expect_error(example_fmri_effects(dimensions = c(3, 3)), "three integers",
+    class = "effect_input_error")
+  expect_error(example_fmri_effects(partitions = 1L), "at least 2",
+    class = "effect_input_error")
   expect_error(
     example_fmri_effects(trials_per_condition = 1L), "at least 2"
-  )
-  expect_error(example_fmri_effects(noise_sd = 0), "positive")
-  expect_error(example_fmri_effects(searchlight_radius = NA_real_), "positive")
+  , class = "effect_input_error")
+  expect_error(example_fmri_effects(noise_sd = 0), "positive",
+    class = "effect_input_error")
+  expect_error(example_fmri_effects(searchlight_radius = NA_real_), "positive",
+    class = "effect_input_error")
 })
 
 test_that("the fixture plants one pattern block and one mean-shift block", {

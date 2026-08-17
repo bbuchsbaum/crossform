@@ -99,7 +99,7 @@ test_that("public measurement frames fail before brain-scale dense conversion", 
   expect_error(
     measurement_frame(frame),
     "small-node limit.*support-local geometry plan"
-  )
+  , class = "effect_input_error")
   expect_equal(
     eval(formals(reconstruct_evidence)$workspace_bytes),
     512 * 1024^2,
@@ -328,5 +328,5 @@ test_that("public reconstruction distinguishes exact and projected results", {
   expect_equal(result$operator, reference, tolerance = 1e-12)
   expect_error(reconstruct_evidence(
     form, between, workspace_bytes = 1
-  ), "exceeding")
+  ), "exceeding", class = "effect_input_error")
 })

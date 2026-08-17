@@ -60,6 +60,8 @@
 #'   errors, available only when the fit retains the required residual channel.
 #' - [catch_refusal()] --- capture a refused operation and read the unmet
 #'   requirements and their remedies as data.
+#' - [crossform_conditions] --- the four classes every crossform failure
+#'   carries, so a caller can branch on the cause instead of the prose.
 #'
 #' @section Scope:
 #'
@@ -71,6 +73,12 @@
 #' - Crossvalidated estimates are retained when negative; they are not clipped.
 #' - Uncertainty is refused rather than approximated when the fit cannot
 #'   support the admitted analytic law.
+#' - Every failure is a classed condition. A wrong argument raises
+#'   `effect_input_error`; two objects that do not belong together raise
+#'   `effect_contract_error`; an impossible internal result raises
+#'   `effect_invariant_error` and asks for a bug report; an interpretation
+#'   that cannot be earned from the supplied objects raises
+#'   `effect_capability_refusal`. See [crossform_conditions].
 #'
 #' @keywords internal
 #' @name crossform-package

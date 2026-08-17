@@ -66,12 +66,12 @@ test_that("compute policies are canonicalized and revalidated at preflight", {
   expect_error(
     crossform:::.execution_preflight(mutated, function() stop("must not inspect")),
     "positive integer"
-  )
+  , class = "effect_input_error")
 
   forged <- policy
   forged$extra <- TRUE
   expect_error(
     crossform:::.execution_preflight(forged, function() stop("must not inspect")),
     "canonical order"
-  )
+  , class = "effect_input_error")
 })

@@ -24,6 +24,9 @@
 # digest is never printed: the point of quoting one in an error is to let the
 # reader see that two identities differ, and twelve digits does that.
 .msg_signature <- function(x, chars = 12L) {
+  # Spelled out rather than delegated to `.is_string()`: this file is called
+  # by `check.R`, so calling back into it would make layer 1 mutually
+  # recursive for the sake of one clause.
   if (is.null(x) || !is.character(x) || length(x) != 1L || is.na(x) ||
       !nzchar(x)) {
     return("none")
@@ -65,9 +68,29 @@
   if (identical(primary, "numeric")) primary <- "numeric"
   if (primary %in% c("numeric", "integer", "character", "logical", "double",
       "complex", "list", "factor")) {
-    return(sprintf("a %s vector of length %d", primary, length(x)))
+    article <- if (primary %in% c("integer")) "an" else "a"
+    return(sprintf("%s %s vector of length %d", article, primary, length(x)))
   }
   sprintf("an object of class `%s`", paste(class(x), collapse = "/"))
+}
+
+# The same job as `.msg_value()`, but for the scalar case a guard usually
+# fails on: when one value was wanted and one value arrived, naming its class
+# and length says nothing the reader did not already know, so show the value
+# itself. `.msg_value()` remains the description for everything else, and is
+# left untouched because existing messages quote it verbatim.
+.msg_received <- function(x) {
+  if (is.null(x)) return("NULL")
+  if (!is.atomic(x) || length(x) != 1L) return(.msg_value(x))
+  if (is.na(x)) return(sprintf("NA (%s)", .msg_value(x)))
+  if (is.character(x)) {
+    if (!nzchar(x)) return("an empty string")
+    shown <- if (nchar(x) > 40L) paste0(substr(x, 1L, 40L), "...") else x
+    return(sprintf("\"%s\"", shown))
+  }
+  if (is.logical(x)) return(if (x) "TRUE" else "FALSE")
+  if (is.numeric(x)) return(format(x, scientific = FALSE))
+  .msg_value(x)
 }
 
 # One measurement position, checked against the number of measurements the
@@ -80,15 +103,14 @@
   usable <- is.numeric(value) && length(value) == 1L && !is.na(value) &&
     is.finite(value) && value %% 1 == 0
   if (!usable) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`%s` must be one measurement index in 1..%d; received %s."
-    ), argument, measurements, .msg_value(value)), call. = FALSE)
+    ), argument, measurements, .msg_value(value)))
   }
   if (value < 1L || value > measurements) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "`%s` = %s is outside the %s's 1..%d measurements."
-    ), argument, format(value, scientific = FALSE), subject, measurements),
-      call. = FALSE)
+    ), argument, format(value, scientific = FALSE), subject, measurements))
   }
   as.integer(value)
 }

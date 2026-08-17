@@ -63,23 +63,26 @@ test_that("searchlight neighborhoods respect domain geometry", {
 test_that("frame compilation rejects mismatches and uncovered conservation", {
   domain <- grid_domain()
   expect_error(compile_frame(regions(c("a", "b")), domain),
-    "supplied 2 labels but the domain has 9 features")
+    "supplied 2 labels but the domain has 9 features",
+    class = "effect_input_error")
   expect_error(compile_frame(
     regions(c(rep("a", 8), NA), normalization = "conservative"), domain
-  ), "cover every")
+  ), "cover every", class = "effect_input_error")
   no_coordinates <- abstract_domain(3)
   expect_error(compile_frame(searchlights(1), no_coordinates),
-    "Searchlights need feature coordinates")
+    "Searchlights need feature coordinates", class = "effect_input_error")
 
   forged <- searchlights(1)
   forged$invented <- TRUE
-  expect_error(compile_frame(forged, domain), "noncanonical")
+  expect_error(compile_frame(forged, domain), "noncanonical",
+    class = "effect_input_error")
 })
 
 test_that("compiled frames remain fail closed after mutation", {
   compiled <- compile_frame(searchlights(1.5), grid_domain())
   compiled$weights@x[[1]] <- -1
-  expect_error(compile_lowering(compiled, bilinear_query(diag(2))), "nonnegative")
+  expect_error(compile_lowering(compiled, bilinear_query(diag(2))), "nonnegative",
+    class = "effect_input_error")
 })
 
 test_that("unnormalized searchlight frames carry numeric weights and plan", {

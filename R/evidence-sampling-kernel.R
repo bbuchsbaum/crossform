@@ -20,36 +20,35 @@
                                       source = list()) {
   .validate_evidence_sampling_plan(plan, deep = FALSE)
   .require_sampling_covariance(plan)
-  if (!is.matrix(signal_factor) || !is.numeric(signal_factor) ||
-      nrow(signal_factor) < 1L || ncol(signal_factor) < 1L ||
-      any(!is.finite(signal_factor)) || !is.matrix(xi_factor) ||
-      !is.numeric(xi_factor) || nrow(xi_factor) != nrow(signal_factor) ||
-      ncol(xi_factor) < 1L || any(!is.finite(xi_factor))) {
-    stop("Sampling covariance requires finite row-factor matrices with one shared evidence axis.",
-      call. = FALSE)
+  if (!.is_finite_matrix(signal_factor) || nrow(signal_factor) < 1L ||
+      ncol(signal_factor) < 1L || !.is_finite_matrix(xi_factor) ||
+      nrow(xi_factor) != nrow(signal_factor) || ncol(xi_factor) < 1L) {
+    .input_error(paste0(
+      "Sampling covariance requires finite row-factor matrices with one ",
+      "shared evidence axis."
+    ))
   }
-  if (!is.numeric(noise_trace) || length(noise_trace) != 1L ||
-      is.na(noise_trace) || !is.finite(noise_trace) ||
-      noise_trace < 0) {
-    stop("The residual noise trace must be one finite nonnegative value.",
-      call. = FALSE)
+  if (!.is_number(noise_trace) || noise_trace < 0) {
+    .input_error(
+      "The residual noise trace must be one finite nonnegative value."
+    )
   }
-  if (!is.numeric(partitions) || length(partitions) != 1L ||
-      is.na(partitions) || !is.finite(partitions) ||
-      partitions %% 1 != 0 || partitions < 2L ||
+  if (!.is_number(partitions) || partitions %% 1 != 0 || partitions < 2L ||
       as.integer(partitions) != plan$partition$count) {
-    stop("The covariance partition count must match the sampling plan.",
-      call. = FALSE)
+    .contract_error(
+      "The covariance partition count must match the sampling plan."
+    )
   }
   dimension <- nrow(signal_factor)
   if (is.null(labels)) labels <- paste0("evidence", seq_len(dimension))
-  if (!is.character(labels) || length(labels) != dimension || anyNA(labels) ||
-      any(!nzchar(labels)) || anyDuplicated(labels)) {
-    stop("Sampling covariance labels must uniquely identify every evidence coordinate.",
-      call. = FALSE)
+  if (!.is_strings(labels, unique = TRUE) || length(labels) != dimension) {
+    .input_error(paste0(
+      "Sampling covariance labels must uniquely identify every evidence ",
+      "coordinate."
+    ))
   }
   if (!is.list(source)) {
-    stop("Sampling covariance source metadata must be a list.", call. = FALSE)
+    .input_error("Sampling covariance source metadata must be a list.")
   }
   rownames(signal_factor) <- labels
   rownames(xi_factor) <- labels
@@ -79,13 +78,12 @@
   spectrum <- eigen(value, symmetric = TRUE)
   scale <- max(1, max(abs(spectrum$values)))
   if (min(spectrum$values) < -1e-10 * scale) {
-    stop(sprintf("%s must be positive semidefinite.", what), call. = FALSE)
+    .input_error(sprintf("%s must be positive semidefinite.", what))
   }
   retained <- spectrum$values > 1e-12 * scale
   if (!any(retained)) {
     if (identical(empty, "refuse")) {
-      stop(sprintf("%s has no positive sampling direction.", what),
-        call. = FALSE)
+      .input_error(sprintf("%s has no positive sampling direction.", what))
     }
     # A degenerate covariance contributes nothing; the rank-one zero column
     # keeps the factorized form well formed instead of losing its axis.
@@ -130,13 +128,11 @@
       effective_dimension = if (raw > 0) total^2 / raw else 0
     ))
   }
-  if (!is.numeric(residual_df) || length(residual_df) != 1L ||
-      is.na(residual_df) || !is.finite(residual_df) ||
-      residual_df %% 1 != 0 || residual_df < 2L) {
-    stop(paste0(
+  if (!.is_number(residual_df) || residual_df %% 1 != 0 || residual_df < 2L) {
+    .input_error(paste0(
       "Residual degrees of freedom must be one integer of at least two when ",
       "the residual covariance is a plug-in estimate."
-    ), call. = FALSE)
+    ))
   }
   nu <- as.double(residual_df)
   value <- (nu^2 / ((nu - 1) * (nu + 2))) * (raw - total^2 / nu)
@@ -209,44 +205,35 @@
     plan$evidence_plan$task$left_relation$effect_space$coordinates
   plan_effects <- length(plan_coordinates)
   if (is.matrix(contrasts) && ncol(contrasts) != plan_effects) {
-    stop(sprintf(paste0(
+    .contract_error(sprintf(paste0(
       "Sampling contrasts declare %d experimental effects but the bound ",
       "evidence plan has %d; a covariance artifact must carry the identity ",
       "of the plan it claims."
-    ), ncol(contrasts), plan_effects), call. = FALSE)
+    ), ncol(contrasts), plan_effects))
   }
   if (is.matrix(contrasts) && !is.null(colnames(contrasts)) &&
       !identical(colnames(contrasts), plan_coordinates)) {
-    stop(paste0(
+    .contract_error(paste0(
       "Sampling contrast effect names do not match the bound evidence ",
       "plan's effect space."
-    ), call. = FALSE)
+    ))
   }
-  if (!is.matrix(contrasts) || !is.numeric(contrasts) ||
-      nrow(contrasts) < 1L || ncol(contrasts) < 2L ||
-      any(!is.finite(contrasts)) ||
-      !is.matrix(signal_patterns) || !is.numeric(signal_patterns) ||
-      nrow(signal_patterns) != ncol(contrasts) ||
-      ncol(signal_patterns) < 1L || any(!is.finite(signal_patterns)) ||
-      !is.matrix(effect_covariance) || !is.numeric(effect_covariance) ||
-      !identical(dim(effect_covariance),
-        as.integer(rep(ncol(contrasts), 2L))) ||
-      any(!is.finite(effect_covariance)) ||
+  if (!.is_finite_matrix(contrasts) || nrow(contrasts) < 1L ||
+      ncol(contrasts) < 2L || !.is_finite_matrix(signal_patterns) ||
+      nrow(signal_patterns) != ncol(contrasts) || ncol(signal_patterns) < 1L ||
+      !.is_finite_matrix(effect_covariance) ||
+      !identical(dim(effect_covariance), as.integer(rep(ncol(contrasts), 2L))) ||
       max(abs(effect_covariance - t(effect_covariance))) > 1e-10 ||
-      !is.matrix(residual_covariance) ||
-      !is.numeric(residual_covariance) ||
+      !.is_finite_matrix(residual_covariance) ||
       nrow(residual_covariance) != ncol(signal_patterns) ||
       ncol(residual_covariance) != ncol(signal_patterns) ||
-      any(!is.finite(residual_covariance)) ||
       max(abs(residual_covariance - t(residual_covariance))) > 1e-10) {
-    stop("Sampling components have incompatible or non-finite axes.",
-      call. = FALSE)
+    .input_error("Sampling components have incompatible or non-finite axes.")
   }
-  if (!is.numeric(normalization) || length(normalization) != 1L ||
-      is.na(normalization) || !is.finite(normalization) ||
-      normalization <= 0) {
-    stop("Sampling covariance normalization must be one positive finite value.",
-      call. = FALSE)
+  if (!.is_number(normalization) || normalization <= 0) {
+    .input_error(
+      "Sampling covariance normalization must be one positive finite value."
+    )
   }
   effect_root <- .sampling_psd_root(
     effect_covariance, "Effect covariance", empty = "refuse"
@@ -298,21 +285,16 @@
   if (.validated_before(x, "sampling_covariance", deep)) return(invisible(x))
   expected <- c("plan", "signal_factor", "xi_factor", "noise_trace", "partitions",
     "labels", "dimension", "source", "signature")
-  if (!inherits(x, "effect_sampling_covariance") || !is.list(x) ||
-      !identical(names(x), expected) || !is.matrix(x$signal_factor) ||
-      !is.matrix(x$xi_factor) ||
+  if (!.sealed_fields(x, "effect_sampling_covariance", expected) ||
+      !is.matrix(x$signal_factor) || !is.matrix(x$xi_factor) ||
       nrow(x$signal_factor) != nrow(x$xi_factor) ||
-      !is.numeric(x$noise_trace) || length(x$noise_trace) != 1L ||
-      is.na(x$noise_trace) || !is.finite(x$noise_trace) ||
-      x$noise_trace < 0 || !is.integer(x$partitions) ||
-      length(x$partitions) != 1L || x$partitions < 2L ||
-      !is.character(x$labels) || length(x$labels) != nrow(x$signal_factor) ||
-      anyNA(x$labels) || any(!nzchar(x$labels)) || anyDuplicated(x$labels) ||
-      !is.integer(x$dimension) || length(x$dimension) != 1L ||
-      x$dimension != nrow(x$signal_factor) || !is.list(x$source) ||
-      !.strong_sha256(x$signature)) {
-    stop("Sampling-covariance fields are missing or noncanonical.",
-      call. = FALSE)
+      !.is_number(x$noise_trace) || x$noise_trace < 0 ||
+      !is.integer(x$partitions) || length(x$partitions) != 1L ||
+      x$partitions < 2L || !.is_strings(x$labels, unique = TRUE) ||
+      length(x$labels) != nrow(x$signal_factor) || !is.integer(x$dimension) ||
+      length(x$dimension) != 1L || x$dimension != nrow(x$signal_factor) ||
+      !is.list(x$source) || !.strong_sha256(x$signature)) {
+    .input_error("Sampling-covariance fields are missing or noncanonical.")
   }
   .validate_evidence_sampling_plan(x$plan, deep = FALSE)
   .require_sampling_covariance(x$plan)
@@ -320,12 +302,13 @@
       !identical(rownames(x$signal_factor), x$labels) ||
       !identical(rownames(x$xi_factor), x$labels) ||
       any(!is.finite(x$signal_factor)) || any(!is.finite(x$xi_factor))) {
-    stop("Sampling-covariance axes, plan, or row factors are inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Sampling-covariance axes, plan, or row factors are inconsistent."
+    )
   }
   if (isTRUE(deep) && !identical(x$signature,
       .sampling_covariance_signature(x))) {
-    stop("Sampling-covariance identity is inconsistent.", call. = FALSE)
+    .contract_error("Sampling-covariance identity is inconsistent.")
   }
   .record_validated(x, "sampling_covariance", deep)
   invisible(x)
@@ -348,13 +331,12 @@
 
 .sampling_covariance_entries <- function(x, row, column) {
   .validate_sampling_covariance(x, deep = FALSE)
-  if (!is.numeric(row) || !is.numeric(column) || length(row) < 1L ||
-      !identical(length(row), length(column)) || anyNA(row) ||
-      anyNA(column) || any(!is.finite(row)) || any(!is.finite(column)) ||
-      any(row %% 1 != 0) || any(column %% 1 != 0) || any(row < 1L) ||
-      any(column < 1L) || any(row > x$dimension) ||
+  if (!.is_finite_numeric(row) || !.is_finite_numeric(column) ||
+      length(row) < 1L || !identical(length(row), length(column)) ||
+      anyNA(row) || anyNA(column) || any(row %% 1 != 0) || any(column %% 1 != 0) ||
+      any(row < 1L) || any(column < 1L) || any(row > x$dimension) ||
       any(column > x$dimension)) {
-    stop("Sampling-covariance entry indices are invalid.", call. = FALSE)
+    .input_error("Sampling-covariance entry indices are invalid.")
   }
   row <- as.integer(row)
   column <- as.integer(column)
@@ -377,13 +359,12 @@
     colnames(value)
   }
   if (is.null(identifiers)) return(value)
-  if (!is.character(identifiers) || anyNA(identifiers) ||
-      any(!nzchar(identifiers)) || anyDuplicated(identifiers) ||
+  if (!.is_strings(identifiers, unique = TRUE) ||
       !setequal(identifiers, labels)) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Named %s axes must identify every sampling-covariance coordinate exactly once.",
       what
-    ), call. = FALSE)
+    ))
   }
   if (is.null(dim(value))) {
     value[labels]
@@ -399,11 +380,10 @@
   dimension <- nrow(left)
   rank_left <- ncol(left)
   rank_right <- ncol(right)
-  if (!is.numeric(workspace_bytes) || length(workspace_bytes) != 1L ||
-      is.na(workspace_bytes) || !is.finite(workspace_bytes) ||
-      workspace_bytes < 8) {
-    stop("The Hadamard-Gram workspace budget must be positive and finite.",
-      call. = FALSE)
+  if (!.is_number(workspace_bytes) || workspace_bytes < 8) {
+    .input_error(
+      "The Hadamard-Gram workspace budget must be positive and finite."
+    )
   }
   # For one right-hand side v,
   #
@@ -416,11 +396,11 @@
   result <- matrix(0, dimension, ncol(value))
   middle_bytes <- 8 * as.double(rank_left) * rank_right
   if (!is.finite(middle_bytes) || middle_bytes > workspace_bytes) {
-    stop(sprintf(
+    .input_error(sprintf(
       paste0("Exact Hadamard-Gram application requires at least %.0f bytes ",
         "for its compact interaction workspace, exceeding the %.0f-byte budget."),
       middle_bytes, workspace_bytes
-    ), call. = FALSE)
+    ))
   }
   temporary_rank <- min(rank_left, rank_right)
   available <- max(8, workspace_bytes - middle_bytes)
@@ -468,11 +448,11 @@
   pair_rank <- as.double(ncol(left)) * ncol(right)
   required <- 8 * pair_rank * output_dimension
   if (!is.finite(required) || required > workspace_bytes) {
-    stop(sprintf(
+    .input_error(sprintf(
       paste0("Exact Hadamard-Gram transport requires %.0f bytes for its ",
         "factorized output workspace, exceeding the %.0f-byte budget."),
       required, workspace_bytes
-    ), call. = FALSE)
+    ))
   }
   # If a_j is one output row, its transported row-tensor factor is
   # vec(L' diag(a_j) R). Their Gram matrix is exactly
@@ -497,11 +477,11 @@
     value, x$labels, axis = "rows", what = "covariance-action"
   )
   if (vector_input) value <- matrix(value, ncol = 1L)
-  if (!is.matrix(value) || !is.numeric(value) ||
-      nrow(value) != x$dimension || ncol(value) < 1L ||
-      any(!is.finite(value))) {
-    stop("Sampling covariance can act only on finite evidence-coordinate vectors.",
-      call. = FALSE)
+  if (!.is_finite_matrix(value) || nrow(value) != x$dimension ||
+      ncol(value) < 1L) {
+    .input_error(
+      "Sampling covariance can act only on finite evidence-coordinate vectors."
+    )
   }
   coefficient <- .sampling_covariance_coefficients(x)
   result <- coefficient$signal * .sampling_hadamard_gram_apply(
@@ -530,10 +510,12 @@
   value <- .sampling_align_covariance_value(
     value, x$labels, axis = "rows", what = "quadratic-form"
   )
-  if (!is.numeric(value) || is.matrix(value) ||
-      length(value) != x$dimension || any(!is.finite(value))) {
-    stop("A covariance quadratic form requires one finite evidence-coordinate vector.",
-      call. = FALSE)
+  if (!.is_finite_numeric(value) || is.matrix(value) ||
+      length(value) != x$dimension) {
+    .input_error(paste0(
+      "A covariance quadratic form requires one finite evidence-coordinate ",
+      "vector."
+    ))
   }
   coefficient <- .sampling_covariance_coefficients(x)
   coefficient$signal * .sampling_hadamard_gram_quadratic(
@@ -548,10 +530,10 @@
   map <- .sampling_align_covariance_value(
     map, x$labels, axis = "columns", what = "transport-input"
   )
-  if (!is.matrix(map) || !is.numeric(map) || ncol(map) != x$dimension ||
-      nrow(map) < 1L || any(!is.finite(map))) {
-    stop("A covariance transport must be a finite output-by-evidence matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(map) || ncol(map) != x$dimension || nrow(map) < 1L) {
+    .input_error(
+      "A covariance transport must be a finite output-by-evidence matrix."
+    )
   }
   coefficient <- .sampling_covariance_coefficients(x)
   value <- coefficient$signal * .sampling_hadamard_gram_transport(
@@ -569,10 +551,10 @@
 .sampling_covariance_materialize <- function(
     x, max_bytes = 512 * 1024^2) {
   .validate_sampling_covariance(x, deep = FALSE)
-  if (!is.numeric(max_bytes) || length(max_bytes) != 1L ||
-      is.na(max_bytes) || !is.finite(max_bytes) || max_bytes < 8) {
-    stop("`max_bytes` must be one finite positive materialization budget.",
-      call. = FALSE)
+  if (!.is_number(max_bytes) || max_bytes < 8) {
+    .input_error(
+      "`max_bytes` must be one finite positive materialization budget."
+    )
   }
   output_bytes <- 8 * as.double(x$dimension)^2
   # One exact row block needs the signal Gram, Xi Gram, and result workspace.
@@ -580,11 +562,11 @@
   minimum_workspace <- 64 * as.double(x$dimension)
   required <- output_bytes + minimum_workspace
   if (!is.finite(required) || required > max_bytes) {
-    stop(sprintf(
+    .input_error(sprintf(
       paste0("Dense sampling covariance requires at least %.0f bytes including ",
         "one exact working row, exceeding the %.0f-byte materialization budget."),
       required, max_bytes
-    ), call. = FALSE)
+    ))
   }
   coefficient <- .sampling_covariance_coefficients(x)
   available <- max_bytes - output_bytes
@@ -620,8 +602,10 @@
       !identical(plan$target$signature, covariance$plan$target$signature) ||
       !identical(plan$sampling_axis, covariance$plan$sampling_axis) ||
       !identical(plan$spatial_scope, covariance$plan$spatial_scope)) {
-    stop("The sampling operation and covariance source have different scientific identities.",
-      call. = FALSE)
+    .contract_error(paste0(
+      "The sampling operation and covariance source have different scientific ",
+      "identities."
+    ))
   }
   kind <- plan$operation$operation
   argument <- plan$operation$argument
@@ -629,8 +613,7 @@
     diagonal = .sampling_covariance_diagonal(covariance),
     selected_entries = {
       if (!is.matrix(argument) || ncol(argument) != 2L) {
-        stop("Selected entries require a two-column index matrix.",
-          call. = FALSE)
+        .input_error("Selected entries require a two-column index matrix.")
       }
       .sampling_covariance_entries(covariance, argument[, 1L], argument[, 2L])
     },
@@ -638,6 +621,6 @@
     quadratic_form = .sampling_covariance_quadratic(covariance, argument),
     transport = .sampling_covariance_transport(covariance, argument),
     materialize = .sampling_covariance_materialize(covariance, max_bytes),
-    stop("Unknown sampling-covariance operation.", call. = FALSE)
+    .input_error("Unknown sampling-covariance operation.")
   )
 }

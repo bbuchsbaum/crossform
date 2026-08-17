@@ -9,15 +9,15 @@
 
 .relation_source_capabilities <- function(x) {
   if (is.null(x$capabilities)) {
-    stop(paste0(
+    .input_error(paste0(
       "Opaque relation sources require explicit `source_capabilities()` ",
       "before execution."
-    ), call. = FALSE)
+    ))
   }
   capabilities <- lapply(x$capabilities, .validate_source_capabilities)
   if (!all(vapply(capabilities, function(value) isTRUE(value$block_read),
     logical(1)))) {
-    stop("All relation sources must support bounded block reads.", call. = FALSE)
+    .input_error("All relation sources must support bounded block reads.")
   }
   capabilities
 }

@@ -44,56 +44,56 @@ test_that("a malformed pair specification is refused with its reason", {
   expect_error(
     crossform:::.pair_difference_query("only"),
     "at least two distinct named effects"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(c("a", "a")),
     "at least two distinct named effects"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(c(1, 2)),
     "at least two distinct named effects"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects,
       cbind("face", "lure")),
     "`lure`.*is not a declared experimental effect"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects, "face"),
     "must be a two-column matrix naming the effect pairs"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects, cbind(1L, 9L)),
     "two-column matrix of effect names or of indices in 1:3"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects, cbind(1.5, 2)),
     "two-column matrix of effect names or of indices in 1:3"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects, cbind(2L, 2L)),
     "distance from `house` to itself, which is zero by construction"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects,
       rbind(c(1L, 2L), c(2L, 1L))),
     "duplicate effect pairs"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects, cbind(1L, 2L),
       labels = c("a", "b")),
     "Pair labels must name every pair"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects,
       coefficients = matrix(1, 1L, 2L)),
     "finite output-by-pair matrix aligned"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.pair_difference_query(structured_effects,
       coefficients = matrix(c(1, NA, 1), 1L, 3L)),
     "finite output-by-pair matrix aligned"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("output width, labels, and payload follow the query representation", {
@@ -112,7 +112,8 @@ test_that("output width, labels, and payload follow the query representation", {
   expect_identical(crossform:::.query_output_width(reduced), 2L)
   expect_identical(crossform:::.query_output_width(dense), 2L)
   expect_error(crossform:::.query_output_width(NULL),
-    "A query is required to report an output width")
+    "A query is required to report an output width",
+    class = "effect_input_error")
 
   expect_identical(crossform:::.query_output_labels(pairs_only),
     pairs_only$pair_labels)
@@ -220,17 +221,17 @@ test_that("pair-difference queries are admitted only on one shared axis", {
       query, structured_effects, structured_effects, FALSE
     ),
     "self-form queries"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.validate_pair_difference_for_task(
       query, structured_effects, c("x", "y", "z"), TRUE
     ),
     "self-form queries"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.validate_pair_difference_for_task(
       query, c("face", "house", "lure"), c("face", "house", "lure"), TRUE
     ),
     "self-form queries"
-  )
+  , class = "effect_input_error")
 })

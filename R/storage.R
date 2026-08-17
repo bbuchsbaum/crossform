@@ -2,18 +2,16 @@
 
 .file_geometry_store <- function(path, dim, create = FALSE,
                                  codec = "symmetric_packed") {
-  if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
-    stop("`path` must be one nonempty file path.", call. = FALSE)
-  }
-  if (!is.numeric(dim) || length(dim) != 2L || any(!is.finite(dim)) ||
-      any(dim < 1) || any(dim %% 1 != 0)) {
-    stop("`dim` must contain two positive integers.", call. = FALSE)
+  .check_string(path, "path", what = "one nonempty file path")
+  if (!.is_finite_numeric(dim) || length(dim) != 2L || any(dim < 1) ||
+      any(dim %% 1 != 0)) {
+    .input_error("`dim` must contain two positive integers.")
   }
   dim <- as.integer(dim)
   format <- .effect_form_codec_format(codec)
   expected_bytes <- prod(as.double(dim)) * 8
   if (create) {
-    if (file.exists(path)) stop("Refusing to overwrite an existing geometry store.", call. = FALSE)
+    if (file.exists(path)) .input_error("Refusing to overwrite an existing geometry store.")
     connection <- file(path, open = "w+b")
     values_remaining <- prod(as.double(dim))
     zero_block <- rep(0, min(values_remaining, 8192))
@@ -25,7 +23,7 @@
     close(connection)
   }
   if (!file.exists(path) || file.info(path)$size != expected_bytes) {
-    stop("Geometry store file has the wrong size.", call. = FALSE)
+    .input_error("Geometry store file has the wrong size.")
   }
 
   read_rows <- function(rows = NULL) {
@@ -69,7 +67,7 @@
 .write_geometry_tile <- function(store, rows, coordinates, value) {
   if (!inherits(store, "effect_geometry_store") ||
       !identical(store$representation, "block_backed")) {
-    stop("`store` must be a block-backed geometry store.", call. = FALSE)
+    .input_error("`store` must be a block-backed geometry store.")
   }
   rows <- as.integer(rows)
   coordinates <- as.integer(coordinates)
@@ -78,7 +76,7 @@
       any(coordinates < 1L) || any(coordinates > store$dim[[2L]]) ||
       !is.matrix(value) || !identical(dim(value), c(length(rows), length(coordinates))) ||
       any(!is.finite(value))) {
-    stop("Invalid geometry tile coordinates, shape, or values.", call. = FALSE)
+    .input_error("Invalid geometry tile coordinates, shape, or values.")
   }
   connection <- file(store$path, open = "r+b")
   on.exit(close(connection), add = TRUE)
@@ -93,14 +91,14 @@
 .read_geometry_tile <- function(store, rows, coordinates) {
   if (!inherits(store, "effect_geometry_store") ||
       !identical(store$representation, "block_backed")) {
-    stop("`store` must be a block-backed geometry store.", call. = FALSE)
+    .input_error("`store` must be a block-backed geometry store.")
   }
   rows <- as.integer(rows)
   coordinates <- as.integer(coordinates)
   if (length(rows) < 1L || length(coordinates) < 1L ||
       any(diff(rows) != 1L) || any(rows < 1L) || any(rows > store$dim[[1L]]) ||
       any(coordinates < 1L) || any(coordinates > store$dim[[2L]])) {
-    stop("Invalid geometry tile coordinates.", call. = FALSE)
+    .input_error("Invalid geometry tile coordinates.")
   }
   out <- matrix(0, length(rows), length(coordinates))
   connection <- file(store$path, open = "rb")
@@ -112,7 +110,7 @@
       size = 8, endian = "little")
   }
   if (any(!is.finite(out))) {
-    stop("Geometry tile contains non-finite values.", call. = FALSE)
+    .input_error("Geometry tile contains non-finite values.")
   }
   out
 }

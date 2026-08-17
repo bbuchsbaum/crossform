@@ -342,9 +342,9 @@ test_that("invalid rectangular kernel semantics fail before readers", {
     right_effects = fixture$right_effects,
     ordered_edges = fixture$edges,
     codec = "symmetric_packed"
-  ), "self-adjoint")
+  ), "self-adjoint", class = "effect_input_error")
   expect_error(run_rectangular_kernel(
     fixture, query = matrix(1, 5, 1), read_left = reader, read_right = reader
-  ), "physical form")
+  ), "physical form", class = "effect_contract_error")
   expect_identical(reads, 0L)
 })

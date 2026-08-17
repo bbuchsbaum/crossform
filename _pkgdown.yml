@@ -102,6 +102,7 @@ reference:
   - whole_brain
   - frame_conservation
   - catch_refusal
+  - crossform_conditions
   - relation
   - lm_relation_fit
   - cross_partitions

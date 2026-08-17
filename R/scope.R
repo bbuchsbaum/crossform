@@ -68,11 +68,12 @@ additive_frame <- function(weights, normalization = "none",
   } else {
     reference <- .domain_reference(domain)
     if (!identical(domain_id, "abstract") && !identical(domain_id, reference$id)) {
-      stop("`domain` and `domain_id` identify different neural domains.",
-        call. = FALSE)
+      .contract_error(
+        "`domain` and `domain_id` identify different neural domains."
+      )
     }
     if (!identical(as.integer(width), reference$n_features)) {
-      stop("The frame width must match its exact neural domain.", call. = FALSE)
+      .input_error("The frame width must match its exact neural domain.")
     }
     reference
   }
@@ -109,19 +110,17 @@ factor_frame <- function(factors, locally_estimated = FALSE,
                          domain_id = "abstract", domain = NULL) {
   if (!is.list(factors) || length(factors) < 1L ||
       !all(vapply(factors, function(x) is.matrix(x) && is.numeric(x), logical(1)))) {
-    stop("`factors` must be a nonempty list of numeric matrices.", call. = FALSE)
+    .input_error("`factors` must be a nonempty list of numeric matrices.")
   }
-  if (!is.logical(locally_estimated) || length(locally_estimated) != 1L ||
-      is.na(locally_estimated)) {
-    stop("`locally_estimated` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(locally_estimated, "locally_estimated")
   domain <- if (is.null(domain)) {
     .positional_domain_reference(ncol(factors[[1L]]), domain_id)
   } else {
     reference <- .domain_reference(domain)
     if (!identical(domain_id, "abstract") && !identical(domain_id, reference$id)) {
-      stop("`domain` and `domain_id` identify different neural domains.",
-        call. = FALSE)
+      .contract_error(
+        "`domain` and `domain_id` identify different neural domains."
+      )
     }
     reference
   }
@@ -183,7 +182,7 @@ factor_frame <- function(factors, locally_estimated = FALSE,
 pair_query <- function(H, left_space, right_space, metadata = list()) {
   matrix_like <- (is.matrix(H) && is.numeric(H)) || inherits(H, "Matrix")
   if (!matrix_like || any(dim(H) < 1L) || any(!is.finite(H))) {
-    stop("`H` must be a finite, nonempty numeric matrix.", call. = FALSE)
+    .input_error("`H` must be a finite, nonempty numeric matrix.")
   }
   left_space <- .as_effect_space(left_space, nrow(H))
   right_space <- .as_effect_space(right_space, ncol(H))
@@ -191,11 +190,12 @@ pair_query <- function(H, left_space, right_space, metadata = list()) {
       !identical(rownames(H), left_space$coordinates)) ||
       (!is.null(colnames(H)) &&
       !identical(colnames(H), right_space$coordinates))) {
-    stop("Named `H` axes must exactly match their ordered effect spaces.",
-      call. = FALSE)
+    .input_error(
+      "Named `H` axes must exactly match their ordered effect spaces."
+    )
   }
   if (!is.list(metadata)) {
-    stop("Pair-query `metadata` must be a list.", call. = FALSE)
+    .input_error("Pair-query `metadata` must be a list.")
   }
   structure(
     list(
@@ -247,17 +247,14 @@ pair_query <- function(H, left_space, right_space, metadata = list()) {
 #' conditionMessage(attr(asymmetric, "condition"))
 #' @export
 bilinear_query <- function(operator, fixed = TRUE, effects = NULL) {
-  if (!is.matrix(operator) || !is.numeric(operator) ||
-      nrow(operator) != ncol(operator) || nrow(operator) < 1L ||
-      any(!is.finite(operator))) {
-    stop("`operator` must be a finite, nonempty square numeric matrix.", call. = FALSE)
+  if (!.is_finite_matrix(operator) || nrow(operator) != ncol(operator) ||
+      nrow(operator) < 1L) {
+    .input_error("`operator` must be a finite, nonempty square numeric matrix.")
   }
   if (max(abs(operator - t(operator))) > 1e-12) {
-    stop("`operator` must be symmetric.", call. = FALSE)
+    .input_error("`operator` must be symmetric.")
   }
-  if (!is.logical(fixed) || length(fixed) != 1L || is.na(fixed)) {
-    stop("`fixed` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(fixed, "fixed")
 
   if (!is.null(effects)) effects <- .as_effect_space(effects, nrow(operator))
   structure(
@@ -274,7 +271,7 @@ bilinear_query <- function(operator, fixed = TRUE, effects = NULL) {
 #' @keywords internal
 nonlinear_query <- function(fun) {
   if (!is.function(fun)) {
-    stop("`fun` must be a function.", call. = FALSE)
+    .input_error("`fun` must be a function.")
   }
   structure(
     list(kind = "nonlinear", fixed = TRUE, fun = fun),
@@ -293,12 +290,8 @@ nonlinear_query <- function(fun) {
 #' @return A small compiler-decision value.
 #' @keywords internal
 compile_lowering <- function(frame, query) {
-  if (!inherits(frame, "effect_frame")) {
-    stop("`frame` must be an effect frame.", call. = FALSE)
-  }
-  if (!inherits(query, "effect_query")) {
-    stop("`query` must be an effect query.", call. = FALSE)
-  }
+  .check_class(frame, "effect_frame", "frame", what = "an effect frame")
+  .check_class(query, "effect_query", "query", what = "an effect query")
   .validate_frame_for_compile(frame)
   .validate_query_for_compile(query)
 
@@ -335,26 +328,26 @@ compile_lowering <- function(frame, query) {
     }
     return(as.numeric(weights))
   }
-  stop("Additive weights must be a numeric base matrix or Matrix object.",
-    call. = FALSE)
+  .input_error(
+    "Additive weights must be a numeric base matrix or Matrix object."
+  )
 }
 
 .validate_domain_id <- function(domain_id) {
-  if (!is.character(domain_id) || length(domain_id) != 1L ||
-      is.na(domain_id) || !nzchar(domain_id)) {
-    stop("Frame `domain_id` must be one nonempty identifier.", call. = FALSE)
+  if (!.is_string(domain_id)) {
+    .input_error("Frame `domain_id` must be one nonempty identifier.")
   }
 }
 
 .validate_frame_for_compile <- function(frame) {
   if (!inherits(frame, "effect_frame")) {
-    stop(sprintf(paste0(
+    .input_error(sprintf(paste0(
       "Expected a compiled `effect_frame` from `compile_frame()` (or ",
       "`neuroim2_searchlights()`); received %s."
-    ), .msg_value(frame)), call. = FALSE)
+    ), .msg_value(frame)))
   }
   if (!is.list(frame)) {
-    stop("Frame fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Frame fields are missing or noncanonical.")
   }
   expected_names <- if (identical(frame$representation, "additive_diagonal")) {
     c("representation", "fixed", "locally_estimated", "weights",
@@ -363,7 +356,7 @@ compile_lowering <- function(frame, query) {
     c("representation", "fixed", "locally_estimated", "factors", "domain",
       "domain_id")
   } else {
-    stop("Unknown frame representation.", call. = FALSE)
+    .input_error("Unknown frame representation.")
   }
   optional_names <- c("index", "domain_kind", "specification", "support_index")
   trailing_names <- names(frame)[length(expected_names) +
@@ -373,29 +366,34 @@ compile_lowering <- function(frame, query) {
       length(trailing_names)))
   if (!identical(names(frame)[seq_along(expected_names)], expected_names) ||
       !valid_trailing || anyDuplicated(names(frame))) {
-    stop("Frame fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Frame fields are missing or noncanonical.")
   }
   .validate_domain_id(frame$domain_id)
   domain <- .validate_domain_reference(frame$domain)
   if (!identical(frame$domain_id, domain$id)) {
-    stop("Frame domain label is inconsistent with its exact domain reference.",
-      call. = FALSE)
+    .contract_error(
+      "Frame domain label is inconsistent with its exact domain reference."
+    )
   }
   if (identical(frame$representation, "additive_diagonal")) {
     if (!isTRUE(frame$fixed) || isTRUE(frame$locally_estimated)) {
-      stop("An additive collapse frame must be fixed and not locally estimated.",
-        call. = FALSE)
+      .input_error(
+        "An additive collapse frame must be fixed and not locally estimated."
+      )
     }
     weights <- frame$weights
     values <- .frame_values(weights)
     if (length(dim(weights)) != 2L || any(dim(weights) < 1L) ||
         any(!is.finite(values)) || any(values < 0)) {
-      stop("Additive weights must have positive dimensions and finite nonnegative values.",
-        call. = FALSE)
+      .input_error(paste0(
+        "Additive weights must have positive dimensions and finite ",
+        "nonnegative values."
+      ))
     }
     if (!identical(as.integer(ncol(weights)), domain$n_features)) {
-      stop("Frame width is inconsistent with its exact neural domain.",
-        call. = FALSE)
+      .contract_error(
+        "Frame width is inconsistent with its exact neural domain."
+      )
     }
     if (!is.null(frame$support_index)) {
       support_index <- .validate_support_index(frame$support_index)
@@ -403,29 +401,29 @@ compile_lowering <- function(frame, query) {
           length(support_index$node_ids) != nrow(weights) ||
           (!is.null(frame$index) &&
            !identical(support_index$node_ids, frame$index$measurement))) {
-        stop("Frame support topology is inconsistent with its spatial frame.",
-          call. = FALSE)
+        .contract_error(
+          "Frame support topology is inconsistent with its spatial frame."
+        )
       }
     }
     normalization <- frame$normalization
     if (!is.character(normalization) || length(normalization) != 1L ||
         !normalization %in% c("none", "local", "conservative")) {
-      stop("Frame normalization must be none, local, or conservative.",
-        call. = FALSE)
+      .input_error("Frame normalization must be none, local, or conservative.")
     }
     row_mass <- if (inherits(weights, "Matrix")) Matrix::rowSums(weights) else rowSums(weights)
     if (any(!is.finite(row_mass)) || any(row_mass <= 0)) {
-      stop("Every additive frame row must have finite positive mass.", call. = FALSE)
+      .input_error("Every additive frame row must have finite positive mass.")
     }
     tolerance <- 1e-12
     if (normalization == "local" && any(abs(row_mass - 1) > tolerance)) {
-      stop("Locally normalized frame rows must sum to one.", call. = FALSE)
+      .input_error("Locally normalized frame rows must sum to one.")
     }
     if (normalization == "conservative") {
       column_mass <- if (inherits(weights, "Matrix"))
         Matrix::colSums(weights) else colSums(weights)
       if (any(!is.finite(column_mass)) || any(abs(column_mass - 1) > tolerance)) {
-        stop("Conservative frame columns must sum to one.", call. = FALSE)
+        .input_error("Conservative frame columns must sum to one.")
       }
     }
   } else if (identical(frame$representation, "factor")) {
@@ -433,16 +431,18 @@ compile_lowering <- function(frame, query) {
         !all(vapply(frame$factors, function(x) {
           is.matrix(x) && is.numeric(x) && all(dim(x) > 0) && all(is.finite(x))
         }, logical(1)))) {
-      stop("Factor frames require finite nonempty numeric matrices.", call. = FALSE)
+      .input_error("Factor frames require finite nonempty numeric matrices.")
     }
     widths <- vapply(frame$factors, ncol, integer(1))
     if (length(unique(widths)) != 1L) {
-      stop("All factor-frame elements must share one feature dimension.",
-        call. = FALSE)
+      .input_error(
+        "All factor-frame elements must share one feature dimension."
+      )
     }
     if (!identical(widths[[1L]], domain$n_features)) {
-      stop("Factor-frame width is inconsistent with its exact neural domain.",
-        call. = FALSE)
+      .contract_error(
+        "Factor-frame width is inconsistent with its exact neural domain."
+      )
     }
   }
   invisible(frame)
@@ -450,35 +450,36 @@ compile_lowering <- function(frame, query) {
 
 .validate_query_for_compile <- function(query) {
   if (!inherits(query, "effect_query") || !is.list(query) ||
-      !is.character(query$kind) || length(query$kind) != 1L || is.na(query$kind)) {
-    stop("Query fields are missing or noncanonical.", call. = FALSE)
+      !.is_string(query$kind, allow_empty = TRUE)) {
+    .input_error("Query fields are missing or noncanonical.")
   }
   if (identical(query$kind, "pair")) {
     expected <- c("kind", "fixed", "operator", "left_space", "right_space",
       "metadata")
     if (!inherits(query, "effect_pair_query") ||
         !identical(names(query), expected) || !identical(query$fixed, TRUE)) {
-      stop("Pair-query fields are missing or noncanonical.", call. = FALSE)
+      .input_error("Pair-query fields are missing or noncanonical.")
     }
     operator <- query$operator
     matrix_like <- (is.matrix(operator) && is.numeric(operator)) ||
       inherits(operator, "Matrix")
     if (!matrix_like || any(dim(operator) < 1L) || any(!is.finite(operator))) {
-      stop("Pair-query operators must be finite nonempty matrices.", call. = FALSE)
+      .input_error("Pair-query operators must be finite nonempty matrices.")
     }
     left_space <- .validate_effect_space(query$left_space)
     right_space <- .validate_effect_space(query$right_space)
     if (length(left_space$coordinates) != nrow(operator) ||
         length(right_space$coordinates) != ncol(operator)) {
-      stop("Pair-query dimensions must match their bound effect spaces.",
-        call. = FALSE)
+      .contract_error(
+        "Pair-query dimensions must match their bound effect spaces."
+      )
     }
     if (!is.list(query$metadata)) {
-      stop("Pair-query metadata must be a list.", call. = FALSE)
+      .input_error("Pair-query metadata must be a list.")
     }
     rebuilt <- pair_query(operator, left_space, right_space, query$metadata)
     if (!identical(query, rebuilt)) {
-      stop("Pair-query fields are missing or noncanonical.", call. = FALSE)
+      .input_error("Pair-query fields are missing or noncanonical.")
     }
     return(invisible(rebuilt))
   }
@@ -486,34 +487,35 @@ compile_lowering <- function(frame, query) {
     if (!identical(query$kind, "nonlinear") ||
         !identical(names(query), c("kind", "fixed", "fun")) ||
         !identical(query$fixed, TRUE) || !is.function(query$fun)) {
-      stop("Query fields are missing or noncanonical.", call. = FALSE)
+      .input_error("Query fields are missing or noncanonical.")
     }
     return(invisible(query))
   }
   if (!identical(names(query), c("kind", "fixed", "operator", "effect_space"))) {
-    stop("Query fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Query fields are missing or noncanonical.")
   }
   operator <- query$operator
-  if (!is.matrix(operator) || !is.numeric(operator) || nrow(operator) < 1L ||
-      nrow(operator) != ncol(operator) || any(!is.finite(operator)) ||
+  if (!.is_finite_matrix(operator) || nrow(operator) < 1L ||
+      nrow(operator) != ncol(operator) ||
       max(abs(operator - t(operator))) > 1e-12) {
-    stop("Bilinear query operators must be finite, square, and symmetric.",
-      call. = FALSE)
+    .input_error(
+      "Bilinear query operators must be finite, square, and symmetric."
+    )
   }
-  if (!is.logical(query$fixed) || length(query$fixed) != 1L || is.na(query$fixed)) {
-    stop("Query fixedness must be one logical value.", call. = FALSE)
+  if (!.is_flag(query$fixed)) {
+    .input_error("Query fixedness must be one logical value.")
   }
   if (!is.null(query$effect_space)) {
     effect_space <- .validate_effect_space(query$effect_space)
     if (length(query$effect_space$coordinates) != nrow(operator)) {
-      stop("Query effect-space dimension must match its operator.", call. = FALSE)
+      .contract_error("Query effect-space dimension must match its operator.")
     }
   } else {
     effect_space <- NULL
   }
   rebuilt <- bilinear_query(operator, query$fixed, effect_space)
   if (!identical(query, rebuilt)) {
-    stop("Query fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Query fields are missing or noncanonical.")
   }
   invisible(rebuilt)
 }

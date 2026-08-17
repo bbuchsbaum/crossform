@@ -287,6 +287,35 @@ print.effect_capability_refusal <- function(x, ...) {
   invisible(x)
 }
 
+# Input, contract, and invariant failures -------------------------------------
+#
+# The three classes under `effect_error` share one shape --- a message plus an
+# optional argument name, observed value, and expectation --- so they share
+# one printer, in the refusal's layout. A caught condition prints as a record
+# of what was asked and what was wrong with it, not as a wall of prose.
+
+#' @export
+format.effect_error <- function(x, ...) {
+  lines <- c(
+    sprintf("<%s>", class(x)[[1L]]),
+    strwrap(conditionMessage(x), width = .pf_line_width, prefix = "  ")
+  )
+  field <- function(label, value) {
+    if (is.null(value) || !length(value)) return(character())
+    sprintf("  %-11s%s", paste0(label, ":"), as.character(value)[[1L]])
+  }
+  c(lines,
+    field("arg", x$arg),
+    field("received", x$received),
+    field("expected", x$expected))
+}
+
+#' @export
+print.effect_error <- function(x, ...) {
+  cat(format(x), sep = "\n")
+  invisible(x)
+}
+
 # Neural domains -------------------------------------------------------------
 
 #' @export

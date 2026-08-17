@@ -107,7 +107,7 @@ test_that("error channels are identity-bound to the evidence relation", {
       first$evidence, second$fit
     ),
     "identity-bound"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("learned metric uncertainty and spatial scope are explicit gates", {
@@ -126,7 +126,7 @@ test_that("learned metric uncertainty and spatial scope are explicit gates", {
       "sha256:learned-metric", status = "learned"
     ),
     "must declare uncertainty"
-  )
+  , class = "effect_input_error")
 
   fixture <- sampling_plan_fixture()
   spatial <- crossform:::.compile_evidence_sampling_plan(
@@ -156,5 +156,5 @@ test_that("sampling-plan mutation is detected by canonical validation", {
   expect_error(
     crossform:::.validate_evidence_sampling_plan(forged),
     "capabilities"
-  )
+  , class = "effect_contract_error")
 })

@@ -19,7 +19,7 @@ test_that("the generalization axis is declared, validated, and retained", {
   expect_error(
     pairing("a", "b", generalizes_over = ""),
     "one nonempty axis name"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("cross-run and cross-session estimands differ under generic labels", {

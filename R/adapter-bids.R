@@ -1,18 +1,15 @@
 # BIDS file adapters -------------------------------------------------------
 
 .bids_partition_files <- function(files, partitions, what) {
-  if (!is.character(files) || length(files) < 1L || anyNA(files) ||
-      any(!nzchar(files))) {
-    stop(sprintf("`%s` must contain one or more file paths.", what),
-      call. = FALSE)
+  if (!.is_strings(files) || length(files) < 1L) {
+    .input_error(sprintf("`%s` must contain one or more file paths.", what))
   }
   if (is.null(partitions)) partitions <- names(files)
   partitions <- .validate_partition_names(partitions, length(files),
     "partitions")
   if (!is.null(names(files)) && any(nzchar(names(files))) &&
       !identical(names(files), partitions)) {
-    stop("Named BIDS files must follow the declared partition order.",
-      call. = FALSE)
+    .input_error("Named BIDS files must follow the declared partition order.")
   }
   files <- vapply(files, normalizePath, character(1), mustWork = TRUE)
   names(files) <- partitions
@@ -84,8 +81,9 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
       )
     }
     if (any(c(".bids_partition", ".bids_event_id") %in% names(value))) {
-      stop("BIDS tables may not use crossform's private adapter columns.",
-        call. = FALSE)
+      .input_error(
+        "BIDS tables may not use crossform's private adapter columns."
+      )
     }
     value$.bids_partition <- partition
     value$.bids_event_id <- sprintf("event-%06d", seq_len(nrow(value)))
@@ -155,14 +153,16 @@ bids_confounds <- function(files, partitions = names(files),
   if (!is.null(observation_ids) &&
       (!is.list(observation_ids) ||
        !setequal(names(observation_ids), names(files)))) {
-    stop("`observation_ids` must be a named list covering every partition.",
-      call. = FALSE)
+    .input_error(
+      "`observation_ids` must be a named list covering every partition."
+    )
   }
   tables <- lapply(names(files), function(partition) {
     value <- .read_bids_table(files[[partition]])
     if (any(c(".bids_partition", ".bids_observation_id") %in% names(value))) {
-      stop("Confound tables may not use crossform's private adapter columns.",
-        call. = FALSE)
+      .input_error(
+        "Confound tables may not use crossform's private adapter columns."
+      )
     }
     ids <- if (is.null(observation_ids)) {
       seq_len(nrow(value))
@@ -260,8 +260,9 @@ bids_study <- function(observations, event_files, confound_files = NULL,
                        hierarchy = NULL, units = "seconds") {
   observations <- .validate_observations(observations)
   if (!identical(partitions, observations$partitions)) {
-    stop("BIDS `partitions` must equal the observation partition axis in order.",
-      call. = FALSE)
+    .input_error(
+      "BIDS `partitions` must equal the observation partition axis in order."
+    )
   }
   event_record <- bids_events(event_files, partitions, units)
   confound_record <- NULL

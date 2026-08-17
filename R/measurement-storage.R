@@ -63,8 +63,7 @@
       !is.character(attr(index, "left_frame", exact = TRUE)) ||
       !is.character(attr(index, "right_frame", exact = TRUE)) ||
       !is.character(attr(index, "signature", exact = TRUE))) {
-    stop("Measurement block index is missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Measurement block index is missing or noncanonical.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -76,8 +75,7 @@
   expected_signature <- .sha256_signature(semantic)
   if (!identical(attr(index, "signature", exact = TRUE),
       expected_signature)) {
-    stop("Measurement block-index identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Measurement block-index identity is inconsistent.")
   }
   index
 }
@@ -85,10 +83,9 @@
 .measurement_store_manifest <- function(index, complete, written,
                                         representation, expected_bytes) {
   index <- .validate_measurement_block_index(index)
-  if (!is.logical(complete) || length(complete) != 1L || is.na(complete) ||
-      !is.logical(written) || length(written) != nrow(index) || anyNA(written)) {
-    stop("Measurement-store completion metadata is invalid.",
-      call. = FALSE)
+  if (!.is_flag(complete) || !is.logical(written) ||
+      length(written) != nrow(index) || anyNA(written)) {
+    .input_error("Measurement-store completion metadata is invalid.")
   }
   list(
     schema_version = 1L,
@@ -121,8 +118,9 @@
     position <- NA_integer_
   }
   if (is.na(position) || position < 1L || position > nrow(index)) {
-    stop("Measurement edge identifier is not present in the block index.",
-      call. = FALSE)
+    .input_error(
+      "Measurement edge identifier is not present in the block index."
+    )
   }
   position
 }
@@ -131,16 +129,13 @@
   index <- .validate_measurement_block_index(index)
   if (!is.list(blocks) || length(blocks) != nrow(index) ||
       !identical(names(blocks), index$edge_id)) {
-    stop("Memory measurement store requires one named block per edge.",
-      call. = FALSE)
+    .input_error("Memory measurement store requires one named block per edge.")
   }
   blocks <- lapply(seq_along(blocks), function(position) {
     value <- blocks[[position]]
     expected <- c(index$d_left[[position]], index$d_right[[position]])
-    if (!is.matrix(value) || !is.numeric(value) ||
-        !identical(dim(value), expected) || any(!is.finite(value))) {
-      stop("Measurement block has invalid dimensions or values.",
-        call. = FALSE)
+    if (!.is_finite_matrix(value) || !identical(dim(value), expected)) {
+      .input_error("Measurement block has invalid dimensions or values.")
     }
     unname(value)
   })
@@ -166,17 +161,13 @@
 .measurement_manifest_path <- function(path) paste0(path, ".manifest.rds")
 
 .file_measurement_store <- function(path, index, create = FALSE) {
-  if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
-    stop("`path` must be one nonempty measurement-store path.",
-      call. = FALSE)
-  }
+  .check_string(path, "path", what = "one nonempty measurement-store path")
   index <- .validate_measurement_block_index(index)
   manifest_path <- .measurement_manifest_path(path)
   expected_bytes <- sum(index$length_elements) * 8
   if (isTRUE(create)) {
     if (file.exists(path) || file.exists(manifest_path)) {
-      stop("Refusing to overwrite an existing measurement store.",
-        call. = FALSE)
+      .input_error("Refusing to overwrite an existing measurement store.")
     }
     connection <- file(path, open = "w+b")
     on.exit(if (!is.null(connection)) try(close(connection), silent = TRUE),
@@ -198,15 +189,17 @@
   }
   if (!file.exists(path) || !file.exists(manifest_path) ||
       is.na(file.info(path)$size) || file.info(path)$size != expected_bytes) {
-    stop("Measurement store payload or manifest is missing or has the wrong size.",
-      call. = FALSE)
+    .input_error(
+      "Measurement store payload or manifest is missing or has the wrong size."
+    )
   }
   persisted <- readRDS(manifest_path)
   if (!is.list(persisted) ||
       !identical(names(persisted), c("manifest", "index")) ||
       !identical(persisted$index, index)) {
-    stop("Measurement store manifest does not match its block index.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement store manifest does not match its block index."
+    )
   }
   manifest <- persisted$manifest
   structure(list(
@@ -234,21 +227,17 @@
 .write_measurement_block <- function(store, edge, value) {
   if (!inherits(store, "effect_measurement_store") ||
       store$representation != "block_backed") {
-    stop("Only a block-backed measurement store can be written.",
-      call. = FALSE)
+    .input_error("Only a block-backed measurement store can be written.")
   }
   position <- .measurement_edge_position(store$index, edge)
   row <- store$index[position, , drop = FALSE]
-  if (!is.matrix(value) || !is.numeric(value) ||
-      !identical(dim(value), c(row$d_left[[1L]], row$d_right[[1L]])) ||
-      any(!is.finite(value))) {
-    stop("Measurement block write has invalid dimensions or values.",
-      call. = FALSE)
+  if (!.is_finite_matrix(value) ||
+      !identical(dim(value), c(row$d_left[[1L]], row$d_right[[1L]]))) {
+    .input_error("Measurement block write has invalid dimensions or values.")
   }
   persisted <- readRDS(store$manifest_path)
   if (persisted$manifest$written[[position]]) {
-    stop("Refusing to overwrite an already written measurement block.",
-      call. = FALSE)
+    .input_error("Refusing to overwrite an already written measurement block.")
   }
   connection <- file(store$path, open = "r+b")
   on.exit(if (!is.null(connection)) try(close(connection), silent = TRUE),
@@ -268,13 +257,11 @@
                                         probe = TRUE) {
   expected <- c("representation", "codec", "index", "manifest", "path",
     "manifest_path", "read", "signature")
-  if (!inherits(store, "effect_measurement_store") || !is.list(store) ||
-      !identical(names(store), expected) ||
+  if (!.sealed_fields(store, "effect_measurement_store", expected) ||
       !store$representation %in% c("memory", "block_backed") ||
       !identical(store$codec, "measurement-block-double-v1") ||
       !is.function(store$read)) {
-    stop("Measurement-store fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Measurement-store fields are missing or noncanonical.")
   }
   index <- .validate_measurement_block_index(store$index)
   manifest <- store$manifest
@@ -282,12 +269,13 @@
     persisted <- readRDS(store$manifest_path)
     if (!identical(persisted$index, index) ||
         !identical(persisted$manifest, manifest)) {
-      stop("Measurement-store object is stale relative to its manifest.",
-        call. = FALSE)
+      .contract_error(
+        "Measurement-store object is stale relative to its manifest."
+      )
     }
     if (!file.exists(store$path) ||
         file.info(store$path)$size != manifest$expected_bytes) {
-      stop("Measurement-store payload is incomplete.", call. = FALSE)
+      .input_error("Measurement-store payload is incomplete.")
     }
   }
   expected_manifest <- .measurement_store_manifest(
@@ -297,23 +285,21 @@
   if (!identical(manifest, expected_manifest) ||
       !identical(store$signature,
         .measurement_store_signature(index, manifest))) {
-    stop("Measurement-store manifest or identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Measurement-store manifest or identity is inconsistent.")
   }
   if (isTRUE(require_complete) && !isTRUE(manifest$complete)) {
-    stop("Measurement store is incomplete for its declared edge set.",
-      call. = FALSE)
+    .input_error("Measurement store is incomplete for its declared edge set.")
   }
   if (isTRUE(probe)) {
     positions <- if (manifest$complete) seq_len(nrow(index)) else
       which(manifest$written)
     for (position in positions) {
       value <- store$read(position)
-      if (!is.matrix(value) || !is.numeric(value) ||
-          !identical(dim(value), c(index$d_left[[position]],
-            index$d_right[[position]])) || any(!is.finite(value))) {
-        stop("Measurement-store reader returned an invalid logical block.",
-          call. = FALSE)
+      if (!.is_finite_matrix(value) ||
+          !identical(dim(value), c(index$d_left[[position]], index$d_right[[position]]))) {
+        .input_error(
+          "Measurement-store reader returned an invalid logical block."
+        )
       }
     }
   }
@@ -324,11 +310,9 @@
   .validate_measurement_store(store, require_complete = TRUE, probe = FALSE)
   value <- store$read(edge)
   position <- .measurement_edge_position(store$index, edge)
-  if (!is.matrix(value) || !is.numeric(value) ||
-      !identical(dim(value), c(store$index$d_left[[position]],
-        store$index$d_right[[position]])) || any(!is.finite(value))) {
-    stop("Measurement-store reader returned an invalid logical block.",
-      call. = FALSE)
+  if (!.is_finite_matrix(value) ||
+      !identical(dim(value), c(store$index$d_left[[position]], store$index$d_right[[position]]))) {
+    .input_error("Measurement-store reader returned an invalid logical block.")
   }
   value
 }

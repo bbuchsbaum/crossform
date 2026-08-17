@@ -1,10 +1,9 @@
 # Sampling-covariance plan identities ---------------------------------------
 
 .sampling_record <- function(kind, fields) {
-  if (!is.character(kind) || length(kind) != 1L || is.na(kind) ||
-      !nzchar(kind) || !is.list(fields) || is.null(names(fields)) ||
+  if (!.is_string(kind) || !is.list(fields) || is.null(names(fields)) ||
       any(!nzchar(names(fields))) || anyDuplicated(names(fields))) {
-    stop("Sampling-plan record fields are invalid.", call. = FALSE)
+    .input_error("Sampling-plan record fields are invalid.")
   }
   semantic <- c(list(schema_version = 1L, kind = kind), fields)
   structure(c(list(kind = kind), fields, list(
@@ -16,15 +15,14 @@
   if (!inherits(x, "effect_sampling_record") || !is.list(x) ||
       length(x) < 2L || !identical(names(x)[[1L]], "kind") ||
       !identical(utils::tail(names(x), 1L), "signature") ||
-      !is.character(x$kind) || length(x$kind) != 1L || is.na(x$kind) ||
-      !nzchar(x$kind) || !.strong_sha256(x$signature) ||
+      !.is_string(x$kind) || !.strong_sha256(x$signature) ||
       (!is.null(kind) && !identical(x$kind, kind))) {
-    stop("Sampling-plan record is missing or noncanonical.", call. = FALSE)
+    .input_error("Sampling-plan record is missing or noncanonical.")
   }
   fields <- x[setdiff(names(x), c("kind", "signature"))]
   rebuilt <- .sampling_record(x$kind, unclass(fields))
   if (!identical(x, rebuilt)) {
-    stop("Sampling-plan record identity is inconsistent.", call. = FALSE)
+    .contract_error("Sampling-plan record identity is inconsistent.")
   }
   x
 }
@@ -37,18 +35,19 @@
     "selected_entries", "apply", "quadratic_form", "transport"
   )
   if (needs_argument && is.null(argument)) {
-    stop(sprintf("Sampling operation `%s` requires its exact query argument.",
-      kind), call. = FALSE)
+    .input_error(sprintf(
+      "Sampling operation `%s` requires its exact query argument.",
+      kind))
   }
   if (!needs_argument && !is.null(argument)) {
-    stop(sprintf("Sampling operation `%s` does not accept a query argument.",
-      kind), call. = FALSE)
+    .input_error(sprintf(
+      "Sampling operation `%s` does not accept a query argument.",
+      kind))
   }
   if (!is.null(argument)) {
     if (!(is.atomic(argument) || is.matrix(argument)) ||
         anyNA(argument) || (is.numeric(argument) && any(!is.finite(argument)))) {
-      stop("Sampling-operation arguments must be finite atomic values.",
-        call. = FALSE)
+      .input_error("Sampling-operation arguments must be finite atomic values.")
     }
     # Preserve named query axes: names and dimnames identify evidence inputs
     # and transported outputs and are therefore semantic, not display noise.
@@ -76,25 +75,20 @@
       linear_hypothesis = "declared_operator"
     )
   }
-  if (!is.character(policy) || length(policy) != 1L || is.na(policy) ||
-      !nzchar(policy)) {
-    stop("A sampling target requires one named evaluation policy.",
-      call. = FALSE)
+  if (!.is_string(policy)) {
+    .input_error("A sampling target requires one named evaluation policy.")
   }
   if (kind == "linear_hypothesis" && is.null(specification)) {
-    stop("A linear-hypothesis target requires an exact specification.",
-      call. = FALSE)
+    .input_error("A linear-hypothesis target requires an exact specification.")
   }
   if (kind != "linear_hypothesis" && !is.null(specification)) {
-    stop("Only a linear-hypothesis target accepts a specification.",
-      call. = FALSE)
+    .input_error("Only a linear-hypothesis target accepts a specification.")
   }
   if (!is.null(specification) &&
       (!(is.atomic(specification) || is.matrix(specification)) ||
        anyNA(specification) ||
        (is.numeric(specification) && any(!is.finite(specification))))) {
-    stop("Sampling-target specifications must be finite atomic values.",
-      call. = FALSE)
+    .input_error("Sampling-target specifications must be finite atomic values.")
   }
   .sampling_record("target", list(
     target = kind,
@@ -136,10 +130,10 @@
     frame_signature <- .additive_frame_signature(x$frame)
     pairing <- x$pairing
   } else {
-    stop(paste0(
+    .input_error(paste0(
       "Evidence sampling currently binds a compiled geometry or crossnobis ",
       "plan, not an uncompiled matrix or relation."
-    ), call. = FALSE)
+    ))
   }
   record <- .sampling_record("evidence", list(
     evidence_kind = evidence_kind,
@@ -161,10 +155,10 @@
   if (inherits(x, "effect_relation_fit")) {
     .validate_relation_fit(x, deep = FALSE)
     if (!identical(.relation_family_identity(x$relation), relation_id)) {
-      stop(paste0(
+      .contract_error(paste0(
         "The error channel is not identity-bound to the relation used by ",
         "the evidence plan."
-      ), call. = FALSE)
+      ))
     }
     present <- vapply(x$error_models, Negate(is.null), logical(1))
     model_kinds <- unique(vapply(x$error_models[present], `[[`,
@@ -191,12 +185,13 @@
     return(list(record = record, source = x))
   }
   if (!inherits(x, "effect_relation")) {
-    stop("An error channel must be a relation fit or an explicitly bare relation.",
-      call. = FALSE)
+    .input_error(
+      "An error channel must be a relation fit or an explicitly bare relation."
+    )
   }
   .validate_relation(x, deep = FALSE)
   if (!identical(.relation_family_identity(x), relation_id)) {
-    stop(sprintf(paste0(
+    .contract_error(sprintf(paste0(
       "The relation passed as the error channel is not the relation the ",
       "evidence plan was built from, so its residual information does not ",
       "describe these estimates. The plan's relation has identity %s (%s, ",
@@ -210,7 +205,7 @@
       .msg_signature(.relation_family_identity(x)),
       .msg_count(length(x$effects), "effect"),
       .msg_count(length(x$partitions), "partition")
-    ), call. = FALSE)
+    ))
   }
   record <- .sampling_record("error_channel", list(
     channel = "absent",
@@ -252,8 +247,7 @@
   partitions <- as.character(partitions)
   if (length(partitions) < 2L || anyNA(partitions) ||
       any(!nzchar(partitions)) || anyDuplicated(partitions)) {
-    stop("Sampling partitions must have unique nonempty identities.",
-      call. = FALSE)
+    .input_error("Sampling partitions must have unique nonempty identities.")
   }
   expected <- utils::combn(sort(partitions), 2L)
   expected_keys <- paste(expected[1L, ], expected[2L, ], sep = "\r")
@@ -283,22 +277,20 @@
                                     role = c("metric", "bridge")) {
   status <- match.arg(status)
   role <- match.arg(role)
-  if (!is.character(identity) || length(identity) != 1L || is.na(identity) ||
-      !nzchar(identity)) {
-    stop("A sampling metric or bridge requires one stable identity.",
-      call. = FALSE)
+  if (!.is_string(identity)) {
+    .input_error("A sampling metric or bridge requires one stable identity.")
   }
   if (status == "fixed") {
     if (is.null(uncertainty)) uncertainty <- "not_applicable"
     if (!identical(uncertainty, "not_applicable")) {
-      stop("A fixed metric must declare uncertainty `not_applicable`.",
-        call. = FALSE)
+      .input_error("A fixed metric must declare uncertainty `not_applicable`.")
     }
   } else {
     if (is.null(uncertainty) ||
         !uncertainty %in% c("ignored", "propagated")) {
-      stop("A learned metric must declare uncertainty `ignored` or `propagated`.",
-        call. = FALSE)
+      .input_error(
+        "A learned metric must declare uncertainty `ignored` or `propagated`."
+      )
     }
   }
   .sampling_record("metric", list(
@@ -370,11 +362,8 @@
   if (!isTRUE(partition$endpoint_independence)) {
     reasons <- c(reasons, "endpoint_independence_not_declared")
   }
-  if (is.null(sampling_axis) || !is.character(sampling_axis) ||
-      length(sampling_axis) != 1L || is.na(sampling_axis) ||
-      !nzchar(sampling_axis) ||
-      (length(error_channel$sampling_units) > 0L &&
-       !identical(error_channel$sampling_units, sampling_axis))) {
+  if (is.null(sampling_axis) || !.is_string(sampling_axis) ||
+      (length(error_channel$sampling_units) > 0L && !identical(error_channel$sampling_units, sampling_axis))) {
     reasons <- c(reasons, "sampling_axis_missing_or_inconsistent")
   }
   if (identical(spatial_scope, "modeled")) {
@@ -405,13 +394,15 @@
   target <- .validate_sampling_record(target, "target")
   if (operation$operation == "materialize" &&
       materialization$mode != "dense_covariance") {
-    stop("A materialize operation requires dense-covariance materialization.",
-      call. = FALSE)
+    .input_error(
+      "A materialize operation requires dense-covariance materialization."
+    )
   }
   if (operation$operation != "materialize" &&
       materialization$mode == "dense_covariance") {
-    stop("Dense covariance materialization requires a materialize operation.",
-      call. = FALSE)
+    .input_error(
+      "Dense covariance materialization requires a materialize operation."
+    )
   }
   if (is.null(metric_uncertainty) &&
       identical(descriptor$record$metric_status, "learned")) {
@@ -447,8 +438,7 @@
   if (!is.null(sampling_axis) &&
       (!is.character(sampling_axis) || length(sampling_axis) != 1L ||
        is.na(sampling_axis) || !nzchar(sampling_axis))) {
-    stop("`sampling_axis` must be NULL or one nonempty identity.",
-      call. = FALSE)
+    .input_error("`sampling_axis` must be NULL or one nonempty identity.")
   }
   equal_error_structure <- .sampling_equal_error_structure(channel)
   reasons <- .sampling_unavailability_reasons(
@@ -524,15 +514,13 @@
     "error_channel", "metric", "partition", "sampling_axis", "target",
     "spatial_scope", "operation", "materialization", "capabilities",
     "unavailable_reasons", "scientific_plan_id", "signature")
-  if (!inherits(x, "effect_evidence_sampling_plan") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_evidence_sampling_plan", expected) ||
       !identical(x$contract, "evidence-sampling-v1") ||
       !x$spatial_scope %in% c("local_marginals", "modeled") ||
       !is.list(x$capabilities) || !is.character(x$unavailable_reasons) ||
       !.strong_sha256(sub("^sampling-", "", x$scientific_plan_id)) ||
       !.strong_sha256(x$signature)) {
-    stop("Evidence-sampling-plan fields are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Evidence-sampling-plan fields are missing or noncanonical.")
   }
   evidence <- .sampling_evidence_descriptor(x$evidence_plan)
   channel <- .sampling_error_channel(x$error_source, evidence$relation)
@@ -549,8 +537,9 @@
       !identical(x$error_channel, channel$record) ||
       !identical(x$metric$identity, evidence$record$metric_identity) ||
       !identical(x$partition$pairing, evidence$record$pairing)) {
-    stop("Evidence-sampling-plan sources or identities are inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Evidence-sampling-plan sources or identities are inconsistent."
+    )
   }
   reasons <- .sampling_unavailability_reasons(
     evidence$record, channel$record, metric, partition, x$sampling_axis,
@@ -573,7 +562,7 @@
   )
   if (!identical(x$unavailable_reasons, reasons) ||
       !identical(x$capabilities, expected_capabilities)) {
-    stop("Evidence-sampling capabilities are inconsistent.", call. = FALSE)
+    .contract_error("Evidence-sampling capabilities are inconsistent.")
   }
   if (isTRUE(deep)) {
     semantic <- .sampling_plan_semantic(
@@ -590,7 +579,7 @@
     ))
     if (!identical(x$scientific_plan_id, expected_id) ||
         !identical(x$signature, expected_signature)) {
-      stop("Evidence-sampling-plan identity is inconsistent.", call. = FALSE)
+      .contract_error("Evidence-sampling-plan identity is inconsistent.")
     }
   }
   .record_validated(x, "evidence_sampling_plan", deep)
