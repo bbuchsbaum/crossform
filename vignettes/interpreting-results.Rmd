@@ -176,12 +176,26 @@ those fractions.
 
 ## Trap (a): the coherent share shrinks as the sphere grows
 
-The coherent component is the energy of *one* spatial mode — the
-frame-weighted mean. The configuration component spans everything orthogonal
-to it. As a searchlight grows, the configuration subspace gains dimensions
-while the coherent subspace stays one-dimensional. The coherent share
-therefore falls for mechanical reasons, with no change in the underlying
-neural data.
+The coherent share falls as a searchlight grows, with no change in the
+underlying neural data. It is worth being exact about *why*, because the
+obvious explanation is the wrong one.
+
+It is not dimension counting. A larger sphere does give the configuration
+subspace more dimensions while the coherent subspace stays one-dimensional,
+but these are *crossvalidated* energies: extra noise dimensions add variance
+to the configuration estimate, not expectation. A configuration remainder over
+pure noise is centered on zero however many dimensions it spans. Counting
+dimensions cannot move a share whose numerator and denominator are both
+unbiased.
+
+What moves it is dilution of the weighted mean. The coherent component is the
+energy of the contrast carried by one average pattern, and that average runs
+over the whole support. Grow the sphere around a fixed block of signal and the
+block's share of the weighted support falls; the weighted mean's contrast
+falls with it, and the coherent energy — a squared quantity — falls with the
+square of that share. The configuration remainder keeps the block's departure
+from a mean that is now nearly zero, so it does not fall. The ratio slides
+because its numerator is being averaged away.
 
 ```{r sphere-size}
 radii <- c(2, 3, 4.5, 6)
@@ -212,6 +226,43 @@ stopifnot(
   all(sweep[-1, "mean_block"] > sweep[-1, "pattern_block"])
 )
 ```
+
+The mechanism is visible directly. Hold the radius at 4.5 mm and compare, over
+the searchlights whose support touches the mean-shift block, the two energies
+against the squared weighted share of planted voxels in each support:
+
+```{r sphere-dilution}
+weighted_share <- function(frame, features) {
+  as.numeric(Matrix::rowSums(frame$weights[, features, drop = FALSE]) /
+               Matrix::rowSums(frame$weights))
+}
+
+frame_45 <- compile_frame(searchlights(radius = 4.5), example$domain)
+effect_45 <- contrast_energy(
+  plan_geometry(example$fit$relation, at = frame_45, over = pairing),
+  example$contrast
+)
+share <- weighted_share(frame_45, example$truth$mean_features)
+touching <- which(share > 0)
+
+c(
+  searchlights = length(touching),
+  coherent = round(cor(effect_45$coherent[touching], share[touching]^2), 3),
+  configuration = round(
+    cor(effect_45$configuration[touching], share[touching]^2), 3
+  )
+)
+```
+
+```{r sphere-dilution-check, include=FALSE}
+stopifnot(
+  cor(effect_45$coherent[touching], share[touching]^2) > 0.99,
+  cor(effect_45$configuration[touching], share[touching]^2) < 0.6
+)
+```
+
+The coherent energy is almost a deterministic function of the squared planted
+share. The configuration energy is not. That is dilution, not dimensionality.
 
 At radius 2 every support is a single voxel, so the weighted mean *is* the
 pattern and the fraction is exactly 1 by construction — in both blocks. It
@@ -557,10 +608,15 @@ round(category$coefficients[peak, ], 4)
 ```
 
 There are two columns for one model because an **intercept is fitted by
-default**. Keep it. Crossvalidated distances have an arbitrary additive level
-per measurement; without an intercept the model coefficient absorbs that
-level, and a searchlight with uniformly large distances will look like it
-matches your model when it only has a large mean distance.
+default**. Keep it. Not because the distances need an offset removed — they
+are unbiased as they stand, which is the whole point of the cross-partition
+pairing — but because the *regression* has a level of its own. Every
+measurement has some mean signed distance across its pairs, and that mean is a
+property of how far apart the conditions sit there, not evidence for the shape
+your model RDM predicts. The intercept absorbs it as a nuisance level. Drop
+it and the fit is forced through the origin, so the model coefficient has to
+account for the mean as well as the shape, and a searchlight where everything
+is far from everything scores high on any model RDM with a positive mean.
 
 ```{r rsa-nointercept}
 no_intercept <- rsa(

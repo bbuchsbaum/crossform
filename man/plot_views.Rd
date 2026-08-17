@@ -114,9 +114,15 @@ the coherent/configuration plane, where the dashed guides are lines of
 constant \code{total} because \code{coherent + configuration = total} exactly. The
 right panel walks the same total along the measurement index. Passing
 \code{highlight} (for the generated fixture,
-\code{example_fmri_effects()$truth$signal_measurements}) fills the
+\code{example_fmri_effects()$truth$signal_measurements}) marks the
 measurements that overlap the planted signal, so a correct analysis is
 visible rather than asserted.
+
+One color means one thing across both panels. Color is the sign of the
+signed marginal, blue above zero and orange-red below; a black ring is
+"highlighted", and the fill inside it still carries the sign; plain gray is
+"not highlighted". When no \code{highlight} is given there is nothing for gray
+to mean, and every measurement keeps its sign color.
 
 Glyph size and opacity ease down as a panel fills, so a view of a few
 thousand measurements stays readable; at or below five hundred

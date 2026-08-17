@@ -19,7 +19,7 @@ per-feature mass deviation from one, and the per-feature mass vector.
 \description{
 Under a conservative frame every domain feature carries total weight mass
 one, so local \code{total} geometries sum exactly to the global geometry:
-\deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}
+\deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}{sum_x G_x^total = G_Omega^total.}
 Overlapping neighborhoods under \code{normalization = "local"} double-count
 shared features, so their local values are not contributions to a
 whole-brain quantity. Two preconditions matter when checking the law:

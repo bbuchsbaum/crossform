@@ -119,6 +119,10 @@
 # single-node contract; longer vectors name an explicit batch.
 .msg_measurement_indices <- function(value, measurements, argument = "at",
                                      subject = "plan") {
+  # A single index keeps the scalar message, which names the offending value.
+  if (length(value) == 1L) {
+    return(.msg_measurement_index(value, measurements, argument, subject))
+  }
   measurements <- as.integer(measurements)
   usable <- is.numeric(value) && length(value) >= 1L &&
     all(is.finite(value)) && all(value %% 1 == 0)

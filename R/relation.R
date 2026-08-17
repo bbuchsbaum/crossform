@@ -160,14 +160,18 @@ relation <- function(sources, extract = NULL, effects = NULL,
       "`sources` is required: pass one effect-by-feature matrix per ",
       "partition, named by effect, as a named list such as ",
       "`relation(list(run1 = betas1, run2 = betas2), domain = domain)`."
-    ))
+    ),
+      arg = "sources", received = "no argument",
+      expected = "one effect-by-feature matrix per partition")
   }
   if (is.matrix(sources)) sources <- list(sources)
   if (!is.list(sources) || length(sources) < 1L) {
     .input_error(sprintf(paste0(
       "`sources` must be one effect-by-feature matrix or a nonempty named ",
       "list with one entry per partition; received %s."
-    ), .msg_value(sources)))
+    ), .msg_value(sources)),
+      arg = "sources", received = .msg_value(sources),
+      expected = "one matrix, or a nonempty named list of them")
   }
   if (is.null(partitions)) partitions <- names(sources)
   if (is.null(partitions) || any(!nzchar(partitions))) {
@@ -184,7 +188,9 @@ relation <- function(sources, extract = NULL, effects = NULL,
           .msg_names(unique(partitions[duplicated(partitions)])))
       } else {
         ""
-      }))
+      }),
+      arg = "sources", received = .msg_names(partitions),
+      expected = "unique nonempty partition names")
   }
   names(sources) <- partitions
   domain_reference <- NULL
@@ -241,7 +247,10 @@ relation <- function(sources, extract = NULL, effects = NULL,
           "Every partition must estimate the same effects."
         ), partition, .msg_count(source_dimension, "row"),
           .msg_count(length(effects$coordinates), "effect"),
-          .msg_names(effects$coordinates)))
+          .msg_names(effects$coordinates)),
+          arg = "effects",
+          received = .msg_count(source_dimension, "row"),
+          expected = .msg_count(length(effects$coordinates), "effect"))
       }
       if (is.matrix(source)) {
         source_names <- .matrix_effect_names(source,
@@ -296,7 +305,10 @@ relation <- function(sources, extract = NULL, effects = NULL,
       extract
     }
     if (!is.list(extractors) || length(extractors) != length(sources)) {
-      .input_error("`extract` must supply one extractor per partition.")
+      .input_error("`extract` must supply one extractor per partition.",
+        arg = "extract",
+        received = .msg_count(length(extractors), "extractor"),
+        expected = .msg_count(length(sources), "source"))
     }
     extractors <- lapply(extractors, .validate_effect_extractor)
     extractor_space <- extractors[[1L]]$effect_space

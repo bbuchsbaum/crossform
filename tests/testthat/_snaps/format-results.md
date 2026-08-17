@@ -53,9 +53,14 @@
     Output
       <effect_rsa_view>
         measurements: 2
+        models:       separation
+        intercept:    omitted
+        pairs:        1 distance over 2 effects
+        estimate:     OLS coefficients on the total component
        measurement separation
                 m1      1.172
                 m2      2.929
+        next:         as.data.frame(x), plot(x, terms = ...)
 
 ---
 

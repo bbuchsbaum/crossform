@@ -37,7 +37,7 @@ distances may be negative.
 \description{
 For effects \code{i} and \code{j}, this view applies the fixed contrast
 \code{c = e_i - e_j} to the selected geometry component \code{G}:
-\deqn{d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.}
+\deqn{d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.}{d_ij = c^T G c = G_ii + G_jj - 2 G_ij.}
 With cross-partition geometry this is the signed crossvalidated squared
 Euclidean distance, or squared Mahalanobis distance when the plan carries a
 fixed neural metric. It is not \verb{1 - Pearson correlation}: correlation

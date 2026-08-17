@@ -77,7 +77,9 @@ searchlights <- function(radius, normalization = "local") {
       "`radius` is required: pass one positive radius in the domain's own ",
       "coordinate units, for example `searchlights(8)` for 8 mm on a volume ",
       "domain."
-    ))
+    ),
+      arg = "radius", received = "no argument",
+      expected = "one positive radius in the domain's coordinate units")
   }
   if (!.is_number(radius) || radius <= 0) {
     .input_error(sprintf(paste0(
@@ -87,7 +89,9 @@ searchlights <- function(radius, normalization = "local") {
       paste0("`", format(radius), "`")
     } else {
       .msg_value(radius)
-    }))
+    }),
+      arg = "radius", received = .msg_value(radius),
+      expected = "one positive finite number")
   }
   .frame_spec("searchlights", normalization, radius = radius)
 }
@@ -127,13 +131,17 @@ regions <- function(labels, normalization = "local") {
     .input_error(paste0(
       "`labels` is required: pass one region label per neural feature, in ",
       "domain feature order, for example `regions(atlas_labels)`."
-    ))
+    ),
+      arg = "labels", received = "no argument",
+      expected = "one region label per neural feature")
   }
   if (length(labels) < 1L || !(is.atomic(labels) || is.factor(labels))) {
     .input_error(sprintf(paste0(
       "`labels` must be a nonempty atomic or factor vector with one region ",
       "label per neural feature; received %s."
-    ), .msg_value(labels)))
+    ), .msg_value(labels)),
+      arg = "labels", received = .msg_value(labels),
+      expected = "a nonempty atomic or factor vector, one label per feature")
   }
   .frame_spec("regions", normalization, labels = labels)
 }
@@ -229,7 +237,10 @@ compile_frame <- function(specification, domain) {
     .input_error(sprintf(paste0(
       "`domain` must be an `effect_domain` (see `abstract_domain()`, ",
       "`volume_domain()`, or `neuroim2_volume_domain()`); received %s."
-    ), if (missing(domain)) "no argument" else .msg_value(domain)))
+    ), if (missing(domain)) "no argument" else .msg_value(domain)),
+      arg = "domain",
+      received = if (missing(domain)) "no argument" else .msg_value(domain),
+      expected = "an `effect_domain`")
   }
   .validate_domain(domain)
   if (missing(specification) || !inherits(specification, "effect_frame_spec")) {
@@ -237,7 +248,12 @@ compile_frame <- function(specification, domain) {
       "`specification` must be a frame specification from `voxelwise()`, ",
       "`searchlights()`, `regions()`, or `whole_brain()`; received %s."
     ), if (missing(specification)) "no argument" else
-      .msg_value(specification)))
+      .msg_value(specification)),
+      arg = "specification",
+      received = if (missing(specification)) "no argument" else
+        .msg_value(specification),
+      expected = paste("a frame specification from `voxelwise()`,",
+        "`searchlights()`, `regions()`, or `whole_brain()`"))
   }
   specification <- .validate_frame_specification(specification)
   n <- domain$n_features
@@ -258,14 +274,19 @@ compile_frame <- function(specification, domain) {
         "`regions()` supplied %s but the domain has %s. Labels are read in ",
         "domain feature order, one per feature."
       ), .msg_count(length(labels), "label"),
-        .msg_count(n, "feature")))
+        .msg_count(n, "feature")),
+        arg = "specification",
+        received = .msg_count(length(labels), "label"),
+        expected = .msg_count(n, "label"))
     }
     present <- !is.na(labels) & nzchar(as.character(labels))
     if (!any(present)) {
       .input_error(paste0(
         "Every region label is missing or empty, so the frame would have no ",
         "measurements. At least one feature must carry a label."
-      ))
+      ),
+        arg = "specification", received = "every label missing or empty",
+        expected = "at least one feature carrying a label")
     }
     region_ids <- unique(as.character(labels[present]))
     region_index <- match(as.character(labels[present]), region_ids)
@@ -335,7 +356,7 @@ compile_frame <- function(specification, domain) {
 #'
 #' Under a conservative frame every domain feature carries total weight mass
 #' one, so local `total` geometries sum exactly to the global geometry:
-#' \deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}
+#' \deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}{sum_x G_x^total = G_Omega^total.}
 #' Overlapping neighborhoods under `normalization = "local"` double-count
 #' shared features, so their local values are not contributions to a
 #' whole-brain quantity. Two preconditions matter when checking the law:

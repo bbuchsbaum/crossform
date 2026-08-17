@@ -38,7 +38,9 @@ abstract_domain <- function(n_features, coordinates = NULL,
     .input_error(paste0(
       "`n_features` is required: give the number of neural features, for ",
       "example `abstract_domain(ncol(betas))`."
-    ))
+    ),
+      arg = "n_features", received = "no argument",
+      expected = "the number of neural features")
   }
   n_features <- .domain_count(n_features)
   if (is.null(feature_ids)) feature_ids <- seq_len(n_features)
@@ -49,7 +51,10 @@ abstract_domain <- function(n_features, coordinates = NULL,
       "%s, received %s%s."
     ), .msg_count(n_features, "identifier"),
       .msg_count(length(feature_ids), "value"),
-      if (anyDuplicated(feature_ids)) " with repeats" else ""))
+      if (anyDuplicated(feature_ids)) " with repeats" else ""),
+      arg = "feature_ids",
+      received = .msg_count(length(feature_ids), "value"),
+      expected = .msg_count(n_features, "unique identifier"))
   }
   if (!is.null(coordinates) &&
       (!is.matrix(coordinates) || !is.numeric(coordinates) ||
@@ -57,19 +62,28 @@ abstract_domain <- function(n_features, coordinates = NULL,
     .input_error(sprintf(paste0(
       "`coordinates` must be a numeric feature-by-axis matrix with one row ",
       "per feature and at least one coordinate axis; received %s."
-    ), .msg_value(coordinates)))
+    ), .msg_value(coordinates)),
+      arg = "coordinates", received = .msg_value(coordinates),
+      expected = "a numeric feature-by-axis matrix")
   }
   if (!is.null(coordinates) && nrow(coordinates) != n_features) {
     .input_error(sprintf(paste0(
       "`coordinates` has %s but the domain declares %s; supply one ",
       "coordinate row per feature, in feature order."
     ), .msg_count(nrow(coordinates), "row"),
-      .msg_count(n_features, "feature")))
+      .msg_count(n_features, "feature")),
+      arg = "coordinates",
+      received = .msg_count(nrow(coordinates), "row"),
+      expected = .msg_count(n_features, "row"))
   }
   if (!is.null(coordinates) && any(!is.finite(coordinates))) {
     .input_error(sprintf(paste0(
       "`coordinates` must be finite; %d of %d values are NA, NaN, or Inf."
-    ), sum(!is.finite(coordinates)), length(coordinates)))
+    ), sum(!is.finite(coordinates)), length(coordinates)),
+      arg = "coordinates",
+      received = sprintf("%d non-finite of %d", sum(!is.finite(coordinates)),
+        length(coordinates)),
+      expected = "all coordinates finite")
   }
   .domain_id(id)
   coordinate_units <- .domain_coordinate_units(coordinate_units, coordinates)
@@ -118,7 +132,9 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
     .input_error(paste0(
       "`mask` is required: pass a three-dimensional logical or numeric array ",
       "whose nonzero entries are the in-mask voxels."
-    ))
+    ),
+      arg = "mask", received = "no argument",
+      expected = "a three-dimensional logical or numeric array")
   }
   if (!is.array(mask) || length(dim(mask)) != 3L || any(dim(mask) < 1L) ||
       !(is.logical(mask) || is.numeric(mask)) ||
@@ -126,21 +142,27 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
     .input_error(sprintf(paste0(
       "`mask` must be a finite three-dimensional logical or numeric array; ",
       "received %s."
-    ), .msg_value(mask)))
+    ), .msg_value(mask)),
+      arg = "mask", received = .msg_value(mask),
+      expected = "a finite three-dimensional logical or numeric array")
   }
   included <- if (is.logical(mask)) !is.na(mask) & mask else mask != 0
   if (!any(included)) {
     .input_error(paste0(
       "`mask` selects no voxels: every entry is FALSE, zero, or missing, so ",
       "the domain would have no features."
-    ))
+    ),
+      arg = "mask", received = "no nonzero entries",
+      expected = "at least one in-mask voxel")
   }
   if (!.is_finite_numeric(spacing) || length(spacing) != 3L ||
       any(spacing <= 0)) {
     .input_error(sprintf(paste0(
       "`spacing` must contain three positive finite voxel sizes, one per ",
       "array axis; received %s."
-    ), .msg_value(spacing)))
+    ), .msg_value(spacing)),
+      arg = "spacing", received = .msg_value(spacing),
+      expected = "three positive finite voxel sizes")
   }
   .domain_id(id)
   voxel <- arrayInd(which(included), dim(mask), useNames = FALSE)
@@ -261,7 +283,9 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
       paste0("`", format(x), "`")
     } else {
       .msg_value(x)
-    }))
+    }),
+      arg = "n_features", received = .msg_value(x),
+      expected = "one positive whole number")
   }
   as.integer(x)
 }
@@ -278,7 +302,9 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
     .input_error(sprintf(paste0(
       "Expected an `effect_domain` (see `abstract_domain()`, ",
       "`volume_domain()`, or `neuroim2_volume_domain()`); received %s."
-    ), .msg_value(x)))
+    ), .msg_value(x)),
+      arg = "x", received = .msg_value(x),
+      expected = "an `effect_domain`")
   }
   expected <- c("id", "kind", "n_features", "feature_ids", "coordinates",
     "coordinate_units", "geometry_signature", "reference", "metadata")

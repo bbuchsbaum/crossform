@@ -64,7 +64,10 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
       "partition with one right partition, as in ",
       "`pairing(c(\"run1\", \"run1\"), c(\"run2\", \"run3\"))`. Use ",
       "`cross_partitions()` for every distinct pair."
-    ))
+    ),
+      arg = if (missing(left)) "left" else "right",
+      received = "no argument",
+      expected = "one partition identifier per edge")
   }
   self_pairs <- match.arg(self_pairs)
   independence <- if (is.null(independence)) {
@@ -75,21 +78,29 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
   if (!is.null(generalizes_over) &&
       (!is.character(generalizes_over) || length(generalizes_over) != 1L ||
        is.na(generalizes_over) || !nzchar(generalizes_over))) {
-    .input_error("`generalizes_over` must be NULL or one nonempty axis name.")
+    .input_error("`generalizes_over` must be NULL or one nonempty axis name.",
+      arg = "generalizes_over", received = .msg_value(generalizes_over),
+      expected = "NULL or one nonempty axis name")
   }
   if (length(left) != length(right) || length(left) < 1L) {
     .input_error(sprintf(paste0(
       "`left` and `right` must name one partition each per edge, so they ",
       "must have the same positive length; received %s and %s."
     ), .msg_count(length(left), "left endpoint"),
-      .msg_count(length(right), "right endpoint")))
+      .msg_count(length(right), "right endpoint")),
+      arg = "left",
+      received = .msg_count(length(left), "left endpoint"),
+      expected = .msg_count(length(right), "right endpoint"))
   }
   .check_flag(directed, "directed")
 
   left <- as.character(left)
   right <- as.character(right)
   if (anyNA(left) || anyNA(right) || any(left == "") || any(right == "")) {
-    .input_error("Pairing endpoints must be non-missing, nonempty identifiers.")
+    .input_error("Pairing endpoints must be non-missing, nonempty identifiers.",
+      arg = "left",
+      received = "a missing or empty endpoint",
+      expected = "non-missing, nonempty partition identifiers")
   }
 
   if (is.null(weight)) {
@@ -99,7 +110,9 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
       any(weight < 0) || max(weight) <= 0) {
     .input_error(
       "`weight` must be finite, nonnegative, and have positive total mass."
-    )
+    ,
+      arg = "weight", received = .msg_value(weight),
+      expected = "finite, nonnegative weights with positive total mass")
   }
 
   is_self <- left == right
@@ -119,7 +132,9 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
     .input_error(paste0(
       "Self-products must declare `independence = \"not_independent\"`: a ",
       "partition's estimate is not independent of itself."
-    ))
+    ),
+      arg = "independence", received = .msg_value(independence),
+      expected = "\"not_independent\" when the pairing has self-products")
   }
 
   key <- if (directed) {
@@ -217,13 +232,17 @@ cross_partitions <- function(partitions, independence = NULL,
     .input_error(paste0(
       "`partitions` is required: pass an `effect_relation` (or ",
       "`fit$relation`), or the partition identifiers to pair."
-    ))
+    ),
+      arg = "partitions", received = "no argument",
+      expected = "an `effect_relation`, or the partition identifiers")
   }
   if (inherits(partitions, "effect_relation_fit")) {
     .input_error(paste0(
       "`partitions` must be partition identifiers or an `effect_relation`; ",
       "pass `fit$relation` rather than the fit itself."
-    ))
+    ),
+      arg = "partitions", received = "an `effect_relation_fit`",
+      expected = "an `effect_relation`, or the partition identifiers")
   }
   if (inherits(partitions, "effect_relation")) {
     .validate_relation(partitions)
@@ -242,7 +261,10 @@ cross_partitions <- function(partitions, independence = NULL,
       "Cross-generalization needs at least two partitions, and this ",
       "relation has %s (%s). Split the data into folds that can be paired, ",
       "for example one partition per run or session."
-    ), .msg_count(length(partitions), "partition"), .msg_names(partitions)))
+    ), .msg_count(length(partitions), "partition"), .msg_names(partitions)),
+      arg = "partitions",
+      received = .msg_count(length(partitions), "partition"),
+      expected = "at least two partitions")
   }
   edges <- utils::combn(partitions, 2L)
   pairing(edges[1L, ], edges[2L, ], directed = FALSE,

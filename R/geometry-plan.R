@@ -283,7 +283,9 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       "`at` is required: pass a compiled frame from `compile_frame()`, for ",
       "example `compile_frame(searchlights(8), domain)`. It declares where ",
       "the geometry is measured."
-    ))
+    ),
+      arg = "at", received = "no argument",
+      expected = "a compiled frame from `compile_frame()`")
   }
   if (missing(over)) {
     .input_error(paste0(
@@ -291,7 +293,9 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       "`pairing()`, for example ",
       "`cross_partitions(x, independence = \"independent\")`. It declares ",
       "which partition products the plan may form."
-    ))
+    ),
+      arg = "over", received = "no argument",
+      expected = "a pairing from `cross_partitions()` or `pairing()`")
   }
   compute <- .validate_compute_policy(compute)
   .validate_geometry_plan_inputs(x, at, over, right = right)
@@ -367,7 +371,9 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   if (!inherits(x, "effect_geometry_plan")) {
     .input_error(sprintf(paste0(
       "Expected an `effect_geometry_plan` from `plan_geometry()`; received %s."
-    ), .msg_value(x)))
+    ), .msg_value(x)),
+      arg = "x", received = .msg_value(x),
+      expected = "an `effect_geometry_plan` from `plan_geometry()`")
   }
   if (.validated_before(x, "geometry_plan", deep)) return(invisible(x))
   expected <- c("task", "frame", "pairing", "metric_schedule", "compute",

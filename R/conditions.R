@@ -143,8 +143,9 @@ catch_refusal <- function(expr) {
 #'   \item{`effect_input_error`}{An argument has the wrong type, shape, or
 #'     value --- a character vector where one string was expected, a matrix
 #'     holding `NA`, a negative count. The caller fixes it by passing
-#'     something else. Carries `$arg` (the argument name), `$received` (a
-#'     short description of what arrived), and `$expected` (what was wanted).}
+#'     something else. May carry `$arg` (the argument name), `$received` (a
+#'     short description of what arrived), and `$expected` (what was wanted);
+#'     see "The three optional fields" below.}
 #'   \item{`effect_contract_error`}{Two objects disagree, or an object
 #'     disagrees with its own recorded identity: a result whose receipt names
 #'     a different scientific plan, a frame compiled against a different
@@ -168,19 +169,30 @@ catch_refusal <- function(expr) {
 #' refusal through. All four inherit from `error`, so ordinary `try()` and
 #' `tryCatch(expr, error = ...)` behave exactly as before.
 #'
-#' @section Branching on a condition:
+#' @section The three optional fields:
+#'
+#' `$arg`, `$received`, and `$expected` are a convenience, not a contract.
+#' They are filled in by the shared argument guards (the `.check_*` family
+#' behind most exported entry points) and by the hand-written checks at the
+#' entry points that know the three values, which covers the argument errors
+#' a caller provokes in ordinary use. Every other site --- internal checks
+#' whose failure is about a whole record rather than one argument, and checks
+#' whose "expected" is a paragraph rather than a phrase --- leaves them
+#' `NULL` and says everything in `conditionMessage()`.
+#'
+#' So branch on the **class** first, which is always there, and treat the
+#' fields as something to report when present:
 #'
 #' ```r
-#' tryCatch(
-#'   rdm(plan, relation, at = 0L),
-#'   effect_input_error = function(condition) {
-#'     message("bad argument: ", condition$arg)
-#'   },
-#'   effect_contract_error = function(condition) {
-#'     message("these objects do not belong together")
-#'   }
-#' )
+#' if (!is.null(condition$arg)) {
+#'   message("bad argument `", condition$arg, "`: ", condition$received)
+#' }
 #' ```
+#'
+#' The same three fields exist on `effect_contract_error` and
+#' `effect_invariant_error` under the same rule; a contract error that
+#' compares two identities typically fills `$received` and `$expected` with
+#' the two shortened signatures.
 #'
 #' @return These are condition classes, not functions; there is nothing to
 #'   call. [catch_refusal()] captures a refusal as a value.
@@ -188,13 +200,39 @@ catch_refusal <- function(expr) {
 #' @seealso [catch_refusal()]
 #' @examples
 #' domain <- abstract_domain(2, id = "conditions-example")
+#' relation <- relation(
+#'   list(a = matrix(1:4, 2), b = matrix(2:5, 2)),
+#'   effects = c("x", "y"), domain = domain
+#' )
+#' plan <- plan_geometry(
+#'   relation, compile_frame(whole_brain(), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' )
 #'
-#' # A shape error: `n_features` is not one positive whole number.
-#' shape <- tryCatch(abstract_domain(-1), effect_input_error = function(e) e)
-#' class(shape)
-#' conditionMessage(shape)
+#' # Branch on the class. Three weights for two effects is an input error.
+#' tryCatch(
+#'   contrast_energy(plan, c(1, -1, 0)),
+#'   effect_input_error = function(e) conditionMessage(e),
+#'   effect_contract_error = function(e) "these objects do not belong together"
+#' )
 #'
-#' # `effect_error` catches input, contract, and invariant failures alike.
+#' # A guard-raised error additionally names the argument and the value.
+#' guarded <- tryCatch(
+#'   effect_space(c("x", "y"), basis_id = 42),
+#'   effect_input_error = function(e) e
+#' )
+#' guarded$arg
+#' guarded$received
+#' guarded$expected
+#'
+#' # Not every site fills them, so test before you use them. Here the whole
+#' # explanation is in the message.
+#' bare <- tryCatch(abstract_domain(2, id = ""), effect_input_error = identity)
+#' is.null(bare$arg)
+#' conditionMessage(bare)
+#'
+#' # `effect_error` catches input, contract, and invariant failures alike,
+#' # while letting a capability refusal through.
 #' tryCatch(abstract_domain(-1), effect_error = function(e) "caught")
 #' @name crossform_conditions
 NULL

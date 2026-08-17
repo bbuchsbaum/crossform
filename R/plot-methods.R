@@ -240,7 +240,8 @@
 .plot_measurement_profile <- function(values, highlight, xlab, ylab, main,
                                       color, dots = list(),
                                       reference = 0, headroom = 0,
-                                      legend_label = NULL, top = 200L) {
+                                      legend_label = NULL, top = 200L,
+                                      highlight_fill = NULL) {
   positions <- seq_along(values)
   dense <- length(values) > .dense_measurements
   scale <- .measurement_scale(length(values))
@@ -262,22 +263,42 @@
     graphics::points(positions, values, pch = 20, cex = 0.5 * scale$cex,
       col = .fade(.geometry_colors[["neutral"]], scale$alpha))
   }
+  # `highlight_fill` is how a caller that already has a per-measurement color
+  # -- the contrast view's signed marginal -- keeps one meaning per color
+  # across a two-panel figure. With it, highlighting is carried by a black
+  # ring and the fill still means the sign, exactly as in the decomposition
+  # panel. Without it the panel keeps its single accent color.
+  ringed <- !is.null(highlight_fill)
   if (length(highlight)) {
     # Every highlighted measurement is drawn whatever the panel's size: the
     # highlight set is the reader's question, so it is never summarized away.
     marked <- .measurement_scale(length(highlight))
+    needle <- if (ringed) highlight_fill else color
     graphics::segments(highlight, reference, highlight, values[highlight],
-      col = .fade(color, marked$alpha), lwd = 2)
-    graphics::points(highlight, values[highlight], pch = 19,
-      cex = 0.9 * marked$cex, col = .fade(color, marked$alpha))
+      col = .fade(needle, marked$alpha), lwd = 2)
+    if (ringed) {
+      graphics::points(highlight, values[highlight], pch = 21L,
+        cex = 0.95 * marked$cex, col = .geometry_colors[["black"]],
+        bg = .fade(highlight_fill, marked$alpha))
+    } else {
+      graphics::points(highlight, values[highlight], pch = 19,
+        cex = 0.9 * marked$cex, col = .fade(color, marked$alpha))
+    }
   }
   named <- length(highlight) && !is.null(legend_label)
+  # The highlight swatch is drawn as the encoding itself: an unfilled black
+  # ring, because the fill of a ringed point carries the sign and a gray
+  # filled swatch would claim gray means "highlighted" while the same gray
+  # means "not highlighted" two rows above it.
+  ring_pch <- if (ringed) 21L else 19L
+  ring_col <- if (ringed) .geometry_colors[["black"]] else color
   if (dense) {
     graphics::legend(
       "topleft", bty = "n", cex = 0.8,
-      pch = c(15L, 20L, if (named) 19L),
+      pch = c(15L, 20L, if (named) ring_pch),
       col = c(.fade(.geometry_colors[["faint"]], 0.55),
-        .geometry_colors[["neutral"]], if (named) color),
+        .geometry_colors[["neutral"]], if (named) ring_col),
+      pt.bg = NA,
       legend = c(
         sprintf("central 95 %% of %s", .msg_count(length(values),
           "measurement")),
@@ -287,6 +308,15 @@
           sprintf("%s (%d measurements)", legend_label, length(highlight))
         }
       )
+    )
+  } else if (named && ringed) {
+    graphics::legend(
+      "topleft", bty = "n", cex = 0.8,
+      pch = c(20L, 21L),
+      col = c(.geometry_colors[["neutral"]], .geometry_colors[["black"]]),
+      pt.bg = NA, pt.cex = c(1, 0.95),
+      legend = c("not highlighted",
+        sprintf("%s (%d measurements)", legend_label, length(highlight)))
     )
   } else if (named) {
     graphics::legend("topleft", bty = "n", cex = 0.8, pch = 19, col = color,
@@ -369,9 +399,15 @@
 #' constant `total` because `coherent + configuration = total` exactly. The
 #' right panel walks the same total along the measurement index. Passing
 #' `highlight` (for the generated fixture,
-#' `example_fmri_effects()$truth$signal_measurements`) fills the
+#' `example_fmri_effects()$truth$signal_measurements`) marks the
 #' measurements that overlap the planted signal, so a correct analysis is
 #' visible rather than asserted.
+#'
+#' One color means one thing across both panels. Color is the sign of the
+#' signed marginal, blue above zero and orange-red below; a black ring is
+#' "highlighted", and the fill inside it still carries the sign; plain gray is
+#' "not highlighted". When no `highlight` is given there is nothing for gray
+#' to mean, and every measurement keeps its sign color.
 #'
 #' Glyph size and opacity ease down as a panel fills, so a view of a few
 #' thousand measurements stays readable; at or below five hundred
@@ -526,17 +562,20 @@ plot.effect_contrast_view <- function(x,
       defaults$type <- "n"
     } else {
       scale <- .measurement_scale(length(total))
-      # Every point keeps its sign color. Highlighting is carried by weight
-      # and a ring, not by a color of its own: unhighlighted measurements,
-      # which pile up near the origin, are simply drawn lighter and smaller.
-      sign_color <- .signed_colors(signed$values)
-      fill <- sign_color
-      sign_color[!marked] <- grDevices::adjustcolor(
-        sign_color[!marked],
-        alpha.f = (if (length(highlight)) 0.35 else 0.7) * scale$alpha
-      )
-      sign_color[marked] <- .geometry_colors[["black"]]
-      defaults$col <- sign_color
+      # One meaning per color across the figure. Highlighting is carried by a
+      # black ring, and the fill inside it carries the sign. When a highlight
+      # set is given, the measurements outside it go plain gray -- the same
+      # gray the profile panel already uses for "not highlighted" -- so no
+      # color says two things. With no highlight set there is nothing for
+      # gray to mean, and every point keeps its sign color.
+      fill <- .signed_colors(signed$values)
+      point_color <- if (length(highlight)) {
+        ifelse(marked, .geometry_colors[["black"]],
+          .fade(.geometry_colors[["neutral"]], 0.55 * scale$alpha))
+      } else {
+        .fade(fill, 0.7 * scale$alpha)
+      }
+      defaults$col <- point_color
       defaults$bg <- fill
       defaults$pch <- ifelse(marked, 21L, 19L)
       defaults$cex <- ifelse(marked, 1.05, 0.65) * scale$cex
@@ -577,20 +616,30 @@ plot.effect_contrast_view <- function(x,
         col = .geometry_colors[["black"]],
         bg = .fade(.signed_colors(signed$values[highlight]), ringed$alpha))
     }
+    # Four glyphs, four rows, and each color appears once. The highlight row
+    # is drawn as the encoding itself -- an unfilled black ring -- because
+    # the fill of a ringed point is its sign, and a gray filled swatch here
+    # would collide with the gray that means "not highlighted".
+    plain <- if (dense) 15L else 19L
     graphics::legend(
       "topright", bty = "n", cex = 0.75,
       legend = c(
         paste0(signed$label, " > 0"), paste0(signed$label, " < 0"),
+        if (length(highlight) && !dense) "not highlighted",
         if (length(highlight)) {
           sprintf("%s (%d measurements)", highlight_label, length(highlight))
         }
       ),
       col = c(.geometry_colors[["blue"]], .geometry_colors[["vermillion"]],
+        if (length(highlight) && !dense) .geometry_colors[["neutral"]],
         if (length(highlight)) .geometry_colors[["black"]]),
-      pt.bg = .geometry_colors[["neutral"]],
-      pch = c(if (dense) c(15L, 15L) else c(19L, 19L),
+      pt.bg = NA,
+      pch = c(plain, plain,
+        if (length(highlight) && !dense) plain,
         if (length(highlight)) 21L),
-      pt.cex = c(0.9, 0.9, if (length(highlight)) 1.05)
+      pt.cex = c(0.9, 0.9,
+        if (length(highlight) && !dense) 0.65,
+        if (length(highlight)) 1.05)
     )
     # The dashed guides no longer need a legend row of their own.
     graphics::mtext(
@@ -613,7 +662,13 @@ plot.effect_contrast_view <- function(x,
         "Total energy across measurements"),
       color = .geometry_colors[["vermillion"]], dots = dots,
       headroom = if (length(highlight)) 0.12 else 0,
-      legend_label = highlight_label, top = top
+      legend_label = highlight_label, top = top,
+      # The same glyph as the decomposition panel: sign-colored fill, black
+      # ring. Without it the profile's accent color would be vermillion,
+      # which the other panel spends on "signed < 0".
+      highlight_fill = if (length(highlight)) {
+        .signed_colors(signed$values[highlight])
+      }
     )
   }
   invisible(x)

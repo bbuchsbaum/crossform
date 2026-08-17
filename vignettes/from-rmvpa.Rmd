@@ -65,12 +65,13 @@ with the plan.
 | rMVPA | crossform | Notes |
 |---|---|---|
 | `mvpa_dataset(train_data, mask =)` | `neuroim2_volume_domain(mask)` + `relation(list_of_run_matrices, ...)` | rMVPA holds the image; `crossform` splits *where* (domain) from *what was estimated* (relation). |
-| `mvpa_design(df, y_train = ~y, block_var = ~block)` | `effect_space(condition_names)` for the conditions; run structure is the names of the list passed to `relation()` | `crossform` has no trial-level design object at this stage; conditions are already estimated. |
+| `mvpa_design(df, y_train = ~y, block_var = ~block)` | `effect_space(condition_names)` for the conditions; run structure is the names of the list passed to `relation()` | The same table drives both routes in "Getting your own data in" below: the condition column becomes the effect space, the run column becomes the partitions. |
 | `blocked_cross_validation(block_var)` | `cross_partitions(rel, independence = "independent", generalizes_over = "run")` | rMVPA folds train/test; `crossform` forms products between *different* partitions. Not the same object: see below. |
 | `run_searchlight(spec, radius = 8)` | `compile_frame(searchlights(radius = 8), domain)` or `neuroim2_searchlights(mask, radius = 8)`, then `plan_geometry()` | Radius is millimeters in both. |
 | `run_regional(spec, region_mask)` | `compile_frame(regions(labels), domain)` | `regions()` takes one label per **feature** (a vector), not a `NeuroVol`. |
 | `rsa_design(~ model, data = list(model = D), block_var =)` | the `models =` list of `rsa()`, plus `cross_partitions()` for the blocking | `crossform` aligns model RDMs by condition **name**. |
-| `rsa_model(dset, des, distmethod =, regtype =)` | `rsa(plan, models = list(...))` | See "distance conventions" below — these are not the same estimator. |
+| `rsa_model(dset, des, distmethod =, regtype =)` | `rsa(plan, models = list(...))` | Two separate arguments: `distmethod` picks the distance, `regtype` the second-order statistic. See "distance conventions" below. |
+| `contrast_rsa_model(dset, msreve_des, output_metric = "beta_delta")` | `contrast_energy(plan, weights)` | The nearest analogue, not an equivalent. rMVPA regresses the crossvalidated second-moment matrix on several competing contrast RDMs at once and multiplies each signed coefficient by the *center voxel's* projection onto that contrast, giving one signed map per contrast. `contrast_energy()` scores one contrast on its own, returns that contrast's crossvalidated energy for the whole measurement, and splits it into coherent and configuration parts. |
 | `vector_rsa_model(dset, des, distfun = cordist())` | no equivalent | Trial-level; `crossform` aggregates to condition level. |
 | `compute_crossvalidated_means_sl(..., estimation_method = "crossnobis")` + `compute_crossnobis_distances_sl()` | `rdm(plan)` under `cross_partitions()`, or `plan_crossnobis()` / `crossnobis()` | This is the pairing where the two packages have been checked against each other. |
 | `mvpa_model(model = "sda_notune", ...)`, classification accuracy | no equivalent | `crossform` has no classifier. |
@@ -151,9 +152,11 @@ c(
 ```
 
 Two things differ beyond syntax. `plan` is reusable: `rdm(plan)` and any
-number of further contrasts cost no refit. And `rsa()` returns an OLS
-coefficient with an intercept column by default, not a rank correlation —
-`ncol()` above is 2 for one model because the intercept is retained.
+number of further contrasts cost no refit. And `rsa()` returns OLS
+coefficients with an intercept column by default — `ncol()` above is 2 for one
+model because the intercept is retained. rMVPA reaches the same family with
+`rsa_model(..., regtype = "lm")`; its default `regtype = "pearson"` scores the
+match as a correlation between the two vectorized RDMs instead.
 
 ```{r crossform-reuse}
 distances <- rdm(plan)
@@ -161,17 +164,167 @@ dim(distances$values)
 colnames(category$coefficients)
 ```
 
+## Getting your own data in: from a trial-level beta series
+
+The example above starts from a fitted relation. If what you have is what
+rMVPA wants — a trial-level beta series plus a design table with a condition
+column and a run column — this section is the bridge. Everything here runs.
+
+```{r beta-series}
+set.seed(2026)
+conditions <- c("face", "body", "house", "tool")
+runs <- paste0("run", 1:4)
+
+# One row per trial, five trials per condition per run. This is the
+# `mvpa_design()` table, and `beta_series` is the matrix behind the
+# `mvpa_dataset()` NeuroVec once the mask has been applied.
+trial_design <- expand.grid(
+  trial = 1:5, condition = conditions, run = runs, stringsAsFactors = FALSE
+)
+trial_design$condition <- factor(trial_design$condition, levels = conditions)
+n_trial <- nrow(trial_design)
+n_voxel <- 40L
+
+beta_series <- matrix(rnorm(n_trial * n_voxel), n_trial, n_voxel)
+planted <- 1:8
+animate <- trial_design$condition %in% c("face", "body")
+beta_series[animate, planted] <- beta_series[animate, planted] +
+  rep(rep(c(1.5, -1.5), length.out = length(planted)), each = sum(animate))
+
+dim(beta_series)
+head(trial_design, 3)
+```
+
+`relation()` wants one **condition-by-voxel matrix per run**, not a trial
+list, because the second-order geometry is defined on condition estimates and
+the runs are the partitions that must generalize. There are two ways to get
+there, and they are not equivalent in what they earn you.
+
+### Route 1: average the betas within condition, per run
+
+The direct translation. `split()` on the run column, then a column mean per
+condition.
+
+```{r beta-series-average}
+domain <- abstract_domain(n_voxel, id = "beta-series-example")
+by_run <- split(seq_len(n_trial), trial_design$run)
+
+run_matrices <- lapply(by_run, function(rows) {
+  t(vapply(conditions, function(condition) {
+    colMeans(beta_series[rows[trial_design$condition[rows] == condition], ,
+      drop = FALSE])
+  }, numeric(n_voxel)))
+})
+
+averaged <- relation(run_matrices, effects = effect_space(conditions),
+                     domain = domain)
+plan_averaged <- plan_geometry(
+  averaged,
+  at = compile_frame(whole_brain(), domain),
+  over = cross_partitions(averaged, independence = "independent",
+                          generalizes_over = "run")
+)
+animacy <- c(face = 0.5, body = 0.5, house = -0.5, tool = -0.5)
+energy_averaged <- contrast_energy(plan_averaged, animacy)
+energy_averaged$total
+```
+
+Row names matter: `relation()` aligns partitions by effect **name**, so the
+matrices must be named by condition. `t(vapply(...))` above produces that.
+
+### Route 2: hand the trial betas over as observations
+
+Better, when you can. `lm_relation_fit()` takes the trials themselves plus a
+per-run design matrix and fits the condition estimates inside `crossform`,
+which keeps the residual error channel that the analytic sampling law needs.
+The design is the condition indicator; `effects` says each condition *is* its
+own coefficient.
+
+```{r beta-series-fit}
+designs <- lapply(by_run, function(rows) {
+  X <- stats::model.matrix(~ 0 + condition,
+                           data = trial_design[rows, , drop = FALSE])
+  colnames(X) <- conditions
+  X
+})
+sources <- lapply(by_run, function(rows) beta_series[rows, , drop = FALSE])
+targets <- diag(length(conditions))
+dimnames(targets) <- list(conditions, conditions)
+
+fit <- lm_relation_fit(
+  sources, design = designs, effects = targets,
+  effect_names = effect_space(conditions),
+  sampling_unit = "trial", domain = domain
+)
+plan_fitted <- plan_geometry(
+  fit$relation,
+  at = compile_frame(whole_brain(), domain),
+  over = cross_partitions(fit$relation, independence = "independent",
+                          generalizes_over = "run")
+)
+energy_fitted <- contrast_energy(plan_fitted, animacy)
+```
+
+With this balanced indicator design the two routes estimate the same
+condition means, so they report the same energy:
+
+```{r beta-series-agree}
+c(route_1 = energy_averaged$total,
+  route_2 = energy_fitted$total,
+  max_difference = max(abs(energy_averaged$total - energy_fitted$total)))
+```
+
+What route 2 buys is the error channel. Only the fitted relation can be asked
+for a within-measurement standard error:
+
+```{r beta-series-uncertainty}
+sampling_capabilities(plan_fitted, fit)
+
+round(sqrt(sampling_covariance(rdm_sampling_covariance(
+  plan_fitted, fit, target = "null", at = 1L
+))), 4)
+```
+
+Ask the averaged relation the same question and you get a refusal naming
+exactly what is missing, rather than a number:
+
+```{r beta-series-refusal}
+catch_refusal(
+  rdm_sampling_covariance(plan_averaged, averaged, target = "null", at = 1L)
+)
+```
+
+Two practical notes. Runs need not have equal trial counts — `design` accepts
+a named list with one matrix per partition, which is why it is built inside
+`lapply()` above. And if your betas came from a GLM whose residuals are
+temporally autocorrelated, pass `observation_whitener =` as well; see
+`vignette("from-observations", package = "crossform")` for what that argument
+is asserting.
+
 ## Distance and second-order conventions are not the same
 
 This is the most likely source of surprise, and it is not a bug on either
 side.
 
-- `crossform`'s `rdm()` reports signed **crossvalidated squared Euclidean**
-  distances, `d_ij = G_ii + G_jj - 2 G_ij` (squared Mahalanobis under a fixed
-  metric). They can be negative, and are not truncated.
-- rMVPA's `rsa_model()` takes `distmethod` in `{"pearson", "spearman"}`, i.e.
-  a **correlation distance**, and scores it with a correlation.
-- `crossform`'s `rsa()` is **OLS**, not a rank correlation.
+The two arguments of `rsa_model()` do separate jobs, and only one of them is
+where the packages part company.
+
+- **The distance.** `crossform`'s `rdm()` reports signed **crossvalidated
+  squared Euclidean** distances, `d_ij = G_ii + G_jj - 2 G_ij` (squared
+  Mahalanobis under a fixed metric). They can be negative, and are not
+  truncated. rMVPA's `rsa_model()` takes `distmethod` in
+  `{"pearson", "spearman"}` and nothing else, so its neural RDM is always a
+  **correlation distance**. This is the difference that cannot be bridged.
+  (rMVPA's crossnobis distances live elsewhere, on
+  `contrast_rsa_model(estimation_method = "crossnobis")` and the
+  `compute_crossnobis_distances_sl()` helper — which is why the parity check
+  below uses those and not `rsa_model()`.)
+- **The second-order statistic.** This is a *separate* argument, `regtype`,
+  taking `"pearson"`, `"spearman"`, `"lm"`, or `"rfit"`. `crossform`'s `rsa()`
+  is OLS with an intercept, which is the same family as `regtype = "lm"`.
+  rMVPA's default is `regtype = "pearson"`, a correlation between the two
+  vectorized RDMs; set `regtype = "lm"` and this half of the comparison lines
+  up.
 
 `crossform` cannot express correlation distance at all: dividing each pattern
 by its own norm is not a fixed linear operation on the patterns, so it is
@@ -241,21 +394,26 @@ Read that number with the exemplar's own caveats, which are recorded there in
 full:
 
 1. **It is not `rsa_model`.** The exemplar originally named `rsa_model` for
-   the rMVPA arm and could not use it: it never aggregates to condition level.
-   `vector_rsa_model` is trial-level, and `contrast_rsa_model` computes the
-   right cross-validated Gram matrix internally but exposes only contrast
-   betas. The crossnobis helper is the only route, and
-   `compute_crossnobis_distances_sl()` is not exported, so the script calls it
-   with `:::`.
+   the rMVPA arm and could not use it: its distances are correlation
+   distances, which `crossform` does not compute. `vector_rsa_model` is
+   trial-level. `contrast_rsa_model` does build the cross-validated
+   second-moment matrix internally, but what it returns is a signed
+   per-contrast contribution evaluated at each searchlight's center voxel,
+   never the condition-by-condition distances themselves. The crossnobis
+   helper is the only route, and `compute_crossnobis_distances_sl()` is not
+   exported, so the script calls it with `:::`.
 2. **It is version-sensitive.** The comparison requires an rMVPA build whose
    crossnobis fold estimates are per-run condition means. The script asserts
    that semantics and stops with an explanatory error otherwise, rather than
    checking a version string.
 3. **The originally specified estimand was not achievable.** A
    correlation-distance RDM scored by Spearman cannot be expressed by
-   `crossform` at all, and rMVPA's `rsa_model` couples the distance and the
-   second-order statistic through one `distmethod` argument. The matched
-   comparison is a substitution, and the exemplar says so.
+   `crossform` at all: `rsa_model()`'s `distmethod` offers only `"pearson"`
+   and `"spearman"`, and `crossform` has no correlation distance to meet
+   either one. The second-order statistic is not the obstacle — that is a
+   separate argument, `regtype`, whose `"lm"` setting is the same OLS family
+   as `crossform`'s `rsa()`. It is the distance that cannot be shared. The
+   matched comparison is therefore a substitution, and the exemplar says so.
 
 What the number demonstrates is numerical parity on a shared estimand. It
 demonstrates nothing about speed, and nothing about correlation-distance RSA.

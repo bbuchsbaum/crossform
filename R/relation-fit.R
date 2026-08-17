@@ -336,33 +336,33 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
 #'
 #' @section Independent observations, or a whitener:
 #' The error channel this function records --- the effect covariance
-#' \eqn{\Xi=A A^\top} and the residual degrees of freedom \eqn{\nu=n-\mathrm{rank}(X)}
+#' \eqn{\Xi=A A^\top}{Xi = A A^T} and the residual degrees of freedom \eqn{\nu=n-\mathrm{rank}(X)}{nu = n - rank(X)}
 #' --- describes observations that are independent given the design. fMRI
 #' residuals are not: they are temporally autocorrelated. Fitting without
-#' `observation_whitener` therefore leaves \eqn{\Xi} as the plain OLS factor,
+#' `observation_whitener` therefore leaves \eqn{\Xi}{Xi} as the plain OLS factor,
 #' which is not the covariance of the estimates under correlated errors, and
-#' leaves \eqn{\nu} counting observations rather than independent ones, so
-#' \eqn{\nu} overstates the residual information available.
+#' leaves \eqn{\nu}{nu} counting observations rather than independent ones, so
+#' \eqn{\nu}{nu} overstates the residual information available.
 #'
 #' The consequence for [rdm_sampling_covariance()] runs in *either*
-#' direction and is not small. Under AR(1) errors with \eqn{\rho=0.75}, 32
+#' direction and is not small. Under AR(1) errors with \eqn{\rho=0.75}{rho = 0.75}, 32
 #' trials, four conditions, six runs and 50 features, the ratio of the true
 #' spread of the distance estimator to the standard error crossform reports
 #' is 0.50 for a randomly interleaved trial order (the standard error is twice
 #' too large) and 5.10 for a blocked order (five times too small). Supplying
-#' `observation_whitener = L` with \eqn{L^\top L=\Sigma_t^{-1}} brings the same
-#' blocked design to 1.03. crossform applies the \eqn{L} you give it and
-#' records its identity; it cannot check that \eqn{L} matches the
+#' `observation_whitener = L` with \eqn{L^\top L=\Sigma_t^{-1}}{L^T L = Sigma_t^{-1}} brings the same
+#' blocked design to 1.03. crossform applies the \eqn{L}{L} you give it and
+#' records its identity; it cannot check that \eqn{L}{L} matches the
 #' autocorrelation actually present in your data.
 #'
 #' @param sources Raw observation-by-feature sources accepted by `relation()`.
 #' @param design One design matrix, or one per partition.
 #' @param effects One effect target matrix, or one per partition.
-#' @param observation_whitener NULL, one observation whitener \eqn{L}, or one
+#' @param observation_whitener NULL, one observation whitener \eqn{L}{L}, or one
 #'   per partition. A finite square observation-by-observation matrix; the fit
-#'   is carried out on \eqn{LX} and \eqn{Ly}, so \eqn{L} should satisfy
-#'   \eqn{L^\top L=\Sigma_t^{-1}} for the within-partition error covariance
-#'   \eqn{\Sigma_t}. Leaving it `NULL` asserts that the observations are
+#'   is carried out on \eqn{LX}{LX} and \eqn{Ly}{Ly}, so \eqn{L}{L} should satisfy
+#'   \eqn{L^\top L=\Sigma_t^{-1}}{L^T L = Sigma_t^{-1}} for the within-partition error covariance
+#'   \eqn{\Sigma_t}{Sigma_t}. Leaving it `NULL` asserts that the observations are
 #'   already independent given the design; see the section above.
 #' @param effect_names One common effect space/name vector, or one per partition.
 #' @param tolerance Positive rank and estimability tolerance.

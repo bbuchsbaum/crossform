@@ -23,11 +23,73 @@
     check.names = FALSE, row.names = NULL)
 }
 
+# A value that must be shown whole. `.pf_emit()` truncates a line past
+# `.pf_line_width`, which is right for a signature or a route but wrong for a
+# contrast: `?contrast_energy` tells the reader to check exactly that line
+# against their intended alignment, and a forty-effect contrast was arriving
+# as `... wo...`. A wrapped value is emitted across as many lines as it needs,
+# each continuation indented to the value column.
+.pf_wrap <- function(items) structure(list(items = as.character(items)),
+  class = "pf_wrap")
+
+# Greedily pack already-formatted items into `, `-separated lines of at most
+# `width` characters. Never breaks inside an item, so `house -0.5` stays whole
+# however narrow the column is.
+.pf_fill <- function(items, width) {
+  if (!length(items)) {
+    return("none")
+  }
+  lines <- character()
+  current <- ""
+  for (i in seq_along(items)) {
+    piece <- if (i < length(items)) paste0(items[[i]], ",") else items[[i]]
+    candidate <- if (nzchar(current)) paste(current, piece) else piece
+    if (nchar(candidate) > width && nzchar(current)) {
+      lines <- c(lines, current)
+      current <- piece
+    } else {
+      current <- candidate
+    }
+  }
+  c(lines, current)
+}
+
+# `.pf_emit()` with support for `.pf_wrap()` values. Plain values keep the
+# existing behaviour exactly, so every view that does not wrap prints
+# byte-identically to before.
+.pf_emit_block <- function(class, fields) {
+  keep <- !vapply(fields, is.null, logical(1))
+  fields <- fields[keep]
+  if (!any(vapply(fields, inherits, logical(1), "pf_wrap"))) {
+    return(.pf_emit(class, fields))
+  }
+  cat("<", class, ">\n", sep = "")
+  keys <- names(fields)
+  width <- max(nchar(keys)) + 2L
+  indent <- strrep(" ", width + 2L)
+  for (i in seq_along(fields)) {
+    value <- fields[[i]]
+    head <- sprintf("  %-*s", width, paste0(keys[[i]], ":"))
+    if (inherits(value, "pf_wrap")) {
+      wrapped <- .pf_fill(value$items, .pf_line_width - width - 2L)
+      cat(paste0(c(head, rep(indent, length(wrapped) - 1L)), wrapped,
+        collapse = "\n"), "\n", sep = "")
+    } else {
+      line <- paste0(head, paste0(as.character(value), collapse = ""))
+      if (nchar(line) > .pf_line_width) {
+        line <- paste0(substr(line, 1L, .pf_line_width - 3L), "...")
+      }
+      cat(line, "\n", sep = "")
+    }
+  }
+  invisible(NULL)
+}
+
 .format_result_preview <- function(x, title, fields = list(), ...) {
   data <- as.data.frame(x)
-  # `.pf_emit()` aligns the header block; `measurements` is the longest key,
-  # so adding a field never shifts the existing columns.
-  .pf_emit(title, c(list(measurements = nrow(data)), fields))
+  # `.pf_emit_block()` aligns the header block; `measurements` is the longest
+  # key, so adding a field never shifts the existing columns.
+  .pf_emit_block(title, c(list(measurements = nrow(data)), fields))
   # Four significant digits. The default seven prints the last bits of a
   # LAPACK result, which differ across BLAS implementations and platforms
   # and would make printed output non-reproducible.
@@ -229,10 +291,30 @@ as.data.frame.effect_crossnobis_view <- function(x, row.names = NULL,
     matrix(x$values, ncol = 1L, dimnames = list(NULL, "crossnobis")))
 }
 
+# The contrast in relation order, one `name value` item per effect. Named so
+# that a positionally supplied contrast shows the alignment that was actually
+# used. Capped at `max` effects, because past that a print method is no longer
+# a summary; `x$weights` is the whole vector.
+.pf_contrast_items <- function(weights, max = 12L) {
+  if (is.null(weights) || !length(weights)) {
+    return("none")
+  }
+  labels <- names(weights)
+  if (is.null(labels) || anyNA(labels) || !all(nzchar(labels))) {
+    labels <- paste0("[", seq_along(weights), "]")
+  }
+  items <- paste0(labels, " ",
+    format(signif(as.numeric(weights), 4L), trim = TRUE))
+  if (length(items) <= max) {
+    return(items)
+  }
+  c(items[seq_len(max)], sprintf("(+%d more)", length(items) - max))
+}
+
 #' @export
 print.effect_crossnobis_view <- function(x, ...) {
   .format_result_preview(x, "effect_crossnobis_view",
-    fields = list(contrast = .pf_weights(x$contrast)), ...)
+    fields = list(contrast = .pf_wrap(.pf_contrast_items(x$contrast))), ...)
 }
 
 #' @export
@@ -261,7 +343,7 @@ print.effect_contrast_view <- function(x, ...) {
   # The contrast is shown because unnamed weights are accepted positionally:
   # a reader who mis-ordered them sees the alignment that was actually used.
   .format_result_preview(x, "effect_contrast_view",
-    fields = list(contrast = .pf_weights(x$weights)), ...)
+    fields = list(contrast = .pf_wrap(.pf_contrast_items(x$weights))), ...)
   # A column of NA in the preview is otherwise unexplained, and the reason is
   # a real property of the estimate rather than missing data.
   valid <- x$coherence_fraction_valid
@@ -293,7 +375,32 @@ as.data.frame.effect_rsa_view <- function(x, row.names = NULL,
 
 #' @export
 print.effect_rsa_view <- function(x, ...) {
-  .format_result_preview(x, "effect_rsa_view", ...)
+  # Without a header the columns of the coefficient table are the only clue
+  # to what was fitted, and `(Intercept)` next to a model name does not say
+  # which names are models, which are nuisance, or over how many pairs the
+  # regression ran.
+  terms <- x$terms
+  named <- function(kind) {
+    if (is.data.frame(terms)) terms$term[terms$role == kind] else character()
+  }
+  pairs <- x$query$pair_labels
+  effects <- x$query$effects
+  .format_result_preview(x, "effect_rsa_view",
+    fields = list(
+      models = .pf_wrap(named("model")),
+      nuisance = if (length(named("nuisance"))) {
+        .pf_wrap(named("nuisance"))
+      },
+      intercept = if (length(named("intercept"))) "fitted" else "omitted",
+      pairs = if (!is.null(pairs)) {
+        sprintf("%s over %s", .msg_count(length(pairs), "distance"),
+          .msg_count(length(effects), "effect"))
+      },
+      estimate = sprintf("OLS coefficients on the %s component", x$component)
+    ), ...)
+  cat(sprintf("  %-14s%s\n", "next:",
+    "as.data.frame(x), plot(x, terms = ...)"))
+  invisible(x)
 }
 
 #' @export

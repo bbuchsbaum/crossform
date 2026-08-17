@@ -86,7 +86,9 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
       "`weights` is required: pass one finite weight per experimental ",
       "effect, for example `contrast_energy(plan, c(face = 1, house = -1))`. ",
       "Unnamed weights are taken in the relation's declared effect order."
-    ))
+    ),
+      arg = "weights", received = "no argument",
+      expected = "one finite weight per experimental effect")
   }
   if (!isFALSE(remove_univariate)) {
     .capability_refusal(paste0(
@@ -122,7 +124,9 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
     .input_error(sprintf(paste0(
       "`x` must be an `effect_geometry_plan` from `plan_geometry()` or a ",
       "complete `effect_geometry` from `materialize_geometry()`; received %s."
-    ), .msg_value(x)))
+    ), .msg_value(x)),
+      arg = "x", received = .msg_value(x),
+      expected = "an `effect_geometry_plan` or a complete `effect_geometry`")
   }
   .validate_effect_geometry(x, probe = FALSE)
   weights <- .align_contrast(weights, x$effects)
@@ -190,7 +194,9 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
     .input_error(sprintf(paste0(
       "%s requires an `effect_geometry_plan` from `plan_geometry()` or a ",
       "complete effect form from `materialize_geometry()`; received %s."
-    ), operation, .msg_value(x)))
+    ), operation, .msg_value(x)),
+      arg = "x", received = .msg_value(x),
+      expected = "an `effect_geometry_plan` or a complete `effect_geometry`")
   }
   .validate_effect_form(x, probe = FALSE)
   if (!isTRUE(x$capabilities$self_form) ||
@@ -227,7 +233,7 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
 #'
 #' For effects `i` and `j`, this view applies the fixed contrast
 #' `c = e_i - e_j` to the selected geometry component `G`:
-#' \deqn{d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.}
+#' \deqn{d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.}{d_ij = c^T G c = G_ii + G_jj - 2 G_ij.}
 #' With cross-partition geometry this is the signed crossvalidated squared
 #' Euclidean distance, or squared Mahalanobis distance when the plan carries a
 #' fixed neural metric. It is not `1 - Pearson correlation`: correlation
@@ -365,14 +371,18 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
     .input_error(sprintf(paste0(
       "`%s` must be one dissimilarity matrix or a nonempty named list of ",
       "them; received %s."
-    ), label, .msg_value(models)))
+    ), label, .msg_value(models)),
+      arg = label, received = .msg_value(models),
+      expected = "one dissimilarity matrix, or a named list of them")
   }
   if (is.null(names(models)) || anyNA(names(models)) ||
       any(!nzchar(names(models))) || anyDuplicated(names(models))) {
     .input_error(sprintf(paste0(
       "`%s` must be a list with unique nonempty names; the names become the ",
       "coefficient columns of the fit."
-    ), label))
+    ), label),
+      arg = label, received = .msg_names(names(models)),
+      expected = "a list with unique nonempty names")
   }
   entries <- names(models)
   out <- lapply(entries, function(entry) {
@@ -380,33 +390,47 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
     where <- sprintf("`%s` RDM `%s`", label, entry)
     if (!is.matrix(value) || !is.numeric(value)) {
       .input_error(sprintf("%s must be a numeric matrix; received %s.",
-        where, .msg_value(value)))
+        where, .msg_value(value)),
+        arg = label, received = .msg_value(value),
+        expected = "a numeric matrix")
     }
     if (!identical(dim(value), c(q, q))) {
       .input_error(sprintf(paste0(
         "%s is %d x %d; the relation declares %s (%s), so every model RDM ",
         "must be %d x %d."
       ), where, nrow(value), ncol(value), .msg_count(q, "effect"),
-        .msg_names(effects), q, q))
+        .msg_names(effects), q, q),
+        arg = label,
+        received = sprintf("%d x %d", nrow(value), ncol(value)),
+        expected = sprintf("%d x %d", q, q))
     }
     if (any(!is.finite(value))) {
       .input_error(sprintf("%s contains %s non-finite %s.", where,
         sum(!is.finite(value)),
-        if (sum(!is.finite(value)) == 1L) "entry" else "entries"))
+        if (sum(!is.finite(value)) == 1L) "entry" else "entries"),
+        arg = label,
+        received = sprintf("%d non-finite of %d", sum(!is.finite(value)),
+          length(value)),
+        expected = "all entries finite")
     }
     asymmetry <- max(abs(value - t(value)))
     if (asymmetry > 1e-12) {
       .input_error(sprintf(paste0(
         "%s is not symmetric; the largest difference between `m[i, j]` and ",
         "`m[j, i]` is %g. A dissimilarity between two effects has one value."
-      ), where, asymmetry))
+      ), where, asymmetry),
+        arg = label, received = sprintf("asymmetry %g", asymmetry),
+        expected = "a symmetric matrix")
     }
     if (max(abs(diag(value))) > 1e-12) {
       .input_error(sprintf(paste0(
         "%s has a nonzero diagonal (largest |m[i, i]| is %g). Pass a ",
         "dissimilarity matrix, not a similarity matrix: an effect is at ",
         "distance zero from itself."
-      ), where, max(abs(diag(value)))))
+      ), where, max(abs(diag(value)))),
+        arg = label,
+        received = sprintf("largest |m[i, i]| is %g", max(abs(diag(value)))),
+        expected = "a zero diagonal")
     }
     row_ids <- rownames(value)
     column_ids <- colnames(value)
@@ -416,7 +440,11 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
           "%s names only its %s; name both axes with the relation's effects ",
           "(%s), or neither."
         ), where, if (is.null(row_ids)) "columns" else "rows",
-          .msg_names(effects)))
+          .msg_names(effects)),
+          arg = label,
+          received = if (is.null(row_ids)) "column names only" else
+            "row names only",
+          expected = "both axes named with the relation's effects, or neither")
       }
       if (anyDuplicated(row_ids) || anyDuplicated(column_ids) ||
           anyNA(row_ids) || anyNA(column_ids) ||
@@ -432,7 +460,9 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
         if (!length(detail)) detail <- "an axis repeats an effect"
         .input_error(sprintf(
           "%s axis names do not match the relation's effects (%s): %s.",
-          where, .msg_names(effects), paste(detail, collapse = "; ")))
+          where, .msg_names(effects), paste(detail, collapse = "; ")),
+          arg = label, received = paste(detail, collapse = "; "),
+          expected = .msg_names(effects))
       }
       value <- value[effects, effects, drop = FALSE]
     }
@@ -606,11 +636,15 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
       "`models` is required: pass one dissimilarity matrix over the ",
       "relation's effects, or a named list of them, for example ",
       "`rsa(plan, models = list(category = m))`."
-    ))
+    ),
+      arg = "models", received = "no argument",
+      expected = "one dissimilarity matrix, or a named list of them")
   }
   if (!.is_flag(intercept)) {
     .input_error(sprintf("`intercept` must be TRUE or FALSE; received %s.",
-      .msg_value(intercept)))
+      .msg_value(intercept)),
+      arg = "intercept", received = .msg_value(intercept),
+      expected = "TRUE or FALSE")
   }
   component <- match.arg(component)
   q <- length(source$effects)
@@ -620,7 +654,10 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
     .input_error(sprintf(paste0(
       "Model and nuisance names must be distinct; %s appears in both. Each ",
       "name becomes one coefficient column."
-    ), .msg_names(intersect(names(models), names(nuisance)))))
+    ), .msg_names(intersect(names(models), names(nuisance)))),
+      arg = "nuisance",
+      received = .msg_names(intersect(names(models), names(nuisance))),
+      expected = "names distinct from `models`")
   }
   predictors <- c(models, nuisance)
   design <- do.call(cbind, lapply(predictors, .rdm_vector))
@@ -632,7 +669,9 @@ rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
   }
   qr_design <- qr(design, LAPACK = FALSE)
   if (qr_design$rank != ncol(design)) {
-    .input_error(.rsa_rank_deficiency_message(design, qr_design, intercept))
+    .input_error(.rsa_rank_deficiency_message(design, qr_design, intercept),
+      arg = "models", received = "a rank-deficient design",
+      expected = "model and nuisance RDMs of full column rank")
   }
   # The OLS coefficient map is a fixed linear readout of pair space: the
   # compiled query stays in structured pair-difference form, so no packed

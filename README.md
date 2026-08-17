@@ -37,7 +37,7 @@ plot(effect,
 )
 ```
 
-![Left: every searchlight in the coherent/configuration plane, on equal axes, with two arms — one along each axis. Right: total contrast energy along the searchlight index, planted searchlights filled.](man/figures/readme-contrast-energy.png)
+![Left: every searchlight in the coherent/configuration plane, on equal axes, with two arms — one along each axis. Right: total contrast energy along the searchlight index. In both panels the planted searchlights carry a black ring and a sign color, and everything else is plain gray.](man/figures/readme-contrast-energy.png)
 
 The fixture plants two animate-versus-inanimate blocks of 19 voxels each, at
 opposite ends of the volume, with the same per-voxel amplitude. In one the sign
@@ -239,10 +239,10 @@ coherent half is gone, keep it and the two are summed into one number.
 [Reading the results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html)
 (`vignette("interpreting-results")`) covers the traps in the coherent share.
 
-## Bring your own data
+## Your own data, the same five lines
 
-If you already have one condition-by-voxel beta matrix per run, this is the
-whole path. It runs as written.
+Everything above the blank line below is your data. Everything under it is the
+opener again, unchanged. It runs as written.
 
 ```r
 set.seed(1)
@@ -252,36 +252,51 @@ mask  <- array(TRUE, c(8, 8, 6))                       # substitute your mask
 dom   <- volume_domain(mask, spacing = c(3, 3, 3))
 frame <- compile_frame(searchlights(radius = 4), dom)
 
-# Substitute your betas: one condition-by-voxel matrix per run, rows named.
+# Substitute your own: a trial-by-voxel beta series and its design table.
 # Twelve voxels here carry the same face-minus-house pattern in every run,
 # alternating in sign so the regional mean stays near zero.
 planted <- array(FALSE, dim(mask))
 planted[3:4, 3:5, 3:4] <- TRUE
 pattern <- rep(c(3, -3), length.out = sum(planted))
 
-betas <- lapply(1:4, function(run) {
-  b <- matrix(rnorm(4 * sum(mask)), 4, sum(mask), dimnames = list(conditions, NULL))
-  b["face",  planted[mask]] <- b["face",  planted[mask]]  + pattern
-  b["house", planted[mask]] <- b["house", planted[mask]] - pattern
-  b
-})
-names(betas) <- paste0("run", 1:4)
+design <- expand.grid(trial = 1:3, condition = conditions,
+                      run = paste0("run", 1:4), stringsAsFactors = FALSE)
+series <- matrix(rnorm(nrow(design) * sum(mask)), nrow(design), sum(mask))
+is_face  <- design$condition == "face"
+is_house <- design$condition == "house"
+series[is_face,  planted[mask]] <- series[is_face,  planted[mask]] +
+  rep(pattern, each = sum(is_face))
+series[is_house, planted[mask]] <- series[is_house, planted[mask]] -
+  rep(pattern, each = sum(is_house))
 
-rel      <- relation(betas, effects = effect_space(conditions), domain = dom)
-own_plan <- plan_geometry(rel, at = frame, over = cross_partitions(
-  rel, independence = "independent", generalizes_over = "run"
+by_run    <- split(seq_len(nrow(design)), design$run)
+indicator <- function(rows) {
+  x <- stats::model.matrix(~ 0 + factor(design$condition[rows], conditions))
+  `colnames<-`(x, conditions)
+}
+targets <- diag(length(conditions))
+dimnames(targets) <- list(conditions, conditions)
+
+own_fit <- lm_relation_fit(
+  lapply(by_run, function(rows) series[rows, , drop = FALSE]),
+  design = lapply(by_run, indicator), effects = targets, domain = dom
+)
+own_plan <- plan_geometry(own_fit$relation, at = frame, over = cross_partitions(
+  own_fit$relation, independence = "independent", generalizes_over = "run"
 ))
 
 own_effect <- contrast_energy(own_plan, c(face = 1, house = -1, cat = 0, chair = 0))
-plot(own_effect)
+touching   <- which(Matrix::rowSums(frame$weights[, planted[mask], drop = FALSE]) > 0)
+plot(own_effect, highlight = touching, highlight_label = "planted signal")
 ```
 
-The same story on "your" data. Did the searchlights that actually touch the
+`lm_relation_fit()` fits the condition estimates from the trials rather than
+taking them as given, which is what keeps the residual error channel the
+standard errors below need. Did the searchlights that actually touch the
 planted voxels win?
 
 ```r
-touching <- which(Matrix::rowSums(frame$weights[, planted[mask], drop = FALSE]) > 0)
-ranked   <- order(own_effect$total, decreasing = TRUE)
+ranked <- order(own_effect$total, decreasing = TRUE)
 
 c(
   searchlights          = nrow(frame$index),
@@ -293,36 +308,60 @@ c(
 #>          searchlights       touching_signal top_energies_touching
 #>                384.00                 44.00                 44.00
 #>           peak_energy     largest_elsewhere
-#>                 27.48                  1.29
+#>                 27.68                  0.56
 ```
 
 The 44 largest energies in the map are exactly the 44 searchlights that touch
-the planted voxels. Every one of them is configuration-dominated, and 48% of
-the rest fall below zero.
+the planted voxels. All 44 are configuration-dominated, and 59% of the rest
+fall below zero — the null here has mean `-0.0002` and is skewed right, so more
+than half of it lands under the line.
+
+Already have condition means instead of trials? `relation()` takes them
+directly, one condition-by-voxel matrix per run with rows named by condition,
+and the other lines do not change:
+
+```r
+means <- lapply(by_run, function(rows) {
+  t(vapply(conditions, function(condition) {
+    colMeans(series[rows[design$condition[rows] == condition], , drop = FALSE])
+  }, numeric(sum(mask))))
+})
+
+betas_only <- relation(means, effects = effect_space(conditions), domain = dom)
+betas_plan <- plan_geometry(betas_only, at = frame, over = cross_partitions(
+  betas_only, independence = "independent", generalizes_over = "run"
+))
+
+max(abs(own_effect$total -
+  contrast_energy(betas_plan, c(face = 1, house = -1, cat = 0, chair = 0))$total))
+#> [1] 1.065814e-14
+```
+
+Same estimates, same energies. What the averaged route cannot keep is the
+error channel, which the next section asks for.
 
 Swap `searchlights(radius = 4)` for `regions(labels)`, `voxelwise()`, or
 `whole_brain()`, and `volume_domain()` for `abstract_domain(n_features)` when
 the features are not a volume. `neuroim2` users have
 `neuroim2_volume_domain()`, `neuroim2_searchlights()`, and `as_neurovol()`,
 which keep stable full-volume indices and map results back without
-interpolation; see `vignette("neuroim2-data")`. Starting from scan-by-feature
-responses instead? Use `study()`, `plan_relation()`, and `estimate_relation()`.
+interpolation; see `vignette("neuroim2-data")`. Starting from scan responses
+and an event table rather than betas? Use `study()`, `plan_relation()`, and
+`estimate_relation()`.
 
 ### Reading a map without ground truth
 
-`highlight` is optional — the call above omits it — and the picture still
-works. In the right panel the band around zero *is* the noise floor, because
-crossvalidated energy is centered there when nothing reproduces; candidates are
-the measurements standing clear of it. In the left panel each candidate then
-declares its kind: high on the vertical axis is a reproducible pattern, far
-along the horizontal axis is a regional mean.
+`highlight` is optional, and on real data you will not have it — omit it and
+the picture still works. In the right panel the band around zero *is* the noise
+floor, because crossvalidated energy is centered there when nothing reproduces;
+candidates are the measurements standing clear of it.
 
 What the picture does not give you is a threshold or a p-value. `crossform`
 does no spatial and no group inference (see [Status and scope](#status-and-scope)),
 and a within-measurement standard error needs the residual channel, so fit with
-`lm_relation_fit()` or the
+`lm_relation_fit()` as above, or take the
 [from-observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
-route (`vignette("from-observations")`) rather than importing betas.
+route (`vignette("from-observations")`), rather than importing betas.
 [Reading a map without ground truth](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth)
 is the longer version.
 
@@ -347,12 +386,13 @@ of freedom and the number of residual directions the searchlight actually
 spends variance on — and the call refuses outright when there are too few of
 the first for the second.
 
-Ask the same of the betas-only relation above and the answer is an object that
-names what is missing and how to earn it.
+Your own fit above earns them too, because `lm_relation_fit()` kept its
+residuals. Ask the same of the condition-means relation beside it and the
+answer is an object that names what is missing and how to earn it.
 
 ```r
 catch_refusal(
-  rdm_sampling_covariance(own_plan, rel, target = "null", at = 1L)
+  rdm_sampling_covariance(betas_plan, betas_only, target = "null", at = 1L)
 )
 #> <effect_capability_refusal>
 #>   capability:  sampling_covariance

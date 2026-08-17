@@ -45,11 +45,11 @@ the partition-mean plug-in policy; see the \code{target} argument of
 the variance scale.
 
 In both cases the residual covariance behind the law is a plug-in with
-\eqn{\nu} degrees of freedom, so its \emph{quadratic} contribution carries the
+\eqn{\nu}{nu} degrees of freedom, so its \emph{quadratic} contribution carries the
 Wishart finite-sample correction described under
 \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Read \code{x$source$residual_df} and
-\code{x$source$residual_effective_dimension} to see \eqn{\nu} and
-\eqn{P_{\mathrm{eff}}} for the measurement you queried; \code{print(x)} shows
+\code{x$source$residual_effective_dimension} to see \eqn{\nu}{nu} and
+\eqn{P_{\mathrm{eff}}}{P_eff} for the measurement you queried; \code{print(x)} shows
 both.
 }
 \examples{
