@@ -12,9 +12,15 @@ reading against the repository, and are corrected here rather than silently
 edited above.
 
 **Export count.** "Public surface and scale regimes" states that the artifact
-exports 78 functions. `NAMESPACE` exports 105 functions and registers 43 S3
-methods. The semantic grouping in that section is still accurate; the count is
-not.
+exports 78 functions. `NAMESPACE` exports 105 functions and registers 207 S3
+methods — 101 `print`, 95 `format`, 6 `as.data.frame`, 5 `plot` (source:
+`NAMESPACE`). The semantic grouping in that section is still accurate; the
+count is not.
+
+*Erratum to the erratum (2026-08-17).* This paragraph as first issued said "43
+S3 methods". That figure was itself stale; the registered total is 207. Both
+counts are now recorded, with their derivation, in "Recorded certification
+metrics" below.
 
 **Public-data analysis.** "Explicitly unrun or deferred evidence" states that
 no public-data matched-estimand analysis was run. The Haxby 2001 exemplar
@@ -159,6 +165,11 @@ WARN 0
 SKIP 2
 ```
 
+> Superseded by the 2026-08-16 court recorded under "Certification provenance
+> binding" below: `FAIL 0 | WARN 0 | SKIP 10 | PASS 4112`. The block above is
+> the 2026-08-15 source-checkout run and is preserved as issued; 1,822 is not
+> the current expectation count.
+
 The two skips are the declared 50k topology tier. Running the same support-index
 court with `CROSSFORM_RUN_SCALE_TESTS=true` produced:
 
@@ -216,25 +227,35 @@ uncertainty in the estimated metric.
 
 ### Scale-qualified
 
-`benchmark-results/crossnobis-scale-gate.rds` records one exact brain-scale
-execution:
+`inst/extdata/certification/crossnobis-scale-gate.rds` (and its shipped
+`crossnobis-scale-gate-summary.csv`) records one exact brain-scale execution.
+The values below are the re-record described under "Certification provenance
+binding" below, `provenance$recorded_at = 2026-08-17 05:02:07 UTC`, fixture
+`crossnobis-scale-52k:v1`:
 
-| Quantity | Measured value |
-|---|---:|
-| Active volume features | 52,416 |
-| Searchlight radius / spacing | 6.1 mm / 3 mm |
-| Support size | min 11, median 33, mean 31.16, max 33 |
-| Union-pair stored nonzeros | 4,365,964 |
-| Local metric derivations | 52,416 |
-| Factorization work units | 1,653,408,544 |
-| Residual source reads | 11,163 |
-| Evaluation source reads | 104,832 |
-| Planned owned workspace | 281,589,160 bytes |
-| Incremental peak RSS | 948,568,064 bytes |
-| Plan plus residual statistics | 64.348 s |
-| Crossnobis evaluation | 57.790 s |
-| Exact NeuroVol mapping | 0.084 s |
-| Complete measured analysis | 123.498 s |
+| Quantity | Measured value | Recorded field |
+|---|---:|---|
+| Active volume features | 52,416 | `fixture$features` |
+| Searchlight radius / spacing | 6.1 mm / 3 mm | `fixture$radius_mm`, `fixture$spacing_mm` |
+| Support size | min 11, median 33, mean 31.16, max 33 | `support$min/median/mean/max` |
+| Union-pair stored nonzeros | 4,365,964 | `support$union_pair_stored_nnz` |
+| Local metric derivations | 52,416 | `work$local_metric_derivations` |
+| Factorization work units | 1,653,408,544 | `work$factorization_units` |
+| Residual source reads | 11,163 | `reads$residual_total` |
+| Evaluation source reads | 104,832 | `reads$evaluation_total` |
+| Planned owned workspace | 281,589,160 bytes | `memory$planned_workspace_bytes` |
+| Incremental peak RSS | 903,479,296 bytes | `memory$incremental_peak_rss_bytes` |
+| OS peak RSS | 1,838,907,392 bytes | `memory$os_peak_rss_bytes` |
+| Plan plus residual statistics | 18.021 s | `timing$plan_and_residual_statistics_seconds` |
+| Crossnobis evaluation | 41.069 s | `timing$crossnobis_seconds` |
+| Exact NeuroVol mapping | 0.049 s | `timing$output_mapping_seconds` |
+| Complete measured analysis | 59.982 s | `timing$analysis_seconds` |
+
+The timing and RSS rows supersede the values this receipt carried as issued on
+2026-08-15 (948,568,064 bytes; 64.348 s / 57.790 s / 0.084 s / 123.498 s),
+which were read from the pre-binding `benchmark-results/` artifact. The
+structural rows — features, support, nonzeros, work units, reads, planned
+workspace — are unchanged by the re-record.
 
 The gate passed its 4 GiB incremental-RSS and 30-minute limits. It retained no
 pair-atom field, `p^2` pair frame, or node-by-edge factor table. Compact output
@@ -248,12 +269,17 @@ declared shrinkage estimator is load-bearing for invertibility. The separate
 
 The exact same 52,416-feature workload initially took 3,476.43 s because every
 node revalidated the full frame and support graph. Canonical boundary
-validation plus trusted CSR node access reduced complete analysis to 123.498 s
-(28.1 times faster) and the evaluation stage from 3,417.17 s to 57.790 s
-(59.1 times faster), without changing the estimand, covariance recipe, solve,
-or reduction order. Oracle suites remained green. This is the package's
-performance constitution in executable form: remove mathematical and
-administrative work; never buy speed by changing the scientific answer.
+validation plus trusted CSR node access removed that work, without changing the
+estimand, covariance recipe, solve, or reduction order. Against the 2026-08-17
+re-record above, complete analysis is 59.982 s (58.0 times faster) and the
+evaluation stage 41.069 s (83.2 times faster). As issued on 2026-08-15 the
+same comparison read 123.498 s (28.1 times faster) and 57.790 s (59.1 times
+faster). The 3,476.43 s and 3,417.17 s pre-optimization figures are the only
+numbers in this section not held by a shipped artifact: they were measured
+once, before the gate runner existed, and no `.rds` records them. Oracle suites
+remained green. This is the package's performance constitution in executable
+form: remove mathematical and administrative work; never buy speed by changing
+the scientific answer.
 
 ## Statistical estimands and physical lowerings
 
@@ -272,7 +298,10 @@ tiles, source revisions, workspace, and materialization.
 
 ## Public surface and scale regimes
 
-The artifact exports 78 functions. They fall into these semantic groups:
+The artifact exports 78 functions. *(Superseded: `NAMESPACE` exports 105
+functions and registers 207 S3 methods — see the erratum above and "Recorded
+certification metrics" below. The semantic grouping that follows is unchanged.)*
+They fall into these semantic groups:
 
 - relation and error sources: `relation()`, `relation_fit()`,
   `lm_relation_fit()`, block/capability readers;
@@ -391,6 +420,11 @@ tests skip with instructions: `shard-admission.rds` (needs an isolated
 library with `shard` and `crossform` installed; the recorded verdict remains
 "not admitted") and `learned-metric-policy-validation.rds`.
 
+The re-recorded artifacts stamp `provenance$recorded_at` between
+`2026-08-17 04:39:40 UTC` and `2026-08-17 05:02:07 UTC`; this section is dated
+by the local working day on which they were run. The stamps, not the heading,
+are what the tests bind against.
+
 **Two recorded claims did not survive re-execution and were corrected rather
 than re-asserted.** The memory harness documentation described a conservative
 plan carrying a named 64 MiB process-level runtime reserve, and required every
@@ -406,4 +440,41 @@ while checking measured RSS separately.
 --no-manual` on the built tarball: tests report `FAIL 0 | WARN 0 | SKIP 10 |
 PASS 4112`, with the certification blocks running rather than skipping. The
 remaining skips are the two unbound or absent validation records, the
-`CROSSFORM_RUN_SCALE_TESTS` tier, and three `On CRAN` blocks.
+`CROSSFORM_RUN_SCALE_TESTS` tier, and three `On CRAN` blocks. This 4,112
+supersedes the `PASS 1822` block under "Numerically verified" above, which is
+the 2026-08-15 source-checkout run.
+
+## Recorded certification metrics (2026-08-17)
+
+Every current number this receipt asserts, with the artifact or file that holds
+it. Where the receipt's original 2026-08-15 text differs, the superseded value
+is given so the correction is visible rather than silent.
+
+| Metric | Recorded value | Superseded value | Source |
+|---|---:|---:|---|
+| Exported functions | 105 | 78 | `NAMESPACE` (`grep -c '^export(' NAMESPACE`) |
+| Registered S3 methods | 207 | 43 | `NAMESPACE` (`grep -c '^S3method(' NAMESPACE`) |
+| — `print` methods | 101 | — | `NAMESPACE` (`S3method(print,`) |
+| — `format` methods | 95 | — | `NAMESPACE` (`S3method(format,`) |
+| — `as.data.frame` methods | 6 | — | `NAMESPACE` (`S3method(as.data.frame,`) |
+| — `plot` methods | 5 | — | `NAMESPACE` (`S3method(plot,`) |
+| Distinct classes with any S3 method | 103 | — | `NAMESPACE` (distinct second argument of `S3method(`) |
+| Brain-scale complete analysis | 59.982 s | 123.498 s | `inst/extdata/certification/crossnobis-scale-gate-summary.csv`, `analysis_seconds` |
+| Brain-scale incremental peak RSS | 903,479,296 bytes | 948,568,064 bytes | same CSV, `incremental_peak_rss_bytes` |
+| Test expectations under `R CMD check` | 4,112 | 1,822 | the 2026-08-16 court above (check log; not a shipped artifact) |
+
+The 207 registrations cover 103 distinct classes. `print` and `format` are
+registered for the same class in 95 cases; 6 classes have `print` alone and
+none has `format` alone, so 101 classes carry their own printer. That is a
+surface-size fact about the package, not a certification pass or fail; it is
+recorded here because the receipt previously asserted a number an order of
+magnitude smaller.
+
+Three caveats on traceability. The S3 and export counts are counted from
+`NAMESPACE` in the working tree, not from a recorded artifact, and will drift
+with any export change; the commands above reproduce them. The 4,112
+expectation count comes from a check run, and no shipped artifact carries it —
+it is the one recorded number here that cannot be re-derived without running
+`R CMD check`. The 3,476.43 s / 3,417.17 s pre-optimization timings quoted
+under "Scale-qualified" predate the gate runner and are likewise unheld by any
+artifact.
