@@ -102,8 +102,12 @@
     .validate_geometry_plan(x, deep = FALSE)
     relation <- x$task$left_relation
     metric_schedule <- x$metric_schedule
-    metric_status <- if (!is.null(metric_schedule$metric) &&
-        isTRUE(metric_schedule$metric$capabilities$learned_frozen)) {
+    # Asked of the schedule, not of the plan class: a learned local schedule
+    # and a fixed metric materialized from a learned handle both owe the
+    # calibration layer a metric-uncertainty term.
+    metric_status <- if (
+      .metric_schedule_requires_metric_uncertainty(metric_schedule)
+    ) {
       "learned"
     } else {
       "fixed"
@@ -701,7 +705,15 @@
 
 .require_sampling_covariance <- function(x) {
   .validate_evidence_sampling_plan(x, deep = FALSE)
-  if (identical(x$capabilities$sampling_covariance, "available")) {
+  ## `[[` rather than `$`: the capability is named after the entry point
+  ## `sampling_covariance()`, which lives a layer up in
+  ## evidence-sampling-product.R. `$sampling_covariance` puts that name in the
+  ## file's syntax tree, and the file-level call graph
+  ## (tests/testthat/test-architecture.R) reads it as a call upward, closing a
+  ## phantom plan -> product -> kernel -> plan cycle. The validator on the line
+  ## above has already checked `capabilities` against the full expected list,
+  ## so the element is present and exact extraction is total here.
+  if (identical(x$capabilities[["sampling_covariance"]], "available")) {
     return(invisible(TRUE))
   }
   reasons <- x$unavailable_reasons

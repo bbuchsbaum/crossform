@@ -446,6 +446,48 @@ one layer up into the file's syntax tree; extracting with
 `[["sampling_covariance"]]` says the same thing and closes the phantom
 plan → product → kernel → plan cycle.
 
+### The evidence-sampling triple
+
+The edges among the three files, counted by symbol
+(`SCC_FOCUS=… Rscript benchmarks/call-graph-scc.R`). Before:
+
+```
+evidence-sampling.R          -> evidence-sampling-product.R    1   phantom
+evidence-sampling-product.R  -> evidence-sampling.R            9
+evidence-sampling-product.R  -> evidence-sampling-kernel.R     5
+evidence-sampling-kernel.R   -> evidence-sampling.R            2
+```
+
+After — the same 16 real edges, minus the phantom, and now a DAG:
+
+```
+evidence-sampling-product.R  -> evidence-sampling.R            9
+evidence-sampling-product.R  -> evidence-sampling-kernel.R     5
+evidence-sampling-kernel.R   -> evidence-sampling.R            2
+```
+
+Nothing moved. The one edge that closed the loop was never a call, and the
+remaining three run one way: product depends on kernel, kernel depends on
+plan. That is the data flow read backwards — a plan is compiled in
+`evidence-sampling.R`, the kernel builds the covariance form from it, and the
+product specializes both to a relation fit — so each file can now be read
+knowing only the files below it.
+
+The order is layer 3's internal order, so the layering test cannot see it: all
+three files are on the same layer and are free to call sideways. It is held
+instead by `test_that("the evidence-sampling triple is a DAG")` in
+`tests/testthat/test-architecture.R`, which takes the transitive closure of
+the induced three-file subgraph and fails if any of the three reaches itself.
+A mutual pair fails it as surely as the full loop, and the failure prints the
+induced edges rather than the file names, so it names the call to move.
+
+Note the measurement's one bias, since two of the phantoms above came from it
+and 44 like them remain: the extractor counts every symbol a file mentions
+that resolves to a definition elsewhere, including the field name in `x$f`. It
+therefore over-reports. That is the safe direction — a graph it calls acyclic
+is acyclic — but a component it reports is worth reading before it is
+believed.
+
 That is the whole file-level dependency structure: six layers, an order inside
 layer 2, and no loop anywhere. What the next pass should defend is not a
 number but the shape — see `tests/testthat/test-architecture.R`, which now
