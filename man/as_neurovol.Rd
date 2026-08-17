@@ -2,14 +2,28 @@
 % Please edit documentation in R/neuroim2-adapter.R
 \name{as_neurovol}
 \alias{as_neurovol}
+\alias{as_neurovol.numeric}
+\alias{as_neurovol.default}
 \title{Map a compact result vector back to a neuroim2 volume}
 \usage{
-as_neurovol(
+as_neurovol(values, ...)
+
+\method{as_neurovol}{numeric}(
   values,
   mask,
   domain = NULL,
   fill = NA_real_,
-  label = "crossform result"
+  label = "crossform result",
+  ...
+)
+
+\method{as_neurovol}{default}(
+  values,
+  mask,
+  domain = NULL,
+  fill = NA_real_,
+  label = "crossform result",
+  ...
 )
 }
 \arguments{
@@ -21,6 +35,9 @@ frame's membership pattern —
 \code{as.numeric(Matrix::crossprod(frame$weights != 0, values))} — as shown in
 the "Measurements are not features" section of
 \code{vignette("neuroim2-data")}.}
+
+\item{...}{Arguments passed on to methods. The methods crossform ships take
+no further arguments and refuse any.}
 
 \item{mask}{The three-dimensional neuroim2 \code{NeuroVol} whose geometry defined
 \code{domain}.}
@@ -41,6 +58,18 @@ a crossform volume domain. Features outside the domain receive \code{fill}.
 This is an output adapter only; it performs no interpolation, smoothing, or
 coordinate reinterpretation.
 }
+\details{
+\code{as_neurovol()} is an S3 generic dispatching on \code{values}, so a package that
+owns its own result type can write that type out without crossform having to
+know about it. Register a method the ordinary way --- \code{S3method(as_neurovol, my_result)} in your NAMESPACE --- and it receives \code{mask}, \code{domain}, \code{fill},
+and \code{label} unchanged; it is expected to return a \code{NeuroVol} on the space of
+\code{mask}. The generic validates nothing itself, so a method is free to require
+different arguments, or none beyond the object.
+
+crossform ships the numeric-vector method described here. The default method
+behaves identically, so any numeric vector still writes out whether or not it
+carries a class, and anything that is not a numeric vector is refused.
+}
 \examples{
 if (requireNamespace("neuroim2", quietly = TRUE) &&
     utils::packageVersion("neuroim2") >= "0.19.0") {
@@ -59,6 +88,18 @@ if (requireNamespace("neuroim2", quietly = TRUE) &&
   print(dim(volume))
   print(identical(as.numeric(volume[domain$feature_ids]), statistic))
   print(all(is.na(as.array(volume)[!values])))
+
+  # The generic is the extension point: a package with its own result type
+  # registers a method for it and delegates the writing back here.
+  as_neurovol.crossform_example_map <- function(values, mask, ...) {
+    as_neurovol(values$statistic, mask, ...)
+  }
+  boxed <- structure(list(statistic = statistic),
+    class = "crossform_example_map")
+  print(identical(
+    as.numeric(as_neurovol(boxed, mask, domain)[domain$feature_ids]),
+    statistic
+  ))
 }
 }
 \seealso{

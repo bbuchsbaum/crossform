@@ -225,60 +225,34 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
   result
 }
 
-#' Map a compact result vector back to a neuroim2 volume
-#'
-#' The compact values are inserted at the exact full-volume indices carried by
-#' a crossform volume domain. Features outside the domain receive `fill`.
-#' This is an output adapter only; it performs no interpolation, smoothing, or
-#' coordinate reinterpretation.
-#'
-#' @param values One finite numeric value per compact domain *feature* (voxel),
-#'   in `domain$feature_ids` order. crossform result views carry one value per
-#'   *measurement* instead, which coincides with the features only for a
-#'   voxelwise or searchlight frame. For a coarser frame, expand first with the
-#'   frame's membership pattern —
-#'   `as.numeric(Matrix::crossprod(frame$weights != 0, values))` — as shown in
-#'   the "Measurements are not features" section of
-#'   `vignette("neuroim2-data")`.
-#' @param mask The three-dimensional neuroim2 `NeuroVol` whose geometry defined
-#'   `domain`.
-#' @param domain The exact domain from [neuroim2_volume_domain()].
-#' @param fill Finite value written outside the compact domain.
-#' @param label Optional result-volume label.
-#' @return A neuroim2 `NeuroVol` on the same space as `mask`, carrying `values`
-#'   at `domain$feature_ids` and `fill` everywhere else.
-#' @family neural domains and frames
-#' @seealso [neuroim2_volume_domain()] for the domain whose `feature_ids` fix
-#'   the output positions, and [geometry_component()] for one source of the
-#'   compact vector.
-#' @examples
-#' if (requireNamespace("neuroim2", quietly = TRUE) &&
-#'     utils::packageVersion("neuroim2") >= "0.19.0") {
-#'   values <- array(FALSE, c(5L, 5L, 4L))
-#'   values[2:4, 2:4, 2:3] <- TRUE
-#'   mask <- neuroim2::LogicalNeuroVol(
-#'     values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(3, 3, 3))
-#'   )
-#'   domain <- neuroim2_volume_domain(mask)
-#'
-#'   # One number per compact feature, in domain feature order.
-#'   statistic <- seq_len(domain$n_features) / domain$n_features
-#'   volume <- as_neurovol(statistic, mask, domain, label = "example statistic")
-#'
-#'   # Values land at exactly the mask indices; everything else stays `fill`.
-#'   print(dim(volume))
-#'   print(identical(as.numeric(volume[domain$feature_ids]), statistic))
-#'   print(all(is.na(as.array(volume)[!values])))
-#' }
-#' @export
-as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
-                        label = "crossform result") {
-  if (missing(values) || missing(mask)) {
-    .input_error(paste0(
-      "`values` and `mask` are both required: `as_neurovol()` writes one ",
-      "number per compact domain feature onto the space of the `NeuroVol` ",
-      "mask the domain was built from."
-    ))
+# `as_neurovol()` is the package's only output adapter, and it is a generic so
+# that a package holding its own result type can teach crossform to write that
+# type out without crossform importing it. Dispatch is the only thing the
+# generic does: a method written for another class may legitimately need no
+# mask, so the argument checks belong to crossform's own methods rather than to
+# the generic.
+.as_neurovol_required_arguments <- function() {
+  .input_error(paste0(
+    "`values` and `mask` are both required: `as_neurovol()` writes one ",
+    "number per compact domain feature onto the space of the `NeuroVol` ",
+    "mask the domain was built from."
+  ))
+}
+
+# The single body behind both shipped methods. `as_neurovol.default()` is not a
+# refusal stub: a bare numeric vector is exactly what this function accepted
+# before it became generic, and a classed numeric vector reached the same code,
+# so the default keeps writing anything numeric and refuses everything else
+# with the message it has always raised -- in the same order, so a mask that
+# disagrees with its domain is still reported before a type complaint.
+.as_neurovol_compact <- function(values, mask, domain, fill, label, ...) {
+  dots <- list(...)
+  if (length(dots)) {
+    .input_error(sprintf(paste0(
+      "`as_neurovol()` writes a compact numeric vector and takes only ",
+      "`values`, `mask`, `domain`, `fill`, and `label`; received %s. A ",
+      "method registered for another class may take more; this one does not."
+    ), .msg_count(length(dots), "further argument")))
   }
   .require_neuroim2_searchlight_indices()
   domain <- .neuroim2_domain_for_mask(mask, domain)
@@ -325,4 +299,98 @@ as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
   payload <- array(as.double(fill), dim = dim(mask))
   payload[domain$feature_ids] <- as.double(values)
   neuroim2::NeuroVol(payload, neuroim2::space(mask), label = label)
+}
+
+#' Map a compact result vector back to a neuroim2 volume
+#'
+#' The compact values are inserted at the exact full-volume indices carried by
+#' a crossform volume domain. Features outside the domain receive `fill`.
+#' This is an output adapter only; it performs no interpolation, smoothing, or
+#' coordinate reinterpretation.
+#'
+#' @details
+#' `as_neurovol()` is an S3 generic dispatching on `values`, so a package that
+#' owns its own result type can write that type out without crossform having to
+#' know about it. Register a method the ordinary way --- `S3method(as_neurovol,
+#' my_result)` in your NAMESPACE --- and it receives `mask`, `domain`, `fill`,
+#' and `label` unchanged; it is expected to return a `NeuroVol` on the space of
+#' `mask`. The generic validates nothing itself, so a method is free to require
+#' different arguments, or none beyond the object.
+#'
+#' crossform ships the numeric-vector method described here. The default method
+#' behaves identically, so any numeric vector still writes out whether or not it
+#' carries a class, and anything that is not a numeric vector is refused.
+#'
+#' @param values One finite numeric value per compact domain *feature* (voxel),
+#'   in `domain$feature_ids` order. crossform result views carry one value per
+#'   *measurement* instead, which coincides with the features only for a
+#'   voxelwise or searchlight frame. For a coarser frame, expand first with the
+#'   frame's membership pattern —
+#'   `as.numeric(Matrix::crossprod(frame$weights != 0, values))` — as shown in
+#'   the "Measurements are not features" section of
+#'   `vignette("neuroim2-data")`.
+#' @param mask The three-dimensional neuroim2 `NeuroVol` whose geometry defined
+#'   `domain`.
+#' @param domain The exact domain from [neuroim2_volume_domain()].
+#' @param fill Finite value written outside the compact domain.
+#' @param label Optional result-volume label.
+#' @param ... Arguments passed on to methods. The methods crossform ships take
+#'   no further arguments and refuse any.
+#' @return A neuroim2 `NeuroVol` on the same space as `mask`, carrying `values`
+#'   at `domain$feature_ids` and `fill` everywhere else.
+#' @family neural domains and frames
+#' @seealso [neuroim2_volume_domain()] for the domain whose `feature_ids` fix
+#'   the output positions, and [geometry_component()] for one source of the
+#'   compact vector.
+#' @examples
+#' if (requireNamespace("neuroim2", quietly = TRUE) &&
+#'     utils::packageVersion("neuroim2") >= "0.19.0") {
+#'   values <- array(FALSE, c(5L, 5L, 4L))
+#'   values[2:4, 2:4, 2:3] <- TRUE
+#'   mask <- neuroim2::LogicalNeuroVol(
+#'     values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(3, 3, 3))
+#'   )
+#'   domain <- neuroim2_volume_domain(mask)
+#'
+#'   # One number per compact feature, in domain feature order.
+#'   statistic <- seq_len(domain$n_features) / domain$n_features
+#'   volume <- as_neurovol(statistic, mask, domain, label = "example statistic")
+#'
+#'   # Values land at exactly the mask indices; everything else stays `fill`.
+#'   print(dim(volume))
+#'   print(identical(as.numeric(volume[domain$feature_ids]), statistic))
+#'   print(all(is.na(as.array(volume)[!values])))
+#'
+#'   # The generic is the extension point: a package with its own result type
+#'   # registers a method for it and delegates the writing back here.
+#'   as_neurovol.crossform_example_map <- function(values, mask, ...) {
+#'     as_neurovol(values$statistic, mask, ...)
+#'   }
+#'   boxed <- structure(list(statistic = statistic),
+#'     class = "crossform_example_map")
+#'   print(identical(
+#'     as.numeric(as_neurovol(boxed, mask, domain)[domain$feature_ids]),
+#'     statistic
+#'   ))
+#' }
+#' @export
+as_neurovol <- function(values, ...) {
+  if (missing(values)) .as_neurovol_required_arguments()
+  UseMethod("as_neurovol")
+}
+
+#' @rdname as_neurovol
+#' @export
+as_neurovol.numeric <- function(values, mask, domain = NULL, fill = NA_real_,
+                                label = "crossform result", ...) {
+  if (missing(mask)) .as_neurovol_required_arguments()
+  .as_neurovol_compact(values, mask, domain, fill, label, ...)
+}
+
+#' @rdname as_neurovol
+#' @export
+as_neurovol.default <- function(values, mask, domain = NULL, fill = NA_real_,
+                                label = "crossform result", ...) {
+  if (missing(mask)) .as_neurovol_required_arguments()
+  .as_neurovol_compact(values, mask, domain, fill, label, ...)
 }
