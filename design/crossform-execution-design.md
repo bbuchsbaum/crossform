@@ -1,7 +1,7 @@
 # `crossform` execution model
 
 Status: architecture proposal; review corrections incorporated, not implementation
-Date: 2026-08-12
+Date: 2026-08-12; section 16 (learned local metric as a compiler lowering) added 2026-08-17
 Companion to: [crossform-package-design.md](crossform-package-design.md)
 
 ## Version 0.1 execution contract freeze
@@ -930,6 +930,351 @@ resource target sequentially and the adapter can be benchmarked against the
 same feature task, ordered reducer, source descriptors, receipt identity, and
 cleanup laws. The public core remains executor-neutral rather than advertising
 unverified adapters.
+
+## 16. Learned local metric as a compiler lowering
+
+Added 2026-08-17. The IR is not the fork: `effect_evidence_task` is already
+sole, built by `plan_geometry()` (`R/geometry-plan.R:324`) and by
+`plan_crossnobis()` (`R/crossnobis.R:344`) alike. The fork is at the
+**executor**. Fixed-metric crossnobis routes `R/crossnobis-driver.R:248` into
+`.run_geometry_compiler()`; learned crossnobis bypasses `R/compiler.R` through a
+second plan class (`effect_crossnobis_plan`), a second identity pair
+(`.crossnobis_scientific_plan_id`, `.crossnobis_plan_signature`), a second
+memory planner, a second planned receipt, and a second driver
+(`.execute_learned_crossnobis`, `R/crossnobis-driver.R:40`) — ~370 lines of plan
+and driver in front of a 118-line kernel. This section specifies how that path
+becomes an ordinary lowering so both can be retired.
+
+### 16.1 Metric schedule kind `learned_local_before_frame`
+
+`.geometry_metric_schedule()` (`R/geometry-plan.R:3`) emits two kinds today; it
+gains a third when `plan_geometry(metric = )` receives an `effect_metric_recipe`
+rather than an `effect_neural_metric`:
+
+```
+kind = "learned_local_before_frame"; frame_composition = "sqrt_weight_congruence"
+feature_additive = FALSE; support_dense = TRUE   # a per-support solve is not additive
+materialization = "on_demand_local"; scope = "support_local"
+lowering = "derive_then_support_streamed_pair_contraction"
+metric_signature = NULL; schedule = <effect_frozen_metric_schedule>
+```
+
+`$schedule` is exactly today's object from `compile_metric_schedule()`
+(`R/metric-learning.R:503`): recipe, canonical `residual_pair_statistics()`,
+support index, evaluation pairing, `metric_training_policy()`, one training
+record per edge, capability block. Nothing in `R/metric-learning.R` changes; it
+stops being reachable only through `plan_crossnobis()`. The `derive_then_*`
+lowering string already exists (`R/metric.R:522`) and is unreachable today
+because no plan admits a recipe.
+
+`.validate_geometry_metric_schedule()` (`R/metric.R:540`) gains a third branch
+calling `.validate_frozen_metric_schedule()` plus the cross-object checks
+`.validate_crossnobis_plan()` makes today (`R/crossnobis.R:387-396`):
+`schedule$pairing` identical to the plan pairing,
+`schedule$support_index$signature` identical to
+`frame$support_index$signature`, recipe domain identical to relation domain.
+The first is load-bearing at runtime — `R/kernel.R:683-694` re-checks that the
+schedule's records line up with `task$ordered_edges`, and the kernel loops over
+`schedule$pairing` rows, not the ordered edges, to contract each declared edge
+once (self-adjoint shortcut, `R/kernel.R:735-737`). The new lowering string
+joins `valid_lowering` in `.validate_geometry_plan()` (`R/geometry-plan.R:382`);
+the `lowering` and `materialization` enumerations widen.
+
+Three entry-level consequences, stated rather than discovered:
+
+- **`plan_geometry()` must accept an `effect_relation_fit`.** A recipe needs a
+  residual channel, so `.validate_geometry_plan_inputs()`
+  (`R/geometry-plan.R:147`) gains a fit-unwrapping preamble calling
+  `.require_relation_fit_capability(x, "learned_metric_input")` *before* shape
+  validation — the diagnosis order `R/crossnobis.R:309-314` documents. A bare
+  relation plus a recipe gets that same capability refusal.
+- **A learned schedule requires a support-indexed frame.**
+  `.residual_statistics_support_index()` (`R/residual-statistics.R:3-13`)
+  refuses a frame without one, so `plan_geometry(voxelwise(), metric = recipe)`
+  refuses. Inherited behaviour, new entry point.
+- **The plan reads.** `plan_geometry()` promises validation "without reading
+  relation blocks" (`R/geometry-plan.R:199-203`). A learned schedule accumulates
+  residual sufficient statistics at plan time in one streamed pass, as
+  `R/crossnobis.R:340` does. Amend the promise for this kind rather than
+  deferring accumulation: deferring re-accumulates per contrast and loses the
+  plan reuse the frozen schedule exists to provide. The two refusals that fire
+  before any residual read today — `.preflight_metric_training()`'s partition
+  shortage and the workspace-budget overflow — must keep firing before it.
+
+### 16.2 The lowering `support_streamed_scheduled_metric_query_contraction`
+
+`.compile_geometry_execution_plan()` (`R/compiler.R:128`) gains one branch and
+emits an ordinary `effect_geometry_execution_plan`. The kernel already exists:
+`.support_streamed_scheduled_crossnobis()` (`R/kernel.R:666`), today called from
+one site, `R/crossnobis-driver.R:85`. Its call site becomes
+`.execute_node_block()` (`R/execution-driver.R:311`), beside the fixed-metric
+`.support_streamed_metric_contraction()` (`R/kernel.R:422`, called at
+`R/execution-driver.R:316`). Branch points:
+
+- `.execution_support_streamed()` (`R/execution-driver.R:307`) matches
+  `^support_streamed_metric_` today; it becomes a three-way selector over
+  `plan$lowering` — fixed kernel, scheduled kernel, or
+  `.streamed_effect_form_contraction()`.
+- `.compile_geometry_execution_plan()` computes `learned <-
+  identical(plan$metric_schedule$kind, "learned_local_before_frame")` beside its
+  existing `explicit_metric`/`support_streamed` flags, emitting the lowering
+  string above when `learned && query_fused`.
+- `.geometry_kernel_version()` (`R/compiler.R:113`) gains a leading
+  `if (isTRUE(learned)) "support-streamed-scheduled-metric-v1"`, preserving the
+  kernel id asserted at `test-crossnobis-learned.R:58`.
+- `.validate_geometry_execution_plan()` (`R/compiler.R:299`) re-derives both
+  strings through the same widened helpers, so validator and compiler cannot
+  drift.
+
+**Stage sequence** is the geometry executor's, unchanged — which is the point.
+`.execute_geometry_compute()` (`R/execution-driver.R:535`) opens the source
+session, records `source_admission`, runs `.execute_node_block()` and records
+`feature_tasks`, then skips coherent and marginal blocks because the scheduled
+requirements demand neither. The private `support_tasks` stage label disappears;
+the fixed support-streamed route already reports its node loop as
+`feature_tasks`.
+
+**Tiling.** The kernel streams one support at a time and holds at most two local
+covariance matrices live: `feature_block = max(support_size)`, `row_tile = 1L`,
+`coordinate_tile = 1L` (`.support_metric_memory_plan()`'s `min(output_width,
+64L)` already yields this at `output_width == 1`), `task_count =
+plan$measurements` — the branch `R/compiler.R:284` already takes.
+
+**Memory.** `.support_metric_memory_plan()` (`R/memory-plan.R:495`) refuses a
+non-fixed schedule at line 498. Its learned branch must charge what
+`.learned_crossnobis_memory_plan()` charges and the fixed branch does not:
+retained pair coordinates plus one cross-product vector per partition, the
+support-index CSR membership and canonical symmetric pair-pattern CSC slots, and
+`2*k*k` contraction bytes for the live covariance pair. Copying the fixed
+branch's `object.size(schedule$metric$value)` would silently drop the whole
+residual-statistics payload, the dominant resident term at 52k features. The
+`fits_budget` refusal keeps its current message shape.
+
+**Admissible reads.** The kernel evaluates a *rank-one signed* contrast only: it
+forms `c %*% B` per endpoint and contracts one scalar per edge. No coherent
+component, no endpoint marginals, no packed form. The lowering admits
+`component = "total"` with `storage = "memory"` and refuses `"coherent"`,
+`"configuration"`, `"contrast"`, full materialization, block storage and
+rectangular plans — one capability `"scheduled_metric_component"` in namespace
+`"geometry_views"`, remedy naming `crossnobis()`. New refusal surfaces, not
+regressions: no route to them exists today.
+
+**The contrast hint.** The kernel needs the signed vector `c`, not packed
+`svec(cc^T)`. The execution plan carries `signed_query` for `component =
+"total"` when the schedule is learned, guarded by the outer-product equality
+check `R/compiler.R:165-178` already applies to contrast plans, so the hint
+cannot alter the estimand. It enters `.geometry_execution_signature()` (already
+listed there) but is excluded from `.geometry_view_scientific_id()` for this
+component: `total` of `cc^T` is one estimand whether or not the executor was
+handed `c`, and folding the sign in would make `c` and `-c` name different
+estimands.
+
+**Return shape.** The kernel returns `values` as a bare numeric vector plus
+`metric_receipts` and `endpoints_read`; `.execute_node_block()` must wrap it as
+`list(value = matrix(values, ncol = 1L), diagnostics = , metric_receipts = )`
+so `.execution_component_values()` and `.execution_geometry_result()` consume it
+unchanged.
+
+### 16.3 Identity
+
+**`scientific_plan_id`** — `.geometry_plan_scientific_id()`
+(`R/geometry-plan.R:65`), prefix `geometry-sha256:`, digests exactly:
+(1) `schema_version = 1L`; (2) `evidence_task` = `task$task_id`; (3) `frame` =
+`.additive_frame_signature(frame)`; (4) `metric_schedule` =
+`metric_schedule$signature`; (5) `component` (`"full"` for a plan);
+(6) `signed_query` (`NULL` for a plan).
+
+The metric is part of the estimand through (4). The learned schedule's semantic
+digest is its own fields minus `$schedule` and `$signature`, plus the frozen
+schedule signature; `.metric_schedule_signature()` (`R/metric-learning.R:427`)
+in turn digests `role`, `recipe_specification`, `recipe$signature` (estimator
+kind, shrinkage, both variance floors, spectral floor, randomness, seed, bound
+domain), `statistics$signature`, `support_index$signature`,
+`.metric_pairing_identity(pairing)`, `training_policy$signature` (kind,
+`includes_evaluation_residuals`, assumption, justification text), the per-edge
+`training_signature` vector (training-partition assignment, atomic statistic
+signatures, source revisions, residual revisions), and the capability block.
+
+Nothing in `.crossnobis_scientific_plan_id()` is lost. Its `relation_fit` field
+re-enters through `statistics$signature`, which carries the fit signature; its
+`pairing = .metric_pairing_identity(over)` re-enters through (4) — which matters,
+because `.effect_task_semantic()` (`R/evidence-task.R:814`) digests
+`ordered_edges` but **not** the pairing's declared `independence`, `estimate`,
+`self_pairs`, `directed` or `generalizes_over`. Those declarations stay
+estimand-bearing for a learned plan; the pre-existing asymmetry on fixed-metric
+geometry plans is out of scope here.
+
+For a view, `.geometry_view_scientific_id()` (`R/geometry-plan.R:102`) digests
+`schema_version`, `role = "geometry_view"`, `parent` (the plan estimand id),
+`component`, `.query_identity_semantic(query)`, `signed_query` — `NULL` for a
+learned total, per §16.2.
+
+**Execution `signature`** — `.geometry_execution_signature()` (`R/compiler.R:92`)
+digests exactly: `schema_version`, `parent` (plan `$signature`),
+`scientific_plan_id`, `task` (`task$task_id`), `storage`, `storage_path`,
+`component`, `signed_query`, `requirements`, `output_width`, `feature_block`,
+`row_tile`, `coordinate_tile`, `memory` (unclassed `memory_plan`), `lowering`,
+`kernel_version`. The schedule reaches it transitively through
+`scientific_plan_id` and directly through `lowering`; tiles and kernel version
+are explicit.
+
+`residual_workspace_bytes` — a cache-capacity knob that never changes the
+canonical numerical tile shape, defaulting to `compute$workspace_bytes` or
+512 MiB — becomes a `plan_geometry()` argument admitted only with a recipe,
+recorded in an `$execution_hints` slot digested by `.geometry_plan_signature()`
+(`R/geometry-plan.R:133`) as a fourth component beside `scientific_plan_id`,
+`compute` and `dense_payload_bytes`. It must not reach
+`.geometry_plan_scientific_id()`. Folding it into `compute_policy()` would be
+tidier but would move every existing plan signature and invalidate every
+recorded certification digest.
+
+### 16.4 Capabilities, not class checks
+
+`.metric_schedule_capabilities()` (`R/metric-learning.R:414`) already sets
+`calibration_requires_metric_uncertainty = TRUE` for every non-identity recipe.
+That flag is the whole refusal and must reach the sampling layer without a class
+check.
+
+Do **not** add a `$capabilities` field to `effect_metric_schedule`: its semantic
+digest is `unclass(x[!names(x) %in% c("metric", "signature")])`
+(`R/metric.R:579`), so a new stored field moves every existing geometry
+`scientific_plan_id`. Derive it instead. A predicate
+`.metric_schedule_requires_metric_uncertainty(schedule)` returns
+`isTRUE(schedule$schedule$capabilities$calibration_requires_metric_uncertainty)`
+for the learned kind, `isTRUE(schedule$metric$capabilities$learned_frozen)` for
+a fixed metric materialized from a learned handle, `FALSE` otherwise.
+
+`.sampling_evidence_descriptor()` (`R/evidence-sampling.R:100`) then drops its
+`effect_crossnobis_plan` branch (`:116-131`) and sets `metric_status <-
+if (.metric_schedule_requires_metric_uncertainty(x$metric_schedule)) "learned"
+else "fixed"` in the one remaining geometry branch. The refusal at
+`R/evidence-sampling-product.R:569-584` (capability `fixed_metric_sampling_law`,
+reason `learned_metric_law_not_admitted`) then fires for learned geometry plans
+unchanged, and the second refusal at `:585-599` (`crossnobis_plan_not_routed`)
+is deleted with the class it tests for. `sampling_covariance()` and
+`plan_sampling()` need no other change: both reach the descriptor before
+compiling anything.
+
+### 16.5 `crossnobis()` as a view, `plan_crossnobis()` as sugar
+
+`crossnobis()` (`R/crossnobis-driver.R:224`) keeps one argument type,
+`effect_geometry_plan`, and validates rather than dispatches. It requires either
+a `fixed_metric_before_frame` schedule whose metric carries
+`$provenance$metric_role == "noise_precision"`, or a `learned_local_before_frame`
+schedule whose recipe is not `identity` — the two claims
+`.crossnobis_plan_metric()` (`R/crossnobis.R:68`) and `R/crossnobis.R:319-324`
+make today, under the one capability `"declared_noise_metric"`. It refuses the
+implicit identity metric, a fixed metric not built by `noise_precision()`, an
+`identity_metric()` recipe, and a pairing that is not independent,
+cross-partition and self-product-free. `missing(weights)` is now checked on both
+routes; the learned route skips it today (`R/crossnobis-driver.R:225`).
+
+One behaviour moves: `plan_crossnobis()` enforces the pairing contract at plan
+time (`R/crossnobis.R:316`), `plan_geometry()` does not, so the pairing refusal
+fires at view time — where the fixed-metric route already puts it
+(`R/crossnobis-driver.R:241`). `.preflight_metric_training()` still refuses a
+training-partition shortage at plan time, so a learned plan still cannot be
+built on a pairing unusable under `exclude_evaluation`.
+
+`plan_crossnobis(x, at, over, metric = shrinkage_precision(), training, compute,
+residual_workspace_bytes)` becomes a thin wrapper over `plan_geometry(...)` with
+the same defaults. Keep it exported: it names the intent,
+`exemplars/haxby2001/05-crossnobis-uncertainty.R:178` and
+`vignettes/from-rmvpa.Rmd:76,377` use it, and retiring the verb buys nothing.
+What is retired is the *class*.
+
+The view's public fields are unchanged — `$values`, `$contrast`, `$estimand`,
+`$metric`, `$pairing`, `$index`, `$receipt` — with `$metric` still the frozen
+schedule signature on the learned route and the neural metric signature on the
+fixed route. Signed negative finite estimates are still retained.
+
+`.execution_metadata()` (`R/execution-driver.R:426`) gains a learned branch
+carrying what `R/crossnobis-driver.R:106-141` carries today: recipe signature
+and kind, training policy, per-edge records (evaluation endpoints, training
+partitions, training signature), `local_metric_storage =
+"none_derived_on_demand"`, `retained_factor_table = FALSE`,
+`calibration_requires_metric_uncertainty`, and the kernel's `metric_receipts`.
+Kernel diagnostics (`pair_atoms_materialized`, `pair_frame_materialized`,
+`metric_factor_table_retained`, `metric_handles_derived`,
+`max_local_covariance_bytes`) move from a flat `$metadata$diagnostics` to
+`$metadata$diagnostics$total`, where every other geometry route puts them.
+`$metadata$source_session` keeps its named per-partition `read_count`, which is
+what proves the executor reads evaluation endpoints only.
+
+### 16.6 Migration
+
+| Symbol / class / field | Disposition |
+|---|---|
+| `plan_crossnobis()`, `crossnobis()` (exported) | **Kept**: sugar over `plan_geometry()`; validating view over `effect_geometry_plan` only |
+| `noise_precision()`, `shrinkage_precision()`, `diagonal_precision()`, `identity_metric()`, `metric_training_policy()`, `metric_capabilities()`, `residual_pair_statistics()` | **Unchanged** |
+| `effect_crossnobis_plan` (class) | **Retired**; `plan_crossnobis()` returns `effect_geometry_plan` |
+| `print.`/`format.effect_crossnobis_plan` (`R/format-results.R:126`) | **Retired**; `print.effect_geometry_plan` gains recipe-kind and training-policy lines |
+| `.validate_crossnobis_plan`, `.crossnobis_scientific_plan_id`, `.crossnobis_plan_signature`, `.learned_crossnobis_memory_plan` | **Retired**; geometry equivalents plus a learned branch in `.support_metric_memory_plan()` |
+| `.planned_crossnobis_receipt`, `.execute_learned_crossnobis` | **Retired**; `.planned_execution_receipt()` and `.execute_geometry_plan()` cover both |
+| `R/crossnobis.R`, `R/crossnobis-driver.R` | `crossnobis.R` keeps `noise_precision()` + sugar; `crossnobis-driver.R` keeps `crossnobis()` and may fold into `R/views.R`. Update `design/architecture.md:30-31,130-137,181` and `test-architecture.R:37,50` |
+| `.support_streamed_scheduled_crossnobis()` (`R/kernel.R:666`) | **Kept unchanged**; call site moves to `.execute_node_block()` |
+| `compile_metric_schedule()`, `.metric_schedule_provider()`, `materialize_metric()`, `effect_frozen_metric_schedule` | **Unchanged**; reached through the schedule kind |
+| receipt `$kernel_version = "support-streamed-scheduled-metric-v1"` | **Kept** |
+| receipt `$scientific_plan_id` prefix | **Renamed** `crossnobis-sha256:` → `geometry-sha256:`; every learned plan and view id changes once |
+| receipt `$task_partition_id = "ascending-supports-one-live-node"` | **Renamed** to the geometry form (`R/execution-driver.R:42`) |
+| execution stage `"support_tasks"` | **Renamed** `"feature_tasks"` |
+| `metadata$execution_plan$materialization = "direct_crossnobis_contrast"` | **Renamed** `"direct_total"` |
+| `.sampling_evidence_descriptor()` crossnobis branch; `crossnobis_plan_not_routed` refusal | **Retired**; the capability predicate replaces both |
+
+Must pass **unchanged**: all of `test-crossnobis-known.R` (the fixed route is
+untouched); all of `test-metric-learning.R` (recipes, policies, schedule
+compilation, providers, oracle agreement, leakage refusals — none of it names
+the plan class); and in `test-crossnobis-learned.R`, oracle agreement (`:49-56`,
+`:122-135`), receipt status and kernel version (`:57-59`), lowering string
+(`:60`), zero-residual-read metric receipts (`:69-73`), per-partition source
+read counts (`:76-80`), identity separation (`:107-121`), plan-time refusal
+ordering (`:142-191`), recipe hyperparameters (`:193-200`), the
+scientific-vs-execution identity split (`:202-226`), and the
+no-revalidation-per-node bound (`:228-257`).
+
+Needs **rewriting**: `test-crossnobis-learned.R:54` (class assertion →
+`"effect_geometry_plan"`), `:62-68` (diagnostics path moves under
+`$diagnostics$total`), `:107-109` (same assertions, read off the geometry plan);
+`test-print-methods.R:677` (printed-class inventory loses
+`effect_crossnobis_plan`); `test-architecture.R:37,50` (layer map). New tests
+are owed for the component refusals of §16.2, the sampling refusal reached by
+capability on a learned geometry plan, and
+`identical(plan_crossnobis(...)$scientific_plan_id, plan_geometry(..., metric =
+recipe)$scientific_plan_id)`.
+
+### 16.7 Open risks
+
+1. **Per-tile training leakage.** Training partitions are assigned once per
+   evaluation edge, before tiling; `feature_block = max(support_size)` makes a
+   tile a support, so a support-dependent training set would be a different
+   estimator per node. *Resolution:* the record is frozen in
+   `compile_metric_schedule()` and read-only in the kernel; assert in the
+   learned validator that `record$training_partitions` is independent of
+   `support_index`, and keep `.metric_schedule_provider()` the only path to a
+   handle.
+2. **Evaluation-edge cross-fitting.** `exclude_evaluation` trains on partitions
+   disjoint from both endpoints; `all_partitions_residual_orthogonality` does
+   not, and buys admission with a recorded justification, not proof. Moving to a
+   geometry plan widens the surface, since `plan_geometry()` accepts pairings
+   `plan_crossnobis()` refused. *Resolution:* keep
+   `.preflight_metric_training()` at plan time and the independence refusal at
+   view time, so no crossnobis reading can come from a dependent pairing.
+3. **Memory of per-feature precision blocks.** The 52k-feature gate (59.98 s /
+   903 MB) is dominated by retained residual pair statistics, not local
+   precision — handles are derived and discarded per node, no factor table is
+   kept. The risk is the learned memory branch inheriting the fixed branch's
+   metric-object accounting. *Resolution:* port the payload formulas from
+   `.learned_crossnobis_memory_plan()` verbatim and assert a learned plan's
+   planned workspace exceeds a fixed-metric plan's on the same frame.
+4. **Identity churn.** Every learned scientific plan id and view id changes
+   prefix and content. *Resolution:* take the one-time break, bump the schedule
+   schema version, re-record certification artifacts in the same commit; no
+   compatibility shim.
+5. **Conditional plan-time reads.** One entry point now sometimes reads and
+   sometimes does not — the kind of conditional promise this design elsewhere
+   refuses. *Resolution:* state it in `plan_geometry()`'s `@section Structure`,
+   print it on the plan, and record the accumulation in `$execution_hints` so it
+   is visible in the plan signature, not only in the receipt.
 
 ## Final recommendation
 
