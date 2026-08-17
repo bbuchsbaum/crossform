@@ -26,8 +26,10 @@ Imports:
     grDevices,
     Matrix,
     methods,
+    Rcpp,
     stats,
     utils
+LinkingTo: Rcpp
 Suggests:
     fmridesign,
     fmrireg,

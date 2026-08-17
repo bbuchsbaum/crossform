@@ -426,7 +426,7 @@ result$gate <- list(
     result$numerical$selected_column_max_abs_error <= 1e-12 &&
     result$numerical$fused_materialized_max_abs_error <= 1e-10,
   identity_pass = isTRUE(result$identity$route_identity_stable) &&
-    identical(result$identity$fused_kernel, "additive-query-fused-v2"),
+    identical(result$identity$fused_kernel, "additive-query-fused-native-v1"),
   fused_not_slower_pass = fused_ratio <= 1.2,
   selected_cheaper_pass = selected_seconds <= full_seconds,
   runtime_pass = max(

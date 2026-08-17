@@ -1,2 +1,2 @@
 "features","frame_nodes","conditions","rdm_coordinates","selected_pairs","selected_median_seconds","full_fused_median_seconds","rsa_median_seconds","materialized_median_seconds","fused_to_materialized_ratio","independent_oracle_max_abs_error","incremental_peak_r_heap_bytes","planned_workspace_bytes","passed"
-1080,1080,100,4950,100,0.244,4.643,4.187,12.417,0.373922847708786,4.44089209850063e-16,315411661,200088790,TRUE
+1080,1080,100,4950,100,0.222000000000001,2.955,2.33300000000001,20.035,0.147491889193911,4.44089209850063e-16,276299776,149400790,TRUE

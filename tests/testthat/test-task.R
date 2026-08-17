@@ -203,12 +203,9 @@ test_that("a structured pair-difference query tiles without a dense operator", {
   expect_identical(dim(reduced$atoms), c(4L, 2L))
   expect_equal(reduced$atoms, oracle %*% t(coefficients), tolerance = 1e-12)
 
-  # The bounded pair tile is what the work budget accounts for; the full
-  # pair-by-feature matrix is never a live allocation.
-  expect_identical(reduced$diagnostics$max_atom_work_bytes,
-    8 * 6 * min(64L, 3L) * 4)
-  expect_lt(reduced$diagnostics$max_atom_work_bytes,
-    8 * 6 * 64L * 4 + 1)
+  # Native fused evaluation writes directly to atoms; difference and
+  # product tiles are not a live allocation.
+  expect_identical(reduced$diagnostics$max_atom_work_bytes, 0)
 })
 
 test_that("form_atoms = FALSE compiles the plan without forming any atom", {

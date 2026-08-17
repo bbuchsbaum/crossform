@@ -61,19 +61,9 @@
   } else {
     as.integer(length(left_effects) * (length(left_effects) + 1L) / 2L)
   }
-  if (!is.null(query)) {
-    if (.is_pair_difference_query(query)) {
-      .validate_pair_difference_for_task(
-        query, left_effects, right_effects, same_relation
-      )
-    } else if (!is.matrix(query) || !is.numeric(query) ||
-        nrow(query) != physical_width || ncol(query) < 1L ||
-        any(!is.finite(query))) {
-      .contract_error(
-        "`query` must match the finite physical form coordinates."
-      )
-    }
-  }
+  .validate_task_query(
+    query, physical_width, left_effects, right_effects, same_relation
+  )
   list(
     feature_ids = feature_ids,
     codec = codec,
@@ -111,72 +101,35 @@
   } else {
     .query_output_width(query)
   }
-  tiled_pair_output <- form_atoms && structured_query &&
-    is.null(query$coefficients)
-  atoms <- if (!form_atoms || tiled_pair_output) {
+  atoms <- if (!form_atoms || structured_query) {
     NULL
   } else {
     matrix(0, length(feature_ids), output_width)
   }
   feature_count <- length(feature_ids)
-  pair_tile_size <- if (structured_query) {
-    min(64L, length(query$pair_left))
-  } else {
-    0L
-  }
   max_atom_work_bytes <- if (!form_atoms) {
     0
   } else if (is.null(query)) {
     8 * feature_count
   } else if (structured_query) {
-    # One accumulator and the difference/product temporaries for one bounded
-    # pair tile are live; the full pair-by-feature matrix is never formed.
-    8 * (6 * pair_tile_size * feature_count)
+    # Native fused evaluation writes directly to atoms. Difference and
+    # product tiles are never allocated, and there is no per-tile gc().
+    0
   } else {
     8 * (feature_count + q_left * q_right)
   }
 
   if (form_atoms && structured_query) {
-    atom_tiles <- if (tiled_pair_output) {
-      vector("list", ceiling(length(query$pair_left) / pair_tile_size))
-    } else {
-      NULL
-    }
-    tile_index <- 0L
-    for (pair_start in seq.int(1L, length(query$pair_left),
-        by = pair_tile_size)) {
-      tile_index <- tile_index + 1L
-      pair_indices <- pair_start:min(
-        pair_start + pair_tile_size - 1L, length(query$pair_left)
+    atoms <- .fused_pair_difference_atoms(
+      left_relations, right_relations, left_index, right_index,
+      ordered_edges$weight, query$pair_left, query$pair_right,
+      query$coefficients
+    )
+    if (any(!is.finite(atoms))) {
+      .input_error(
+        paste0("Direct effect-form querying produced non-finite values.",
+        " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
       )
-      pair_work <- matrix(0, length(pair_indices), feature_count)
-      for (edge in seq_len(nrow(ordered_edges))) {
-        edge_product <- .pair_difference_edge_products(
-          query,
-          left_relations[[left_index[[edge]]]],
-          right_relations[[right_index[[edge]]]],
-          pair_indices
-        )
-        pair_work <- pair_work + ordered_edges$weight[[edge]] * edge_product
-      }
-      if (any(!is.finite(pair_work))) {
-        .input_error(
-          paste0("Direct effect-form querying produced non-finite values.",
-          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
-        )
-      }
-      if (is.null(query$coefficients)) {
-        atom_tiles[[tile_index]] <- t(pair_work)
-      } else {
-        atoms <- atoms + t(
-          query$coefficients[, pair_indices, drop = FALSE] %*% pair_work
-        )
-      }
-      rm(pair_work, edge_product)
-      invisible(gc(full = FALSE))
-    }
-    if (tiled_pair_output) {
-      atoms <- do.call(cbind, atom_tiles)
     }
   } else if (form_atoms && is.null(query)) {
     coordinate <- 0L

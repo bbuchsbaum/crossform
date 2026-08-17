@@ -285,13 +285,9 @@ memory_plan <- function(frame_bytes = 0,
   atom_work <- max(
     if (form_total) .dense_double_vector_bytes(f) else 0,
     if (!form_total || is.null(query)) 0 else if (structured_query) {
-      # Structured evaluation tiles the pair axis. Account conservatively for
-      # the accumulator plus indexing, difference, product, weighting, and
-      # addition temporaries for one live tile, plus the query payload.
-      6 * .dense_double_matrix_bytes(
-        min(64L, length(query$pair_left)), f
-      ) +
-        .query_payload_bytes(query)
+      # Native fused evaluation writes directly to atoms. Account only for
+      # the structured query payload; dl/dr/product tiles are not allocated.
+      .query_payload_bytes(query)
     } else {
       .dense_double_matrix_bytes(q_left, q_right) +
         .query_payload_bytes(query)
@@ -390,13 +386,13 @@ memory_plan <- function(frame_bytes = 0,
   }
   # Query-fused execution forms only the requested per-feature coordinates.
   # The live query representation is accounted explicitly: a structured
-  # pair-difference query stores index vectors plus its coefficient map and
-  # a pair-by-feature-block workspace; a dense physical query stores its
-  # full matrix plus one reconstructed q-by-q operator at a time.
+  # pair-difference query stores index vectors plus its coefficient map; a
+  # dense physical query stores its full matrix plus one reconstructed
+  # q-by-q operator at a time.
   query_operator <- if (requirements$total &&
       !identical(requirements$materialization, "full_geometry")) {
     if (!is.null(query) && .is_pair_difference_query(query)) {
-      .query_payload_bytes(query) + 8 * length(query$pair_left) * f
+      .query_payload_bytes(query)
     } else {
       .query_payload_bytes(query) + q * q * 8
     }

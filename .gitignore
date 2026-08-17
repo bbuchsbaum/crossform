@@ -2,6 +2,10 @@
 .RData
 .Rhistory
 .Rproj.user/
+src/*.o
+src/*.so
+src/*.dll
+src/symbols.rds
 *.Rcheck/
 *.tar.gz
 Rplots.pdf

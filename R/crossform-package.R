@@ -81,6 +81,8 @@
 #'   `effect_capability_refusal`. See [crossform_conditions].
 #'
 #' @keywords internal
+#' @useDynLib crossform, .registration = TRUE
+#' @importFrom Rcpp evalCpp
 #' @name crossform-package
 #' @aliases crossform
 "_PACKAGE"

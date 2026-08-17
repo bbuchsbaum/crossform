@@ -110,6 +110,21 @@
   ))
 }
 
+.geometry_kernel_version <- function(support_streamed, explicit_metric,
+                                     query_fused, structured_query) {
+  if (isTRUE(support_streamed)) {
+    "support-streamed-metric-v1"
+  } else if (isTRUE(explicit_metric)) {
+    "additive-fixed-metric-v1"
+  } else if (isTRUE(query_fused) && isTRUE(structured_query)) {
+    "additive-query-fused-native-v1"
+  } else if (isTRUE(query_fused)) {
+    "additive-query-fused-v2"
+  } else {
+    "additive-effect-form-v2"
+  }
+}
+
 .compile_geometry_execution_plan <- function(
     plan, query = NULL, component = NULL,
     storage = c("memory", "block"), storage_path = NULL,
@@ -220,6 +235,7 @@
     ))
   }
   query_fused <- !is.null(physical_query)
+  structured_query <- query_fused && .is_pair_difference_query(physical_query)
   lowering <- if (support_streamed && query_fused) {
     "support_streamed_metric_query_contraction"
   } else if (support_streamed) {
@@ -233,15 +249,9 @@
   } else {
     "additive_form_contraction"
   }
-  kernel_version <- if (support_streamed) {
-    "support-streamed-metric-v1"
-  } else if (explicit_metric) {
-    "additive-fixed-metric-v1"
-  } else if (query_fused) {
-    "additive-query-fused-v2"
-  } else {
-    "additive-effect-form-v2"
-  }
+  kernel_version <- .geometry_kernel_version(
+    support_streamed, explicit_metric, query_fused, structured_query
+  )
   scientific_plan_id <- if (is.null(physical_query)) {
     # Full materialization executes the plan's own estimand.
     plan$scientific_plan_id
@@ -361,15 +371,10 @@
   } else {
     "additive_form_contraction"
   }
-  expected_kernel <- if (support_streamed) {
-    "support-streamed-metric-v1"
-  } else if (explicit_metric) {
-    "additive-fixed-metric-v1"
-  } else if (x$query_fused) {
-    "additive-query-fused-v2"
-  } else {
-    "additive-effect-form-v2"
-  }
+  expected_kernel <- .geometry_kernel_version(
+    support_streamed, explicit_metric, x$query_fused,
+    x$query_fused && .is_pair_difference_query(x$query)
+  )
   expected_id <- if (is.null(x$query)) {
     x$estimand_id
   } else {

@@ -95,6 +95,30 @@
   inherits(query, "effect_pair_difference_query")
 }
 
+# The one admission check for a task query, shared by the atom builder in
+# R/task.R and by both streaming kernels in R/kernel.R. A structured
+# pair-difference query is validated against the effect axes it names; a dense
+# query must be a finite matrix whose rows are the form's physical
+# coordinates. Returns TRUE when the query is structured, which is the branch
+# every caller keys off next.
+.validate_task_query <- function(query, physical_width, left_effects,
+                                 right_effects, same_relation,
+                                 what = "physical form coordinates") {
+  if (is.null(query)) return(FALSE)
+  if (.is_pair_difference_query(query)) {
+    .validate_pair_difference_for_task(
+      query, left_effects, right_effects, same_relation
+    )
+    return(TRUE)
+  }
+  if (!is.matrix(query) || !is.numeric(query) ||
+      nrow(query) != physical_width || ncol(query) < 1L ||
+      any(!is.finite(query))) {
+    .contract_error(sprintf("`query` must match the finite %s.", what))
+  }
+  FALSE
+}
+
 .query_output_width <- function(query) {
   if (is.null(query)) {
     .input_error("A query is required to report an output width.")
@@ -159,7 +183,9 @@
 }
 
 # Per-edge structured evaluation for effect-by-feature relation blocks:
-# returns the pair-by-feature difference product (u^T L) * (u^T R).
+# returns the pair-by-feature difference product (u^T L) * (u^T R). This is
+# the retained pure-R oracle for one ordered edge; production accumulation
+# uses the fused native kernel and never materializes dl, dr, or dl*dr.
 .pair_difference_edge_products <- function(query, left, right,
                                            pair_indices = NULL) {
   pair_indices <- if (is.null(pair_indices)) {
@@ -172,6 +198,84 @@
   dr <- right[query$pair_left[pair_indices], , drop = FALSE] -
     right[query$pair_right[pair_indices], , drop = FALSE]
   dl * dr
+}
+
+.pair_difference_pair_subset <- function(pair_left, pair_right, coefficients,
+                                         pair_indices) {
+  if (is.null(pair_indices)) {
+    return(list(
+      pair_left = as.integer(pair_left),
+      pair_right = as.integer(pair_right),
+      coefficients = coefficients
+    ))
+  }
+  pair_indices <- as.integer(pair_indices)
+  list(
+    pair_left = as.integer(pair_left)[pair_indices],
+    pair_right = as.integer(pair_right)[pair_indices],
+    coefficients = if (is.null(coefficients)) {
+      NULL
+    } else {
+      coefficients[, pair_indices, drop = FALSE]
+    }
+  )
+}
+
+# Independent two-pass R accumulation: sum edges first, then contract
+# coefficients. Tests compare the native fused kernel against this oracle.
+.pair_difference_accumulate_oracle <- function(left_relations, right_relations,
+                                               left_index, right_index,
+                                               edge_weight, pair_left,
+                                               pair_right,
+                                               coefficients = NULL,
+                                               pair_indices = NULL) {
+  selected <- .pair_difference_pair_subset(
+    pair_left, pair_right, coefficients, pair_indices
+  )
+  query <- list(
+    pair_left = selected$pair_left,
+    pair_right = selected$pair_right
+  )
+  n_pairs <- length(selected$pair_left)
+  n_features <- ncol(left_relations[[1L]])
+  pair_work <- matrix(0, n_pairs, n_features)
+  for (edge in seq_along(edge_weight)) {
+    pair_work <- pair_work + edge_weight[[edge]] *
+      .pair_difference_edge_products(
+        query,
+        left_relations[[left_index[[edge]]]],
+        right_relations[[right_index[[edge]]]]
+      )
+  }
+  if (is.null(selected$coefficients)) {
+    t(pair_work)
+  } else {
+    t(selected$coefficients %*% pair_work)
+  }
+}
+
+.fused_pair_difference_atoms <- function(left_relations, right_relations,
+                                         left_index, right_index,
+                                         edge_weight, pair_left, pair_right,
+                                         coefficients = NULL,
+                                         pair_indices = NULL) {
+  selected <- .pair_difference_pair_subset(
+    pair_left, pair_right, coefficients, pair_indices
+  )
+  atoms <- .fused_pair_difference_atoms_cpp(
+    unname(left_relations),
+    unname(right_relations),
+    as.integer(left_index),
+    as.integer(right_index),
+    as.numeric(edge_weight),
+    selected$pair_left,
+    selected$pair_right
+  )
+  if (is.null(selected$coefficients)) {
+    atoms
+  } else {
+    atoms %*% t(selected$coefficients)
+  }
 }
 
 # Validate a structured query against a self-form task's effect axes.

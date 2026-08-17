@@ -155,11 +155,11 @@ test_that("RDM and RSA views execute only their compiled query coordinates", {
     tolerance = 1e-12)
   expect_identical(
     direct_rdm$receipt$kernel_version,
-    "additive-query-fused-v2"
+    "additive-query-fused-native-v1"
   )
   expect_identical(
     direct_rsa$receipt$kernel_version,
-    "additive-query-fused-v2"
+    "additive-query-fused-native-v1"
   )
   expect_lt(
     direct_rsa$receipt$memory$categories[["atom_block"]],
