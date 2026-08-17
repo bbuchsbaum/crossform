@@ -1,5 +1,11 @@
 # Benchmark and certification harness
 
+**Re-certifying after a source edit:** `benchmarks/RECERTIFY.md` is the exact
+command sequence — temp library install, runners in order, promotion, and the
+verifying test run — with the traps that cost time to rediscover. This file
+explains what each gate asserts; that one explains how to make the recorded
+evidence bind again.
+
 ## Provenance binding
 
 A recorded benchmark artifact is evidence for exactly one source tree. Every
@@ -202,6 +208,14 @@ whether any pair frame, pair atoms, or node-by-edge factor table was retained.
 The initial admission limits are 4 GiB incremental RSS and 30 minutes for the
 complete analysis.
 
+Since the union pair graph became lazy, an ordinary searchlight compile leaves
+`pair_pattern` NULL and the crossnobis path never needs it, so the recorded
+`structural_bytes` is the support index the analysis actually used and no
+longer includes the union graph. The `union_pair_stored_nnz` and `union_degree`
+topology figures come from a receipt-only materialization taken after the
+measured analysis, and `pair_pattern_route` records which route the analysis
+ran.
+
 This fixture qualifies execution and storage only. Its training-only arm has
 30 residual degrees of freedom and support sizes up to 33, so the declared
 shrinkage estimator is load-bearing. Statistical recovery and residual-reuse
@@ -232,6 +246,8 @@ the timing court and is excluded from the query-first memory claim. The
 receipt separately records the allocations avoided by structured
 execution: a ~200 MB (191 MiB) dense packed query matrix and an ~87 MB
 (83 MiB) two-component geometry field. The recorded artifact reports 100
-selected pairs in 0.27 s, the full fused RDM in 5.16 s, and the materialized
-route in 13.40 s (fused/materialized ratio 0.39), a 291 MB (277 MiB) maximum
+selected pairs in 0.13 s, the full fused RDM in 1.59 s, and the materialized
+route in 2.08 s (fused/materialized ratio 0.76 against a 1.2 ceiling — the
+native packed-form kernel made the materialized comparator fast, so this
+margin is now thin and worth watching), a 277 MB (264 MiB) maximum
 fresh-worker incremental R heap, and oracle error 4.4e-16.

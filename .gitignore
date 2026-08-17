@@ -30,3 +30,10 @@ exemplars/*/data/
 
 # Knit byproducts.
 /figure/
+
+# Runner outputs are promoted into inst/extdata/certification by
+# benchmarks/promote-artifacts.R; only the two large validation records that
+# stay out of the tarball are tracked here.
+benchmark-results/*
+!benchmark-results/learned-metric-policy-validation.rds
+!benchmark-results/sampling-covariance-validation.rds

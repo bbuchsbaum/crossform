@@ -478,9 +478,10 @@ stimulus categories over twelve runs, 577 ventral-temporal searchlights),
 `rMVPA` to `8.88e-16` on the matched crossvalidated squared-Euclidean/crossnobis
 estimand; refitting the raw responses to retain the error channel reproduces
 the point RDM to `4.44e-16`. At 100 conditions over 1,080 searchlights, one
-hundred selected pairs run in 0.27 s and the fused full RDM in 5.16 s against
-13.40 s for materialize-then-project — a ratio of 0.39, with a `4.4e-16`
-oracle.
+hundred selected pairs run in 0.13 s and the fused full RDM in 1.59 s against
+2.08 s for materialize-then-project — a ratio of 0.76, with a `4.4e-16`
+oracle (the materialized comparator is itself fast now that the packed-form
+kernel is native, so the query-first advantage is smaller than it was).
 
 On the same exemplar, the coherent/configuration decomposition runs on real
 data: [`06-coherent-configuration.R`](exemplars/haxby2001/) reads face − house
