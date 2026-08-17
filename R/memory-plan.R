@@ -118,89 +118,21 @@ memory_plan <- function(frame_bytes = 0,
     reorder_buffer = reorder_buffer_bytes,
     checkpoint_buffer = checkpoint_buffer_bytes
   )
-  max_exact <- 2^53
-  whole <- function(value, name, positive = FALSE) {
-    lower <- if (positive) 1 else 0
-    if (!.is_number(value) || value < lower || value %% 1 != 0 ||
-        value > max_exact) {
-      .input_error(sprintf(
-        "`%s` must be one %sfinite whole scalar no greater than 2^53.",
-        name, if (positive) "positive " else "nonnegative "))
-    }
-    value
-  }
-  for (name in names(categories)) whole(categories[[name]], name)
-  workers <- whole(workers, "workers", positive = TRUE)
-  n_active <- whole(n_active, "n_active", positive = TRUE)
-  if (n_active > workers) .input_error("`n_active` cannot exceed `workers`.")
-  if (!.is_number(safety_factor) || safety_factor < 1) {
-    .input_error(
-      "`safety_factor` must be one finite number greater than or equal to one."
-    )
-  }
-  optional <- function(value, name) {
-    if (!is.null(value) && (!is.numeric(value) || length(value) != 1L ||
-        is.na(value) || !is.finite(value) || value < 0)) {
-      .input_error(sprintf(
-        "`%s` must be NULL or one nonnegative finite byte count.",
-        name))
-    }
-    value
-  }
-  optional(budget_bytes, "budget_bytes")
-  if (!is.null(budget_bytes) && budget_bytes == 0) {
-    .input_error("`budget_bytes` must be NULL or positive.")
-  }
-  optional(measured_workspace_bytes, "measured_workspace_bytes")
-  optional(baseline_rss_bytes, "baseline_rss_bytes")
-  optional(peak_rss_bytes, "peak_rss_bytes")
-  if (!is.null(baseline_rss_bytes) && !is.null(peak_rss_bytes) &&
-      peak_rss_bytes < baseline_rss_bytes) {
-    .input_error("Peak RSS cannot be smaller than baseline RSS.")
-  }
-
-  persistent_names <- c("frame", "resident_source", "source_handles",
-    "local_state", "output")
-  task_names <- c("source_block", "relation_block", "atom_block",
-    "contraction", "replacement_copy", "serialization_overlap",
-    "reorder_buffer", "checkpoint_buffer")
-  persistent <- sum(categories[persistent_names])
-  per_active <- sum(categories[task_names])
-  active <- n_active * per_active
-  if (!is.finite(active) || active > max_exact ||
-      !is.finite(persistent + active) || persistent + active > max_exact) {
-    .invariant_error(
-      "Workspace byte accounting overflows exact representation."
-    )
-  }
-  modeled <- persistent + active
-  conservative <- ceiling(modeled * safety_factor)
-  incremental_rss <- if (is.null(baseline_rss_bytes) || is.null(peak_rss_bytes)) {
-    NULL
-  } else {
-    peak_rss_bytes - baseline_rss_bytes
-  }
-
-  structure(list(
+  # The record, its scalar validation, and its byte arithmetic live in
+  # R/primitives.R. `memory_plan()` is the named-argument face of that record;
+  # R/receipt.R rebuilds one from a plan's own categories to check that its
+  # derived fields were not edited, and does so without calling into this
+  # file. See the note above `.workspace_plan_record()`.
+  .workspace_plan_record(
     categories = categories,
-    workers = as.integer(workers),
-    n_active = as.integer(n_active),
-    persistent_workspace_bytes = persistent,
-    task_workspace_per_active_bytes = per_active,
-    active_task_workspace_bytes = active,
-    modeled_workspace_bytes = modeled,
+    workers = workers,
+    n_active = n_active,
     safety_factor = safety_factor,
-    planned_workspace_bytes = conservative,
     budget_bytes = budget_bytes,
-    fits_budget = if (is.null(budget_bytes)) NA else conservative <= budget_bytes,
     measured_workspace_bytes = measured_workspace_bytes,
-    measured_workspace_within_plan = if (is.null(measured_workspace_bytes)) NA else
-      measured_workspace_bytes <= conservative,
     baseline_rss_bytes = baseline_rss_bytes,
-    incremental_peak_rss_bytes = incremental_rss,
-    absolute_peak_rss_bytes = peak_rss_bytes,
-    prediction_kind = "crossform_owned_workspace_upper_bound"
-  ), class = "effect_memory_plan")
+    peak_rss_bytes = peak_rss_bytes
+  )
 }
 
 # Conservative plan for the universal rectangular/packed streaming primitive.

@@ -186,6 +186,31 @@ test_that("the compute core never calls into results, views, or printing", {
   expect_identical(describe_edges(offending), character())
 })
 
+test_that("a receipt records canonical values and depends on none of them", {
+  # A receipt is a record of what an execution used, so nothing it names may
+  # be something it also helps define. Until 2026-08-17 `receipt.R` had one
+  # outgoing edge into the layer-2 value tangle -- it called `memory_plan()`
+  # to rebuild a plan from its own categories and check that the derived
+  # totals followed -- and that single edge held five other files inside the
+  # cycle with it: the tangle was fifteen files, and dropped to nine when the
+  # rebuild moved to `.workspace_plan_record()` in the primitive layer.
+  #
+  # The list below is that fifteen-file component as design/architecture.md
+  # recorded it, minus `receipt.R`. Files may still call *into* the receipt --
+  # `relation.R` and `study-facts.R` do -- and that is the direction the
+  # design wants. What must stay empty is the other one.
+  dir <- find_source_dir()
+  skip_if(is.null(dir), "package sources are not available under this runner")
+  edges <- internal_call_graph(dir)
+  value_cycle <- c("capabilities.R", "effect-map.R", "effect-space.R",
+    "extractor.R", "measurement.R", "memory-plan.R", "metric.R",
+    "operations.R", "pairing.R", "relation-fit.R", "relation.R", "scope.R",
+    "source.R", "study-facts.R")
+  offending <- edges[edges$from == "receipt.R" & edges$to %in% value_cycle, ]
+
+  expect_identical(describe_edges(offending), character())
+})
+
 test_that("primitives depend on nothing above the primitive layer", {
   dir <- find_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")

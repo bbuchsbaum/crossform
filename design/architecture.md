@@ -237,22 +237,48 @@ changed target because the code they named moved:
 ## What remains
 
 No file has an upward edge. The largest strongly connected component is down
-from the 26 files it held before the layer-4 split, to 17 after it, to **15**
-now: the compiler, both executors, the kernels, the plans, the results, and
-the views are all outside it.
+from the 26 files it held before the layer-4 split, to 17 after it, to 15
+after the pass that wrote the tables above, to **9** now: the compiler, both
+executors, the kernels, the plans, the results, and the views are all outside
+it, and so is the receipt.
+
+### The receipt left the tangle
+
+The fifteen-file component was, in part, an accident of one call. `receipt.R`
+entered it through a single outgoing edge — `receipt.R -> memory-plan.R`, for
+`memory_plan()`. `.validate_memory_plan_for_receipt()` rebuilt a memory plan
+from the plan's own categories and compared the derived totals, which is a real
+integrity check: it is what refuses a receipt whose `modeled_workspace_bytes`
+was edited after the fact. But it made the receipt a caller of the vocabulary
+it is supposed to be a record *of*.
+
+The record — its scalar validation, its byte arithmetic, and the classed object
+itself — now lives in `.workspace_plan_record()` in the primitive layer
+(`R/primitives.R`). `memory_plan()` is the named-argument face of that record;
+the receipt rebuilds through the same primitive. The check is unchanged, with
+identical arithmetic and identical errors, but it is now reachable from both
+files without joining them.
+
+One edge was worth six files. `capabilities.R`, `measurement.R`,
+`memory-plan.R`, `metric.R`, and `scope.R` were in the cycle only by way of
+`receipt.R`, so removing it dropped the component from 15 to 9. The remaining
+in-edges stay, and are the direction the design wants: `relation.R`,
+`relation-fit.R`, and `study-facts.R` call `source_capabilities()` and
+`.validate_source_capabilities()`, which `receipt.R` defines.
+`tests/testthat/test-architecture.R` now fails on any new edge from `receipt.R`
+into the listed value files, so this cannot be undone by accident.
 
 What is left is one genuine tangle, in layer 2 and entirely within it:
 
 ```
-capabilities.R  effect-map.R   effect-space.R  extractor.R  measurement.R
-memory-plan.R   metric.R       operations.R    pairing.R    receipt.R
-relation-fit.R  relation.R     scope.R         source.R     study-facts.R
+effect-map.R    effect-space.R  extractor.R    operations.R  pairing.R
+relation-fit.R  relation.R      source.R       study-facts.R
 ```
 
-These fifteen value files are mutually recursive. That is a different problem
+These nine value files are mutually recursive. That is a different problem
 from the one this document was written about — it is not a layering violation,
 because a file may call sideways, and there is no direction to restore, only a
-knot to untie. Untangling it means deciding which of `relation`, `source`,
-`metric`, and `receipt` is the more primitive value, and that is a design
-question about the vocabulary rather than a refactor. It is the honest next
-piece of architecture work, and no pass so far has attempted it.
+knot to untie. Untangling it means deciding which of `relation`, `source`, and
+`effect-space` is the more primitive value, and that is a design question about
+the vocabulary rather than a refactor. It is the honest next piece of
+architecture work.

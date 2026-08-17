@@ -251,3 +251,22 @@ route in 2.08 s (fused/materialized ratio 0.76 against a 1.2 ceiling — the
 native packed-form kernel made the materialized comparator fast, so this
 margin is now thin and worth watching), a 277 MB (264 MiB) maximum
 fresh-worker incremental R heap, and oracle error 4.4e-16.
+
+## Call-graph components
+
+`benchmarks/call-graph-scc.R` is analysis rather than a gate: it records no
+artifact, binds no provenance, and nothing skips on it. It rebuilds the
+file-level call graph of `R/` using the same extraction rule as
+`tests/testthat/test-architecture.R` — top-level `name <- function(...)`
+definitions, then every symbol a file references that resolves to a definition
+in another file — and reports the strongly connected components with Tarjan.
+
+```sh
+Rscript benchmarks/call-graph-scc.R
+SCC_FOCUS=receipt.R Rscript benchmarks/call-graph-scc.R
+```
+
+It prints the largest component's size and membership, every component of more
+than one file, and the edges into and out of `SCC_FOCUS` (default `receipt.R`).
+This is what produces the numbers `design/architecture.md` quotes under "What
+remains", so re-run it before changing them.

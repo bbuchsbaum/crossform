@@ -324,34 +324,23 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   value
 }
 
+# A receipt records a canonical memory plan, so it re-derives one from the
+# plan's own categories and refuses a plan whose totals do not follow from
+# them. The rebuild deliberately goes through `.workspace_plan_record()` in
+# R/primitives.R rather than through `memory_plan()`: a receipt is a record of
+# values, not a dependency of the vocabulary that produces them, and calling
+# the constructor would put receipt.R back inside the layer-2 value cycle that
+# design/architecture.md tracks. The arithmetic is identical either way --
+# `memory_plan()` is the named-argument face of the same record.
 .validate_memory_plan_for_receipt <- function(memory) {
   if (!inherits(memory, "effect_memory_plan") || !is.numeric(memory$categories)) {
     .input_error("`memory` must be a crossform memory plan.")
   }
-  expected_categories <- c(
-    "frame", "resident_source", "source_handles", "source_block",
-    "relation_block", "atom_block", "local_state", "output", "contraction",
-    "replacement_copy", "serialization_overlap", "reorder_buffer",
-    "checkpoint_buffer"
-  )
-  if (!identical(names(memory$categories), expected_categories)) {
+  if (!identical(names(memory$categories), .workspace_plan_category_names())) {
     .input_error("Memory-plan categories are missing or noncanonical.")
   }
-  c <- memory$categories
-  rebuilt <- memory_plan(
-    frame_bytes = c[["frame"]],
-    resident_source_bytes = c[["resident_source"]],
-    source_handle_bytes = c[["source_handles"]],
-    source_block_bytes = c[["source_block"]],
-    relation_block_bytes = c[["relation_block"]],
-    atom_block_bytes = c[["atom_block"]],
-    local_state_bytes = c[["local_state"]],
-    output_bytes = c[["output"]],
-    contraction_bytes = c[["contraction"]],
-    replacement_copy_bytes = c[["replacement_copy"]],
-    serialization_overlap_bytes = c[["serialization_overlap"]],
-    reorder_buffer_bytes = c[["reorder_buffer"]],
-    checkpoint_buffer_bytes = c[["checkpoint_buffer"]],
+  rebuilt <- .workspace_plan_record(
+    categories = memory$categories,
     workers = memory$workers,
     n_active = memory$n_active,
     safety_factor = memory$safety_factor,
