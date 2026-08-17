@@ -13,20 +13,20 @@ compile_metric_schedule(
 )
 }
 \arguments{
-\item{recipe}{A recipe from `identity_metric()`, `diagonal_precision()`, or
-`shrinkage_precision()`.}
+\item{recipe}{A recipe from \code{identity_metric()}, \code{diagonal_precision()}, or
+\code{shrinkage_precision()}.}
 
-\item{statistics}{Canonical `residual_pair_statistics()`.}
+\item{statistics}{Canonical \code{residual_pair_statistics()}.}
 
 \item{at}{The same support-index-backed frame used to accumulate
-`statistics`.}
+\code{statistics}.}
 
-\item{over}{An evaluation `pairing()`.}
+\item{over}{An evaluation \code{pairing()}.}
 
-\item{training}{A `metric_training_policy()`.}
+\item{training}{A \code{metric_training_policy()}.}
 }
 \value{
-An `effect_frozen_metric_schedule`.
+An \code{effect_frozen_metric_schedule}.
 }
 \description{
 Compilation binds a metric recipe to canonical residual sufficient

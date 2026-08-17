@@ -1,6 +1,6 @@
 integrity_fixture <- function(domain = NULL,
                               domain_id = "integrity-guard-domain",
-                              frame_spec = voxels()) {
+                              frame_spec = voxelwise()) {
   set.seed(90217)
   if (is.null(domain)) domain <- abstract_domain(6L, id = domain_id)
   features <- domain$n_features
@@ -25,14 +25,14 @@ test_that("correlation-style normalization refuses with the policy boundary", {
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_identical(refusal$capability, "guaranteed_psd")
   expect_match(refusal$message, "zero or negative")
-  expect_match(refusal$message, "correlation-distance-policy")
+  expect_match(refusal$message, "correlation-distance policy")
 })
 
 test_that("univariate removal refuses and points at the decomposition", {
   fixture <- integrity_fixture()
   weights <- c(level = 0, condition = 1, extra = 0)
   refusal <- catch_refusal(
-    contrast(fixture$plan, weights, remove_univariate = TRUE)
+    contrast_energy(fixture$plan, weights, remove_univariate = TRUE)
   )
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_identical(refusal$capability, "nondestructive_decomposition")
@@ -45,7 +45,33 @@ test_that("rdm and rsa recompose exactly at the public surface", {
   total <- rdm(fixture$plan, component = "total")$values
   coherent <- rdm(fixture$plan, component = "coherent")$values
   configuration <- rdm(fixture$plan, component = "configuration")$values
-  expect_equal(total, coherent + configuration, tolerance = 1e-12)
+
+  # Each component is checked against an independent first-principles oracle.
+  # The compiler defines `configuration` as `total - coherent`, so asserting
+  # only that the three sum correctly would hold however wrong they were.
+  oracle <- geometry_component_oracle(
+    relation_values = geometry_oracle_relation_values(fixture$fit$relation),
+    frame_weights = compile_frame(voxelwise(), fixture$domain)$weights,
+    partition_edges = cross_partitions(
+      fixture$fit$relation, independence = "independent"
+    )
+  )
+  pairs <- utils::combn(3L, 2L)
+  oracle_rdm <- function(component) {
+    t(vapply(oracle[[component]], function(value) {
+      vapply(seq_len(ncol(pairs)), function(pair) {
+        delta <- numeric(3L)
+        delta[pairs[, pair]] <- c(1, -1)
+        drop(delta %*% value %*% delta)
+      }, numeric(1))
+    }, numeric(ncol(pairs))))
+  }
+  expect_equal(total, oracle_rdm("total"), tolerance = 1e-11,
+    ignore_attr = TRUE)
+  expect_equal(coherent, oracle_rdm("coherent"), tolerance = 1e-11,
+    ignore_attr = TRUE)
+  expect_equal(configuration, oracle_rdm("configuration"),
+    tolerance = 1e-11, ignore_attr = TRUE)
 
   model <- matrix(c(0, 1, 2, 1, 0, 3, 2, 3, 0), 3, 3,
     dimnames = list(
@@ -70,7 +96,7 @@ test_that("conservative frames conserve total evidence; local frames do not", {
     domain = domain, frame_spec = searchlights(1.01, "conservative")
   )
   weights <- c(level = 0, condition = 1, extra = 0)
-  local_view <- contrast(conservative$plan, weights)
+  local_view <- contrast_energy(conservative$plan, weights)
   # The conservation comparator is the unnormalized whole-brain operator:
   # `whole_brain()`'s default local normalization divides by the feature
   # count, which is exactly the factor-of-P trap the docs warn about.
@@ -81,7 +107,7 @@ test_that("conservative frames conserve total evidence; local frames do not", {
       conservative$fit$relation, independence = "independent"
     )
   )
-  global_view <- contrast(global_plan, weights)
+  global_view <- contrast_energy(global_plan, weights)
   expect_equal(sum(local_view$total), global_view$total, tolerance = 1e-10)
 
   # The conservation law covers `total` only: coherent components are
@@ -109,7 +135,7 @@ test_that("unequal-length runs get a legible per-partition diagnosis", {
   expect_error(
     lm_relation_fit(sources, design, effects, domain = domain),
     "Partition `run2` supplies 12 observations.*named list"
-  )
+  , class = "effect_input_error")
   per_partition <- list(
     run1 = design,
     run2 = design[seq_len(12L), , drop = FALSE]
@@ -133,7 +159,7 @@ test_that("a covariance artifact cannot claim a plan of another dimension", {
       residual_covariance = diag(4)
     ),
     "declare 120 experimental effects but the bound evidence plan has 3"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("inconsistent canonical blocks refuse instead of clipping", {
@@ -145,5 +171,5 @@ test_that("inconsistent canonical blocks refuse instead of clipping", {
       cross, left_self, right_self
     ),
     "will not be silently clipped"
-  )
+  , class = "effect_input_error")
 })

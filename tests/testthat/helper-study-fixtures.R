@@ -75,7 +75,7 @@ bound_study_fixture <- function(use_functions = FALSE) {
         stringsAsFactors = FALSE
       )
     }))
-  event_record <- events(event_table)
+  event_record <- observation_events(event_table)
 
   confound_table <- do.call(rbind, lapply(rev(fixture$partitions),
     function(partition) {

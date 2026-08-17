@@ -16,11 +16,11 @@ reconstruct_evidence(
 )
 }
 \arguments{
-\item{x}{A frame-complete `effect_measurement_form`.}
+\item{x}{A frame-complete \code{effect_measurement_form}.}
 
-\item{between}{The exact `edge_frame()` used to construct `x`.}
+\item{between}{The exact \code{edge_frame()} used to construct \code{x}.}
 
-\item{method}{Reconstruction method; `"auto"` selects Parseval, canonical
+\item{method}{Reconstruction method; \code{"auto"} selects Parseval, canonical
 dual, or projected pseudoinverse according to frame diagnostics.}
 
 \item{tolerance}{Positive relative singular-value and certification
@@ -29,7 +29,7 @@ tolerance.}
 \item{max_condition}{Maximum accepted retained condition number.}
 
 \item{allow_projection}{Whether rank-deficient projected (lossy)
-reconstruction is admitted. It defaults to `FALSE` so a projection is an
+reconstruction is admitted. It defaults to \code{FALSE} so a projection is an
 explicit choice, never a silent fallback: rank-deficient frames refuse
 until projection is explicitly admitted.}
 
@@ -40,8 +40,12 @@ hard 512 MiB ceiling for this explicitly small-node reconstruction path.}
 numerical reconstruction residual.}
 }
 \value{
-An `effect_tomography_result` distinguishing exact, certified, and
-  projected reconstruction.
+An \code{effect_tomography_result} with the reconstructed \verb{$operator},
+the \verb{$method} actually used (\code{"parseval"}, \code{"canonical_dual"}, or
+\code{"projected_pseudoinverse"}), a \verb{$status} distinguishing exact,
+certified, and projected reconstruction, the \verb{$lossless} and
+\verb{$certified} flags, \verb{$left_projection}/\verb{$right_projection}, and frame
+\verb{$diagnostics}.
 }
 \description{
 Lossless reconstruction requires the complete node-edge block form and
@@ -49,3 +53,84 @@ full-column-rank identified frames. Rank-deficient frames return only an
 explicitly projected operator. A workspace budget is checked before any
 measurement block is read.
 }
+\section{Refusal}{
+
+A form that is not frame complete — a diagonal-only or requested-edge map —
+signals an \code{effect_capability_refusal} carrying capability
+\code{"complete_edge_set"} in namespace \code{"tomography"}, with reason
+\code{"edge_set_is_not_frame_complete"}. Inspect it with \code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
+\examples{
+# A Parseval frame: stacking the two node operators gives the identity, so
+# the local blocks add back with no correction matrix.
+native <- abstract_domain(4, id = "demo:native:v1")
+times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+trend <- seq(-1.5, 1.5, length.out = 6)
+session <- function(shift) cbind(
+  trend + shift,
+  -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+  sin(seq(shift, pi, length.out = 6)),
+  cos(seq(shift, pi, length.out = 6))
+)
+signals <- relation(
+  list(session1 = session(0), session2 = session(0.1)),
+  effects = times, domain = native
+)
+halves <- measurement_frame(
+  list(first_half = diag(4)[1:2, , drop = FALSE],
+       second_half = diag(4)[3:4, , drop = FALSE]),
+  native, id = "demo:parseval:v1"
+)
+pairs <- expand.grid(
+  from = halves$node_ids, to = halves$node_ids, stringsAsFactors = FALSE
+)
+between <- edge_frame(pairs$from, pairs$to, halves)
+form <- measurement_form(
+  signals, between,
+  variation_query(
+    (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+  ),
+  pairing(
+    signals$partitions, signals$partitions, directed = TRUE,
+    self_pairs = "allow_biased", independence = "not_independent"
+  )
+)
+
+# Every directed edge is present and the frame has full column rank, so
+# the global 4-by-4 neural operator is recovered exactly.
+reconstructed <- reconstruct_evidence(form, between)
+c(method = reconstructed$method, status = reconstructed$status,
+  lossless = reconstructed$lossless)
+round(reconstructed$operator, 3)
+
+# Diagonal node blocks alone are not enough: dropping the cross-edges
+# discards the between-node directions, and the lossless claim is refused.
+self_only <- edge_frame(
+  halves$node_ids, halves$node_ids, halves
+)
+partial <- measurement_form(
+  signals, self_only,
+  variation_query(
+    (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+  ),
+  pairing(
+    signals$partitions, signals$partitions, directed = TRUE,
+    self_pairs = "allow_biased", independence = "not_independent"
+  )
+)
+refusal <- catch_refusal(reconstruct_evidence(partial, self_only))
+refusal$capability
+refusal$remedies
+}
+\seealso{
+\code{\link[=measurement_form]{measurement_form()}} and \code{\link[=edge_frame]{edge_frame()}}, which must supply every
+directed node pair for a lossless claim.
+
+Other sampling uncertainty: 
+\code{\link{rdm_sampling_covariance}()},
+\code{\link{residual_pair_statistics}()},
+\code{\link{sampling_capabilities}()},
+\code{\link{sampling_covariance}()}
+}
+\concept{sampling uncertainty}

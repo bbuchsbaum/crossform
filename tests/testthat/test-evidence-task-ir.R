@@ -197,7 +197,7 @@ test_that("typed boundary mismatches fail before any source read", {
     crossform:::.closed_experimental_boundary(
       pair_query(diag(2), other_effects, effects)
     ), neural, stages, materialization
-  ), "Experimental boundary axes")
+  ), "Experimental boundary axes", class = "effect_contract_error")
 
   wrong_frame <- crossform:::.measurement_frame_from_additive(
     additive_frame(diag(3), domain = other_domain)
@@ -217,7 +217,7 @@ test_that("typed boundary mismatches fail before any source read", {
     crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
-  ), "Neural boundary axes")
+  ), "Neural boundary axes", class = "effect_contract_error")
   expect_identical(reads$count, 0L)
 })
 
@@ -266,10 +266,10 @@ test_that("materialization states are enforced rather than inferred by shape", {
     crossform:::.evidence_materialization(
       "measurement_form", "complete_form"
     )
-  ), "incompatible with its open boundaries")
+  ), "incompatible with its open boundaries", class = "effect_contract_error")
   expect_error(crossform:::.evidence_materialization(
     "scalar_field", "complete_form"
-  ), "necessarily")
+  ), "necessarily", class = "effect_input_error")
 })
 
 test_that("evidence-task validation detects semantic mutation", {
@@ -283,5 +283,5 @@ test_that("evidence-task validation detects semantic mutation", {
   forged$stages$normalization$axis <- "experimental_samples"
 
   expect_error(crossform:::.validate_evidence_task(forged),
-    "stage identity")
+    "stage identity", class = "effect_contract_error")
 })

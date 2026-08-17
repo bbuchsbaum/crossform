@@ -145,7 +145,12 @@ test_that("effect coupling is the unrestricted algebraic measurement form", {
     expect_equal(result$values[[edge]], expected, tolerance = 1e-12)
   }
   expect_silent(crossform:::.validate_coupling_result(result))
-  expect_error(crossform:::.pearson_coupling(fixture$form),
+  refusal <- catch_refusal(crossform:::.pearson_coupling(fixture$form))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "nondegenerate_variation")
+  expect_identical(refusal$namespace, "coupling_views")
+  expect_identical(refusal$reasons, "rank_one_variation_axis")
+  expect_match(conditionMessage(refusal),
     "rank above one|rank-one effect direction")
 })
 
@@ -177,16 +182,39 @@ test_that("scalar repeated variation recovers signed Pearson correlation", {
 test_that("normalized coupling rejects missing joint covariance and zero self variance", {
   crossvalidated <- coupling_test_fixture(crossvalidated = TRUE)
   expect_silent(crossform:::.effect_coupling(crossvalidated$form))
-  expect_error(crossform:::.covariance_coupling(crossvalidated$form),
-    "joint covariance|positive self-blocks")
-  expect_error(crossform:::.canonical_coupling(
+
+  # Each precondition is a classed refusal carrying its own capability, so a
+  # caller distinguishes "no repeated variation" from "no joint covariance"
+  # without reading prose. This fixture certifies repeated variation but not a
+  # joint covariance, so the second gate is the one that fires.
+  covariance <- catch_refusal(
+    crossform:::.covariance_coupling(crossvalidated$form)
+  )
+  expect_s3_class(covariance, "effect_capability_refusal")
+  expect_identical(covariance$capability, "coherent_joint_covariance")
+  expect_identical(covariance$namespace, "coupling_views")
+  expect_identical(covariance$reasons, "joint_covariance_not_certified")
+  expect_match(conditionMessage(covariance), "joint covariance")
+
+  canonical <- catch_refusal(crossform:::.canonical_coupling(
     crossvalidated$form,
     crossform:::.measurement_regularization("ridge", 1e-4)
-  ), "joint covariance|positive self-blocks")
+  ))
+  expect_s3_class(canonical, "effect_capability_refusal")
+  expect_identical(canonical$capability, "coherent_joint_covariance")
+  expect_identical(canonical$namespace, "coupling_views")
 
   zero <- coupling_test_fixture(zero_second = TRUE)
-  expect_error(crossform:::.pearson_coupling(zero$form),
+  degenerate <- catch_refusal(crossform:::.pearson_coupling(zero$form))
+  expect_s3_class(degenerate, "effect_capability_refusal")
+  expect_identical(degenerate$capability, "nondegenerate_self_variance")
+  expect_identical(degenerate$namespace, "coupling_views")
+  expect_identical(degenerate$reasons, "self_variance_not_strictly_positive")
+  expect_match(conditionMessage(degenerate),
     "strictly positive scalar self-variance")
+  # The message reports the offending edge and its self-variances, not just
+  # the rule.
+  expect_match(conditionMessage(degenerate), "geometric mean")
 })
 
 test_that("CCA, geometry alignment, and Gaussian information match references", {
@@ -316,12 +344,24 @@ test_that("partition-pair and aggregate-first normalization are distinct estiman
 
 test_that("connectivity convenience validates view-specific declarations", {
   fixture <- coupling_test_fixture(multivariate = TRUE)
-  expect_error(crossform:::.connectivity_view(fixture$form, "canonical"),
-    "regularization")
-  expect_error(crossform:::.connectivity_view(
+  ridge_refusal <- catch_refusal(
+    crossform:::.connectivity_view(fixture$form, "canonical")
+  )
+  expect_s3_class(ridge_refusal, "effect_capability_refusal")
+  expect_identical(ridge_refusal$capability, "declared_regularization")
+  expect_identical(ridge_refusal$namespace, "coupling_views")
+  expect_identical(ridge_refusal$reasons, "regularization_not_declared")
+  expect_match(conditionMessage(ridge_refusal), "regularization")
+
+  model_refusal <- catch_refusal(crossform:::.connectivity_view(
     fixture$form, "gaussian_information",
     regularization = crossform:::.measurement_regularization("ridge", 0.1)
-  ), "Gaussian model")
+  ))
+  expect_s3_class(model_refusal, "effect_capability_refusal")
+  expect_identical(model_refusal$capability, "declared_gaussian_model")
+  expect_identical(model_refusal$namespace, "coupling_views")
+  expect_identical(model_refusal$reasons, "gaussian_model_not_declared")
+  expect_match(conditionMessage(model_refusal), "Gaussian model")
   expect_false(exists("informational_connectivity",
     envir = asNamespace("crossform"), inherits = FALSE))
 })
@@ -360,17 +400,21 @@ test_that("coupling() takes the adjoint closure from the plan vocabulary", {
   )
 
   expect_error(coupling(plan, cbind("r1", "nowhere"), by = query),
-    "identify measurements")
+    "not a measurement of the plan's frame", class = "effect_input_error")
   other <- relation(
     list(other1 = matrix(rnorm(4), 1, 4, dimnames = list("z", NULL))),
     effects = effect_space("z"), domain = domain
   )
   rectangular <- plan_geometry(
-    relation, compile_frame(voxels(), domain),
+    relation, compile_frame(voxelwise(), domain),
     pairing(c("run1", "run2"), c("other1", "other1"), directed = TRUE,
       independence = "independent"),
     right = other
   )
-  expect_error(coupling(rectangular, cbind(1, 2), by = query),
-    "self-form plan")
+  refusal <- catch_refusal(coupling(rectangular, cbind(1, 2), by = query))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "self_form_coupling")
+  expect_identical(refusal$namespace, "coupling_plans")
+  expect_identical(refusal$reasons, "rectangular_cross_axis_plan")
+  expect_match(conditionMessage(refusal), "self-form plan")
 })

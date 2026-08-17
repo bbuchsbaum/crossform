@@ -19,24 +19,24 @@ effect_geometry(
 or internal geometry stores having the same dimensions.}
 
 \item{marginals}{Pairing-appropriate signed marginals. Undirected pairings
-contain `endpoint`; directed pairings contain `left` and `right`.}
+contain \code{endpoint}; directed pairings contain \code{left} and \code{right}.}
 
-\item{effects}{An `effect_space()` whose dimension must match the triangular
+\item{effects}{An \code{effect_space()} whose dimension must match the triangular
 packed-geometry width and marginal columns. Unique names are accepted as
 shorthand for an unspecified-basis space.}
 
-\item{receipt}{The `execution_receipt()` proving how the result was made.}
+\item{receipt}{The \code{execution_receipt()} proving how the result was made.}
 
 \item{index}{Optional measurement index with one entry per geometry row.}
 
 \item{metadata}{Optional compact semantic metadata.}
 }
 \value{
-A complete `effect_geometry` and `effect_form`.
+A complete \code{effect_geometry} and \code{effect_form}.
 }
 \description{
-An `effect_geometry` is the symmetric packed self-form specialization of a
-complete `effect_form`. Its storage may be in memory or block-backed, while
+An \code{effect_geometry} is the symmetric packed self-form specialization of a
+complete \code{effect_form}. Its storage may be in memory or block-backed, while
 configuration remains exactly total minus coherent.
 }
 \keyword{internal}

@@ -1,35 +1,27 @@
 # Condition-vocabulary effect maps ------------------------------------------
 
-.semantic_digest <- function(prefix, value) {
-  paste0(prefix, digest::digest(value, algo = "sha256", serialize = TRUE))
-}
-
 .validate_nonempty_id <- function(value, name) {
-  if (!is.character(value) || length(value) != 1L || is.na(value) ||
-      !nzchar(value)) {
-    stop(sprintf("`%s` must be one nonempty identifier.", name), call. = FALSE)
-  }
+  .check_string(value, name, what = "one nonempty identifier")
   unname(value)
 }
 
 .validate_positive_scale <- function(value, size, name = "scale") {
-  if (!is.numeric(value) || !length(value) %in% c(1L, size) ||
-      anyNA(value) || any(!is.finite(value)) || any(value <= 0)) {
-    stop(sprintf(
+  if (!.is_finite_numeric(value) || !length(value) %in% c(1L, size) ||
+      anyNA(value) || any(value <= 0)) {
+    .input_error(sprintf(
       "`%s` must provide one positive finite value or one per coordinate.",
       name
-    ), call. = FALSE)
+    ))
   }
   if (length(value) == 1L) value <- rep(as.numeric(value), size)
   as.numeric(value)
 }
 
 .validate_units <- function(value, size, name = "units") {
-  if (!is.character(value) || !length(value) %in% c(1L, size) ||
-      anyNA(value) || any(!nzchar(value))) {
-    stop(sprintf(
+  if (!.is_strings(value) || !length(value) %in% c(1L, size)) {
+    .input_error(sprintf(
       "`%s` must provide one nonempty unit or one per coordinate.", name
-    ), call. = FALSE)
+    ))
   }
   if (length(value) == 1L) value <- rep(value, size)
   unname(value)
@@ -48,14 +40,32 @@
 #' @param scale One positive scale shared by all coordinates, or one per
 #'   coordinate.
 #' @param provenance Portable semantic provenance.
-#' @return An `effect_condition_space`.
+#' @return An `effect_condition_space`: a list with `$coordinates`,
+#'   `$basis_id`, `$units` and `$scale` (named by coordinate), `$provenance`,
+#'   and a `$signature`. Two objects bind the same condition space only when
+#'   their signatures agree.
+#' @family studies and effect maps
+#' @seealso [effect_map()] to declare effects in this vocabulary and
+#'   [coefficient_parameterization()] to bind it to a compiled design.
+#' @examples
+#' # The scientific vocabulary: three condition means in BOLD units.
+#' conditions <- condition_space(
+#'   c("face", "body", "tool"),
+#'   basis_id = "scan-level-condition-mean:v1", units = "arbitrary-BOLD"
+#' )
+#' conditions
+#' conditions$coordinates
+#'
+#' # These coordinates are semantic, not design columns: the same space can be
+#' # reached by cell-means or treatment coding, and the shared signature is
+#' # what lets an effect map and a design model be checked against each other.
+#' substr(conditions$signature, 1, 24)
 #' @export
 condition_space <- function(coordinates, basis_id = "condition-means",
                             units = "arbitrary", scale = 1,
                             provenance = list()) {
   if (!is.character(coordinates) || length(coordinates) < 1L) {
-    stop("`coordinates` must contain at least one semantic coordinate.",
-      call. = FALSE)
+    .input_error("`coordinates` must contain at least one semantic coordinate.")
   }
   coordinates <- .validate_effect_names(coordinates, length(coordinates))
   basis_id <- .validate_nonempty_id(basis_id, "basis_id")
@@ -74,7 +84,7 @@ condition_space <- function(coordinates, basis_id = "condition-means",
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = .semantic_digest("condition-space-sha256:", semantic)
+    signature = .sha256_signature(semantic, "condition-space-sha256:")
   )), class = "effect_condition_space")
 }
 
@@ -82,17 +92,15 @@ condition_space <- function(coordinates, basis_id = "condition-means",
   expected <- c(
     "coordinates", "basis_id", "units", "scale", "provenance", "signature"
   )
-  if (!inherits(value, "effect_condition_space") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Condition-space fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_condition_space", expected)) {
+    .input_error("Condition-space fields are missing or noncanonical.")
   }
   rebuilt <- condition_space(
     value$coordinates, value$basis_id, value$units, value$scale,
     value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Condition-space metadata or signature is inconsistent.",
-      call. = FALSE)
+    .contract_error("Condition-space metadata or signature is inconsistent.")
   }
   rebuilt
 }
@@ -104,8 +112,9 @@ condition_space <- function(coordinates, basis_id = "condition-means",
     condition_space(value)
   }
   if (!is.null(expected) && length(result$coordinates) != expected) {
-    stop("The condition-space dimension does not match the declared map.",
-      call. = FALSE)
+    .contract_error(
+      "The condition-space dimension does not match the declared map."
+    )
   }
   result
 }
@@ -125,26 +134,50 @@ condition_space <- function(coordinates, basis_id = "condition-means",
 #' @param scale Output scale.
 #' @param component One targeted temporal-basis component.
 #' @param provenance Portable provenance for the declared functional.
-#' @return An `effect_condition_map`.
+#' @return An `effect_condition_map`: a list with the effect-by-condition
+#'   `$weights`, the bound `$condition_space` and derived `$effect_space`, the
+#'   targeted `$component`, and an `$effect_map_id` covering all of them.
+#' @family studies and effect maps
+#' @seealso [condition_space()] for the input vocabulary,
+#'   [coefficient_parameterization()] plus [lower_effect_map()] to reach a
+#'   coefficient axis, and [plan_relation()] to request these effects from a
+#'   study.
+#' @examples
+#' conditions <- condition_space(c("face", "body", "tool"))
+#'
+#' # Request the three condition means and one named contrast at once, so
+#' # later views can form the contrast without refitting the run models.
+#' weights <- rbind(
+#'   face = c(1, 0, 0), body = c(0, 1, 0), tool = c(0, 0, 1),
+#'   `face-body` = c(1, -1, 0)
+#' )
+#' colnames(weights) <- conditions$coordinates
+#' effects <- effect_map(weights, conditions)
+#' effects
+#' effects$weights["face-body", ]
+#'
+#' # The derived effect space inherits the condition units, and its identity
+#' # records the functional rather than any design coding.
+#' effects$effect_space$basis_id
 #' @export
 effect_map <- function(weights, conditions = colnames(weights),
                        effects = rownames(weights), units = NULL, scale = 1,
                        component = "canonical-amplitude",
                        provenance = list()) {
-  if (!is.matrix(weights) || !is.numeric(weights) || any(dim(weights) < 1L) ||
-      any(!is.finite(weights))) {
-    stop("`weights` must be a finite nonempty effect-by-condition matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(weights) || any(dim(weights) < 1L)) {
+    .input_error(
+      "`weights` must be a finite nonempty effect-by-condition matrix."
+    )
   }
   if (is.null(conditions)) {
-    stop("Supply a condition space or name every column of `weights`.",
-      call. = FALSE)
+    .input_error("Supply a condition space or name every column of `weights`.")
   }
   conditions <- .as_condition_space(conditions, ncol(weights))
   if (!is.null(colnames(weights)) &&
       !identical(colnames(weights), conditions$coordinates)) {
-    stop("`weights` columns must follow the condition-space coordinates.",
-      call. = FALSE)
+    .input_error(
+      "`weights` columns must follow the condition-space coordinates."
+    )
   }
   colnames(weights) <- conditions$coordinates
   component <- .validate_nonempty_id(component, "component")
@@ -152,25 +185,24 @@ effect_map <- function(weights, conditions = colnames(weights),
 
   if (inherits(effects, "effect_space")) {
     if (!is.null(units) || !identical(scale, 1)) {
-      stop("Do not supply `units` or `scale` with an `effect_space`.",
-        call. = FALSE)
+      .input_error("Do not supply `units` or `scale` with an `effect_space`.")
     }
     effects <- .as_effect_space(effects, nrow(weights))
   } else {
     if (is.null(effects)) {
-      stop("Supply output effect names or name every row of `weights`.",
-        call. = FALSE)
+      .input_error("Supply output effect names or name every row of `weights`.")
     }
     effects <- .validate_effect_names(effects, nrow(weights))
     if (is.null(units)) {
       shared_units <- unique(unname(conditions$units))
       if (length(shared_units) != 1L) {
-        stop("Supply `units` when condition coordinates use different units.",
-          call. = FALSE)
+        .input_error(
+          "Supply `units` when condition coordinates use different units."
+        )
       }
       units <- shared_units
     }
-    functional_revision <- .semantic_digest("sha256:", list(
+    functional_revision <- .sha256_signature(list(
       rows = effects,
       columns = conditions$coordinates,
       weights = unname(weights)
@@ -199,7 +231,7 @@ effect_map <- function(weights, conditions = colnames(weights),
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    effect_map_id = .semantic_digest("effect-map-sha256:", semantic)
+    effect_map_id = .sha256_signature(semantic, "effect-map-sha256:")
   )), class = "effect_condition_map")
 }
 
@@ -208,9 +240,8 @@ effect_map <- function(weights, conditions = colnames(weights),
     "condition_space", "effect_space", "weights", "dimnames", "component",
     "provenance", "effect_map_id"
   )
-  if (!inherits(value, "effect_condition_map") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Effect-map fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_condition_map", expected)) {
+    .input_error("Effect-map fields are missing or noncanonical.")
   }
   conditions <- .validate_condition_space(value$condition_space)
   effects <- .validate_effect_space(value$effect_space)
@@ -227,7 +258,7 @@ effect_map <- function(weights, conditions = colnames(weights),
     provenance = value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Effect-map metadata or identity is inconsistent.", call. = FALSE)
+    .contract_error("Effect-map metadata or identity is inconsistent.")
   }
   rebuilt
 }
@@ -245,35 +276,61 @@ effect_map <- function(weights, conditions = colnames(weights),
 #' @param coding_id One coding identifier recorded in the receipt.
 #' @param provenance Portable compiler provenance.
 #' @param tolerance Positive rank tolerance.
-#' @return An `effect_coefficient_parameterization`.
+#' @return An `effect_coefficient_parameterization`: a list with the
+#'   condition-by-coefficient `$map`, the bound `$condition_space`, the
+#'   `$coefficients` axis, the `$coding_id`, the achieved `$semantic_rank`, and
+#'   a `$parameterization_id`.
+#' @family studies and effect maps
+#' @seealso [lower_effect_map()] to apply it to an [effect_map()], and
+#'   [design_model()] which carries one parameterization per partition.
+#' @examples
+#' conditions <- condition_space(c("face", "body", "tool"))
+#'
+#' # The compiled design adds a drift column. This declares that the three
+#' # condition means are the first three coefficients and ignore drift, so the
+#' # effect request survives a change of coding.
+#' map <- cbind(diag(3), drift = 0)
+#' dimnames(map) <- list(
+#'   conditions$coordinates, c(conditions$coordinates, "drift")
+#' )
+#' coding <- coefficient_parameterization(
+#'   map, conditions, coding_id = "cell-means-plus-drift"
+#' )
+#' coding
+#' coding$semantic_rank
+#'
+#' # A coding that cannot identify every condition is refused, not rounded.
+#' collapsed <- map
+#' collapsed["body", ] <- collapsed["face", ]
+#' refusal <- catch_refusal(coefficient_parameterization(
+#'   collapsed, conditions, coding_id = "face-and-body-collapsed"
+#' ))
+#' refusal$capability
 #' @export
 coefficient_parameterization <- function(
     map, conditions, coefficients = colnames(map), coding_id,
     provenance = list(), tolerance = sqrt(.Machine$double.eps)) {
-  if (!is.matrix(map) || !is.numeric(map) || any(dim(map) < 1L) ||
-      any(!is.finite(map))) {
-    stop("`map` must be a finite nonempty condition-by-coefficient matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(map) || any(dim(map) < 1L)) {
+    .input_error(
+      "`map` must be a finite nonempty condition-by-coefficient matrix."
+    )
   }
   conditions <- .as_condition_space(conditions, nrow(map))
   if (!is.null(rownames(map)) &&
       !identical(rownames(map), conditions$coordinates)) {
-    stop("`map` rows must follow the condition-space coordinates.",
-      call. = FALSE)
+    .input_error("`map` rows must follow the condition-space coordinates.")
   }
   if (is.null(coefficients)) {
-    stop("Supply unique coefficient names or name every column of `map`.",
-      call. = FALSE)
+    .input_error(
+      "Supply unique coefficient names or name every column of `map`."
+    )
   }
   coefficients <- .validate_effect_names(coefficients, ncol(map))
   if (!is.null(colnames(map)) && !identical(colnames(map), coefficients)) {
-    stop("`map` columns must follow `coefficients`.", call. = FALSE)
+    .input_error("`map` columns must follow `coefficients`.")
   }
   coding_id <- .validate_nonempty_id(coding_id, "coding_id")
-  if (!is.numeric(tolerance) || length(tolerance) != 1L ||
-      is.na(tolerance) || !is.finite(tolerance) || tolerance <= 0) {
-    stop("`tolerance` must be one positive finite number.", call. = FALSE)
-  }
+  .check_number(tolerance, "tolerance", positive = TRUE)
   .validate_effect_provenance(provenance)
   rownames(map) <- conditions$coordinates
   colnames(map) <- coefficients
@@ -309,9 +366,7 @@ coefficient_parameterization <- function(
     semantic_rank = as.integer(rank)
   )
   structure(c(semantic[-1L], list(
-    parameterization_id = .semantic_digest(
-      "coefficient-parameterization-sha256:", semantic
-    )
+    parameterization_id = .sha256_signature(semantic, "coefficient-parameterization-sha256:")
   )), class = "effect_coefficient_parameterization")
 }
 
@@ -320,10 +375,10 @@ coefficient_parameterization <- function(
     "condition_space", "coefficients", "map", "dimnames", "coding_id",
     "provenance", "tolerance", "semantic_rank", "parameterization_id"
   )
-  if (!inherits(value, "effect_coefficient_parameterization") ||
-      !is.list(value) || !identical(names(value), expected)) {
-    stop("Coefficient-parameterization fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(value, "effect_coefficient_parameterization", expected)) {
+    .input_error(
+      "Coefficient-parameterization fields are missing or noncanonical."
+    )
   }
   conditions <- .validate_condition_space(value$condition_space)
   map <- value$map
@@ -340,8 +395,9 @@ coefficient_parameterization <- function(
     tolerance = value$tolerance
   )
   if (!identical(value, rebuilt)) {
-    stop("Coefficient-parameterization metadata or identity is inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Coefficient-parameterization metadata or identity is inconsistent."
+    )
   }
   rebuilt
 }
@@ -351,8 +407,33 @@ coefficient_parameterization <- function(
 #' @param effects An [effect_map()].
 #' @param parameterization A [coefficient_parameterization()] for the same
 #'   semantic condition space.
-#' @return An axis-bound `effect_lowered_map` containing the concrete target
-#'   matrix and its receipt identity.
+#' @return An `effect_lowered_map`: a list with the effect-by-coefficient
+#'   `$target`, the `$effect_space` and `$condition_space` it came from, the
+#'   `$effect_map_id`, `$parameterization_id`, and `$coding_id` receipt fields,
+#'   `$capabilities` (all `TRUE` on this route), and a `$lowering_id`.
+#' @family studies and effect maps
+#' @seealso [raw_effect_map()] for the degenerate route with no condition
+#'   space, and [plan_relation()] which lowers effects for every partition.
+#' @examples
+#' conditions <- condition_space(c("face", "body"))
+#' weights <- rbind(`face-body` = c(1, -1))
+#' colnames(weights) <- conditions$coordinates
+#' effects <- effect_map(weights, conditions)
+#'
+#' # A design with a drift nuisance column, and the coding that names which
+#' # coefficients carry the condition means.
+#' map <- cbind(diag(2), drift = 0)
+#' dimnames(map) <- list(
+#'   conditions$coordinates, c(conditions$coordinates, "drift")
+#' )
+#' coding <- coefficient_parameterization(
+#'   map, conditions, coding_id = "cell-means-plus-drift"
+#' )
+#'
+#' # Lowering moves the request from condition names onto the design's
+#' # coefficient axis without changing what was asked for.
+#' lowered <- lower_effect_map(effects, coding)
+#' lowered$target
 #' @export
 lower_effect_map <- function(effects, parameterization) {
   effects <- .validate_effect_map(effects)
@@ -396,7 +477,7 @@ lower_effect_map <- function(effects, parameterization) {
     )
   )
   structure(c(semantic[-1L], list(
-    lowering_id = .semantic_digest("effect-lowering-sha256:", semantic)
+    lowering_id = .sha256_signature(semantic, "effect-lowering-sha256:")
   )), class = "effect_lowered_map")
 }
 
@@ -410,18 +491,16 @@ lower_effect_map <- function(effects, parameterization) {
   } else {
     c(common, "lowering_id")
   }
-  if (!inherits(value, "effect_lowered_map") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Lowered-effect-map fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(value, "effect_lowered_map", expected)) {
+    .input_error("Lowered-effect-map fields are missing or noncanonical.")
   }
   effects <- .validate_effect_space(value$effect_space)
   target <- value$target
-  if (!is.matrix(target) || !is.numeric(target) || any(!is.finite(target)) ||
+  if (!.is_finite_matrix(target) ||
       nrow(target) != length(effects$coordinates) ||
       !identical(dimnames(target), value$dimnames) ||
       !identical(rownames(target), effects$coordinates)) {
-    stop("Lowered target values or axes are inconsistent.", call. = FALSE)
+    .input_error("Lowered target values or axes are inconsistent.")
   }
   .validate_nonempty_id(value$effect_map_id, "effect_map_id")
   .validate_nonempty_id(value$coding_id, "coding_id")
@@ -430,33 +509,30 @@ lower_effect_map <- function(effects, parameterization) {
         "symbolic_effects", "valid_effect_lowering", "coding_invariant"
       )) || !all(vapply(value$capabilities, is.logical, logical(1))) ||
       !all(lengths(value$capabilities) == 1L)) {
-    stop("Lowered-effect capabilities are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Lowered-effect capabilities are missing or noncanonical.")
   }
   raw <- inherits(value, "effect_raw_map")
   if (raw) {
     if (!is.null(value$condition_space) ||
         !is.null(value$parameterization_id) ||
         any(unlist(value$capabilities, use.names = FALSE))) {
-      stop("Raw targets cannot claim symbolic lowering capabilities.",
-        call. = FALSE)
+      .input_error("Raw targets cannot claim symbolic lowering capabilities.")
     }
     .validate_effect_provenance(value$provenance)
-    expected_map_id <- .semantic_digest("raw-effect-map-sha256:", list(
+    expected_map_id <- .sha256_signature(list(
       target = unname(target),
       dimnames = dimnames(target),
       effect_space = effects,
       provenance = value$provenance
-    ))
+    ), "raw-effect-map-sha256:")
     if (!identical(value$effect_map_id, expected_map_id)) {
-      stop("Raw effect-map identity is inconsistent.", call. = FALSE)
+      .contract_error("Raw effect-map identity is inconsistent.")
     }
   } else {
     .validate_condition_space(value$condition_space)
     .validate_nonempty_id(value$parameterization_id, "parameterization_id")
     if (!all(unlist(value$capabilities, use.names = FALSE))) {
-      stop("A semantic lowering is missing a construction guarantee.",
-        call. = FALSE)
+      .input_error("A semantic lowering is missing a construction guarantee.")
     }
   }
   semantic <- c(list(schema_version = 1L), value[setdiff(
@@ -467,8 +543,8 @@ lower_effect_map <- function(effects, parameterization) {
   } else {
     "effect-lowering-sha256:"
   }
-  if (!identical(value$lowering_id, .semantic_digest(prefix, semantic))) {
-    stop("Lowered-effect-map identity is inconsistent.", call. = FALSE)
+  if (!identical(value$lowering_id, .sha256_signature(semantic, prefix))) {
+    .contract_error("Lowered-effect-map identity is inconsistent.")
   }
   value
 }
@@ -485,20 +561,37 @@ lower_effect_map <- function(effects, parameterization) {
 #' @param units,scale Output units and scale when `effects` is a character
 #'   vector.
 #' @param provenance Portable target provenance.
-#' @return An `effect_raw_map`, also an `effect_lowered_map`.
+#' @return An `effect_raw_map` (also an `effect_lowered_map`): a list with the
+#'   effect-by-coefficient `$target`, its `$effect_space`, a `$coding_id` of
+#'   `"raw-X-T"`, `$capabilities` with `symbolic_effects`,
+#'   `valid_effect_lowering`, and `coding_invariant` all `FALSE`, and a
+#'   `$lowering_id` that includes the target values themselves.
+#' @family studies and effect maps
+#' @seealso [lower_effect_map()] for the semantic route, and
+#'   [raw_design_model()], the design model this map must be paired with.
+#' @examples
+#' # Use this when you have a target matrix but no condition-space meaning for
+#' # the coefficient columns it multiplies.
+#' target <- rbind(`face-body` = c(1, -1, 0))
+#' colnames(target) <- c("beta_face", "beta_body", "beta_drift")
+#' raw <- raw_effect_map(target, units = "arbitrary-BOLD")
+#' raw
+#'
+#' # The honest cost: the numeric values are part of the identity, and no
+#' # coding-invariance claim is made, unlike lower_effect_map().
+#' unlist(raw$capabilities)
 #' @export
 raw_effect_map <- function(target, effects = rownames(target),
                            coefficients = colnames(target),
                            units = "arbitrary", scale = 1,
                            provenance = list()) {
-  if (!is.matrix(target) || !is.numeric(target) || any(dim(target) < 1L) ||
-      any(!is.finite(target))) {
-    stop("`target` must be a finite nonempty effect-by-coefficient matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(target) || any(dim(target) < 1L)) {
+    .input_error(
+      "`target` must be a finite nonempty effect-by-coefficient matrix."
+    )
   }
   if (is.null(effects)) {
-    stop("Supply output effect names or name every row of `target`.",
-      call. = FALSE)
+    .input_error("Supply output effect names or name every row of `target`.")
   }
   effects <- if (inherits(effects, "effect_space")) {
     .as_effect_space(effects, nrow(target))
@@ -507,8 +600,7 @@ raw_effect_map <- function(target, effects = rownames(target),
       units = units, scale = scale, provenance = provenance)
   }
   if (is.null(coefficients)) {
-    stop("Supply coefficient names or name every column of `target`.",
-      call. = FALSE)
+    .input_error("Supply coefficient names or name every column of `target`.")
   }
   coefficients <- .validate_effect_names(coefficients, ncol(target))
   .validate_effect_provenance(provenance)
@@ -519,12 +611,12 @@ raw_effect_map <- function(target, effects = rownames(target),
     dimnames = dimnames(target),
     effect_space = effects,
     condition_space = NULL,
-    effect_map_id = .semantic_digest("raw-effect-map-sha256:", list(
+    effect_map_id = .sha256_signature(list(
       target = unname(target),
       dimnames = dimnames(target),
       effect_space = effects,
       provenance = provenance
-    )),
+    ), "raw-effect-map-sha256:"),
     parameterization_id = NULL,
     coding_id = "raw-X-T",
     capabilities = list(
@@ -534,7 +626,7 @@ raw_effect_map <- function(target, effects = rownames(target),
     ),
     provenance = provenance
   )
-  lowering_id <- .semantic_digest("raw-effect-lowering-sha256:", semantic)
+  lowering_id <- .sha256_signature(semantic, "raw-effect-lowering-sha256:")
   structure(c(semantic[-1L], list(lowering_id = lowering_id)),
     class = c("effect_raw_map", "effect_lowered_map"))
 }

@@ -7,14 +7,63 @@
 control_coupling(matches, include_matches = FALSE)
 }
 \arguments{
-\item{matches}{A `match_coupling()` value.}
+\item{matches}{A \code{match_coupling()} value.}
 
 \item{include_matches}{Whether matched cells are also controls. The default
 excludes them.}
 }
 \value{
-An `effect_pair_coupling` over the same axes and eligibility set.
+An \code{effect_pair_coupling} with \code{kind = "control"}, a 0/1 \verb{$value}
+indicator over the same axes and \verb{$eligible} set as \code{matches}.
 }
 \description{
-Mark eligible control pairs
+\code{control_coupling()} names the comparison set for a matched-pair analysis:
+the eligible cells that are not matches. Pair it with the matches through
+\code{\link[=coupling_contrast]{coupling_contrast()}} to obtain the matched-versus-control query.
 }
+\examples{
+encoding <- effect_space(
+  c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+)
+retrieval <- effect_space(
+  c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+)
+matches <- match_coupling(
+  c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+  encoding, retrieval
+)
+
+# The default controls are the six mismatched cells.
+controls <- control_coupling(matches)
+controls$value
+
+# Including the matches gives every eligible cell, which is the marginal
+# baseline rather than a contrast partner.
+control_coupling(matches, include_matches = TRUE)$value
+
+# With no eligible non-matched cell left, there is nothing to contrast.
+saturated <- match_coupling(
+  rep(c("item1", "item2", "item3"), each = 3),
+  rep(c("probe1", "probe2", "probe3"), 3), encoding, retrieval
+)
+refused <- try(control_coupling(saturated), silent = TRUE)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=match_coupling]{match_coupling()}} and \code{\link[=coupling_contrast]{coupling_contrast()}}.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

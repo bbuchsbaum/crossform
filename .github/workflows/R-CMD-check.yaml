@@ -1,0 +1,54 @@
+name: R-CMD-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  R-CMD-check:
+    runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - {os: macos-latest,   r: 'release'}
+        - {os: windows-latest, r: 'release'}
+        - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
+        - {os: ubuntu-latest,  r: 'release'}
+        - {os: ubuntu-latest,  r: 'oldrel-1'}
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      # fmridesign, fmrireg, and neuroim2 are optional adapters published to the
+      # author's R-universe rather than CRAN. The runtime certifies the adapter
+      # versions it will accept, so a runner that cannot resolve one must still
+      # complete the court instead of failing on an unavailable Suggests.
+      _R_CHECK_FORCE_SUGGESTS_: false
+    steps:
+    - uses: actions/checkout@v4
+    - uses: r-lib/actions/setup-pandoc@v2
+    - uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: ${{ matrix.config.r }}
+        http-user-agent: ${{ matrix.config.http-user-agent }}
+        use-public-rspm: true
+    - uses: r-lib/actions/setup-r-dependencies@v2
+      with:
+        # Resolve the non-CRAN adapters from the same universe that
+        # Additional_repositories declares in DESCRIPTION.
+        extra-repositories: https://bbuchsbaum.r-universe.dev
+        extra-packages: any::rcmdcheck
+        needs: check
+    - uses: r-lib/actions/check-r-package@v2
+      with:
+        upload-snapshots: true
+        # The scale tier is a separate scheduled court; this one runs the fast
+        # suite only, which is the default when CROSSFORM_RUN_SCALE_TESTS is unset.
+        args: 'c("--no-manual", "--as-cran")'

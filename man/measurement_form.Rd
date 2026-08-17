@@ -19,15 +19,15 @@ measurement_form(
 )
 }
 \arguments{
-\item{left}{The left `effect_relation`.}
+\item{left}{The left \code{effect_relation}.}
 
-\item{between}{An explicit `edge_frame()`.}
+\item{between}{An explicit \code{edge_frame()}.}
 
-\item{by}{An axis-bound `pair_query()` or `variation_query()`.}
+\item{by}{An axis-bound \code{pair_query()} or \code{variation_query()}.}
 
-\item{over}{An explicit partition `pairing()`.}
+\item{over}{An explicit partition \code{pairing()}.}
 
-\item{right}{The right `effect_relation`; defaults to `left`.}
+\item{right}{The right \code{effect_relation}; defaults to \code{left}.}
 
 \item{reducer}{A partition-order declaration. Raw forms are bilinear, but
 the choice remains part of scientific plan identity.}
@@ -36,19 +36,24 @@ the choice remains part of scientific plan identity.}
 
 \item{storage_path}{Required for block-backed storage.}
 
-\item{compute}{A `compute_policy()`.}
+\item{compute}{A \code{compute_policy()}.}
 
-\item{route}{Internal contraction route. `"auto"` chooses an equivalent
+\item{route}{Internal contraction route. \code{"auto"} chooses an equivalent
 bounded route without changing the scientific plan.}
 }
 \value{
-A complete `effect_measurement_form` over the requested edge set.
+An \code{effect_measurement_form} over the requested edge set:
+\verb{$block_index} names one row per edge (\code{edge_id}, \code{left}, \code{right}, block
+dimensions), \verb{$diagnostics} reports the
+\code{experimental_effective_rank} that gates the normalized views,
+and \verb{$capabilities}, \verb{$plan}, and \verb{$receipt} record what may be claimed.
+Read the blocks with \code{\link[=effect_coupling]{effect_coupling()}} and the other views.
 }
 \description{
-`measurement_form()` closes the experimental boundary with `by` and leaves
-only the explicitly requested neural edges in `between` open. `left` and
-`right` always name experimental-neural relations; spatial endpoints are
-contained inside `between`.
+\code{measurement_form()} closes the experimental boundary with \code{by} and leaves
+only the explicitly requested neural edges in \code{between} open. \code{left} and
+\code{right} always name experimental-neural relations; spatial endpoints are
+contained inside \code{between}.
 }
 \details{
 Raw forms are bilinear. Covariance, correlation, CCA, geometry alignment,
@@ -56,3 +61,70 @@ and Gaussian information are separate capability-gated views. The default
 reducer records that raw partition forms are aggregated before any later
 nonlinear connectivity normalization.
 }
+\examples{
+# Two sessions of six repeated time points over four native features.
+native <- abstract_domain(4, id = "demo:native:v1")
+times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+trend <- seq(-1.5, 1.5, length.out = 6)
+session <- function(shift) cbind(
+  trend + shift,
+  -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+  sin(seq(shift, pi, length.out = 6)),
+  cos(seq(shift, pi, length.out = 6))
+)
+signals <- relation(
+  list(session1 = session(0), session2 = session(0.1)),
+  effects = times, domain = native
+)
+
+# Two scalar node measurements and all four directed node pairs.
+nodes <- measurement_frame(
+  list(anterior = matrix(c(1, 0, 0, 0), 1),
+       posterior = matrix(c(0, 1, 0, 0), 1)),
+  domain = native, id = "demo:regional-means:v1"
+)
+pairs <- expand.grid(
+  from = nodes$node_ids, to = nodes$node_ids, stringsAsFactors = FALSE
+)
+
+# `by` closes the experimental axis (within-session covariance over time)
+# and `over` says each session multiplies by itself, which is biased and
+# must be declared as such.
+covariance_over_time <- variation_query(
+  (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+)
+within_session <- pairing(
+  signals$partitions, signals$partitions, directed = TRUE,
+  self_pairs = "allow_biased", independence = "not_independent"
+)
+form <- measurement_form(
+  signals, edge_frame(pairs$from, pairs$to, nodes),
+  covariance_over_time, within_session
+)
+form$block_index[, c("edge_id", "left", "right")]
+
+# Centering leaves five directions of repeated variation, which is what
+# the normalized views require.
+form$diagnostics$experimental_effective_rank
+effect_coupling(form)$values[["edge_000002"]]
+}
+\seealso{
+\code{\link[=effect_coupling]{effect_coupling()}}, \code{\link[=connectivity]{connectivity()}},
+\code{\link[=measurement_components]{measurement_components()}}, and \code{\link[=reconstruct_evidence]{reconstruct_evidence()}} for the views;
+\code{\link[=coupling]{coupling()}} to derive the same form from an existing geometry plan.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

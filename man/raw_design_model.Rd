@@ -16,9 +16,46 @@ raw_design_model(designs, row_ids = NULL, solver = "auto", provenance = list())
 \item{provenance}{Portable provenance for the external construction.}
 }
 \value{
-An `effect_raw_design_model`, also an `effect_design_model`.
+An \code{effect_raw_design_model} (also an \code{effect_design_model}) with
+the same fields as \code{\link[=design_model]{design_model()}}, except that \verb{$condition_space} and
+\verb{$parameterizations} are \code{NULL}, \verb{$design_model_id} includes the design
+values themselves, and \verb{$capabilities} reports \code{symbolic_model} and
+\code{coding_invariant} as \code{FALSE}.
 }
 \description{
 This degenerate route binds design values, coefficient order, row identity,
 and solver into model identity. It makes no semantic coding-invariance claim.
 }
+\examples{
+design <- cbind(b1 = c(1, 0, 1, 0), b2 = c(0, 1, 0, 1))
+rownames(design) <- paste0("scan-", 1:4)
+model <- raw_design_model(list(`run-1` = design))
+
+# The honest cost of skipping the condition space: the numeric design is
+# part of the identity, so a re-coded design is a different request.
+model$capabilities$coding_invariant
+model$capabilities$row_lineage
+
+# A raw design must be paired with a raw target on the same column axis.
+target <- rbind(`b1-b2` = c(1, -1))
+colnames(target) <- colnames(design)
+raw_effect_map(target)
+}
+\seealso{
+\code{\link[=design_model]{design_model()}} for the semantic route, and \code{\link[=raw_effect_map]{raw_effect_map()}},
+the effect map this design must be paired with in \code{\link[=plan_relation]{plan_relation()}}.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

@@ -145,21 +145,23 @@ test_that("residual pair preflight refuses before reading", {
       fixture$fit, fixture$frame, workspace_bytes = minimum - 1
     ),
     "requires at least.*workspace budget"
-  )
+  , class = "effect_input_error")
   expect_identical(fixture$reads(), c(run1 = 0L, run2 = 0L, run3 = 0L))
 })
 
 test_that("residual pair statistics require an explicit error and support channel", {
   fixture <- residual_statistics_fixture()
   pure <- relation_fit(fixture$fit$relation)
-  unsupported <- compile_frame(voxels(), fixture$domain)
+  unsupported <- compile_frame(voxelwise(), fixture$domain)
 
-  expect_error(
-    residual_pair_statistics(pure, fixture$frame),
-    "learned_metric_input"
-  )
+  refusal <- catch_refusal(residual_pair_statistics(pure, fixture$frame))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "learned_metric_input")
+  expect_identical(refusal$namespace, "relation_fit")
+  expect_identical(refusal$reasons, "missing_error_channel")
+  expect_match(conditionMessage(refusal), "learned_metric_input")
   expect_error(
     residual_pair_statistics(fixture$fit, unsupported),
     "explicit support index"
-  )
+  , class = "effect_input_error")
 })

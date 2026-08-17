@@ -17,12 +17,12 @@ fmridesign_design_model(
 )
 }
 \arguments{
-\item{model}{A `fmridesign` event model from the certified package version.}
+\item{model}{A \code{fmridesign} event model from the certified package version.}
 
-\item{study}{A bound [study()] containing the exact timed event facts.}
+\item{study}{A bound \code{\link[=study]{study()}} containing the exact timed event facts.}
 
 \item{basis_id, units, scale}{Scientific coordinate declarations passed to
-[condition_space()].}
+\code{\link[=condition_space]{condition_space()}}.}
 
 \item{block_map}{Optional named integer map from study partitions to
 fmridesign blocks.}
@@ -36,11 +36,87 @@ the adapter derives one from the pinned fmridesign model.}
 \item{solver}{Numerical route recorded in the design receipt.}
 }
 \value{
-An [design_model()] suitable for [plan_relation()].
+An \code{\link[=design_model]{design_model()}} suitable for \code{\link[=plan_relation]{plan_relation()}}, whose
+\verb{$condition_space} holds the fmridesign condition names, whose \verb{$designs}
+hold one compiled matrix per study partition with study observation ids as
+row names, and whose \verb{$compiler} records the pinned fmridesign version.
 }
 \description{
-This exact-version adapter binds a compiled `fmridesign::event_model()` to
+This exact-version adapter binds a compiled \code{fmridesign::event_model()} to
 the event facts and observation rows of a study. Scientific condition
 effects remain declared in condition space; concrete design coding is a
 compilation receipt.
 }
+\examples{
+# This adapter is certified against exactly one fmridesign version and
+# refuses any other, so the example runs only under that version.
+if (requireNamespace("fmridesign", quietly = TRUE) &&
+    identical(as.character(utils::packageVersion("fmridesign")), "0.6.0")) {
+  set.seed(1)
+  domain <- abstract_domain(3L, id = "fmridesign-example")
+  index <- observation_index(
+    1:20, "run-1", time = seq(0, by = 2, length.out = 20L), units = "seconds"
+  )
+  events <- data.frame(
+    partition = "run-1", event_id = paste0("e", 1:4),
+    onset = c(2, 10, 18, 26), duration = 0,
+    condition = c("face", "body", "face", "body")
+  )
+  facts <- study(
+    observations(list(`run-1` = matrix(rnorm(60), 20L, 3L)),
+      list(`run-1` = index), domain),
+    observation_events(events)
+  )
+
+  # The event model must be the one compiled from these exact facts; the
+  # adapter re-checks onsets, durations, and condition labels against them.
+  external <- fmridesign::event_model(
+    onset ~ fmridesign::hrf(condition), data = events,
+    block = rep(1L, nrow(events)),
+    sampling_frame = fmridesign::sampling_frame(
+      blocklens = 20L, TR = 2, start_time = 0
+    ),
+    durations = events$duration
+  )
+  model <- fmridesign_design_model(
+    external, facts, basis_id = "canonical-hrf-amplitude",
+    units = "percent-signal-change"
+  )
+  print(model$condition_space$coordinates)
+  print(model$capabilities$coding_invariant)
+
+  # Effects are now named in condition space, so the contrast below does not
+  # depend on which columns the HRF compiler emitted.
+  weights <- rbind(`face-body` = c(1, -1))
+  colnames(weights) <- model$condition_space$coordinates
+  plan <- plan_relation(
+    facts, model, effect_map(weights, model$condition_space),
+    observation_model("ols", sampling_unit = "scan")
+  )
+  print(all(as.matrix(compiler_conformance(plan)[-1L])))
+}
+}
+\seealso{
+\code{\link[=design_model]{design_model()}} for the generic contract, \code{\link[=plan_relation]{plan_relation()}} for
+the next step, and \code{\link[=compiler_conformance]{compiler_conformance()}} to check the receipt this
+adapter produced.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

@@ -13,7 +13,8 @@ test_that("bilinear queries can bind their experimental axes", {
   query <- bilinear_query(diag(2), effects = space)
 
   expect_identical(query$effect_space, space)
-  expect_error(bilinear_query(diag(3), effects = space), "dimension")
+  expect_error(bilinear_query(diag(3), effects = space), "dimension",
+    class = "effect_contract_error")
 })
 
 test_that("pair queries are bound but not lowered before two-sided tasks exist", {
@@ -32,7 +33,7 @@ test_that("pair queries are bound but not lowered before two-sided tasks exist",
       right
     ),
     "exactly match"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("factor, local, adaptive, and nonlinear work have separate lowerings", {
@@ -59,38 +60,47 @@ test_that("factor, local, adaptive, and nonlinear work have separate lowerings",
 })
 
 test_that("additive frame rejects values outside theorem preconditions", {
-  expect_error(additive_frame(matrix(c(1, -1), nrow = 1)), "nonnegative")
-  expect_error(additive_frame(matrix(c(1, Inf), nrow = 1)), "finite")
+  expect_error(additive_frame(matrix(c(1, -1), nrow = 1)), "nonnegative",
+    class = "effect_input_error")
+  expect_error(additive_frame(matrix(c(1, Inf), nrow = 1)), "finite",
+    class = "effect_input_error")
 })
 
 test_that("compiler revalidates mutated and forged objects", {
   frame <- additive_frame(matrix(c(1, 0, 0, 1), 2), normalization = "local")
   frame$weights[1, 1] <- -1
-  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "nonnegative")
+  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "nonnegative",
+    class = "effect_input_error")
 
   frame <- additive_frame(diag(2), normalization = "local")
   frame$fixed <- FALSE
-  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "must be fixed")
+  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "must be fixed",
+    class = "effect_input_error")
 
   frame <- additive_frame(diag(2), normalization = "local")
   frame$domain_id <- ""
-  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "domain_id")
+  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "domain_id",
+    class = "effect_input_error")
 
   frame <- additive_frame(diag(2), normalization = "local")
   frame$invented <- TRUE
-  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "noncanonical")
+  expect_error(compile_lowering(frame, bilinear_query(diag(2))), "noncanonical",
+    class = "effect_input_error")
 
   factor <- factor_frame(list(diag(2)))
   factor$factors[[1]][1, 1] <- Inf
-  expect_error(compile_lowering(factor, bilinear_query(diag(2))), "finite")
+  expect_error(compile_lowering(factor, bilinear_query(diag(2))), "finite",
+    class = "effect_input_error")
 
   query <- bilinear_query(diag(2))
   query$operator[1, 2] <- 1
-  expect_error(compile_lowering(additive_frame(diag(2)), query), "symmetric")
+  expect_error(compile_lowering(additive_frame(diag(2)), query), "symmetric",
+    class = "effect_input_error")
 
   query <- bilinear_query(diag(2))
   query$invented <- TRUE
-  expect_error(compile_lowering(additive_frame(diag(2)), query), "noncanonical")
+  expect_error(compile_lowering(additive_frame(diag(2)), query), "noncanonical",
+    class = "effect_input_error")
 })
 
 test_that("sparse additive frames have an explicit collapse contract", {
@@ -104,7 +114,7 @@ test_that("sparse additive frames have an explicit collapse contract", {
 
 test_that("normalization policies are revalidated at compilation", {
   expect_error(additive_frame(matrix(c(1, 1), 1), normalization = "local"),
-    "sum to one")
+    "sum to one", class = "effect_input_error")
   expect_error(additive_frame(matrix(c(1, 0), 1), normalization = "conservative"),
-    "positive mass|columns must sum")
+    "positive mass|columns must sum", class = "effect_input_error")
 })

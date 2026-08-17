@@ -14,8 +14,53 @@ measurement_space(n_measurements, id, provenance = list())
 \item{provenance}{Portable fixed-space provenance.}
 }
 \value{
-An immutable `effect_measurement_space`.
+An \code{effect_measurement_space} carrying \verb{$id}, \verb{$n_measurements},
+\verb{$provenance}, and a content-addressed \verb{$signature} that binds the
+identity into every bridge built on it.
 }
 \description{
-Name a common measurement space
+\code{measurement_space()} names the shared coordinate system that both legs of
+a \code{\link[=measurement_bridge]{measurement_bridge()}} map into, so two different neural domains can be
+related without ever forming a dense cross-domain operator. Use it before
+building a bridge between, for example, two participants' native feature
+spaces.
 }
+\examples{
+# A named 2-coordinate common space shared by two native neural domains.
+common <- measurement_space(
+  2, id = "study:common-modes:v1",
+  provenance = list(source = "group template modes")
+)
+c(id = common$id, n = common$n_measurements)
+
+# The signature is content-addressed: the same declaration reproduces it,
+# so a stored bridge can be checked against the space it claims.
+identical(
+  common$signature,
+  measurement_space(
+    2, id = "study:common-modes:v1",
+    provenance = list(source = "group template modes")
+  )$signature
+)
+}
+\seealso{
+\code{\link[=measurement_bridge]{measurement_bridge()}}, which requires both legs to have this many
+rows.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

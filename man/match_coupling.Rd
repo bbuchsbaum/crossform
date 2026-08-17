@@ -14,9 +14,58 @@ match_coupling(left, right, left_space, right_space, eligible = NULL)
 \item{eligible}{Optional restricted eligible-pair set.}
 }
 \value{
-An `effect_pair_coupling`.
+An \code{effect_pair_coupling} with \code{kind = "match"}, a nonnegative
+\verb{$value} matrix counting the multiplicity of each matched cell, the
+logical \verb{$eligible} mask, and the bound \verb{$left_space}/\verb{$right_space}.
 }
 \description{
 Duplicate rows are retained as multiplicity, so repeated retrievals are
 explicit rather than silently deduplicated.
 }
+\examples{
+# Three studied items and their matched retrieval probes.
+encoding <- effect_space(
+  c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+)
+retrieval <- effect_space(
+  c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+)
+matches <- match_coupling(
+  c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+  encoding, retrieval
+)
+matches$value
+
+# Repeated retrievals of one item are multiplicity, not duplicates, so the
+# cell count rises rather than being silently collapsed.
+match_coupling(
+  c("item1", "item1", "item2"), c("probe1", "probe1", "probe2"),
+  encoding, retrieval
+)$value
+
+# Identifiers must belong to their declared axis.
+refused <- try(
+  match_coupling("item1", "item2", encoding, retrieval), silent = TRUE
+)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=control_coupling]{control_coupling()}} for the complementary cells,
+\code{\link[=coupling_contrast]{coupling_contrast()}} and \code{\link[=match_control]{match_control()}} to turn the pair into a
+query.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}

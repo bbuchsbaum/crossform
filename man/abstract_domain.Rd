@@ -25,8 +25,46 @@ spatial frame builders.}
 \item{coordinate_units}{One coordinate unit or one per coordinate axis.}
 }
 \value{
-An `effect_domain`.
+An \code{effect_domain}: a list with \verb{$id}, \verb{$kind} (\code{"abstract"}),
+\verb{$n_features}, \verb{$feature_ids}, the optional \verb{$coordinates} matrix,
+\verb{$coordinate_units}, a \verb{$geometry_signature}, a compact \verb{$reference} that
+other objects store instead of the full domain, and \verb{$metadata}.
 }
 \description{
-Construct an abstract neural feature domain
+Use this when the neural features are a plain ordered set — surface nodes,
+parcels, electrodes, or columns of a beta matrix — and any geometry you have
+is supplied directly as a coordinate matrix rather than read from a volume.
 }
+\examples{
+# Twelve features with no geometry: enough for region or whole-brain scopes.
+domain <- abstract_domain(12L, id = "from-observations:v1")
+domain$n_features
+domain$kind
+
+# Supply coordinates when a spatial scope such as searchlights() will be
+# compiled; the radius is then read in these coordinate units.
+grid <- as.matrix(expand.grid(x = 1:3, y = 1:4))
+placed <- abstract_domain(nrow(grid), coordinates = grid, id = "planar-grid")
+dim(compile_frame(searchlights(1.5), placed)$weights)
+}
+\seealso{
+\code{\link[=volume_domain]{volume_domain()}} for a mask-derived domain and \code{\link[=compile_frame]{compile_frame()}}
+to turn a domain into measurements.
+
+Other neural domains and frames: 
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

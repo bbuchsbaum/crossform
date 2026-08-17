@@ -16,7 +16,7 @@ bids_study(
 )
 }
 \arguments{
-\item{observations}{A declared [observations()] record.}
+\item{observations}{A declared \code{\link[=observations]{observations()}} record.}
 
 \item{event_files}{Event-TSV paths in observation partition order.}
 
@@ -25,18 +25,60 @@ bids_study(
 \item{partitions}{Explicit ordered partition identifiers.}
 
 \item{observation_ids}{Optional confound-row identifiers. Defaults to the
-identifiers already declared by `observations`.}
+identifiers already declared by \code{observations}.}
 
 \item{censor}{Optional explicit logical retain-column name.}
 
-\item{hierarchy}{Optional [partition_hierarchy()].}
+\item{hierarchy}{Optional \code{\link[=partition_hierarchy]{partition_hierarchy()}}.}
 
 \item{units}{Physical event-time unit.}
 }
 \value{
-A generic [study()] object.
+A generic \code{\link[=study]{study()}} object, identical in structure to one built from
+any other event and confound source, with \verb{$provenance$adapter} recording
+the BIDS route.
 }
 \description{
 BIDS is an adapter boundary, not the crossform object model: the result is
-the same [study()] that can be built from any event and confound source.
+the same \code{\link[=study]{study()}} that can be built from any event and confound source.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(3L, id = "bids-study-example")
+index <- observation_index(
+  1:4, "run-1", time = seq(0, by = 2, length.out = 4L), units = "seconds"
+)
+record <- observations(
+  list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+)
+
+path <- tempfile(fileext = ".tsv")
+utils::write.table(
+  data.frame(
+    onset = c(0, 4), duration = 0.5, trial_type = c("face", "body")
+  ),
+  path, sep = "\t", row.names = FALSE, quote = FALSE
+)
+
+# BIDS stays at the file boundary: what comes back is the ordinary study
+# object, with the event clock checked against the acquisition clock.
+facts <- bids_study(record, event_files = c(`run-1` = path))
+class(facts)
+study_capabilities(facts)$timing_resolved
+unlink(path)
+}
+\seealso{
+\code{\link[=study]{study()}} for the object returned, \code{\link[=bids_events]{bids_events()}} and
+\code{\link[=bids_confounds]{bids_confounds()}} for the individual file adapters, and
+\code{\link[=plan_relation]{plan_relation()}} for the next step.
+
+Other typed observation facts: 
+\code{\link{bids_confounds}()},
+\code{\link{bids_events}()},
+\code{\link{observation_confounds}()},
+\code{\link{observation_events}()},
+\code{\link{observation_index}()},
+\code{\link{observations}()},
+\code{\link{partition_hierarchy}()}
+}
+\concept{typed observation facts}

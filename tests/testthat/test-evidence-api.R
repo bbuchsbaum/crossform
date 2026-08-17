@@ -99,7 +99,7 @@ test_that("public measurement frames fail before brain-scale dense conversion", 
   expect_error(
     measurement_frame(frame),
     "small-node limit.*support-local geometry plan"
-  )
+  , class = "effect_input_error")
   expect_equal(
     eval(formals(reconstruct_evidence)$workspace_bytes),
     512 * 1024^2,
@@ -175,10 +175,14 @@ test_that("a rank-one query remains effect coupling but not connectivity", {
   fixture <- public_measurement_fixture(rank_one = TRUE)
   effect <- effect_coupling(fixture$form)
   expect_identical(effect$kind, "effect_coupling")
-  expect_error(connectivity(fixture$form, "correlation"),
-    "rank above one|rank-one effect direction")
+  refusal <- catch_refusal(connectivity(fixture$form, "correlation"))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "nondegenerate_variation")
+  expect_identical(refusal$namespace, "coupling_views")
+  expect_identical(refusal$reasons, "rank_one_variation_axis")
+  expect_match(conditionMessage(refusal), "effective rank 1")
   expect_error(canonical_coupling(fixture$form, ridge = 1e-4),
-    "rank above one|rank-one effect direction")
+    class = "effect_capability_refusal")
 })
 
 test_that("public forms cross independent experimental and neural sides", {
@@ -324,5 +328,5 @@ test_that("public reconstruction distinguishes exact and projected results", {
   expect_equal(result$operator, reference, tolerance = 1e-12)
   expect_error(reconstruct_evidence(
     form, between, workspace_bytes = 1
-  ), "exceeding")
+  ), "exceeding", class = "effect_input_error")
 })

@@ -57,16 +57,22 @@ test_that("workspace budgets and RSS observations remain distinct", {
 })
 
 test_that("memory plans reject invalid and overflowing inputs", {
-  expect_error(memory_plan(output_bytes = -1), "nonnegative")
-  expect_error(memory_plan(workers = 1.5), "positive finite whole scalar")
-  expect_error(memory_plan(workers = 2, n_active = 3), "cannot exceed")
-  expect_error(memory_plan(safety_factor = 0.9), "greater than or equal")
-  expect_error(memory_plan(budget_bytes = 0), "positive")
-  expect_error(memory_plan(output_bytes = 0.5), "whole scalar")
+  expect_error(memory_plan(output_bytes = -1), "nonnegative",
+    class = "effect_input_error")
+  expect_error(memory_plan(workers = 1.5), "positive finite whole scalar",
+    class = "effect_input_error")
+  expect_error(memory_plan(workers = 2, n_active = 3), "cannot exceed",
+    class = "effect_input_error")
+  expect_error(memory_plan(safety_factor = 0.9), "greater than or equal",
+    class = "effect_input_error")
+  expect_error(memory_plan(budget_bytes = 0), "positive",
+    class = "effect_input_error")
+  expect_error(memory_plan(output_bytes = 0.5), "whole scalar",
+    class = "effect_input_error")
   expect_error(memory_plan(source_block_bytes = 2^52, workers = 3,
-    n_active = 3), "overflows")
+    n_active = 3), "overflows", class = "effect_invariant_error")
   expect_error(memory_plan(baseline_rss_bytes = 100, peak_rss_bytes = 99),
-    "cannot be smaller")
+    "cannot be smaller", class = "effect_input_error")
 })
 
 test_that("default plans contain no invented runtime RSS reserve", {
@@ -98,7 +104,7 @@ test_that("dense matrix byte planning is exact and allocation-free in size", {
   expect_error(
     crossform:::.dense_double_matrix_bytes(2^52, 2^52),
     "overflows"
-  )
+  , class = "effect_invariant_error")
 })
 
 test_that("named array byte planning preserves metadata without values", {

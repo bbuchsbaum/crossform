@@ -14,13 +14,13 @@ study(
 )
 }
 \arguments{
-\item{observations}{An [observations()] object.}
+\item{observations}{An \code{\link[=observations]{observations()}} object.}
 
-\item{events}{Optional [events()] record.}
+\item{events}{Optional \code{\link[=observation_events]{observation_events()}} record.}
 
-\item{confounds}{Optional [observation_confounds()] record.}
+\item{confounds}{Optional \code{\link[=observation_confounds]{observation_confounds()}} record.}
 
-\item{hierarchy}{Optional [partition_hierarchy()]. A leaf-only hierarchy is
+\item{hierarchy}{Optional \code{\link[=partition_hierarchy]{partition_hierarchy()}}. A leaf-only hierarchy is
 constructed from observation partitions when omitted.}
 
 \item{clock_tolerance}{Nonnegative finite tolerance for clock coverage.}
@@ -28,10 +28,65 @@ constructed from observation partitions when omitted.}
 \item{provenance}{Portable binding provenance.}
 }
 \value{
-An `effect_study`.
+An \code{effect_study}: a list with the validated \verb{$observations},
+\verb{$events}, \verb{$confounds} and \verb{$hierarchy}, the ordered \verb{$partitions}, a
+per-partition \verb{$lineage} data frame recording which observations censoring
+retained, \verb{$clock_coverage}, \verb{$clock_tolerance}, \verb{$capabilities},
+\verb{$provenance}, and a \verb{$study_id}.
 }
 \description{
-`study()` records factual correspondence only. It does not assign model
+\code{study()} records factual correspondence only. It does not assign model
 roles, choose a sampling unit, infer independence, or select a
-`generalizes_over` axis.
+\code{generalizes_over} axis.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(4L, id = "study-example")
+indexes <- list(
+  `run-1` = observation_index(
+    1:6, "run-1", time = seq(0, 10, by = 2), units = "seconds"
+  ),
+  `run-2` = observation_index(
+    1:6, "run-2", time = seq(0, 10, by = 2), units = "seconds"
+  )
+)
+record <- observations(
+  lapply(indexes, function(index) matrix(rnorm(24), 6L, 4L)), indexes, domain
+)
+events <- observation_events(data.frame(
+  partition = rep(names(indexes), each = 2L),
+  event_id = paste0("e", 1:4), onset = c(0, 6, 0, 6), duration = 0.5,
+  condition = c("face", "body", "face", "body")
+))
+
+# Binding checks correspondence only; it assigns no model roles.
+facts <- study(record, events)
+facts
+study_capabilities(facts)
+
+# An event outside the acquired window is refused, not silently clipped.
+late <- observation_events(data.frame(
+  partition = "run-1", event_id = "e5", onset = 40, duration = 1
+))
+catch_refusal(study(record, late))$capability
+}
+\seealso{
+\code{\link[=observations]{observations()}}, \code{\link[=observation_events]{observation_events()}},
+\code{\link[=observation_confounds]{observation_confounds()}}, \code{\link[=partition_hierarchy]{partition_hierarchy()}} for the inputs;
+\code{\link[=study_capabilities]{study_capabilities()}} to inspect what was established; and
+\code{\link[=plan_relation]{plan_relation()}} for the next step.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

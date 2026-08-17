@@ -7,14 +7,45 @@
 effect_covariance(x, partition)
 }
 \arguments{
-\item{x}{An `effect_relation_fit` with residual-block capability.}
+\item{x}{An \code{effect_relation_fit} with residual-block capability.}
 
 \item{partition}{One partition name or index.}
 }
 \value{
-A symmetric effect-by-effect covariance factor excluding neural
-  residual covariance.
+A symmetric effect-by-effect matrix, with rows and columns named by
+the relation's effect coordinates, excluding the neural residual
+covariance factor.
 }
 \description{
-Read the unscaled effect-coordinate covariance of a fitted partition
+This is the design-side factor of the separable error model. By convention
+the neural residual covariance is excluded, so the value depends on the
+design and whitener but not on the data.
 }
+\examples{
+example <- example_fmri_effects()
+
+# Four condition means estimated from eight trials each: the design factor
+# is diagonal with entries 1/8, because the conditions are orthogonal.
+covariance <- effect_covariance(example$fit, "run1")
+round(covariance, 4)
+
+# Scaling it by a residual variance gives an effect standard error.
+residuals <- residual_block(example$fit, "run1", 1L)
+variance <- sum(residuals^2) / residual_df(example$fit, "run1")
+round(sqrt(diag(covariance) * variance), 3)
+}
+\seealso{
+\code{\link[=residual_df]{residual_df()}} and \code{\link[=residual_block]{residual_block()}} for the other two pieces of
+the error channel, and \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, which combines them.
+
+Other neural metrics: 
+\code{\link{diagonal_precision}()},
+\code{\link{gaussian_covariance_model}()},
+\code{\link{identity_metric}()},
+\code{\link{metric_capabilities}()},
+\code{\link{metric_training_policy}()},
+\code{\link{neural_metric}()},
+\code{\link{noise_precision}()},
+\code{\link{shrinkage_precision}()}
+}
+\concept{neural metrics}

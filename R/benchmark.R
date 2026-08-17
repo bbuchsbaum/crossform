@@ -54,7 +54,7 @@
   required <- c("id", "features", "effects", "measurements", "partitions",
     "density", "row_tile", "coordinate_tile", "feature_tile", "storage", "phase")
   if (!is.list(scenario) || !all(required %in% names(scenario))) {
-    stop("Invalid memory benchmark scenario.", call. = FALSE)
+    .input_error("Invalid memory benchmark scenario.")
   }
   set.seed(seed)
   p <- as.integer(scenario$features)

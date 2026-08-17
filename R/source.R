@@ -1,10 +1,5 @@
 # Reopenable response-source descriptors -----------------------------------
 
-.strong_sha256 <- function(value) {
-  is.character(value) && length(value) == 1L && !is.na(value) &&
-    grepl("^sha256:[[:xdigit:]]{64}$", value)
-}
-
 .descriptor_value_is_serializable <- function(value) {
   if (is.null(value) || is.atomic(value)) return(TRUE)
   if (!is.list(value) || is.object(value)) return(FALSE)
@@ -12,23 +7,21 @@
 }
 
 .source_descriptor <- function(kind, dim, access, stable_revision, spec) {
-  if (!is.character(kind) || length(kind) != 1L || is.na(kind) || !nzchar(kind)) {
-    stop("Source descriptor `kind` must be one nonempty identifier.",
-      call. = FALSE)
+  if (!.is_string(kind)) {
+    .input_error("Source descriptor `kind` must be one nonempty identifier.")
   }
-  if (!is.numeric(dim) || length(dim) != 2L || anyNA(dim) ||
-      any(!is.finite(dim)) || any(dim < 1L) || any(dim %% 1 != 0)) {
-    stop("Source descriptor dimensions must be two positive integers.",
-      call. = FALSE)
+  if (!.is_finite_numeric(dim) || length(dim) != 2L || anyNA(dim) ||
+      any(dim < 1L) || any(dim %% 1 != 0)) {
+    .input_error("Source descriptor dimensions must be two positive integers.")
   }
   access <- match.arg(access, c("coordinator", "reopenable", "shared"))
   if (!.strong_sha256(stable_revision)) {
-    stop("Source descriptors require one strong sha256 revision.",
-      call. = FALSE)
+    .input_error("Source descriptors require one strong sha256 revision.")
   }
   if (!is.list(spec) || !.descriptor_value_is_serializable(spec)) {
-    stop("Source descriptor specifications must contain only serializable values.",
-      call. = FALSE)
+    .input_error(
+      "Source descriptor specifications must contain only serializable values."
+    )
   }
   value <- structure(list(
     kind = kind,
@@ -42,26 +35,18 @@
 
 .validate_source_descriptor <- function(value) {
   expected <- c("kind", "dim", "access", "stable_revision", "spec")
-  if (!inherits(value, "effect_source_descriptor") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Source descriptor fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_source_descriptor", expected)) {
+    .input_error("Source descriptor fields are missing or noncanonical.")
   }
-  if (!is.character(value$kind) || length(value$kind) != 1L ||
-      is.na(value$kind) || !nzchar(value$kind) ||
-      !is.numeric(value$dim) || length(value$dim) != 2L ||
-      anyNA(value$dim) || any(!is.finite(value$dim)) ||
-      any(value$dim < 1L) || any(value$dim %% 1 != 0) ||
-      !identical(value$access, match.arg(value$access,
-        c("coordinator", "reopenable", "shared"))) ||
+  if (!.is_string(value$kind) || !.is_finite_numeric(value$dim) ||
+      length(value$dim) != 2L || anyNA(value$dim) || any(value$dim < 1L) ||
+      any(value$dim %% 1 != 0) ||
+      !identical(value$access, match.arg(value$access, c("coordinator", "reopenable", "shared"))) ||
       !.strong_sha256(value$stable_revision) || !is.list(value$spec) ||
       !.descriptor_value_is_serializable(value$spec)) {
-    stop("Source descriptor metadata are invalid.", call. = FALSE)
+    .input_error("Source descriptor metadata are invalid.")
   }
   structure(as.list(value), class = "effect_source_descriptor")
-}
-
-.file_sha256 <- function(path) {
-  paste0("sha256:", digest::digest(file = path, algo = "sha256"))
 }
 
 #' Describe a read-only column-major matrix file
@@ -76,40 +61,63 @@
 #' @param endian Byte order used by the file.
 #' @param stable_revision Optional expected `sha256:` content revision. When
 #'   omitted it is computed from the file.
-#' @return An immutable `effect_source_descriptor`.
+#' @return An `effect_source_descriptor`: a list with `$kind`
+#'   (`"file_matrix"`), the integer `$dim`, `$access` (`"reopenable"`), the
+#'   `$stable_revision` content hash, and a `$spec` holding the absolute
+#'   `path`, `offset_bytes`, and `endian`. Treat it as immutable.
+#' @family relation planning and fitting
+#' @seealso [source_capabilities()] for the capability value it implies, and
+#'   [observations()] or [relation()], which accept descriptors in place of
+#'   in-memory matrices.
+#' @examples
+#' # A 4-observation by 3-feature matrix written as raw column-major doubles.
+#' path <- tempfile(fileext = ".bin")
+#' writeBin(as.vector(matrix(as.double(1:12), 4L, 3L)), path, size = 8L)
+#'
+#' descriptor <- file_matrix_source(path, dim = c(4L, 3L))
+#' descriptor$dim
+#' descriptor$access
+#'
+#' # The content hash is recorded now and rechecked whenever the file is
+#' # reopened, so a silently edited source is caught rather than used.
+#' substr(descriptor$stable_revision, 1, 24)
+#'
+#' # Declaring a revision that no longer matches the bytes is an error.
+#' try(file_matrix_source(
+#'   path, dim = c(4L, 3L), stable_revision = paste0("sha256:", strrep("0", 64))
+#' ))
+#' unlink(path)
 #' @export
 file_matrix_source <- function(path, dim, offset_bytes = 0,
                                endian = .Platform$endian,
                                stable_revision = NULL) {
-  if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
-    stop("`path` must identify one existing matrix file.", call. = FALSE)
+  if (!.is_string(path)) {
+    .input_error("`path` must identify one existing matrix file.")
   }
   path <- normalizePath(path, mustWork = TRUE)
-  if (!is.numeric(dim) || length(dim) != 2L || anyNA(dim) ||
-      any(!is.finite(dim)) || any(dim < 1L) || any(dim %% 1 != 0)) {
-    stop("`dim` must contain two positive integers.", call. = FALSE)
+  if (!.is_finite_numeric(dim) || length(dim) != 2L || anyNA(dim) ||
+      any(dim < 1L) || any(dim %% 1 != 0)) {
+    .input_error("`dim` must contain two positive integers.")
   }
   dim <- as.integer(dim)
-  if (!is.numeric(offset_bytes) || length(offset_bytes) != 1L ||
-      is.na(offset_bytes) || !is.finite(offset_bytes) || offset_bytes < 0 ||
-      offset_bytes %% 1 != 0) {
-    stop("`offset_bytes` must be one nonnegative integer.", call. = FALSE)
-  }
+  .check_count(
+    offset_bytes, "offset_bytes", what = "one nonnegative integer", min = 0L
+  )
   offset_bytes <- as.double(offset_bytes)
   endian <- match.arg(endian, c("little", "big"))
   expected_size <- offset_bytes + prod(as.double(dim)) * 8
   observed_size <- file.info(path)$size
   if (is.na(observed_size) || observed_size != expected_size) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Matrix file size is %.0f bytes; descriptor requires %.0f bytes.",
       observed_size, expected_size
-    ), call. = FALSE)
+    ))
   }
-  observed_revision <- .file_sha256(path)
+  observed_revision <- .sha256_file(path)
   if (!is.null(stable_revision) &&
       (!.strong_sha256(stable_revision) ||
        !identical(tolower(stable_revision), tolower(observed_revision)))) {
-    stop("The matrix file does not match `stable_revision`.", call. = FALSE)
+    .contract_error("The matrix file does not match `stable_revision`.")
   }
   .source_descriptor(
     kind = "file_matrix",
@@ -123,10 +131,8 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 # Adapter-neutral shared descriptors are intentionally internal until a shard
 # admission benchmark establishes a public staging API.
 .shared_source_descriptor <- function(backend, token, dim, stable_revision) {
-  if (!is.character(backend) || length(backend) != 1L || is.na(backend) ||
-      !nzchar(backend)) {
-    stop("Shared source `backend` must be one nonempty identifier.",
-      call. = FALSE)
+  if (!.is_string(backend)) {
+    .input_error("Shared source `backend` must be one nonempty identifier.")
   }
   .source_descriptor(
     kind = "shared_matrix",
@@ -138,23 +144,19 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 }
 
 .validate_source_features <- function(features, n_features) {
-  if (!is.numeric(features) || length(features) < 1L || anyNA(features) ||
-      any(!is.finite(features)) || any(features %% 1 != 0) ||
-      any(features < 1L) || any(features > n_features) ||
-      anyDuplicated(features)) {
-    stop("`features` must be unique valid neural feature indices.",
-      call. = FALSE)
+  if (!.is_finite_numeric(features) || length(features) < 1L ||
+      anyNA(features) || any(features %% 1 != 0) || any(features < 1L) ||
+      any(features > n_features) || anyDuplicated(features)) {
+    .input_error("`features` must be unique valid neural feature indices.")
   }
   as.integer(features)
 }
 
 .new_source_handle <- function(descriptor, read, close, owns_handle,
                                owns_backing = FALSE) {
-  if (!is.function(read) || !is.function(close) ||
-      !is.logical(owns_handle) || length(owns_handle) != 1L ||
-      is.na(owns_handle) || !is.logical(owns_backing) ||
-      length(owns_backing) != 1L || is.na(owns_backing)) {
-    stop("Source handle implementation is invalid.", call. = FALSE)
+  if (!is.function(read) || !is.function(close) || !.is_flag(owns_handle) ||
+      !.is_flag(owns_backing)) {
+    .input_error("Source handle implementation is invalid.")
   }
   structure(list(
     descriptor = .validate_source_descriptor(descriptor),
@@ -168,13 +170,12 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 .open_file_matrix_descriptor <- function(descriptor, expected_revision) {
   path <- descriptor$spec$path
   if (!file.exists(path)) {
-    stop("Reopenable matrix source no longer exists.", call. = FALSE)
+    .input_error("Reopenable matrix source no longer exists.")
   }
-  observed <- .file_sha256(path)
+  observed <- .sha256_file(path)
   if (!identical(tolower(observed), tolower(expected_revision)) ||
       !identical(tolower(observed), tolower(descriptor$stable_revision))) {
-    stop("Reopenable matrix source has a stale content revision.",
-      call. = FALSE)
+    .contract_error("Reopenable matrix source has a stale content revision.")
   }
   connection <- file(path, open = "rb")
   state <- new.env(parent = emptyenv())
@@ -187,7 +188,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
     invisible(NULL)
   }
   read_block <- function(features) {
-    if (state$closed) stop("Source handle is closed.", call. = FALSE)
+    if (state$closed) .input_error("Source handle is closed.")
     features <- .validate_source_features(features, descriptor$dim[[2L]])
     rows <- descriptor$dim[[1L]]
     value <- matrix(NA_real_, rows, length(features))
@@ -200,8 +201,9 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
         endian = descriptor$spec$endian
       )
       if (length(values) != rows) {
-        stop("Matrix source ended before the requested feature was read.",
-          call. = FALSE)
+        .input_error(
+          "Matrix source ended before the requested feature was read."
+        )
       }
       value[, column] <- values
     }
@@ -218,21 +220,24 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
                                     shared_opener = NULL) {
   descriptor <- .validate_source_descriptor(descriptor)
   if (!.strong_sha256(expected_revision)) {
-    stop("Opening a source requires one strong expected sha256 revision.",
-      call. = FALSE)
+    .input_error(
+      "Opening a source requires one strong expected sha256 revision."
+    )
   }
   if (!identical(tolower(expected_revision),
       tolower(descriptor$stable_revision))) {
-    stop("Source descriptor revision does not match the expected revision.",
-      call. = FALSE)
+    .contract_error(
+      "Source descriptor revision does not match the expected revision."
+    )
   }
   if (identical(descriptor$kind, "file_matrix")) {
     return(.open_file_matrix_descriptor(descriptor, expected_revision))
   }
   if (identical(descriptor$access, "shared")) {
     if (!is.function(shared_opener)) {
-      stop("Shared source descriptors require an explicit backend opener.",
-        call. = FALSE)
+      .input_error(
+        "Shared source descriptors require an explicit backend opener."
+      )
     }
     opened <- shared_opener(descriptor)
     if (!is.list(opened) || !is.function(opened$read) ||
@@ -243,29 +248,27 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
       if (is.list(opened) && is.function(opened$close)) {
         try(opened$close(), silent = TRUE)
       }
-      stop("Shared source opener returned an invalid or stale handle.",
-        call. = FALSE)
+      .input_error("Shared source opener returned an invalid or stale handle.")
     }
     return(.new_source_handle(
       descriptor, opened$read, opened$close,
       owns_handle = TRUE, owns_backing = FALSE
     ))
   }
-  stop("Coordinator-only source descriptors cannot be reopened.",
-    call. = FALSE)
+  .input_error("Coordinator-only source descriptors cannot be reopened.")
 }
 
 .close_source_handle <- function(handle) {
   if (!inherits(handle, "effect_source_handle") || !is.list(handle) ||
       !is.function(handle$close)) {
-    stop("`handle` must be an open source handle.", call. = FALSE)
+    .input_error("`handle` must be an open source handle.")
   }
   if (isTRUE(handle$owns_handle)) handle$close()
   invisible(NULL)
 }
 
 .with_source_descriptor <- function(descriptor, code, shared_opener = NULL) {
-  if (!is.function(code)) stop("`code` must be a function.", call. = FALSE)
+  if (!is.function(code)) .input_error("`code` must be a function.")
   handle <- .open_source_descriptor(descriptor,
     shared_opener = shared_opener)
   on.exit(.close_source_handle(handle), add = TRUE)
@@ -274,8 +277,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 
 .source_descriptor_key <- function(descriptor) {
   descriptor <- .validate_source_descriptor(descriptor)
-  paste0("sha256:", digest::digest(descriptor, algo = "sha256",
-    serialize = TRUE))
+  .sha256_signature(descriptor)
 }
 
 .open_relation_source_session <- function(relation,
@@ -284,7 +286,7 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
                                           validate = TRUE) {
   if (isTRUE(validate)) .validate_relation(relation)
   if (!is.function(open_descriptor)) {
-    stop("`open_descriptor` must be a function.", call. = FALSE)
+    .input_error("`open_descriptor` must be a function.")
   }
   handles <- list()
   partition_keys <- stats::setNames(vector("list", length(relation$partitions)),
@@ -310,8 +312,8 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
       }
       facts$closed <- TRUE
       if (length(failures)) {
-        stop(paste("Source-session cleanup failed:",
-          paste(failures, collapse = "; ")), call. = FALSE)
+        .input_error(paste("Source-session cleanup failed:",
+          paste(failures, collapse = "; ")))
       }
     }
     invisible(NULL)
@@ -336,8 +338,9 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
             NULL
           }, error = function(cleanup) conditionMessage(cleanup))
           if (!is.null(cleanup_error)) {
-            stop(paste(conditionMessage(error), cleanup_error, sep = "; "),
-              call. = FALSE)
+            .input_error(
+              paste(conditionMessage(error), cleanup_error, sep = "; ")
+            )
           }
           stop(error)
         }
@@ -347,9 +350,9 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
   }
 
   read <- function(partition, features) {
-    if (facts$closed) stop("Source session is closed.", call. = FALSE)
+    if (facts$closed) .input_error("Source session is closed.")
     if (!partition %in% relation$partitions) {
-      stop("Source session partition is invalid.", call. = FALSE)
+      .input_error("Source session partition is invalid.")
     }
     features <- .validate_source_features(features, relation$n_features)
     key <- partition_keys[[partition]]
@@ -385,44 +388,56 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
 
 .close_source_session <- function(session) {
   if (!inherits(session, "effect_source_session") || !is.function(session$close)) {
-    stop("`session` must be a crossform source session.", call. = FALSE)
+    .input_error("`session` must be a crossform source session.")
   }
   session$close()
 }
 
-.open_effect_task_source_session <- function(task,
-                                             open_descriptor = .open_source_descriptor,
-                                             shared_opener = NULL,
-                                             validate = TRUE) {
-  if (isTRUE(validate)) .validate_compiled_effect_task(task)
+# One two-sided source session, shared by the compiled effect task below and
+# by the raw measurement task in R/measurement-kernel.R.
+#
+# The two callers differ in exactly three things, which are the three
+# parameters here: the class the session carries, the noun in its side error,
+# and whether the relations are revalidated on the way in. Everything else --
+# the shared-relation shortcut, the guarantee that a failure opening the right
+# side closes the left one, the idempotent two-sided close, the read
+# dispatcher -- is the same session, and was written out twice.
+#
+# The task itself arrives already validated. This is a layer-2 file and both
+# task types are plan-layer values: `.validate_evidence_task()` runs in the
+# plan validators, and the compiled task is a derived projection of a
+# validated evidence task, so re-checking it here would be a values file
+# auditing a plan.
+.open_two_sided_source_session <- function(task, class, side_noun,
+                                           open_descriptor, shared_opener,
+                                           validate = TRUE) {
+  open_side <- function(relation) {
+    .open_relation_source_session(relation,
+      open_descriptor = open_descriptor, shared_opener = shared_opener,
+      validate = validate)
+  }
+  reject_side <- function() {
+    .input_error(sprintf(
+      "%s source side must be `left` or `right`.", side_noun
+    ))
+  }
   if (isTRUE(task$same_relation)) {
-    session <- .open_relation_source_session(
-      task$left_relation,
-      open_descriptor = open_descriptor,
-      shared_opener = shared_opener,
-      validate = validate
-    )
+    session <- open_side(task$left_relation)
     return(structure(
       list(
         read = function(side, partition, features) {
-          if (!side %in% c("left", "right")) {
-            stop("Task source side must be `left` or `right`.", call. = FALSE)
-          }
+          if (!side %in% c("left", "right")) reject_side()
           session$read(partition, features)
         },
         close = session$close,
         summary = session$summary
       ),
-      class = "effect_task_source_session"
+      class = class
     ))
   }
-  left <- .open_relation_source_session(task$left_relation,
-    open_descriptor = open_descriptor, shared_opener = shared_opener,
-    validate = validate)
+  left <- open_side(task$left_relation)
   right <- tryCatch(
-    .open_relation_source_session(task$right_relation,
-      open_descriptor = open_descriptor, shared_opener = shared_opener,
-      validate = validate),
+    open_side(task$right_relation),
     error = function(error) {
       left$close()
       stop(error)
@@ -440,13 +455,28 @@ file_matrix_source <- function(path, dim, offset_bytes = 0,
   structure(
     list(
       read = function(side, partition, features) {
-        if (identical(side, "left")) left$read(partition, features) else if (
-          identical(side, "right")) right$read(partition, features) else
-          stop("Task source side must be `left` or `right`.", call. = FALSE)
+        if (identical(side, "left")) {
+          left$read(partition, features)
+        } else if (identical(side, "right")) {
+          right$read(partition, features)
+        } else {
+          reject_side()
+        }
       },
       close = close_both,
       summary = function() list(left = left$summary(), right = right$summary())
     ),
-    class = "effect_task_source_session"
+    class = class
+  )
+}
+
+.open_effect_task_source_session <- function(task,
+                                             open_descriptor = .open_source_descriptor,
+                                             shared_opener = NULL,
+                                             validate = TRUE) {
+  .open_two_sided_source_session(
+    task, "effect_task_source_session", "Task",
+    open_descriptor = open_descriptor, shared_opener = shared_opener,
+    validate = validate
   )
 }

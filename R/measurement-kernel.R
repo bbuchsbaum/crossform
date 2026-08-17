@@ -5,85 +5,38 @@
   if (task$materialization$kind != "measurement_form" ||
       task$experimental_boundary$state != "closed" ||
       task$neural_boundary$state != "open") {
-    stop("Raw measurement contraction requires closed experimental and open neural boundaries.",
-      call. = FALSE)
+    .input_error(paste0(
+      "Raw measurement contraction requires closed experimental and open ",
+      "neural boundaries."
+    ))
   }
   normalizer <- task$stages$normalization$operation
   transform <- task$stages$transform$operation
   if (!identical(normalizer$kind, "inner_product") ||
       !identical(transform$kind, "identity")) {
-    stop(paste0(
+    .input_error(paste0(
       "Raw measurement blocks require bilinear inner-product stages; ",
       "normalization or nonlinear transformation must remain explicit."
-    ), call. = FALSE)
+    ))
   }
   if (!is.null(task$materialization$projection)) {
-    stop("Complete raw measurement blocks cannot carry an effect-form projection.",
-      call. = FALSE)
+    .input_error(
+      "Complete raw measurement blocks cannot carry an effect-form projection."
+    )
   }
   task
 }
 
+# The raw-measurement half of the two-sided source session. The task is
+# admitted here, in the layer that owns it, and the session wiring itself is
+# `.open_two_sided_source_session()` in R/source.R.
 .open_evidence_task_source_session <- function(
     task, open_descriptor = .open_source_descriptor, shared_opener = NULL) {
-  task <- .validate_raw_measurement_task(task)
-  if (isTRUE(task$same_relation)) {
-    session <- .open_relation_source_session(
-      task$left_relation,
-      open_descriptor = open_descriptor,
-      shared_opener = shared_opener
-    )
-    return(structure(list(
-      read = function(side, partition, features) {
-        if (!side %in% c("left", "right")) {
-          stop("Evidence source side must be `left` or `right`.",
-            call. = FALSE)
-        }
-        session$read(partition, features)
-      },
-      close = session$close,
-      summary = session$summary
-    ), class = "effect_evidence_source_session"))
-  }
-  left <- .open_relation_source_session(
-    task$left_relation,
-    open_descriptor = open_descriptor,
-    shared_opener = shared_opener
+  .open_two_sided_source_session(
+    .validate_raw_measurement_task(task),
+    "effect_evidence_source_session", "Evidence",
+    open_descriptor = open_descriptor, shared_opener = shared_opener
   )
-  right <- tryCatch(
-    .open_relation_source_session(
-      task$right_relation,
-      open_descriptor = open_descriptor,
-      shared_opener = shared_opener
-    ),
-    error = function(error) {
-      left$close()
-      stop(error)
-    }
-  )
-  closed <- FALSE
-  close_both <- function() {
-    if (!closed) {
-      on.exit(right$close(), add = TRUE)
-      left$close()
-      closed <<- TRUE
-    }
-    invisible(NULL)
-  }
-  structure(list(
-    read = function(side, partition, features) {
-      if (identical(side, "left")) {
-        left$read(partition, features)
-      } else if (identical(side, "right")) {
-        right$read(partition, features)
-      } else {
-        stop("Evidence source side must be `left` or `right`.",
-          call. = FALSE)
-      }
-    },
-    close = close_both,
-    summary = function() list(left = left$summary(), right = right$summary())
-  ), class = "effect_evidence_source_session")
 }
 
 .measurement_requested_nodes <- function(task, side = c("left", "right")) {
@@ -97,10 +50,8 @@
 }
 
 .measurement_h_factorization <- function(h, tolerance = 1e-12) {
-  if (!is.numeric(tolerance) || length(tolerance) != 1L || is.na(tolerance) ||
-      !is.finite(tolerance) || tolerance <= 0) {
-    stop("Factorization tolerance must be one positive finite value.",
-      call. = FALSE)
+  if (!.is_number(tolerance) || tolerance <= 0) {
+    .input_error("Factorization tolerance must be one positive finite value.")
   }
   decomposition <- svd(h, nu = min(dim(h)), nv = min(dim(h)))
   threshold <- if (!length(decomposition$d)) 0 else
@@ -191,8 +142,9 @@
     candidates[[which.min(costs[candidates])]]
   } else {
     if (!isTRUE(eligible[[route]])) {
-      stop(sprintf("Measurement route `%s` is not eligible for this task.",
-        route), call. = FALSE)
+      .input_error(sprintf(
+        "Measurement route `%s` is not eligible for this task.",
+        route))
     }
     route
   }
@@ -208,9 +160,7 @@
     edge_tile = edge_tile
   )
   structure(c(semantic, list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_route_plan")
 }
 
@@ -219,8 +169,7 @@
                                             budget_bytes = NULL) {
   task <- .validate_raw_measurement_task(task)
   if (!inherits(route_plan, "effect_measurement_route_plan")) {
-    stop("Measurement memory planning requires a route plan.",
-      call. = FALSE)
+    .input_error("Measurement memory planning requires a route plan.")
   }
   storage <- match.arg(storage)
   left_frame <- task$neural_boundary$left_frame
@@ -309,7 +258,7 @@
   legs <- frame$legs[nodes]
   widths <- vapply(legs, function(x) nrow(x$operator), integer(1))
   ends <- cumsum(widths)
-  starts <- c(1L, head(ends, -1L) + 1L)
+  starts <- c(1L, utils::head(ends, -1L) + 1L)
   ranges <- Map(seq.int, starts, ends)
   names(ranges) <- nodes
   operator <- do.call(rbind, lapply(legs, `[[`, "operator"))
@@ -425,7 +374,7 @@
             crossprod(left_factor, right_factor)
           },
           multivariate_blocks = crossprod(z_left, h %*% z_right),
-          stop("Unknown measurement contraction route.", call. = FALSE)
+          .invariant_error("Unknown measurement contraction route.")
         )
         blocks[[edge]] <- blocks[[edge]] + weight * value
       }
@@ -499,8 +448,9 @@
 
   result <- tryCatch({
     if (!is.na(memory$plan$fits_budget) && !memory$plan$fits_budget) {
-      stop("Measurement contraction exceeds the declared workspace budget.",
-        call. = FALSE)
+      .input_error(
+        "Measurement contraction exceeds the declared workspace budget."
+      )
     }
     session <- .open_evidence_task_source_session(
       task, open_descriptor = open_descriptor
@@ -587,8 +537,7 @@
     left <- left_relations[[partition_edges$left[[partition_edge]]]]
     right <- right_relations[[partition_edges$right[[partition_edge]]]]
     if (!is.matrix(left) || !is.matrix(right)) {
-      stop("Dense reference relations must be named matrix families.",
-        call. = FALSE)
+      .input_error("Dense reference relations must be named matrix families.")
     }
     for (edge in seq_len(nrow(measurement_edges))) {
       left_leg <- task$neural_boundary$left_frame$legs[[

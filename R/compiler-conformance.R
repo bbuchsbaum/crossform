@@ -36,8 +36,36 @@
 #' trusting an adapter name or package version.
 #'
 #' @param x A [plan_relation()] result.
-#' @return A data frame with one row per partition and one boolean per required
-#'   conformance field.
+#' @return A data frame with one row per partition: `partition` plus the
+#'   logical columns `semantic_identity`, `regressor_axis`,
+#'   `condition_lowering`, `row_lineage`, `rank_and_aliases`,
+#'   `censor_accounting`, `solver_diagnostics`, `whitening_provenance`,
+#'   `source_revision`, and `portable_receipt`.
+#' @family relation planning and fitting
+#' @seealso [relation_plan_receipts()] for the underlying receipts,
+#'   [plan_relation()] for the plan, and [study_capabilities()] for the
+#'   equivalent report on the study facts.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "conformance-example")
+#' index <- observation_index(paste0("scan-", 1:4), "run-1")
+#' facts <- study(observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' ))
+#' design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' target <- rbind(`face-body` = c(1, -1))
+#' colnames(target) <- colnames(design)
+#' plan <- plan_relation(
+#'   facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+#'   observation_model("ols", sampling_unit = "scan")
+#' )
+#'
+#' # Every field is evidence read back off the receipt, so this holds for an
+#' # external compiler exactly as it does for a hand-built design.
+#' conformance <- compiler_conformance(plan)
+#' t(conformance)
+#' all(as.matrix(conformance[-1L]))
 #' @export
 compiler_conformance <- function(x) {
   x <- .validate_relation_plan(x)

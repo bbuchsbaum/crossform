@@ -4,7 +4,7 @@ test_that("fmrireg independently reproduces the planned OLS point relation", {
     skip("The installed fmrireg version is outside the certified court.")
   }
   fixture <- relation_plan_fixture("svd", "treatment", "ols")
-  native <- estimate(fixture$plan)
+  native <- estimate_relation(fixture$plan)
   external <- fmrireg_relation(fixture$plan)
 
   for (partition in fixture$plan$partitions) {

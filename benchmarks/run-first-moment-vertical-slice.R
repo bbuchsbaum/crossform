@@ -22,6 +22,10 @@ output_dir <- if (length(arguments) >= 2L) arguments[[2L]] else {
 }
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 suppressPackageStartupMessages(devtools::load_all(repo, quiet = TRUE))
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(
+  repo, "run-first-moment-vertical-slice.R"
+)
 source(file.path(repo, "tests", "testthat",
   "helper-relation-plan-fixtures.R"), local = TRUE)
 source(file.path(repo, "tests", "testthat",
@@ -60,7 +64,9 @@ treatment_build <- measure("plan_relation_treatment_fixed", function() {
   first_moment_vertical_fixture("treatment", "svd", "fixed_gls")
 })
 treatment <- treatment_build$value
-native_run <- measure("estimate_native_fixed", function() estimate(cell$plan))
+native_run <- measure(
+  "estimate_native_fixed", function() estimate_relation(cell$plan)
+)
 native <- native_run$value
 conformance_run <- measure(
   "compiler_conformance", function() compiler_conformance(cell$plan)
@@ -79,7 +85,7 @@ geometry_plan_run <- measure(
 geometry_plan <- geometry_plan_run$value
 contrast_weights <- c(face = 0.5, body = 0.5, house = -0.5, tool = -0.5)
 contrast_run <- measure("contrast_query_first", function() {
-  contrast(geometry_plan, contrast_weights)
+  contrast_energy(geometry_plan, contrast_weights)
 })
 rdm_run <- measure("rdm_query_first", function() rdm(geometry_plan))
 labels <- cell$conditions$coordinates
@@ -164,13 +170,13 @@ native_block_error <- max(vapply(cell$partitions, function(partition) {
   max(abs(relation_block(native, partition, 1:60) -
     direct_blocks[[partition]]))
 }, numeric(1)))
-coding_fit <- estimate(treatment$plan)
+coding_fit <- estimate_relation(treatment$plan)
 coding_error <- max(vapply(cell$partitions, function(partition) {
   max(abs(relation_block(native, partition, 1:60) -
     relation_block(coding_fit, partition, 1:60)))
 }, numeric(1)))
 fmrireg_error <- max(vapply(cell$partitions, function(partition) {
-  max(abs(relation_block(estimate(ols$plan), partition, 1:60) -
+  max(abs(relation_block(estimate_relation(ols$plan), partition, 1:60) -
     relation_block(fmrireg_fit, partition, 1:60)))
 }, numeric(1)))
 rdm_error <- max(abs(as.matrix(rdm_run$value$values) - direct_rdm))
@@ -214,6 +220,7 @@ result <- list(
   schema_version = 1L,
   fixture_version = cell$version,
   generated_at = format(Sys.time(), tz = "UTC", usetz = TRUE),
+  provenance = provenance,
   package_version = as.character(utils::packageVersion("crossform")),
   adapter_versions = c(
     fmridesign = as.character(utils::packageVersion("fmridesign")),

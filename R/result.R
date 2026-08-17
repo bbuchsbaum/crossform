@@ -1,16 +1,13 @@
 # Complete geometry and query-only result contracts -------------------------
-
-.effect_form_codec_format <- function(codec) {
-  switch(codec,
-    symmetric_packed = "packed-double-v1",
-    rectangular = "rectangular-double-v1",
-    stop("Unknown effect-form storage codec.", call. = FALSE)
-  )
-}
+#
+# `.effect_form_codec_format()`, the codec's recorded storage-format tag, is a
+# leaf in R/primitives.R: the memory store here and the file store in
+# R/storage.R both stamp it into their manifests, and a result file has no
+# business owning a constant the executor's storage layer depends on.
 
 .memory_geometry_store <- function(value, codec = "symmetric_packed") {
-  if (!is.matrix(value) || !is.numeric(value) || any(!is.finite(value))) {
-    stop("Geometry components must be finite numeric matrices.", call. = FALSE)
+  if (!.is_finite_matrix(value)) {
+    .input_error("Geometry components must be finite numeric matrices.")
   }
   format <- .effect_form_codec_format(codec)
   structure(
@@ -28,12 +25,12 @@
 }
 
 .block_geometry_store <- function(dim, read, codec = "symmetric_packed") {
-  if (!is.numeric(dim) || length(dim) != 2L || any(!is.finite(dim)) ||
-      any(dim < 0) || any(dim %% 1 != 0)) {
-    stop("A block store requires two nonnegative integer dimensions.", call. = FALSE)
+  if (!.is_finite_numeric(dim) || length(dim) != 2L || any(dim < 0) ||
+      any(dim %% 1 != 0)) {
+    .input_error("A block store requires two nonnegative integer dimensions.")
   }
   if (!is.function(read)) {
-    stop("A block store requires a `read` function.", call. = FALSE)
+    .input_error("A block store requires a `read` function.")
   }
   format <- .effect_form_codec_format(codec)
   structure(
@@ -54,14 +51,15 @@
 
 .read_geometry_store <- function(store, rows = NULL) {
   if (!inherits(store, "effect_geometry_store")) {
-    stop("Invalid geometry store.", call. = FALSE)
+    .input_error("Invalid geometry store.")
   }
   value <- store$read(rows)
   expected_rows <- if (is.null(rows)) store$dim[[1L]] else length(rows)
-  if (!is.matrix(value) || !is.numeric(value) || any(!is.finite(value)) ||
+  if (!.is_finite_matrix(value) ||
       !identical(dim(value), c(as.integer(expected_rows), store$dim[[2L]]))) {
-    stop("Geometry store returned a block with invalid shape or values.",
-      call. = FALSE)
+    .input_error(
+      "Geometry store returned a block with invalid shape or values."
+    )
   }
   value
 }
@@ -82,7 +80,7 @@
     query = query,
     scientific_plan_id = scientific_plan_id
   )
-  paste0("sha256:", digest::digest(semantic, algo = "sha256", serialize = TRUE))
+  .sha256_signature(semantic)
 }
 
 # Universal complete effect-form result. This internal constructor establishes
@@ -105,12 +103,14 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
   total <- .as_geometry_store(total, codec)
   coherent <- if (is.null(coherent)) NULL else .as_geometry_store(coherent, codec)
   if (is.null(index)) index <- seq_len(total$dim[[1L]])
-  if (!is.list(metadata)) stop("`metadata` must be a list.", call. = FALSE)
+  if (!is.list(metadata)) .input_error("`metadata` must be a list.")
   .validate_execution_receipt(receipt)
   if (!is.null(metadata$scientific_plan_id) &&
       !identical(metadata$scientific_plan_id, receipt$scientific_plan_id)) {
-    stop("Result metadata and execution receipt identify different scientific plans.",
-      call. = FALSE)
+    .contract_error(paste0(
+      "Result metadata and execution receipt identify different scientific ",
+      "plans."
+    ))
   }
   metadata$scientific_plan_id <- receipt$scientific_plan_id
   storage <- unique(c(total$representation,
@@ -139,6 +139,17 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
       metadata = metadata,
       receipt = receipt,
       contract_signature = contract_signature,
+      # Two fields, two frozen vocabularies. `$result_capability` is a
+      # capability id ("complete_form" / "query_only") and is hashed into
+      # `$contract_signature` via `.effect_result_signature()`.
+      # `$completeness` is the human-facing word the print methods show, and
+      # its counterpart on a measurement form reads "complete" rather than
+      # "full". The words cannot be reconciled without a hash change:
+      # `.measurement_contract_signature()` (R/measurement-result.R) and
+      # `.evidence_materialization()` (R/evidence-task.R) both hash a
+      # `completeness` string, so renaming any of them would invalidate every
+      # recorded measurement-form and evidence-task identity. Branch on
+      # `$result_capability`, which is the same word everywhere.
       result_capability = "complete_form",
       completeness = "full",
       codec = codec,
@@ -154,13 +165,13 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
                                       coherent = FALSE) {
   flags <- c(self_form, symmetric, guaranteed_psd, coherent)
   if (!is.logical(flags) || length(flags) != 4L || anyNA(flags)) {
-    stop("Effect-form capabilities must be logical guarantees.", call. = FALSE)
+    .input_error("Effect-form capabilities must be logical guarantees.")
   }
   if (symmetric && !self_form) {
-    stop("A symmetric effect form must be a self form.", call. = FALSE)
+    .input_error("A symmetric effect form must be a self form.")
   }
   if (guaranteed_psd && !symmetric) {
-    stop("A guaranteed-PSD effect form must be symmetric.", call. = FALSE)
+    .input_error("A guaranteed-PSD effect form must be symmetric.")
   }
   list(
     self_form = self_form,
@@ -174,24 +185,25 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
 
 .validate_geometry_store <- function(store, label, codec, probe = TRUE) {
   if (!inherits(store, "effect_geometry_store") ||
-      !is.numeric(store$dim) || length(store$dim) != 2L ||
-      anyNA(store$dim) || any(!is.finite(store$dim)) || any(store$dim < 1L) ||
-      any(store$dim %% 1 != 0) || !is.function(store$read)) {
-    stop(sprintf("`%s` is not a valid complete geometry store.", label), call. = FALSE)
+      !.is_finite_numeric(store$dim) || length(store$dim) != 2L ||
+      anyNA(store$dim) || any(store$dim < 1L) || any(store$dim %% 1 != 0) ||
+      !is.function(store$read)) {
+    .input_error(sprintf("`%s` is not a valid complete geometry store.", label))
   }
   manifest <- store$manifest
   if (!is.list(manifest) || !identical(manifest$schema_version, 1L) ||
       !isTRUE(manifest$complete) || !identical(manifest$dim, store$dim) ||
       !identical(manifest$format, .effect_form_codec_format(codec))) {
-    stop(sprintf("`%s` has an incomplete or inconsistent store manifest.", label),
-      call. = FALSE)
+    .input_error(
+      sprintf("`%s` has an incomplete or inconsistent store manifest.", label)
+    )
   }
   if (isTRUE(probe)) {
     probes <- unique(c(1L, store$dim[[1L]]))
     tryCatch(
       .read_geometry_store(store, probes),
-      error = function(error) stop(sprintf("`%s` reader cannot supply claimed geometry: %s",
-        label, conditionMessage(error)), call. = FALSE)
+      error = function(error) .input_error(sprintf("`%s` reader cannot supply claimed geometry: %s",
+        label, conditionMessage(error)))
     )
   }
   invisible(store)
@@ -204,11 +216,10 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
     "metadata", "receipt", "contract_signature", "result_capability",
     "completeness", "codec", "storage"
   )
-  if (!inherits(x, "effect_form") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_form", expected) ||
       !identical(x$result_capability, "complete_form") ||
       !identical(x$completeness, "full")) {
-    stop("`x` must be a canonical complete effect_form.", call. = FALSE)
+    .input_error("`x` must be a canonical complete effect_form.")
   }
   left_space <- .validate_effect_space(x$left_space)
   right_space <- .validate_effect_space(x$right_space)
@@ -216,7 +227,7 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
   if (!identical(x$logical_shape, as.integer(c(
       length(left_space$coordinates), length(right_space$coordinates)
     )))) {
-    stop("Effect-form logical shape is inconsistent with its axes.", call. = FALSE)
+    .contract_error("Effect-form logical shape is inconsistent with its axes.")
   }
   expected_capabilities <- .effect_form_capabilities(
     self_form,
@@ -225,19 +236,19 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
     !is.null(x$coherent)
   )
   if (!identical(x$capabilities, expected_capabilities)) {
-    stop("Effect-form capabilities are missing, forged, or inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Effect-form capabilities are missing, forged, or inconsistent."
+    )
   }
   codec <- match.arg(x$codec, c("rectangular", "symmetric_packed"))
   if (codec == "symmetric_packed" && !isTRUE(x$capabilities$symmetric)) {
-    stop("The symmetric-packed codec requires a symmetric capability.",
-      call. = FALSE)
+    .input_error("The symmetric-packed codec requires a symmetric capability.")
   }
   .validate_geometry_store(x$total, "total", codec, probe = probe)
   if (!is.null(x$coherent)) {
     .validate_geometry_store(x$coherent, "coherent", codec, probe = probe)
     if (!identical(x$total$dim, x$coherent$dim)) {
-      stop("`total` and `coherent` must have identical dimensions.", call. = FALSE)
+      .input_error("`total` and `coherent` must have identical dimensions.")
     }
   }
   expected_width <- if (codec == "rectangular") {
@@ -252,46 +263,51 @@ effect_form <- function(total, left_space, right_space, receipt, index = NULL,
     } else {
       "Rectangular form width does not match its left-by-right logical shape."
     }
-    stop(message, call. = FALSE)
+    .input_error(message)
   }
   if (length(x$index) != x$total$dim[[1L]] || anyNA(x$index) ||
       anyDuplicated(x$index)) {
-    stop("`index` must uniquely identify every measurement row.", call. = FALSE)
+    .input_error("`index` must uniquely identify every measurement row.")
   }
-  if (!is.list(x$metadata)) stop("`metadata` must be a list.", call. = FALSE)
+  if (!is.list(x$metadata)) .input_error("`metadata` must be a list.")
   .validate_execution_receipt(x$receipt)
   if (!identical(x$metadata$scientific_plan_id,
       x$receipt$scientific_plan_id)) {
-    stop("Result metadata and execution receipt identify different scientific plans.",
-      call. = FALSE)
+    .contract_error(paste0(
+      "Result metadata and execution receipt identify different scientific ",
+      "plans."
+    ))
   }
   expected_signature <- .effect_result_signature(
     "complete_form", left_space, right_space, x$logical_shape,
     capabilities = x$capabilities, codec = codec,
     scientific_plan_id = x$receipt$scientific_plan_id
   )
-  if (!identical(x$contract_signature, expected_signature)) {
-    stop("Effect-form contract signature is inconsistent with its claims.",
-      call. = FALSE)
-  }
+  .check_signature(
+    x$contract_signature, expected_signature,
+    "Effect-form contract signature is inconsistent with its claims."
+  )
   if (self_form) {
     if (!identical(x$effect_space, left_space) ||
         !identical(x$effects, left_space$coordinates)) {
-      stop("Geometry coordinate labels are inconsistent with its effect space.",
-        call. = FALSE)
+      .contract_error(
+        "Geometry coordinate labels are inconsistent with its effect space."
+      )
     }
   } else if (!is.null(x$effect_space) || !is.null(x$effects)) {
-    stop("Rectangular forms cannot claim one compatibility effect space.",
-      call. = FALSE)
+    .input_error(
+      "Rectangular forms cannot claim one compatibility effect space."
+    )
   }
   if (!is.null(x$marginals) && !is.list(x$marginals)) {
-    stop("Effect-form marginals must be NULL or a list.", call. = FALSE)
+    .input_error("Effect-form marginals must be NULL or a list.")
   }
   expected_storage <- unique(c(x$total$representation,
     if (is.null(x$coherent)) character() else x$coherent$representation))
   if (!identical(x$storage, expected_storage)) {
-    stop("Geometry storage metadata is inconsistent with its component stores.",
-      call. = FALSE)
+    .contract_error(
+      "Geometry storage metadata is inconsistent with its component stores."
+    )
   }
   invisible(x)
 }
@@ -336,38 +352,43 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
 }
 
 .validate_effect_geometry <- function(x, probe = TRUE) {
-  if (!inherits(x, "effect_geometry")) {
-    stop("`x` must be a canonical complete effect_geometry.", call. = FALSE)
-  }
+  .check_class(
+    x, "effect_geometry", "x", what = "a canonical complete effect_geometry"
+  )
   .validate_effect_form(x, probe = probe)
   if (!identical(x$codec, "symmetric_packed") ||
       !isTRUE(x$capabilities$self_form) ||
       !isTRUE(x$capabilities$symmetric) || is.null(x$coherent)) {
-    stop("An effect_geometry must be a symmetric packed self form with coherent data.",
-      call. = FALSE)
+    .input_error(paste0(
+      "An effect_geometry must be a symmetric packed self form with coherent ",
+      "data."
+    ))
   }
   marginals <- x$marginals
   if (!inherits(marginals, "effect_marginals") || length(marginals) < 1L) {
-    stop("`marginals` must be a nonempty pairing-appropriate marginal object.",
-      call. = FALSE)
+    .input_error(
+      "`marginals` must be a nonempty pairing-appropriate marginal object."
+    )
   }
   semantics <- attr(marginals, "semantics")
   expected_names <- switch(semantics,
     undirected_endpoint = "endpoint",
     directed_roles = c("left", "right"),
-    stop("Marginal semantics are missing or invalid.", call. = FALSE)
+    .input_error("Marginal semantics are missing or invalid.")
   )
   if (!identical(names(marginals), expected_names)) {
-    stop("Marginal members do not match their declared endpoint semantics.",
-      call. = FALSE)
+    .contract_error(
+      "Marginal members do not match their declared endpoint semantics."
+    )
   }
   if (!all(vapply(marginals, function(value) {
     is.matrix(value) && is.numeric(value) && identical(dim(value),
       c(x$total$dim[[1L]], length(x$effects))) && all(is.finite(value)) &&
       identical(colnames(value), x$effects)
   }, logical(1)))) {
-    stop("Every marginal must match measurement rows and named effect columns.",
-      call. = FALSE)
+    .input_error(
+      "Every marginal must match measurement rows and named effect columns."
+    )
   }
   invisible(x)
 }
@@ -391,16 +412,14 @@ effect_geometry <- function(total, coherent, marginals, effects, receipt, index 
 effect_view <- function(values, query, component, receipt, index = NULL,
                         metadata = list(), effects = NULL,
                         left_space = NULL, right_space = NULL) {
-  if (!is.matrix(values) || !is.numeric(values) || any(!is.finite(values))) {
-    stop("`values` must be a finite numeric matrix.", call. = FALSE)
-  }
+  .check_matrix(values, "values", what = "a finite numeric matrix")
   component <- match.arg(component, c("total", "coherent", "configuration"))
   if (is.null(index)) index <- seq_len(nrow(values))
   if (length(index) != nrow(values)) {
-    stop("`index` must have one entry per measurement.", call. = FALSE)
+    .input_error("`index` must have one entry per measurement.")
   }
   if (!is.list(metadata)) {
-    stop("`metadata` must be a list.", call. = FALSE)
+    .input_error("`metadata` must be a list.")
   }
   .validate_execution_receipt(receipt)
   if (!is.null(effects)) {
@@ -414,8 +433,7 @@ effect_view <- function(values, query, component, receipt, index = NULL,
     if (is.null(right_space)) right_space <- query$right_space
     if (!.same_effect_space(left_space, query$left_space) ||
         !.same_effect_space(right_space, query$right_space)) {
-      stop("Effect-view axes are incompatible with its pair query.",
-        call. = FALSE)
+      .contract_error("Effect-view axes are incompatible with its pair query.")
     }
   } else if (inherits(query, "effect_query") &&
       identical(query$kind, "bilinear") && !is.null(query$effect_space)) {
@@ -423,8 +441,9 @@ effect_view <- function(values, query, component, receipt, index = NULL,
     if (is.null(right_space)) right_space <- query$effect_space
     if (!.same_effect_space(left_space, query$effect_space) ||
         !.same_effect_space(right_space, query$effect_space)) {
-      stop("Effect-view axes are incompatible with its bilinear query.",
-        call. = FALSE)
+      .contract_error(
+        "Effect-view axes are incompatible with its bilinear query."
+      )
     }
   }
   if (is.null(left_space) || is.null(right_space)) {
@@ -437,8 +456,10 @@ effect_view <- function(values, query, component, receipt, index = NULL,
     }
     effect_count <- (sqrt(8 * packed_width + 1) - 1) / 2
     if (!is.finite(effect_count) || effect_count < 1L || effect_count %% 1 != 0) {
-      stop("`effects` is required when the query does not identify a packed effect space.",
-        call. = FALSE)
+      .input_error(paste0(
+        "`effects` is required when the query does not identify a packed ",
+        "effect space."
+      ))
     }
     inferred <- effect_space(paste0("effect", seq_len(effect_count)))
     left_space <- inferred
@@ -449,8 +470,9 @@ effect_view <- function(values, query, component, receipt, index = NULL,
   self_form <- .same_effect_space(left_space, right_space)
   if (!is.null(metadata$scientific_plan_id) &&
       !identical(metadata$scientific_plan_id, receipt$scientific_plan_id)) {
-    stop("Effect-view metadata and receipt identify different scientific plans.",
-      call. = FALSE)
+    .contract_error(
+      "Effect-view metadata and receipt identify different scientific plans."
+    )
   }
   metadata$scientific_plan_id <- receipt$scientific_plan_id
   logical_shape <- as.integer(c(
@@ -494,62 +516,103 @@ effect_view <- function(values, query, component, receipt, index = NULL,
       !identical(names(x), expected) ||
       !identical(x$result_capability, "query_only") ||
       !identical(x$completeness, "query_only")) {
-    stop("`x` must be a canonical query-only effect_view.", call. = FALSE)
+    .input_error("`x` must be a canonical query-only effect_view.")
   }
   left_space <- .validate_effect_space(x$left_space)
   right_space <- .validate_effect_space(x$right_space)
   if (!identical(x$logical_shape, as.integer(c(
       length(left_space$coordinates), length(right_space$coordinates)
     )))) {
-    stop("Effect-view logical shape is inconsistent with its axes.", call. = FALSE)
+    .contract_error("Effect-view logical shape is inconsistent with its axes.")
   }
   self_form <- .same_effect_space(left_space, right_space)
   if ((self_form && !identical(x$effect_space, left_space)) ||
       (!self_form && !is.null(x$effect_space))) {
-    stop("Effect-view compatibility space is inconsistent with its axes.",
-      call. = FALSE)
+    .contract_error(
+      "Effect-view compatibility space is inconsistent with its axes."
+    )
   }
-  if (!is.matrix(x$values) || !is.numeric(x$values) ||
-      any(!is.finite(x$values)) || length(x$index) != nrow(x$values) ||
+  if (!.is_finite_matrix(x$values) || length(x$index) != nrow(x$values) ||
       anyNA(x$index)) {
-    stop("Effect-view values or measurement index are invalid.", call. = FALSE)
+    .input_error("Effect-view values or measurement index are invalid.")
   }
   .validate_execution_receipt(x$receipt)
   if (!is.list(x$metadata) || !identical(x$metadata$scientific_plan_id,
       x$receipt$scientific_plan_id)) {
-    stop("Effect-view metadata and receipt identify different scientific plans.",
-      call. = FALSE)
+    .contract_error(
+      "Effect-view metadata and receipt identify different scientific plans."
+    )
   }
   expected_signature <- .effect_result_signature(
     "query_only", left_space, right_space, x$logical_shape,
     component = x$component, query = x$query,
     scientific_plan_id = x$receipt$scientific_plan_id
   )
-  if (!identical(x$contract_signature, expected_signature)) {
-    stop("Effect-view contract signature is inconsistent with its claims.",
-      call. = FALSE)
-  }
+  .check_signature(
+    x$contract_signature, expected_signature,
+    "Effect-view contract signature is inconsistent with its claims."
+  )
   invisible(x)
 }
 
 #' Read one component of a complete geometry
 #'
+#' `geometry_component()` returns the packed geometry rows themselves, for
+#' the cases where a view is not enough. Reach for it only after
+#' [materialize_geometry()]; a query-only result from [evaluate_geometry()]
+#' has no stored component to read.
+#'
 #' @param x A complete `effect_form` (including an `effect_geometry`).
 #' @param component One of `total`, `coherent`, or `configuration`.
-#' @param rows Optional measurement rows to read.
-#' @return A packed numeric geometry matrix.
+#'   `configuration` is computed exactly as `total - coherent`.
+#' @param rows Optional measurement rows to read. Block-backed stores read
+#'   only the requested rows.
+#' @return A numeric matrix with one row per measurement and one column per
+#'   packed geometry coordinate (`svec` order for symmetric self forms: the
+#'   lower triangle by column, off-diagonal entries scaled by `sqrt(2)`).
+#' @seealso [query_geometry()] to apply a linear query instead of reading
+#'   packed coordinates, and [rdm()] or [contrast_energy()] for the named
+#'   scientific views.
+#' @family geometry plans and views
+#' @examples
+#' domain <- abstract_domain(4, id = "component-example")
+#' relation <- relation(
+#'   list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+#'        run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+#'   domain = domain
+#' )
+#' geometry <- materialize_geometry(plan_geometry(
+#'   relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' ))
+#'
+#' # One row per region; three packed coordinates for a 2-effect self form,
+#' # namely G[1,1], G[2,1], and G[2,2].
+#' geometry_component(geometry, "total")
+#'
+#' # The coherent/configuration split is an exact partition, not a fit.
+#' all.equal(
+#'   geometry_component(geometry, "configuration"),
+#'   geometry_component(geometry, "total") -
+#'     geometry_component(geometry, "coherent")
+#' )
+#'
+#' # Read a single measurement without touching the rest.
+#' geometry_component(geometry, "total", rows = 2)
 #' @export
 geometry_component <- function(x, component = "total", rows = NULL) {
   if (!inherits(x, "effect_form") || !is.list(x) ||
       !inherits(x$total, "effect_geometry_store")) {
-    stop("`x` must be a complete effect_geometry or effect_form, not a query-only view.",
-      call. = FALSE)
+    .input_error(paste0(
+      "`x` must be a complete effect_geometry or effect_form, not a ",
+      "query-only view."
+    ))
   }
   component <- match.arg(component, c("total", "coherent", "configuration"))
   if (!is.null(rows) &&
       (!is.numeric(rows) || anyNA(rows) || any(rows %% 1 != 0) ||
        any(rows < 1) || any(rows > x$total$dim[[1L]]))) {
-    stop("`rows` contains invalid measurement indices.", call. = FALSE)
+    .input_error("`rows` contains invalid measurement indices.")
   }
   .validate_effect_form(x)
   .require_effect_form_component(x, component)
@@ -558,8 +621,9 @@ geometry_component <- function(x, component = "total", rows = NULL) {
 
 .require_effect_form_component <- function(x, component) {
   if (!isTRUE(x$capabilities[[component]])) {
-    stop(sprintf("This effect form does not carry the `%s` component.", component),
-      call. = FALSE)
+    .input_error(
+      sprintf("This effect form does not carry the `%s` component.", component)
+    )
   }
   invisible(x)
 }
@@ -577,13 +641,50 @@ geometry_component <- function(x, component = "total", rows = NULL) {
 
 #' Apply a linear query to a complete geometry
 #'
+#' `query_geometry()` projects an already materialized geometry through a
+#' fixed linear query. It answers the same question as
+#' [evaluate_geometry()] and carries the same view identity; use this form
+#' when the complete geometry already exists and several queries will be read
+#' from it.
+#'
 #' @param x A complete `effect_form` (including an `effect_geometry`).
 #' @param query An axis-bound `pair_query()`, a compatible
 #'   `bilinear_query()`, or a finite physical-coordinate-by-view matrix.
 #' @param component Geometry component to query.
 #' @param row_block Positive number of measurement rows read at once. This
 #'   bounds packed-geometry memory for block-backed stores.
-#' @return An `effect_view`, not another geometry.
+#' @return An `effect_view`: `$values` has one row per measurement and one
+#'   column per query column, alongside `$query`, `$component`, `$index`, and
+#'   a `$receipt` recording that this view was projected from the parent
+#'   estimand. It is a view, not another geometry.
+#' @seealso [evaluate_geometry()] for the query-first route that never
+#'   materializes geometry, and [geometry_component()] for the packed rows.
+#' @family geometry plans and views
+#' @examples
+#' domain <- abstract_domain(4, id = "query-example")
+#' relation <- relation(
+#'   list(run1 = rbind(a = c(1, 0, 2, 1), b = c(0, 1, 1, 0)),
+#'        run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8), b = c(0.1, 0.9, 1.2, 0.2))),
+#'   domain = domain
+#' )
+#' geometry <- materialize_geometry(plan_geometry(
+#'   relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' ))
+#'
+#' # The squared cross-generalized distance between the two effects, one row
+#' # per region.
+#' contrast <- bilinear_query(tcrossprod(c(1, -1)))
+#' distance <- query_geometry(geometry, contrast)
+#' distance
+#' as.data.frame(distance)
+#'
+#' # The same query reads the two orthogonal modes, which sum back exactly.
+#' coherent <- query_geometry(geometry, contrast, component = "coherent")
+#' configuration <- query_geometry(
+#'   geometry, contrast, component = "configuration"
+#' )
+#' all.equal(distance$values, coherent$values + configuration$values)
 #' @export
 query_geometry <- function(x, query, component = "total", row_block = 1024L) {
   validated <- .validate_geometry_query(x, query, component, row_block)
@@ -662,9 +763,9 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
 .validate_geometry_query <- function(x, query, component, row_block) {
   if (!inherits(x, "effect_form") || !identical(x$completeness, "full") ||
       !inherits(x$total, "effect_geometry_store") ||
-      !is.numeric(x$total$dim) || length(x$total$dim) != 2L ||
-      any(!is.finite(x$total$dim)) || any(x$total$dim < 1L)) {
-    stop("`x` must be a structurally complete effect_form.", call. = FALSE)
+      !.is_finite_numeric(x$total$dim) || length(x$total$dim) != 2L ||
+      any(x$total$dim < 1L)) {
+    .input_error("`x` must be a structurally complete effect_form.")
   }
   .validate_effect_form(x, probe = FALSE)
   component <- match.arg(component, c("total", "coherent", "configuration"))
@@ -675,12 +776,10 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
   if (.is_pair_difference_query(query)) {
     if (!isTRUE(x$capabilities$self_form) ||
         !isTRUE(x$capabilities$symmetric)) {
-      stop("A pair-difference query requires a symmetric self form.",
-        call. = FALSE)
+      .input_error("A pair-difference query requires a symmetric self form.")
     }
     if (!identical(query$effects, x$effects)) {
-      stop("The query and geometry effect spaces are incompatible.",
-        call. = FALSE)
+      .contract_error("The query and geometry effect spaces are incompatible.")
     }
     .validate_effect_form(x)
     return(list(query = query, semantic_query = query,
@@ -692,37 +791,38 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
     if (identical(query$kind, "pair")) {
       if (!.same_effect_space(query$left_space, x$left_space) ||
           !.same_effect_space(query$right_space, x$right_space)) {
-        stop("The query and form axis identities are incompatible.",
-          call. = FALSE)
+        .contract_error("The query and form axis identities are incompatible.")
       }
     } else if (identical(query$kind, "bilinear") && isTRUE(query$fixed)) {
       if (!isTRUE(x$capabilities$self_form) ||
           !isTRUE(x$capabilities$symmetric)) {
-        stop("A bilinear_query requires a symmetric self form.", call. = FALSE)
+        .input_error("A bilinear_query requires a symmetric self form.")
       }
       if (nrow(query$operator) != x$logical_shape[[1L]]) {
-        stop("The query operator dimension must equal the experimental dimension.",
-          call. = FALSE)
+        .contract_error(
+          "The query operator dimension must equal the experimental dimension."
+        )
       }
       if (!is.null(query$effect_space) &&
           !.same_effect_space(query$effect_space, x$left_space)) {
-        stop("The query and geometry effect spaces are incompatible.",
-          call. = FALSE)
+        .contract_error(
+          "The query and geometry effect spaces are incompatible."
+        )
       }
     } else {
-      stop("Form operator queries must be fixed pair or bilinear queries.",
-        call. = FALSE)
+      .input_error(
+        "Form operator queries must be fixed pair or bilinear queries."
+      )
     }
     query <- .physical_form_query(query$operator, x)
   }
-  if (!is.matrix(query) || !is.numeric(query) ||
-      nrow(query) < 1L || ncol(query) < 1L || any(!is.finite(query))) {
-    stop("`query` must be a finite, nonempty physical-coordinate matrix.",
-      call. = FALSE)
+  if (!.is_finite_matrix(query) || nrow(query) < 1L || ncol(query) < 1L) {
+    .input_error(
+      "`query` must be a finite, nonempty physical-coordinate matrix."
+    )
   }
   if (nrow(query) != x$total$dim[[2L]]) {
-    stop("The query input dimension must equal the stored form width.",
-      call. = FALSE)
+    .input_error("The query input dimension must equal the stored form width.")
   }
   if (is.null(colnames(query))) colnames(query) <- paste0("view", seq_len(ncol(query)))
   .validate_effect_form(x)
@@ -739,15 +839,41 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
   matrix(values, ncol = 1L, dimnames = list(NULL, "view1"))
 }
 
-.svec_symmetric <- function(x) {
-  q <- nrow(x)
-  out <- numeric(q * (q + 1L) / 2L)
-  k <- 0L
-  for (column in seq_len(q)) {
-    for (row in column:q) {
-      k <- k + 1L
-      out[[k]] <- x[row, column] * if (row == column) 1 else sqrt(2)
-    }
+# The contrast-view record ---------------------------------------------------
+#
+# One weight vector reduces a self-form geometry to four aligned per-measurement
+# series -- signed marginals, coherent, configuration, total -- plus the
+# coherence fraction and the mask saying where that fraction is defined at all.
+# It is a record, not a view computation: it lived in R/views.R, which forced
+# the executor to call up into a view file on the query-first contrast path.
+# The derivation that produces its inputs stays in `contrast_energy()`.
+.new_effect_contrast_view <- function(total, coherent, marginals, weights,
+                                      index, receipt) {
+  total <- drop(total)
+  coherent <- drop(coherent)
+  configuration <- total - coherent
+  signed <- lapply(marginals, function(value) drop(value %*% weights))
+  if (identical(attr(marginals, "semantics"), "undirected_endpoint")) {
+    signed <- signed$endpoint
   }
-  out
+  fraction_valid <- is.finite(total) & total > 0 & coherent >= 0 &
+    configuration >= 0
+  coherence_fraction <- rep(NA_real_, length(total))
+  coherence_fraction[fraction_valid] <- coherent[fraction_valid] /
+    total[fraction_valid]
+
+  structure(
+    list(
+      signed = signed,
+      coherent = coherent,
+      configuration = configuration,
+      total = total,
+      coherence_fraction = coherence_fraction,
+      coherence_fraction_valid = fraction_valid,
+      weights = weights,
+      index = index,
+      receipt = receipt
+    ),
+    class = "effect_contrast_view"
+  )
 }

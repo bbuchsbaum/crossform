@@ -16,20 +16,54 @@ raw_effect_map(
 \arguments{
 \item{target}{A finite effect-by-coefficient target matrix.}
 
-\item{effects}{An [effect_space()] or output effect names.}
+\item{effects}{An \code{\link[=effect_space]{effect_space()}} or output effect names.}
 
 \item{coefficients}{Unique ordered coefficient names.}
 
-\item{units, scale}{Output units and scale when `effects` is a character
+\item{units, scale}{Output units and scale when \code{effects} is a character
 vector.}
 
 \item{provenance}{Portable target provenance.}
 }
 \value{
-An `effect_raw_map`, also an `effect_lowered_map`.
+An \code{effect_raw_map} (also an \code{effect_lowered_map}): a list with the
+effect-by-coefficient \verb{$target}, its \verb{$effect_space}, a \verb{$coding_id} of
+\code{"raw-X-T"}, \verb{$capabilities} with \code{symbolic_effects},
+\code{valid_effect_lowering}, and \code{coding_invariant} all \code{FALSE}, and a
+\verb{$lowering_id} that includes the target values themselves.
 }
 \description{
-This is the honest degenerate route for a supplied `T` matrix. Its identity
+This is the honest degenerate route for a supplied \code{T} matrix. Its identity
 includes the coefficient order and target values, and it cannot claim
 symbolic or coding-invariant effects.
 }
+\examples{
+# Use this when you have a target matrix but no condition-space meaning for
+# the coefficient columns it multiplies.
+target <- rbind(`face-body` = c(1, -1, 0))
+colnames(target) <- c("beta_face", "beta_body", "beta_drift")
+raw <- raw_effect_map(target, units = "arbitrary-BOLD")
+raw
+
+# The honest cost: the numeric values are part of the identity, and no
+# coding-invariance claim is made, unlike lower_effect_map().
+unlist(raw$capabilities)
+}
+\seealso{
+\code{\link[=lower_effect_map]{lower_effect_map()}} for the semantic route, and
+\code{\link[=raw_design_model]{raw_design_model()}}, the design model this map must be paired with.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{effect_space}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

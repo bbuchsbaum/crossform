@@ -34,8 +34,13 @@ test_that("coordinate-cell supports and pair patterns match brute force", {
     crossform:::.support_index_support(index, seq_len(domain$n_features)),
     expected
   )
+  expect_null(index$pair_pattern)
   expect_identical(
-    as.matrix(index$pair_pattern),
+    crossform:::.support_index_pair_pattern_route(index),
+    "lazy"
+  )
+  expect_identical(
+    as.matrix(crossform:::.support_index_pair_pattern(index)),
     brute_pair_pattern(expected, domain$n_features)
   )
   expect_identical(index$construction$provider, "coordinate_cells")
@@ -72,8 +77,9 @@ test_that("volume stencils preserve holes, anisotropy, and brute-force order", {
     crossform:::.support_index_support(index, seq_len(domain$n_features)),
     expected
   )
+  expect_null(index$pair_pattern)
   expect_identical(
-    as.matrix(index$pair_pattern),
+    as.matrix(crossform:::.support_index_pair_pattern(index)),
     brute_pair_pattern(expected, domain$n_features)
   )
   expect_identical(index$construction$provider, "volume_stencil")
@@ -108,7 +114,10 @@ test_that("support identities, blocks, gathers, and costs are deterministic", {
     sum(diff(first$ptr)^2))
   expect_equal(first$cost$one_dense_factorization_pass_units,
     sum(diff(first$ptr)^3))
-  expect_gte(first$cost$pair_pattern_nnz, domain$n_features)
+  expect_true(is.na(first$cost$pair_pattern_nnz))
+  materialized <- crossform:::.support_index_materialize_pair_pattern(first)
+  expect_gte(materialized$cost$pair_pattern_nnz, domain$n_features)
+  expect_identical(materialized$signature, first$signature)
 })
 
 test_that("support preflight refuses persistent dense local schedules", {
@@ -144,11 +153,11 @@ test_that("support preflight requires explicit valid edge multiplicity", {
   expect_error(
     crossform:::.support_index_preflight(index, evaluation_edges = 0),
     "positive integer"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.support_index_preflight(index, evaluation_edges = 1.5),
     "positive integer"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("compiled searchlights retain their canonical support topology", {
@@ -175,9 +184,9 @@ test_that("a 50k-volume topology builds without quadratic storage", {
 
   expect_identical(index$cost$nodes, 50000)
   expect_lte(index$cost$support_size[["max"]], 7)
-  expect_lt(index$cost$pair_pattern_nnz, 30 * domain$n_features)
+  expect_null(index$pair_pattern)
+  expect_true(is.na(index$cost$pair_pattern_nnz))
   expect_lt(index$cost$estimated_structural_bytes, 20 * 1024^2)
-  expect_lt(index$cost$pair_pattern_nnz, domain$n_features^2 / 1000)
 })
 
 test_that("a 50k-coordinate topology uses vectorized cell lookup", {
@@ -197,7 +206,8 @@ test_that("a 50k-coordinate topology uses vectorized cell lookup", {
   expect_identical(index$cost$nodes, 50653)
   expect_identical(index$construction$lookup, "mixed_radix_vectorized")
   expect_lte(index$cost$support_size[["max"]], 7)
-  expect_lt(index$cost$pair_pattern_nnz, 30 * domain$n_features)
+  expect_null(index$pair_pattern)
+  expect_true(is.na(index$cost$pair_pattern_nnz))
   expect_lt(index$cost$estimated_structural_bytes, 20 * 1024^2)
   expect_lt(unname(elapsed), 10)
 })
@@ -210,7 +220,7 @@ test_that("deep validation detects changed supports or pair topology", {
   expect_error(
     crossform:::.validate_support_index(index, deep = TRUE),
     "strictly increasing|pair pattern|identity"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("deep validation rejects noncanonical support order", {
@@ -223,5 +233,105 @@ test_that("deep validation rejects noncanonical support order", {
   expect_error(
     crossform:::.validate_support_index(index, deep = TRUE),
     "strictly increasing"
+  , class = "effect_input_error")
+})
+
+test_that("volume searchlights larger than the volume stay cheap and exact", {
+  set.seed(31)
+  mask <- array(stats::runif(6 * 6 * 4) > 0.3, c(6L, 6L, 4L))
+  domain <- volume_domain(mask, spacing = c(3, 3, 2.5))
+  voxel <- domain$metadata$voxel
+  spacing <- domain$metadata$spacing
+  brute <- function(radius) {
+    scaled <- sweep(voxel, 2L, spacing, `*`)
+    value <- matrix(FALSE, nrow(scaled), nrow(scaled))
+    for (center in seq_len(nrow(scaled))) {
+      squared <- rowSums(sweep(scaled, 2L, scaled[center, ], `-`)^2)
+      value[center, ] <- squared <= radius^2 * (1 + 1e-12)
+    }
+    value
+  }
+  for (radius in c(3, 6.5, 24, 1000)) {
+    stencil <- crossform:::.volume_ball_membership(domain, radius)
+    pairwise <- crossform:::.volume_ball_membership_pairwise(
+      voxel, spacing, radius
+    )
+    expect_identical(as.matrix(stencil) != 0, brute(radius), info = radius)
+    expect_identical(as.matrix(pairwise) != 0, brute(radius), info = radius)
+  }
+  # A radius far beyond the volume must not enumerate a radius-sized stencil.
+  elapsed <- system.time(
+    frame <- compile_frame(searchlights(1000), domain)
+  )[["elapsed"]]
+  expect_lt(elapsed, 5)
+  saturated <- compile_frame(searchlights(24), domain)$support_index
+  expect_identical(frame$support_index$members, saturated$members)
+  expect_identical(frame$support_index$ptr, saturated$ptr)
+  # The pair pattern is route-independent: dense and sparse products agree.
+  membership <- methods::as(
+    crossform:::.volume_ball_membership(domain, 24) != 0, "nMatrix"
   )
+  dense_route <- crossform:::.support_pair_pattern(membership)
+  sparse_route <- methods::as(
+    methods::as(Matrix::crossprod(membership), "symmetricMatrix"), "nMatrix"
+  )
+  expect_identical(dense_route, sparse_route)
+})
+
+test_that("eager and lazy pair graphs share identity and differ in receipts", {
+  domain <- volume_domain(array(TRUE, c(4, 4, 3)), id = "lazy-eager-identity")
+  membership <- crossform:::.volume_ball_membership(domain, 1.01)
+  construction <- list(
+    kind = "euclidean_ball",
+    provider = "volume_stencil",
+    radius = 1.01,
+    coordinate_units = domain$coordinate_units,
+    lookup = "offset_stencil"
+  )
+  lazy <- crossform:::.support_index_from_membership(
+    membership, domain, domain$feature_ids, construction,
+    pair_pattern_route = "lazy"
+  )
+  eager <- crossform:::.support_index_from_membership(
+    membership, domain, domain$feature_ids, construction,
+    pair_pattern_route = "eager"
+  )
+
+  expect_identical(lazy$signature, eager$signature)
+  expect_identical(crossform:::.support_index_pair_pattern_route(lazy), "lazy")
+  expect_identical(crossform:::.support_index_pair_pattern_route(eager), "eager")
+  expect_null(lazy$pair_pattern)
+  expect_false(is.null(eager$pair_pattern))
+  expect_identical(
+    crossform:::.support_index_pair_pattern(lazy),
+    eager$pair_pattern
+  )
+  expect_lt(
+    lazy$cost$estimated_structural_bytes,
+    eager$cost$estimated_structural_bytes
+  )
+})
+
+test_that("ordinary searchlight compile never builds the union pair graph", {
+  domain <- volume_domain(array(TRUE, c(5, 4, 3)), id = "lazy-searchlight")
+  frame <- compile_frame(searchlights(1.5), domain)
+  expect_null(frame$support_index$pair_pattern)
+  expect_identical(
+    crossform:::.support_index_pair_pattern_route(frame$support_index),
+    "lazy"
+  )
+  relation <- relation(
+    list(
+      run1 = matrix(seq_len(2 * domain$n_features), 2L,
+        dimnames = list(c("a", "b"), NULL)),
+      run2 = matrix(rev(seq_len(2 * domain$n_features)), 2L,
+        dimnames = list(c("a", "b"), NULL))
+    ),
+    domain = domain
+  )
+  plan <- plan_geometry(relation, frame, cross_partitions(relation))
+  values <- rdm(plan)
+  expect_true(is.finite(sum(values$values)))
+  expect_null(plan$frame$support_index$pair_pattern)
+  expect_null(frame$support_index$pair_pattern)
 })

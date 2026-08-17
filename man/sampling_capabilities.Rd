@@ -7,15 +7,15 @@
 sampling_capabilities(x, fit = NULL)
 }
 \arguments{
-\item{x}{A compiled `effect_geometry_plan` (or crossnobis plan).}
+\item{x}{A compiled \code{effect_geometry_plan} (or crossnobis plan).}
 
-\item{fit}{Optional `effect_relation_fit` supplying the error channel;
+\item{fit}{Optional \code{effect_relation_fit} supplying the error channel;
 omitting it probes the plan's bare relation, which has no channel.}
 }
 \value{
-An `effect_sampling_capabilities` list: `available`, the full
-  `capabilities` record, and a `reasons` data frame with one row per
-  unmet requirement (`reason`, `why`, `remedy`).
+An \code{effect_sampling_capabilities} list: \code{available}, the full
+\code{capabilities} record, and a \code{reasons} data frame with one row per
+unmet requirement (\code{reason}, \code{why}, \code{remedy}).
 }
 \description{
 A scientist should be able to ask what the uncertainty channel will grant
@@ -23,12 +23,44 @@ instead of discovering refusals one at a time. This inspection compiles
 the evidence-sampling admission for a plan and error source and reports
 every unmet requirement with its remedy, without computing anything.
 }
+\section{What this cannot answer in advance}{
+
+Every requirement reported here is a property of the plan and its error
+channel, so it can be checked without touching neural values. One
+requirement of \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} is not: whether a \emph{particular}
+measurement has enough residual degrees of freedom for the number of
+residual directions its own support spends variance on
+(capability \code{"sufficient_residual_df"}). That depends on the local residual
+spectrum and can only be known once it is computed, so \code{available = TRUE}
+here does not promise that every measurement will be answerable.
+}
+
 \examples{
+# Ask before provoking: the fixture's fit retains a residual channel, so
+# the analytic law is admitted.
 example <- example_fmri_effects()
 plan <- plan_geometry(
   example$fit$relation, example$frame,
   cross_partitions(example$fit$relation, independence = "independent")
 )
-sampling_capabilities(plan, example$fit)$available
-sampling_capabilities(plan)$reasons$reason
+capabilities <- sampling_capabilities(plan, example$fit)
+capabilities$available
+capabilities
+
+# Probing the bare relation instead reports every unmet requirement with
+# its remedy, rather than failing one refusal at a time.
+without_fit <- sampling_capabilities(plan)
+without_fit$reasons
 }
+\seealso{
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, the call this inspection describes,
+and \code{\link[=catch_refusal]{catch_refusal()}} for branching on a refusal that has already
+happened.
+
+Other sampling uncertainty: 
+\code{\link{rdm_sampling_covariance}()},
+\code{\link{reconstruct_evidence}()},
+\code{\link{residual_pair_statistics}()},
+\code{\link{sampling_covariance}()}
+}
+\concept{sampling uncertainty}

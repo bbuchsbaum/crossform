@@ -1,13 +1,12 @@
 # Frozen-provenance, on-demand metric learning -----------------------------
 
 .validate_metric_floor <- function(relative_floor, absolute_floor) {
-  if (!is.numeric(relative_floor) || length(relative_floor) != 1L ||
-      is.na(relative_floor) || !is.finite(relative_floor) ||
-      relative_floor <= 0 || !is.numeric(absolute_floor) ||
-      length(absolute_floor) != 1L || is.na(absolute_floor) ||
-      !is.finite(absolute_floor) || absolute_floor < 0) {
-    stop("Metric variance floors must be finite, with a positive relative floor and a nonnegative absolute floor.",
-      call. = FALSE)
+  if (!.is_number(relative_floor) || relative_floor <= 0 ||
+      !.is_number(absolute_floor) || absolute_floor < 0) {
+    .input_error(paste0(
+      "Metric variance floors must be finite, with a positive relative floor ",
+      "and a nonnegative absolute floor."
+    ))
   }
   list(
     relative_variance_floor = as.double(relative_floor),
@@ -24,7 +23,31 @@
 #'
 #' @param domain Optional exact neural domain. Omitting it defers domain binding
 #'   until schedule compilation.
-#' @return An `effect_metric_recipe`.
+#' @return An `effect_metric_recipe` with `$kind`, the optional bound
+#'   `$domain`, a `$capabilities` record, the fixed `$hyperparameters`
+#'   (estimator, randomness, seed), and a `$signature`. It allocates no
+#'   matrix.
+#' @seealso [diagonal_precision()] and [shrinkage_precision()] for
+#'   residual-derived recipes, [metric_capabilities()] to inspect one, and
+#'   [plan_crossnobis()], which binds a recipe to residual statistics.
+#' @family neural metrics
+#' @examples
+#' # A recipe is a declaration, not a matrix: no domain-wide operator exists
+#' # until a schedule binds it to supports.
+#' recipe <- identity_metric()
+#' recipe$kind
+#' recipe$hyperparameters$estimator
+#' metric_capabilities(recipe)$materialized
+#'
+#' # Bind the domain up front when you want a domain mismatch caught before
+#' # schedule compilation rather than during it.
+#' domain <- abstract_domain(3, id = "identity-metric-example")
+#' identity_metric(domain)$domain$id
+#'
+#' # Unlike the residual-derived recipes, this one estimates nothing, so it
+#' # stays diagonal and needs no residual channel.
+#' c(identity = metric_capabilities(recipe)$native_diagonal,
+#'   shrinkage = metric_capabilities(shrinkage_precision())$native_diagonal)
 #' @export
 identity_metric <- function(domain = NULL) {
   .metric_recipe(
@@ -42,11 +65,36 @@ identity_metric <- function(domain = NULL) {
 
 #' Specify on-demand diagonal residual-variance precision
 #'
+#' The local metric is the inverse of the residual variance of each feature,
+#' floored so that a near-silent feature cannot dominate. Use it for
+#' univariate noise normalization when a full local covariance is not wanted
+#' or not estimable.
+#'
 #' @inheritParams identity_metric
 #' @param relative_variance_floor Positive floor relative to the mean positive
 #'   local residual variance.
 #' @param absolute_variance_floor Nonnegative floor in squared response units.
-#' @return An `effect_metric_recipe`.
+#' @return An `effect_metric_recipe` whose `$hyperparameters` record the
+#'   `residual_diagonal_inverse` estimator and both variance floors, with
+#'   `$capabilities$native_diagonal` true and `$capabilities$materialized`
+#'   false until a schedule binds it.
+#' @seealso [shrinkage_precision()] for a full local covariance shrunk to its
+#'   diagonal, and [plan_crossnobis()], which consumes the recipe.
+#' @family neural metrics
+#' @examples
+#' # The estimator and both floors are fixed by the recipe, so they are part
+#' # of the plan identity rather than a runtime tuning choice.
+#' recipe <- diagonal_precision(relative_variance_floor = 1e-6)
+#' recipe$kind
+#' recipe$hyperparameters[c("estimator", "relative_variance_floor")]
+#'
+#' # The floor is a guard against dividing by a near-zero residual variance.
+#' diagonal_precision(absolute_variance_floor = 0.01)$
+#'   hyperparameters$absolute_variance_floor
+#'
+#' # A nonpositive relative floor would remove that guard, so it is refused.
+#' refused <- try(diagonal_precision(relative_variance_floor = 0), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 diagonal_precision <- function(relative_variance_floor = 1e-8,
                                absolute_variance_floor = 0,
@@ -78,27 +126,42 @@ diagonal_precision <- function(relative_variance_floor = 1e-8,
 #' @param shrinkage Fixed number in `(0, 1]`.
 #' @param relative_spectral_floor Positive minimum eigenvalue relative to the
 #'   local covariance scale.
-#' @return An `effect_metric_recipe`.
+#' @return An `effect_metric_recipe` whose `$hyperparameters` record the
+#'   `fixed_shrinkage_to_residual_diagonal` estimator, the fixed
+#'   `shrinkage`, and the variance and spectral floors. It is not diagonal,
+#'   so it needs a dense local support.
+#' @seealso [diagonal_precision()] for the diagonal-only recipe,
+#'   [metric_training_policy()] for which partitions may train it, and
+#'   [plan_crossnobis()] to compile it.
+#' @family neural metrics
+#' @examples
+#' # The default shrinks the local residual covariance 10% toward its own
+#' # diagonal, which keeps small searchlights invertible.
+#' recipe <- shrinkage_precision()
+#' recipe$hyperparameters$shrinkage
+#'
+#' # Shrinkage is fixed by the recipe, never tuned on evaluation effects, so
+#' # changing it names a different estimand.
+#' shrinkage_precision(0.3)$hyperparameters$shrinkage
+#'
+#' # Unlike a diagonal recipe, this one needs the full local support.
+#' metric_capabilities(recipe)[c("native_diagonal", "support_dense")]
+#'
+#' # Shrinkage must lie in (0, 1]; zero would be an unregularized covariance.
+#' refused <- try(shrinkage_precision(0), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 shrinkage_precision <- function(shrinkage = 0.1,
                                 relative_variance_floor = 1e-8,
                                 absolute_variance_floor = 0,
                                 relative_spectral_floor = 1e-10,
                                 domain = NULL) {
-  if (!is.numeric(shrinkage) || length(shrinkage) != 1L ||
-      is.na(shrinkage) || !is.finite(shrinkage) ||
-      shrinkage <= 0 || shrinkage > 1) {
-    stop("`shrinkage` must be one finite number in (0, 1].",
-      call. = FALSE)
+  if (!.is_number(shrinkage) || shrinkage <= 0 || shrinkage > 1) {
+    .input_error("`shrinkage` must be one finite number in (0, 1].")
   }
-  if (!is.numeric(relative_spectral_floor) ||
-      length(relative_spectral_floor) != 1L ||
-      is.na(relative_spectral_floor) ||
-      !is.finite(relative_spectral_floor) ||
-      relative_spectral_floor <= 0) {
-    stop("`relative_spectral_floor` must be one positive finite number.",
-      call. = FALSE)
-  }
+  .check_number(
+    relative_spectral_floor, "relative_spectral_floor", positive = TRUE
+  )
   floors <- .validate_metric_floor(
     relative_variance_floor, absolute_variance_floor
   )
@@ -124,8 +187,10 @@ shrinkage_precision <- function(shrinkage = 0.1,
   domain <- .domain_reference(domain)
   if (!is.null(recipe$domain)) {
     if (!.same_domain_reference(recipe$domain, domain)) {
-      stop("The metric recipe and residual statistics use different neural domains.",
-        call. = FALSE)
+      .contract_error(paste0(
+        "The metric recipe and residual statistics use different neural ",
+        "domains."
+      ))
     }
     return(recipe)
   }
@@ -144,13 +209,52 @@ shrinkage_precision <- function(shrinkage = 0.1,
 
 #' Declare which residual partitions may train a metric
 #'
+#' `metric_training_policy()` fixes the partition discipline used when a
+#' metric recipe is estimated from residuals, so metric training cannot
+#' silently borrow the partitions whose products are being evaluated. Pass it
+#' to [plan_crossnobis()].
+#'
 #' @param kind `"exclude_evaluation"` estimates each edge metric without its
 #'   two evaluation partitions. `"all_partitions_residual_orthogonality"`
 #'   admits evaluation-partition GLM residuals under an explicit orthogonality
 #'   justification.
 #' @param justification Required for the all-partitions policy. It records why
 #'   residual reuse is scientifically admitted; it is not treated as proof.
-#' @return An `effect_metric_training_policy`.
+#' @return An `effect_metric_training_policy` recording `$kind`,
+#'   `$includes_evaluation_residuals`, the named `$assumption` it rests on,
+#'   the stored `$justification`, and a `$signature` bound into plan identity.
+#' @seealso [plan_crossnobis()], which enforces this policy, and
+#'   [shrinkage_precision()] for the recipe it governs.
+#' @family neural metrics
+#'
+#' @section Refusal:
+#' Requesting `"all_partitions_residual_orthogonality"` without a
+#' `justification` signals an `effect_capability_refusal` carrying capability
+#' `"evaluation_residual_reuse"` in namespace `"metric_learning"`, with reason
+#' `"residual_reuse_justification_absent"`. Inspect it with [catch_refusal()].
+#' @examples
+#' # The default trains each edge's metric without its two evaluation
+#' # partitions, so the metric and the products stay disjoint.
+#' policy <- metric_training_policy()
+#' policy$kind
+#' c(reuses_evaluation = policy$includes_evaluation_residuals,
+#'   assumption = policy$assumption)
+#'
+#' # Reusing evaluation-partition residuals is admitted only with an explicit
+#' # written justification, which is recorded, not verified.
+#' permissive <- metric_training_policy(
+#'   "all_partitions_residual_orthogonality",
+#'   justification = "GLM residuals are orthogonal to the fitted effects."
+#' )
+#' permissive$includes_evaluation_residuals
+#'
+#' # Omitting that justification is refused, and the refusal is classed, so a
+#' # caller can branch on the capability rather than on the prose.
+#' refusal <- catch_refusal(
+#'   metric_training_policy("all_partitions_residual_orthogonality")
+#' )
+#' refusal$capability
+#' refusal$reasons
 #' @export
 metric_training_policy <- function(
     kind = c("exclude_evaluation",
@@ -158,16 +262,29 @@ metric_training_policy <- function(
     justification = NULL) {
   kind <- match.arg(kind)
   if (identical(kind, "all_partitions_residual_orthogonality")) {
-    if (!is.character(justification) || length(justification) != 1L ||
-        is.na(justification) || !nzchar(justification)) {
-      stop("All-partitions residual reuse requires one explicit justification.",
-        call. = FALSE)
+    if (!.is_string(justification)) {
+      .capability_refusal(paste0(
+        "Reusing evaluation-partition residuals to train a metric requires ",
+        "one explicit written `justification`, which is recorded in the plan ",
+        "identity and never treated as proof. Without it the metric would be ",
+        "estimated from the same residuals whose products are being ",
+        "evaluated, and the resulting distances would be optimistically ",
+        "biased by an amount this package cannot quantify."
+      ),
+        capability = "evaluation_residual_reuse",
+        namespace = "metric_learning",
+        reasons = "residual_reuse_justification_absent",
+        remedies = paste0(
+          "Keep the default `metric_training_policy(\"exclude_evaluation\")`, ",
+          "or pass `justification = ` stating why residual reuse is admitted ",
+          "for this design."
+        )
+      )
     }
   } else if (!is.null(justification) &&
       (!is.character(justification) || length(justification) != 1L ||
        is.na(justification) || !nzchar(justification))) {
-    stop("`justification` must be NULL or one nonempty string.",
-      call. = FALSE)
+    .input_error("`justification` must be NULL or one nonempty string.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -185,23 +302,20 @@ metric_training_policy <- function(
     justification = justification
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_metric_training_policy")
 }
 
 .validate_metric_training_policy <- function(x) {
   expected <- c("kind", "includes_evaluation_residuals", "assumption",
     "justification", "signature")
-  if (!inherits(x, "effect_metric_training_policy") || !is.list(x) ||
-      !identical(names(x), expected) || !.strong_sha256(x$signature)) {
-    stop("Metric-training-policy fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_metric_training_policy", expected) ||
+      !.strong_sha256(x$signature)) {
+    .input_error("Metric-training-policy fields are missing or noncanonical.")
   }
   rebuilt <- metric_training_policy(x$kind, x$justification)
   if (!identical(x, rebuilt)) {
-    stop("Metric-training-policy identity is inconsistent.", call. = FALSE)
+    .contract_error("Metric-training-policy identity is inconsistent.")
   }
   x
 }
@@ -210,12 +324,11 @@ metric_training_policy <- function(
   recipe <- .validate_metric_recipe(recipe)
   policy <- .validate_metric_training_policy(policy)
   .validate_pairing(over)
-  if (!is.character(partitions) || length(partitions) < 1L ||
-      anyNA(partitions) || any(!nzchar(partitions)) ||
-      anyDuplicated(partitions) || any(!over$left %in% partitions) ||
-      any(!over$right %in% partitions)) {
-    stop("Metric-training partitions and evaluation edges are inconsistent.",
-      call. = FALSE)
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
+      any(!over$left %in% partitions) || any(!over$right %in% partitions)) {
+    .input_error(
+      "Metric-training partitions and evaluation edges are inconsistent."
+    )
   }
   if (identical(recipe$kind, "identity")) {
     return(invisible(TRUE))
@@ -225,10 +338,10 @@ metric_training_policy <- function(
       length(setdiff(partitions, c(over$left[[edge]], over$right[[edge]])))
     }, integer(1))
     if (any(available < 1L)) {
-      stop(sprintf(
+      .input_error(sprintf(
         "Evaluation edge %d leaves no residual partition for metric training.",
         which(available < 1L)[[1L]]
-      ), call. = FALSE)
+      ))
     }
   }
   invisible(TRUE)
@@ -262,10 +375,10 @@ metric_training_policy <- function(
     statistics$partitions
   }
   if (!identical(recipe$kind, "identity") && length(training) < 1L) {
-    stop(sprintf(
+    .input_error(sprintf(
       "Evaluation edge %d leaves no residual partition for metric training.",
       edge
-    ), call. = FALSE)
+    ))
   }
   atomic <- statistics$atomic[training]
   atomic_signatures <- vapply(atomic, `[[`, character(1), "signature")
@@ -289,14 +402,30 @@ metric_training_policy <- function(
   structure(c(semantic[c("edge", "evaluation_left", "evaluation_right",
     "training_partitions", "atomic_signatures", "source_revisions",
     "residual_revisions")], list(
-    training_signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    training_signature = .sha256_signature(semantic)
   )), class = "effect_metric_training_record")
 }
 
+# What a compiled schedule can do is a function of its recipe alone. Stated
+# once, so that `compile_metric_schedule()` and the validator that re-derives
+# its capabilities cannot drift: an identity recipe is not learned and needs
+# no metric-uncertainty term in calibration; nothing is ever materialized,
+# because local covariance and precision are derived on demand.
+.metric_schedule_capabilities <- function(recipe) {
+  list(
+    feature_additive = recipe$capabilities$feature_additive,
+    support_dense = recipe$capabilities$support_dense,
+    learned = !identical(recipe$kind, "identity"),
+    provenance_frozen = TRUE,
+    materialized = FALSE,
+    on_demand = TRUE,
+    calibration_requires_metric_uncertainty =
+      !identical(recipe$kind, "identity")
+  )
+}
+
 .metric_schedule_signature <- function(x) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     role = x$role,
     recipe_specification = x$recipe_specification,
@@ -307,22 +436,19 @@ metric_training_policy <- function(
     training_policy = x$training_policy$signature,
     records = vapply(x$records, `[[`, character(1), "training_signature"),
     capabilities = unclass(x$capabilities)
-  ), algo = "sha256", serialize = TRUE))
+  ))
 }
 
 .validate_frozen_metric_schedule <- function(x, deep = FALSE) {
   expected <- c("role", "recipe_specification", "recipe", "statistics",
     "support_index", "pairing", "training_policy", "records",
     "capabilities", "execution", "signature")
-  if (!inherits(x, "effect_frozen_metric_schedule") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_frozen_metric_schedule", expected) ||
       !identical(x$role, "same_space_metric_schedule") ||
-      !.strong_sha256(x$recipe_specification) ||
-      !is.list(x$records) || length(x$records) < 1L ||
-      !is.list(x$capabilities) || !is.list(x$execution) ||
-      !.strong_sha256(x$signature)) {
-    stop("Frozen metric-schedule fields are missing or noncanonical.",
-      call. = FALSE)
+      !.strong_sha256(x$recipe_specification) || !is.list(x$records) ||
+      length(x$records) < 1L || !is.list(x$capabilities) ||
+      !is.list(x$execution) || !.strong_sha256(x$signature)) {
+    .input_error("Frozen metric-schedule fields are missing or noncanonical.")
   }
   recipe <- .validate_metric_recipe(x$recipe)
   statistics <- x$statistics
@@ -335,22 +461,12 @@ metric_training_policy <- function(
       !.same_domain_reference(index$domain, statistics$domain) ||
       !identical(index$signature, statistics$support_index) ||
       length(x$records) != nrow(x$pairing)) {
-    stop("Frozen metric-schedule domains, supports, or edges are inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Frozen metric-schedule domains, supports, or edges are inconsistent."
+    )
   }
-  expected_capabilities <- list(
-    feature_additive = recipe$capabilities$feature_additive,
-    support_dense = recipe$capabilities$support_dense,
-    learned = !identical(recipe$kind, "identity"),
-    provenance_frozen = TRUE,
-    materialized = FALSE,
-    on_demand = TRUE,
-    calibration_requires_metric_uncertainty =
-      !identical(recipe$kind, "identity")
-  )
-  if (!identical(x$capabilities, expected_capabilities)) {
-    stop("Frozen metric-schedule capabilities are inconsistent.",
-      call. = FALSE)
+  if (!identical(x$capabilities, .metric_schedule_capabilities(recipe))) {
+    .input_error("Frozen metric-schedule capabilities are inconsistent.")
   }
   if (isTRUE(deep)) {
     expected_records <- lapply(seq_len(nrow(x$pairing)), function(edge) {
@@ -361,7 +477,7 @@ metric_training_policy <- function(
     names(expected_records) <- paste0("edge_", seq_along(expected_records))
     if (!identical(x$records, expected_records) ||
         !identical(x$signature, .metric_schedule_signature(x))) {
-      stop("Frozen metric-schedule identity is inconsistent.", call. = FALSE)
+      .contract_error("Frozen metric-schedule identity is inconsistent.")
     }
   }
   invisible(x)
@@ -390,15 +506,17 @@ compile_metric_schedule <- function(
   recipe_specification <- .validate_metric_recipe(recipe)$signature
   .validate_residual_pair_statistics(statistics, deep = TRUE)
   index <- .residual_statistics_support_index(at, statistics$domain)
-  if (!identical(index$signature, statistics$support_index)) {
-    stop("Metric compilation requires the exact support index used by the residual statistics.",
-      call. = FALSE)
-  }
+  .check_signature(
+    index$signature, statistics$support_index,
+    "Metric compilation requires the exact support index used by the residual statistics."
+  )
   .validate_pairing(over)
   if (any(!over$left %in% statistics$partitions) ||
       any(!over$right %in% statistics$partitions)) {
-    stop("Every metric evaluation endpoint must identify a residual-statistics partition.",
-      call. = FALSE)
+    .input_error(paste0(
+      "Every metric evaluation endpoint must identify a residual-statistics ",
+      "partition."
+    ))
   }
   policy <- .validate_metric_training_policy(training)
   .preflight_metric_training(
@@ -410,29 +528,20 @@ compile_metric_schedule <- function(
     "fixed_diagonal_shrinkage_precision"
   )
   if (!recipe$kind %in% supported) {
-    stop("This metric recipe has no admitted on-demand learner.",
-      call. = FALSE)
+    .input_error("This metric recipe has no admitted on-demand learner.")
   }
   coordinates <- .residual_pair_coordinates(index)
   if (!identical(coordinates$i, statistics$pair_i) ||
       !identical(coordinates$j, statistics$pair_j)) {
-    stop("Residual statistics do not match the support pair graph order.",
-      call. = FALSE)
+    .contract_error(
+      "Residual statistics do not match the support pair graph order."
+    )
   }
   records <- lapply(seq_len(nrow(over)), function(edge) {
     .metric_training_record(edge, over, recipe, statistics, policy)
   })
   names(records) <- paste0("edge_", seq_along(records))
-  capabilities <- list(
-    feature_additive = recipe$capabilities$feature_additive,
-    support_dense = recipe$capabilities$support_dense,
-    learned = !identical(recipe$kind, "identity"),
-    provenance_frozen = TRUE,
-    materialized = FALSE,
-    on_demand = TRUE,
-    calibration_requires_metric_uncertainty =
-      !identical(recipe$kind, "identity")
-  )
+  capabilities <- .metric_schedule_capabilities(recipe)
   value <- structure(list(
     role = "same_space_metric_schedule",
     recipe_specification = recipe_specification,
@@ -459,27 +568,11 @@ compile_metric_schedule <- function(
       !is.na(edge) && edge %in% names(schedule$records)) {
     return(match(edge, names(schedule$records)))
   }
-  if (!is.numeric(edge) || length(edge) != 1L || is.na(edge) ||
-      !is.finite(edge) || edge %% 1 != 0 || edge < 1L ||
+  if (!.is_number(edge) || edge %% 1 != 0 || edge < 1L ||
       edge > length(schedule$records)) {
-    stop("`edge` must identify one compiled metric evaluation edge.",
-      call. = FALSE)
+    .input_error("`edge` must identify one compiled metric evaluation edge.")
   }
   as.integer(edge)
-}
-
-.metric_schedule_node <- function(index, node) {
-  index <- .validate_support_index(index)
-  if (is.numeric(node) && length(node) == 1L && !is.na(node) &&
-      is.finite(node) && node %% 1 == 0 && node >= 1L &&
-      node <= length(index$node_ids)) {
-    return(as.integer(node))
-  }
-  position <- match(node, index$node_ids)
-  if (length(position) != 1L || is.na(position)) {
-    stop("`node` must identify one compiled metric support.", call. = FALSE)
-  }
-  as.integer(position)
 }
 
 .metric_schedule_node_trusted <- function(index, node) {
@@ -490,22 +583,26 @@ compile_metric_schedule <- function(
   }
   position <- match(node, index$node_ids)
   if (length(position) != 1L || is.na(position)) {
-    stop("`node` must identify one compiled metric support.", call. = FALSE)
+    .input_error("`node` must identify one compiled metric support.")
   }
   as.integer(position)
 }
 
 .local_residual_covariance <- function(index, support, covariance) {
-  index <- .validate_support_index(index)
+  index <- .support_index_materialize_pair_pattern(
+    .validate_support_index(index)
+  )
   .local_residual_covariance_trusted(index, support, covariance)
 }
 
-.local_residual_covariance_trusted <- function(index, support, covariance) {
+.local_residual_covariance_oracle <- function(index, support, covariance) {
+  index <- .support_index_materialize_pair_pattern(index)
   pattern <- index$pair_pattern
   if (!identical(pattern@uplo, "U") ||
       length(covariance) != length(pattern@i)) {
-    stop("Local covariance extraction requires the canonical upper pair graph.",
-      call. = FALSE)
+    .input_error(
+      "Local covariance extraction requires the canonical upper pair graph."
+    )
   }
   dimension <- length(support)
   value <- matrix(0, dimension, dimension)
@@ -518,8 +615,9 @@ compile_metric_schedule <- function(
     desired <- support[seq_len(column)]
     matched <- match(desired, rows)
     if (anyNA(matched)) {
-      stop("A support pair is absent from its declared union pair graph.",
-        call. = FALSE)
+      .input_error(
+        "A support pair is absent from its declared union pair graph."
+      )
     }
     pair_values <- covariance[slots[matched]]
     value[seq_len(column), column] <- pair_values
@@ -528,24 +626,32 @@ compile_metric_schedule <- function(
   value
 }
 
+.local_residual_covariance_trusted <- function(index, support, covariance) {
+  # Native CSC gather was prototyped and rejected: isolated speedup was
+  # 1.69x against the R gather (bar: 2x) on 800 supports of mean size 61.
+  # Keep the R gather as the production path; `.local_residual_gather_cpp`
+  # remains as the recorded prototype.
+  .local_residual_covariance_oracle(index, support, covariance)
+}
+
 .local_residual_scope_covariance <- function(statistics, index, support,
                                              partitions) {
-  if (!is.character(partitions) || length(partitions) < 1L ||
-      anyNA(partitions) || any(!nzchar(partitions)) ||
-      anyDuplicated(partitions) ||
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
       any(!partitions %in% statistics$partitions)) {
-    stop("A local residual scope must select unique atomic partitions.",
-      call. = FALSE)
+    .input_error("A local residual scope must select unique atomic partitions.")
   }
   # Match .canonical_reduce() exactly, but gather only the requested support.
   # This avoids an edge-specific vector over the complete union pair graph
   # while retaining the same elementwise floating-point reduction order.
   partitions <- partitions[order(partitions, method = "radix")]
+  if (is.null(index$pair_pattern)) {
+    index <- .support_index_materialize_pair_pattern(index)
+  }
   combined <- matrix(0, length(support), length(support))
   residual_df <- 0
   for (partition in partitions) {
     atomic <- statistics$atomic[[partition]]
-    local <- .local_residual_covariance_trusted(
+    local <- .local_residual_covariance_oracle(
       index, support, atomic$cross_products
     )
     combined[] <- combined + local
@@ -572,7 +678,7 @@ compile_metric_schedule <- function(
   variance <- diag(covariance)
   positive <- variance[variance > 0]
   if (!length(positive)) {
-    stop("Residual covariance has no positive local variance.", call. = FALSE)
+    .input_error("Residual covariance has no positive local variance.")
   }
   hyper <- recipe$hyperparameters
   floor <- max(
@@ -631,47 +737,42 @@ compile_metric_schedule <- function(
   }
   final_diagnostics <- .metric_covariance_diagnostics(covariance)
   if (!is.finite(final_diagnostics$condition)) {
-    stop("Regularized local covariance is not positive definite.",
-      call. = FALSE)
+    .invariant_error("Regularized local covariance is not positive definite.")
   }
   apply_K <- if (!is.null(precision_diagonal)) {
     function(value) {
       if (is.atomic(value) && is.null(dim(value))) {
-        if (!is.numeric(value) || length(value) != dimension ||
-            any(!is.finite(value))) {
-          stop("Metric application requires one finite local vector.",
-            call. = FALSE)
+        if (!.is_finite_numeric(value) || length(value) != dimension) {
+          .input_error("Metric application requires one finite local vector.")
         }
         return(precision_diagonal * value)
       }
-      if (!is.matrix(value) || !is.numeric(value) ||
-          nrow(value) != dimension || any(!is.finite(value))) {
-        stop("Metric application requires finite local vectors in columns.",
-          call. = FALSE)
+      if (!.is_finite_matrix(value) || nrow(value) != dimension) {
+        .input_error(
+          "Metric application requires finite local vectors in columns."
+        )
       }
       precision_diagonal * value
     }
   } else {
     function(value) {
       if (is.atomic(value) && is.null(dim(value))) {
-        if (!is.numeric(value) || length(value) != dimension ||
-            any(!is.finite(value))) {
-          stop("Metric application requires one finite local vector.",
-            call. = FALSE)
+        if (!.is_finite_numeric(value) || length(value) != dimension) {
+          .input_error("Metric application requires one finite local vector.")
         }
       } else if (!is.matrix(value) || !is.numeric(value) ||
           nrow(value) != dimension || any(!is.finite(value))) {
-        stop("Metric application requires finite local vectors in columns.",
-          call. = FALSE)
+        .input_error(
+          "Metric application requires finite local vectors in columns."
+        )
       }
       backsolve(factor, forwardsolve(t(factor), value))
     }
   }
   quadform_Kinv <- function(value) {
-    if (!is.numeric(value) || is.matrix(value) ||
-        length(value) != dimension || any(!is.finite(value))) {
-      stop("Inverse quadratic forms require one finite local vector.",
-        call. = FALSE)
+    if (!.is_finite_numeric(value) || is.matrix(value) ||
+        length(value) != dimension) {
+      .input_error("Inverse quadratic forms require one finite local vector.")
     }
     drop(crossprod(value, covariance %*% value))
   }
@@ -724,11 +825,11 @@ compile_metric_schedule <- function(
     )
   }
   form <- function(left, right) {
-    if (!is.matrix(left) || !is.numeric(left) || ncol(left) != dimension ||
-        any(!is.finite(left)) || !is.matrix(right) || !is.numeric(right) ||
-        ncol(right) != dimension || any(!is.finite(right))) {
-      stop("Metric forms require finite matrices sharing the local feature axis.",
-        call. = FALSE)
+    if (!.is_finite_matrix(left) || ncol(left) != dimension ||
+        !.is_finite_matrix(right) || ncol(right) != dimension) {
+      .input_error(
+        "Metric forms require finite matrices sharing the local feature axis."
+      )
     }
     left %*% apply_K(t(right))
   }
@@ -751,9 +852,7 @@ compile_metric_schedule <- function(
     materialize = materialize,
     diagnostics = diagnostics,
     provenance = provenance,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_scheduled_metric_handle")
 }
 

@@ -5,16 +5,15 @@
     applied = FALSE) {
   kind <- match.arg(kind)
   values <- c(lambda_left = lambda_left, lambda_right = lambda_right)
-  if (!is.numeric(values) || anyNA(values) || any(!is.finite(values)) ||
-      any(values < 0) || !is.logical(applied) || length(applied) != 1L ||
-      is.na(applied)) {
-    stop("Regularization values and application state are invalid.",
-      call. = FALSE)
+  if (!.is_finite_numeric(values) || anyNA(values) || any(values < 0) ||
+      !.is_flag(applied)) {
+    .input_error("Regularization values and application state are invalid.")
   }
   if ((kind == "none" && (any(values != 0) || applied)) ||
       (kind == "ridge" && !any(values > 0))) {
-    stop("Regularization kind, values, and application state disagree.",
-      call. = FALSE)
+    .contract_error(
+      "Regularization kind, values, and application state disagree."
+    )
   }
   semantic <- list(
     schema_version = 1L,
@@ -24,25 +23,20 @@
     applied = applied
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_regularization")
 }
 
 .validate_measurement_regularization <- function(x) {
   expected <- c("kind", "lambda_left", "lambda_right", "applied", "signature")
-  if (!inherits(x, "effect_measurement_regularization") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Measurement regularization is missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_measurement_regularization", expected)) {
+    .input_error("Measurement regularization is missing or noncanonical.")
   }
   rebuilt <- .measurement_regularization(
     x$kind, x$lambda_left, x$lambda_right, x$applied
   )
   if (!identical(x, rebuilt)) {
-    stop("Measurement regularization identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Measurement regularization identity is inconsistent.")
   }
   rebuilt
 }
@@ -53,17 +47,19 @@
                                   provenance = list(), tolerance = 1e-12) {
   construction <- match.arg(construction)
   effect_space <- .validate_effect_space(effect_space)
-  if (!is.matrix(H) || !is.numeric(H) || nrow(H) != ncol(H) ||
-      nrow(H) != length(effect_space$coordinates) || any(!is.finite(H)) ||
+  if (!.is_finite_matrix(H) || nrow(H) != ncol(H) ||
+      nrow(H) != length(effect_space$coordinates) ||
       max(abs(H - t(H))) > tolerance) {
-    stop("A variation query must be finite, self-adjoint, and axis-bound.",
-      call. = FALSE)
+    .input_error(
+      "A variation query must be finite, self-adjoint, and axis-bound."
+    )
   }
   eigenvalues <- eigen((H + t(H)) / 2,
     symmetric = TRUE, only.values = TRUE)$values
   if (min(eigenvalues) < -tolerance) {
-    stop("A variation query construction must be positive semidefinite.",
-      call. = FALSE)
+    .input_error(
+      "A variation query construction must be positive semidefinite."
+    )
   }
   .measurement_identifier(sampling_axis, "Variation-query `sampling_axis`")
   .validate_effect_provenance(provenance, "variation-query provenance")
@@ -77,9 +73,7 @@
     provenance = provenance
   )
   metadata <- list(evidence_capability = c(proof[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      proof, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(proof)
   )))
   pair_query(H, effect_space, effect_space, metadata)
 }
@@ -98,8 +92,9 @@
          identical(capability$construction, "joint_covariance"))) ||
       !identical(capability$effect_space, query$left_space$signature) ||
       !identical(capability$operator, unname(as.matrix(query$operator)))) {
-    stop("Variation-query construction provenance is absent or inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Variation-query construction provenance is absent or inconsistent."
+    )
   }
   proof <- list(
     schema_version = 1L,
@@ -110,20 +105,19 @@
     operator = capability$operator,
     provenance = capability$provenance
   )
-  expected <- paste0("sha256:", digest::digest(
-    proof, algo = "sha256", serialize = TRUE
-  ))
-  if (!identical(capability$signature, expected)) {
-    stop("Variation-query construction signature is inconsistent.",
-      call. = FALSE)
-  }
+  expected <- .sha256_signature(proof)
+  .check_signature(
+    capability$signature, expected,
+    "Variation-query construction signature is inconsistent."
+  )
   h <- as.matrix(query$operator)
   if (!.same_effect_space(query$left_space, query$right_space) ||
       max(abs(h - t(h))) > tolerance ||
       min(eigen((h + t(h)) / 2, symmetric = TRUE,
         only.values = TRUE)$values) < -tolerance) {
-    stop("Variation-query construction does not establish a positive self form.",
-      call. = FALSE)
+    .input_error(
+      "Variation-query construction does not establish a positive self form."
+    )
   }
   invisible(query)
 }
@@ -154,8 +148,7 @@
   expected <- c("signature", "source_domain", "node_ids", "legs", "coverage",
     "injectivity", "dual")
   if (!is.list(x) || !identical(names(x), expected) ||
-      !is.character(x$signature) || length(x$signature) != 1L ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", x$signature) ||
+      !.strong_sha256(x$signature) ||
       !identical(names(x$legs), x$node_ids) ||
       any(!vapply(x$legs, function(leg) {
         is.list(leg) && identical(names(leg), c(
@@ -164,8 +157,7 @@
           (is.null(leg$decomposition) ||
            inherits(leg$decomposition, "effect_measurement_decomposition"))
       }, logical(1)))) {
-    stop("Measurement-frame manifest is missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Measurement-frame manifest is missing or noncanonical.")
   }
   .validate_domain_reference(x$source_domain)
   lapply(x$legs, function(leg) {
@@ -173,8 +165,7 @@
     if (!is.null(leg$decomposition)) {
       decomposition <- .validate_measurement_decomposition(leg$decomposition)
       if (!identical(decomposition$output_space, leg$output_space)) {
-        stop("Frame-manifest decomposition and output axes differ.",
-          call. = FALSE)
+        .contract_error("Frame-manifest decomposition and output axes differ.")
       }
     }
     invisible(leg)
@@ -184,13 +175,13 @@
 
 .measurement_edge_set_signature <- function(edges, left_frame, right_frame,
                                             weighted) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     left_frame = left_frame,
     right_frame = right_frame,
     weighted = weighted,
     edges = unclass(edges)
-  ), algo = "sha256", serialize = TRUE))
+  ))
 }
 
 .measurement_edges_are_complete <- function(edges, left_nodes, right_nodes) {
@@ -237,9 +228,7 @@
 
 .new_measurement_plan_from_fields <- function(fields) {
   semantic <- .measurement_plan_semantic(fields)
-  scientific_plan_id <- paste0("measurement-sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
-  ))
+  scientific_plan_id <- .sha256_signature(semantic, "measurement-sha256:")
   structure(c(fields, list(
     scientific_plan_id = scientific_plan_id,
     signature = scientific_plan_id
@@ -256,15 +245,15 @@
   edge_scope <- match.arg(edge_scope)
   regularization <- .validate_measurement_regularization(regularization)
   if (regularization$applied) {
-    stop("Raw measurement blocks cannot claim applied regularization.",
-      call. = FALSE)
+    .input_error("Raw measurement blocks cannot claim applied regularization.")
   }
   query <- task$experimental_boundary$query
   if (query_construction != "arbitrary") {
     if (!identical(task$experimental_boundary$role, "variation") ||
         is.null(task$experimental_boundary$sampling_axis)) {
-      stop("Positive variation capabilities require a variation boundary.",
-        call. = FALSE)
+      .input_error(
+        "Positive variation capabilities require a variation boundary."
+      )
     }
     .validate_variation_pair_query(
       query, task$experimental_boundary$sampling_axis,
@@ -275,10 +264,10 @@
       (!isTRUE(task$same_relation) ||
        any(task$ordered_partition_products$left !=
          task$ordered_partition_products$right))) {
-    stop(paste0(
+    .input_error(paste0(
       "A joint-covariance claim requires same-relation, same-partition ",
       "self-products; crossvalidated partition forms can be indefinite."
-    ), call. = FALSE)
+    ))
   }
   left_frame <- task$neural_boundary$left_frame
   right_frame <- task$neural_boundary$right_frame
@@ -287,8 +276,9 @@
       !.measurement_edges_are_complete(
         edge_set$edges, left_frame$node_ids, right_frame$node_ids
       )) {
-    stop("A frame-complete claim requires every explicit ordered node pair.",
-      call. = FALSE)
+    .input_error(
+      "A frame-complete claim requires every explicit ordered node pair."
+    )
   }
   block_index <- .measurement_block_index(
     edge_set, left_frame, right_frame
@@ -334,16 +324,12 @@
     "partition_products", "partition_expansion", "stages", "regularization",
     "edge_scope", "tolerance", "scientific_plan_id", "signature"
   )
-  if (!inherits(plan, "effect_measurement_plan") || !is.list(plan) ||
-      !identical(names(plan), expected) ||
-      !is.logical(plan$same_relation) || length(plan$same_relation) != 1L ||
-      is.na(plan$same_relation) ||
-      !plan$query_construction %in% c("arbitrary", "psd_variation",
-        "joint_covariance") ||
+  if (!.sealed_fields(plan, "effect_measurement_plan", expected) ||
+      !.is_flag(plan$same_relation) ||
+      !plan$query_construction %in% c("arbitrary", "psd_variation", "joint_covariance") ||
       !plan$edge_scope %in% c("requested", "frame_complete") ||
       !is.data.frame(plan$edges)) {
-    stop("Measurement scientific plan is missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Measurement scientific plan is missing or noncanonical.")
   }
   expected_source_names <- c("side", "relation_id", "partition",
     "stable_revision", "handle_key")
@@ -359,8 +345,9 @@
         plan$left_relation_id) ||
       any(plan$source_uses$relation_id[plan$source_uses$side == "right"] !=
         plan$right_relation_id)) {
-    stop("Measurement plan source-use ledger is missing or inconsistent.",
-      call. = FALSE)
+    .input_error(
+      "Measurement plan source-use ledger is missing or inconsistent."
+    )
   }
   .validate_effect_space(plan$left_effect_space)
   .validate_effect_space(plan$right_effect_space)
@@ -384,15 +371,13 @@
         right_frame$signature) ||
       !identical(index$left, plan$edges$left) ||
       !identical(index$right, plan$edges$right)) {
-    stop("Measurement plan edges, frames, and block index disagree.",
-      call. = FALSE)
+    .contract_error("Measurement plan edges, frames, and block index disagree.")
   }
   if (plan$edge_scope == "frame_complete" &&
       !.measurement_edges_are_complete(
         plan$edges, left_frame$node_ids, right_frame$node_ids
       )) {
-    stop("Measurement plan falsely claims a complete frame edge set.",
-      call. = FALSE)
+    .input_error("Measurement plan falsely claims a complete frame edge set.")
   }
   if (plan$query_construction != "arbitrary") {
     .validate_variation_pair_query(
@@ -403,8 +388,7 @@
   fields <- plan[setdiff(names(plan), c("scientific_plan_id", "signature"))]
   rebuilt <- .new_measurement_plan_from_fields(fields)
   if (!identical(plan, rebuilt)) {
-    stop("Measurement scientific-plan identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Measurement scientific-plan identity is inconsistent.")
   }
   invisible(plan)
 }
@@ -440,9 +424,7 @@
     construction = plan$query_construction
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_capabilities")
 }
 
@@ -450,14 +432,12 @@
   expected <- c("plan", "self_form", "symmetric", "guaranteed_psd",
     "repeated_variation", "joint_covariance", "complete_edge_set",
     "sampling_axis", "construction", "signature")
-  if (!inherits(x, "effect_measurement_capabilities") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Measurement-form capabilities are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_measurement_capabilities", expected)) {
+    .input_error("Measurement-form capabilities are missing or noncanonical.")
   }
   rebuilt <- .measurement_form_capabilities(plan)
   if (!identical(x, rebuilt)) {
-    stop("Measurement-form capabilities cannot be forged.", call. = FALSE)
+    .contract_error("Measurement-form capabilities cannot be forged.")
   }
   rebuilt
 }
@@ -513,22 +493,17 @@
     experimental_effective_rank = semantic$experimental_effective_rank,
     blocks = table,
     regularization = semantic$regularization,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   ), class = "effect_measurement_diagnostics")
 }
 
 .validate_measurement_diagnostics <- function(x, plan) {
   expected <- c("tolerance", "method", "experimental_effective_rank", "blocks",
     "regularization", "signature")
-  if (!inherits(x, "effect_measurement_diagnostics") || !is.list(x) ||
-      !identical(names(x), expected) ||
-      !identical(x$method, "svd-relative-v1") ||
-      !is.data.frame(x$blocks) ||
+  if (!.sealed_fields(x, "effect_measurement_diagnostics", expected) ||
+      !identical(x$method, "svd-relative-v1") || !is.data.frame(x$blocks) ||
       !identical(x$blocks$edge_id, plan$block_index$edge_id)) {
-    stop("Measurement diagnostics are missing or noncanonical.",
-      call. = FALSE)
+    .input_error("Measurement diagnostics are missing or noncanonical.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -538,13 +513,11 @@
     blocks = unclass(x$blocks),
     regularization = x$regularization
   )
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
-  ))
-  if (!identical(x$signature, expected_signature)) {
-    stop("Measurement diagnostics signature is inconsistent.",
-      call. = FALSE)
-  }
+  expected_signature <- .sha256_signature(semantic)
+  .check_signature(
+    x$signature, expected_signature,
+    "Measurement diagnostics signature is inconsistent."
+  )
   invisible(x)
 }
 
@@ -553,8 +526,9 @@
   plan <- .validate_measurement_plan(plan)
   if (!inherits(contraction, "effect_measurement_contraction") ||
       !identical(contraction$task_id, task$task_id)) {
-    stop("Measurement contraction and scientific task identities differ.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement contraction and scientific task identities differ."
+    )
   }
   sources <- c(task$left_relation$capabilities,
     if (task$same_relation) list() else task$right_relation$capabilities)
@@ -596,38 +570,35 @@
     derivation = list(kind = "executed", parent = NULL)
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_receipt")
 }
 
 .validate_measurement_receipt <- function(x, plan) {
   expected <- c("scientific_plan_id", "plan_signature", "execution", "route",
     "derivation", "signature")
-  if (!inherits(x, "effect_measurement_receipt") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_measurement_receipt", expected) ||
       !identical(x$scientific_plan_id, plan$scientific_plan_id) ||
-      !identical(x$plan_signature, plan$signature) ||
-      !is.list(x$derivation) ||
+      !identical(x$plan_signature, plan$signature) || !is.list(x$derivation) ||
       !identical(names(x$derivation), c("kind", "parent")) ||
       !x$derivation$kind %in% c("executed", "reversal")) {
-    stop("Measurement receipt is missing or inconsistent with its plan.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement receipt is missing or inconsistent with its plan."
+    )
   }
   .validate_execution_receipt(x$execution)
   if (x$derivation$kind == "executed" &&
       (!is.null(x$derivation$parent) ||
        !identical(x$execution$scientific_plan_id,
          plan$scientific_plan_id))) {
-    stop("Executed measurement receipt has contradictory provenance.",
-      call. = FALSE)
+    .contract_error(
+      "Executed measurement receipt has contradictory provenance."
+    )
   }
   if (x$derivation$kind == "reversal" &&
       (!is.character(x$derivation$parent) ||
        length(x$derivation$parent) != 1L)) {
-    stop("Reversed measurement receipt lacks its parent receipt.",
-      call. = FALSE)
+    .contract_error("Reversed measurement receipt lacks its parent receipt.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -637,23 +608,22 @@
     route = x$route,
     derivation = x$derivation
   )
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
-  ))
-  if (!identical(x$signature, expected_signature)) {
-    stop("Measurement receipt signature is inconsistent.", call. = FALSE)
-  }
+  expected_signature <- .sha256_signature(semantic)
+  .check_signature(
+    x$signature, expected_signature,
+    "Measurement receipt signature is inconsistent."
+  )
   invisible(x)
 }
 
 .measurement_contract_signature <- function(plan, capabilities, completeness) {
-  paste0("sha256:", digest::digest(list(
+  .sha256_signature(list(
     schema_version = 1L,
     type = "measurement_form",
     plan = plan$signature,
     capabilities = capabilities$signature,
     completeness = completeness
-  ), algo = "sha256", serialize = TRUE))
+  ))
 }
 
 .new_measurement_form <- function(store, plan, capabilities, diagnostics,
@@ -664,8 +634,9 @@
   .validate_measurement_receipt(receipt, plan)
   .validate_measurement_store(store, require_complete = TRUE, probe = TRUE)
   if (!identical(store$index, plan$block_index)) {
-    stop("Measurement store and scientific plan block indices differ.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement store and scientific plan block indices differ."
+    )
   }
   completeness <- "complete"
   structure(list(
@@ -687,6 +658,11 @@
     contract_signature = .measurement_contract_signature(
       plan, capabilities, completeness
     ),
+    # `completeness` reads "complete" here and "full" on an `effect_form`
+    # (R/result.R). The word is hashed into `$contract_signature` just above,
+    # so harmonizing the two would invalidate every recorded measurement-form
+    # identity. `$result_capability` is the field with one vocabulary across
+    # both result kinds; branch on that.
     result_capability = "complete_form",
     completeness = completeness
   ), class = "effect_measurement_form")
@@ -702,8 +678,9 @@
   edge_scope <- match.arg(edge_scope)
   if (!inherits(contraction, "effect_measurement_contraction") ||
       !identical(contraction$task_id, task$task_id)) {
-    stop("Measurement contraction does not belong to the requested task.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement contraction does not belong to the requested task."
+    )
   }
   plan <- .measurement_result_plan(
     task, query_construction, edge_scope, regularization, tolerance
@@ -713,8 +690,7 @@
     .memory_measurement_store(contraction$blocks, index)
   } else {
     if (is.null(path)) {
-      stop("Block-backed measurement results require an explicit path.",
-        call. = FALSE)
+      .input_error("Block-backed measurement results require an explicit path.")
     }
     value <- .file_measurement_store(path, index, create = TRUE)
     for (edge in seq_along(contraction$blocks)) {
@@ -737,13 +713,11 @@
     "capabilities", "diagnostics", "receipt", "codec", "storage",
     "edge_completeness", "contract_signature", "result_capability",
     "completeness")
-  if (!inherits(x, "effect_measurement_form") ||
-      inherits(x, "effect_form") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_measurement_form", expected) ||
+      inherits(x, "effect_form") ||
       !identical(x$result_capability, "complete_form") ||
       !identical(x$completeness, "complete")) {
-    stop("`x` must be a canonical complete measurement_form.",
-      call. = FALSE)
+    .input_error("`x` must be a canonical complete measurement_form.")
   }
   plan <- .validate_measurement_plan(x$plan)
   capabilities <- .validate_measurement_capabilities(x$capabilities, plan)
@@ -759,13 +733,15 @@
           "requested_complete") ||
       !identical(x$contract_signature,
         .measurement_contract_signature(plan, capabilities, "complete"))) {
-    stop("Measurement-form axes, completeness, storage, or identity disagree.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement-form axes, completeness, storage, or identity disagree."
+    )
   }
   .validate_measurement_store(x$store, require_complete = TRUE, probe = probe)
   if (!identical(x$store$index, x$block_index)) {
-    stop("Measurement-form store index is incompatible with its axes.",
-      call. = FALSE)
+    .contract_error(
+      "Measurement-form store index is incompatible with its axes."
+    )
   }
   invisible(x)
 }
@@ -836,9 +812,7 @@
     edge_set = fields$edge_set_signature,
     left_frame = fields$left_frame$signature,
     right_frame = fields$right_frame$signature,
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    )),
+    signature = .sha256_signature(semantic),
     class = c("effect_measurement_block_index", "data.frame")
   )
   products <- fields$partition_products
@@ -876,9 +850,7 @@
     derivation = list(kind = "reversal", parent = receipt$signature)
   )
   reversed_receipt <- structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_measurement_receipt")
   .new_measurement_form(
     store, reversed_plan, capabilities, diagnostics, reversed_receipt
@@ -888,11 +860,9 @@
 .measurement_view <- function(values, plan, receipt, view) {
   plan <- .validate_measurement_plan(plan)
   .validate_measurement_receipt(receipt, plan)
-  if (!is.matrix(values) || !is.numeric(values) ||
-      nrow(values) != nrow(plan$block_index) || ncol(values) < 1L ||
-      any(!is.finite(values)) || !is.list(view)) {
-    stop("Measurement view values or query description are invalid.",
-      call. = FALSE)
+  if (!.is_finite_matrix(values) || nrow(values) != nrow(plan$block_index) ||
+      ncol(values) < 1L || !is.list(view)) {
+    .input_error("Measurement view values or query description are invalid.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -912,9 +882,7 @@
     } else {
       "requested_complete"
     },
-    contract_signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    )),
+    contract_signature = .sha256_signature(semantic),
     result_capability = "query_only",
     completeness = "query_only"
   ), class = "effect_measurement_view")
@@ -924,24 +892,18 @@
   expected <- c("values", "edge_index", "view", "plan", "receipt",
     "edge_completeness", "contract_signature", "result_capability",
     "completeness")
-  if (!inherits(x, "effect_measurement_view") ||
+  if (!.sealed_fields(x, "effect_measurement_view", expected) ||
       inherits(x, "effect_measurement_form") ||
-      !is.list(x) || !identical(names(x), expected) ||
       !identical(x$result_capability, "query_only") ||
       !identical(x$completeness, "query_only")) {
-    stop("`x` must be a canonical query-only measurement view.",
-      call. = FALSE)
+    .input_error("`x` must be a canonical query-only measurement view.")
   }
   plan <- .validate_measurement_plan(x$plan)
   .validate_measurement_receipt(x$receipt, plan)
   if (!identical(x$edge_index, plan$block_index) ||
-      !identical(x$edge_completeness,
-        if (plan$edge_scope == "frame_complete") "frame_complete" else
-          "requested_complete") ||
-      !is.matrix(x$values) || !is.numeric(x$values) ||
-      nrow(x$values) != nrow(x$edge_index) || any(!is.finite(x$values))) {
-    stop("Measurement view axes or values are inconsistent.",
-      call. = FALSE)
+      !identical(x$edge_completeness, if (plan$edge_scope == "frame_complete") "frame_complete" else "requested_complete") ||
+      !.is_finite_matrix(x$values) || nrow(x$values) != nrow(x$edge_index)) {
+    .input_error("Measurement view axes or values are inconsistent.")
   }
   semantic <- list(
     schema_version = 1L,
@@ -950,12 +912,11 @@
     view = x$view,
     dimensions = dim(x$values)
   )
-  expected_signature <- paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
-  ))
-  if (!identical(x$contract_signature, expected_signature)) {
-    stop("Measurement-view identity is inconsistent.", call. = FALSE)
-  }
+  expected_signature <- .sha256_signature(semantic)
+  .check_signature(
+    x$contract_signature, expected_signature,
+    "Measurement-view identity is inconsistent."
+  )
   invisible(x)
 }
 
@@ -965,22 +926,46 @@
     positive_self_blocks = FALSE) {
   view <- match.arg(view)
   .validate_measurement_form(x, probe = FALSE)
-  if (!is.logical(positive_self_blocks) ||
-      length(positive_self_blocks) != 1L || is.na(positive_self_blocks)) {
-    stop("`positive_self_blocks` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(positive_self_blocks, "positive_self_blocks")
   if (view == "effect_coupling") return(invisible(x))
+  # Capability gating, not shape checking: these are contract-level refusals,
+  # so callers branch on `$capability` rather than on the prose.
   if (!isTRUE(x$capabilities$repeated_variation)) {
-    stop("Covariance coupling requires certified repeated variation.",
-      call. = FALSE)
+    .capability_refusal(paste0(
+      "Covariance coupling requires certified repeated variation: a ",
+      "covariance is an average over repeats, and this form has not ",
+      "established that its measurement axis repeats."
+    ),
+      capability = "certified_repeated_variation",
+      namespace = "coupling_views",
+      reasons = "repeated_variation_not_certified",
+      remedies = paste0(
+        "Build the form with a `variation_query()` that declares its ",
+        "sampling axis, over a pairing whose partitions repeat that axis."
+      )
+    )
   }
   if (view == "canonical_coupling" &&
       (!isTRUE(x$capabilities$joint_covariance) ||
        !isTRUE(positive_self_blocks))) {
-    stop(paste0(
+    .capability_refusal(paste0(
       "Canonical coupling requires a coherent joint covariance and ",
       "separately validated positive self-blocks."
-    ), call. = FALSE)
+    ),
+      capability = "coherent_joint_covariance",
+      namespace = "coupling_views",
+      reasons = c(
+        if (!isTRUE(x$capabilities$joint_covariance)) {
+          "joint_covariance_not_certified"
+        },
+        if (!isTRUE(positive_self_blocks)) "self_blocks_not_validated"
+      ),
+      remedies = paste0(
+        "Build the form over a pairing that certifies a joint covariance ",
+        "across both measurement spaces, and read it through ",
+        "`canonical_coupling()`, which validates the self-blocks it needs."
+      )
+    )
   }
   invisible(x)
 }

@@ -2,7 +2,7 @@
 
 .support_cell_keys <- function(cells) {
   if (!is.matrix(cells) || !is.numeric(cells) || ncol(cells) < 1L) {
-    stop("Cell coordinates must be a numeric matrix.", call. = FALSE)
+    .input_error("Cell coordinates must be a numeric matrix.")
   }
   do.call(paste, c(unname(as.data.frame(cells)), sep = "\034"))
 }
@@ -17,19 +17,16 @@
 }
 
 .support_index_signature <- function(domain, node_ids, ptr, members,
-                                     pair_pattern, construction) {
+                                     construction) {
   semantic <- list(
     schema_version = 1L,
     domain = domain$signature,
     node_ids = node_ids,
     ptr = ptr,
     members = members,
-    pair_pattern = .support_index_pattern_identity(pair_pattern),
     construction = construction
   )
-  paste0("sha256:", digest::digest(
-    semantic, algo = "sha256", serialize = TRUE
-  ))
+  .sha256_signature(semantic)
 }
 
 .support_index_summary <- function(x) {
@@ -43,24 +40,38 @@
 .support_index_cost <- function(domain, node_ids, ptr, members,
                                 pair_pattern, construction) {
   sizes <- diff(ptr)
-  diagonal <- as.numeric(Matrix::diag(pair_pattern) != 0)
-  degree <- as.numeric(Matrix::colSums(pair_pattern)) - diagonal
-  structural_bytes <- sum(vapply(list(
+  payload <- list(
     domain = domain,
     node_ids = node_ids,
     ptr = ptr,
     members = members,
-    pair_pattern = pair_pattern,
     construction = construction
-  ), function(value) as.double(utils::object.size(value)), numeric(1)))
+  )
+  if (!is.null(pair_pattern)) {
+    payload$pair_pattern <- pair_pattern
+    diagonal <- as.numeric(Matrix::diag(pair_pattern) != 0)
+    degree <- as.numeric(Matrix::colSums(pair_pattern)) - diagonal
+    pair_pattern_nnz <- as.double(Matrix::nnzero(pair_pattern))
+    pair_pattern_stored_nnz <- as.double(length(pair_pattern@i))
+    union_degree <- .support_index_summary(degree)
+  } else {
+    pair_pattern_nnz <- NA_real_
+    pair_pattern_stored_nnz <- NA_real_
+    union_degree <- stats::setNames(
+      rep(NA_real_, 4L), c("min", "median", "mean", "max")
+    )
+  }
+  structural_bytes <- sum(vapply(payload, function(value) {
+    as.double(utils::object.size(value))
+  }, numeric(1)))
   structure(list(
     nodes = as.double(length(node_ids)),
     features = as.double(domain$n_features),
     support_memberships = as.double(length(members)),
     support_size = .support_index_summary(sizes),
-    pair_pattern_nnz = as.double(Matrix::nnzero(pair_pattern)),
-    pair_pattern_stored_nnz = as.double(length(pair_pattern@i)),
-    union_degree = .support_index_summary(degree),
+    pair_pattern_nnz = pair_pattern_nnz,
+    pair_pattern_stored_nnz = pair_pattern_stored_nnz,
+    union_degree = union_degree,
     diagonal_metric_entries = sum(sizes),
     dense_metric_entries = sum(sizes^2),
     one_dense_factorization_pass_units = sum(sizes^3),
@@ -70,38 +81,62 @@
   ), class = "effect_support_cost")
 }
 
+# The pair pattern marks feature pairs that share at least one support. The
+# sparse product costs about sum(support sizes^2) operations, the dense product
+# n_features^3 flops in BLAS; the dense route wins once supports cover more than
+# a few percent of the domain and the dense square fits comfortably in memory.
+# Both routes yield the identical pattern object, so signatures do not depend on
+# the route taken.
+.support_pair_pattern <- function(membership) {
+  n <- ncol(membership)
+  density <- Matrix::nnzero(membership) / (as.double(nrow(membership)) * n)
+  if (density > 0.05 && n <= 12000L) {
+    dense <- crossprod(as.matrix(membership) * 1)
+    pattern <- methods::as(dense, "sparseMatrix")
+  } else {
+    pattern <- Matrix::crossprod(membership)
+  }
+  methods::as(methods::as(pattern, "symmetricMatrix"), "nMatrix")
+}
+
 .support_index_from_membership <- function(membership, domain, node_ids,
-                                           construction) {
+                                           construction,
+                                           pair_pattern_route = c("lazy",
+                                                                  "eager")) {
   .validate_domain(domain)
+  pair_pattern_route <- match.arg(pair_pattern_route)
   if (!inherits(membership, "Matrix") || length(dim(membership)) != 2L ||
       any(dim(membership) < 1L) || ncol(membership) != domain$n_features) {
-    stop("Support membership must be a nonempty sparse Matrix with one column per feature.",
-      call. = FALSE)
+    .input_error(paste0(
+      "Support membership must be a nonempty sparse Matrix with one column ",
+      "per feature."
+    ))
   }
   if (length(node_ids) != nrow(membership) || anyNA(node_ids) ||
       anyDuplicated(node_ids)) {
-    stop("Support nodes must uniquely identify every membership row.",
-      call. = FALSE)
+    .input_error("Support nodes must uniquely identify every membership row.")
   }
   if (!is.list(construction)) {
-    stop("Support construction metadata must be a list.", call. = FALSE)
+    .input_error("Support construction metadata must be a list.")
   }
   membership <- methods::as(membership != 0, "nMatrix")
   if (any(Matrix::rowSums(membership) < 1L)) {
-    stop("Every support node must contain at least one feature.",
-      call. = FALSE)
+    .input_error("Every support node must contain at least one feature.")
   }
   row_membership <- methods::as(membership, "RsparseMatrix")
   ptr <- as.double(row_membership@p)
   members <- as.integer(row_membership@j + 1L)
-  pair_pattern <- methods::as(Matrix::crossprod(membership), "symmetricMatrix")
-  pair_pattern <- methods::as(pair_pattern, "nMatrix")
+  pair_pattern <- if (identical(pair_pattern_route, "eager")) {
+    .support_pair_pattern(membership)
+  } else {
+    NULL
+  }
   domain_reference <- domain$reference
   cost <- .support_index_cost(
     domain_reference, node_ids, ptr, members, pair_pattern, construction
   )
   signature <- .support_index_signature(
-    domain_reference, node_ids, ptr, members, pair_pattern, construction
+    domain_reference, node_ids, ptr, members, construction
   )
   structure(list(
     domain = domain_reference,
@@ -112,21 +147,49 @@
     construction = construction,
     cost = cost,
     signature = signature
-  ), class = "effect_support_index")
+  ), class = "effect_support_index", pair_pattern_route = pair_pattern_route)
+}
+
+.support_index_pair_pattern_route <- function(index) {
+  route <- attr(index, "pair_pattern_route", exact = TRUE)
+  if (is.null(route)) {
+    if (is.null(index$pair_pattern)) "lazy" else "eager"
+  } else {
+    route
+  }
+}
+
+.support_index_materialize_pair_pattern <- function(index) {
+  if (!is.null(index$pair_pattern)) {
+    return(index)
+  }
+  index <- .validate_support_index(index)
+  membership <- .support_index_membership(index)
+  pair_pattern <- .support_pair_pattern(membership)
+  index$pair_pattern <- pair_pattern
+  index$cost <- .support_index_cost(
+    index$domain, index$node_ids, index$ptr, index$members,
+    pair_pattern, index$construction
+  )
+  index
+}
+
+.support_index_pair_pattern <- function(index) {
+  .support_index_materialize_pair_pattern(index)$pair_pattern
 }
 
 .support_index_from_members <- function(members, domain, node_ids,
-                                        construction) {
+                                        construction,
+                                        pair_pattern_route = c("lazy",
+                                                               "eager")) {
   .validate_domain(domain)
   if (!is.list(members) || length(members) < 1L) {
-    stop("Support members must be a nonempty list.", call. = FALSE)
+    .input_error("Support members must be a nonempty list.")
   }
   members <- lapply(members, function(value) {
-    if (!is.numeric(value) || length(value) < 1L || anyNA(value) ||
-        any(!is.finite(value)) || any(value %% 1 != 0) ||
-        any(value < 1L) || any(value > domain$n_features)) {
-      stop("Every support must contain valid finite feature positions.",
-        call. = FALSE)
+    if (!.is_finite_numeric(value) || length(value) < 1L || anyNA(value) ||
+        any(value %% 1 != 0) || any(value < 1L) || any(value > domain$n_features)) {
+      .input_error("Every support must contain valid finite feature positions.")
     }
     sort(unique(as.integer(value)))
   })
@@ -137,14 +200,15 @@
     dims = c(length(members), domain$n_features)
   )
   .support_index_from_membership(
-    membership, domain, node_ids, construction
+    membership, domain, node_ids, construction,
+    pair_pattern_route = pair_pattern_route
   )
 }
 
 .volume_ball_membership <- function(domain, radius) {
   .validate_domain(domain)
   if (!identical(domain$kind, "volume")) {
-    stop("A volume stencil requires a volume domain.", call. = FALSE)
+    .input_error("A volume stencil requires a volume domain.")
   }
   dims <- domain$metadata$dim
   spacing <- domain$metadata$spacing
@@ -152,9 +216,21 @@
   if (!is.integer(dims) || length(dims) != 3L ||
       !is.numeric(spacing) || length(spacing) != 3L ||
       !is.matrix(voxel) || !identical(dim(voxel), c(domain$n_features, 3L))) {
-    stop("The volume domain lacks canonical grid metadata.", call. = FALSE)
+    .input_error("The volume domain lacks canonical grid metadata.")
   }
-  extent <- floor(radius / spacing + 1e-12)
+  # An offset can only pair two grid voxels when it is shorter than the grid
+  # itself, so the stencil never needs to reach past `dims - 1` per axis. Without
+  # this clamp the enumeration grows cubically in the radius regardless of the
+  # volume, and a large radius stalls on work that maps nowhere.
+  extent <- pmin(floor(radius / spacing + 1e-12), as.double(dims) - 1)
+  stencil_size <- prod(2 * extent + 1)
+  if (stencil_size > domain$n_features / 4) {
+    # The ball is large relative to the volume: one vectorized pass per stencil
+    # offset costs about four direct pairwise tests, so past this point the
+    # pairwise route is cheaper. Membership, and therefore the support-index
+    # signature, is identical.
+    return(.volume_ball_membership_pairwise(voxel, spacing, radius))
+  }
   offsets <- as.matrix(expand.grid(lapply(extent, function(value) {
     seq.int(-value, value)
   }), KEEP.OUT.ATTRS = FALSE))
@@ -165,8 +241,7 @@
   ]
   full_size <- prod(as.double(dims))
   if (!is.finite(full_size) || full_size > .Machine$integer.max) {
-    stop("The volume grid is too large for the compact stencil index.",
-      call. = FALSE)
+    .input_error("The volume grid is too large for the compact stencil index.")
   }
   lookup <- integer(as.integer(full_size))
   lookup[domain$feature_ids] <- seq_len(domain$n_features)
@@ -192,17 +267,54 @@
   )
 }
 
+# Direct pairwise membership on the spacing-scaled voxel grid. Used when the
+# offset stencil would be larger than the volume it indexes; produces exactly
+# the membership the stencil would.
+.volume_ball_membership_pairwise <- function(voxel, spacing, radius) {
+  n <- nrow(voxel)
+  limit <- radius^2 * (1 + 1e-12)
+  block <- max(1L, min(n, as.integer(floor(2^22 / max(n, 1L)))))
+  starts <- seq.int(1L, n, by = block)
+  center_chunks <- vector("list", length(starts))
+  member_chunks <- vector("list", length(starts))
+  for (chunk in seq_along(starts)) {
+    rows <- seq.int(starts[[chunk]], min(starts[[chunk]] + block - 1L, n))
+    # Integer grid differences times spacing, squared and summed per axis:
+    # the same arithmetic as the stencil test, so boundary membership agrees.
+    squared <- 0
+    for (axis in seq_len(ncol(voxel))) {
+      squared <- squared +
+        (outer(voxel[rows, axis], voxel[, axis], `-`) * spacing[[axis]])^2
+    }
+    hits <- which(squared <= limit, arr.ind = TRUE, useNames = FALSE)
+    center_chunks[[chunk]] <- as.integer(rows[hits[, 1L]])
+    member_chunks[[chunk]] <- as.integer(hits[, 2L])
+  }
+  Matrix::sparseMatrix(
+    i = unlist(center_chunks, use.names = FALSE),
+    j = unlist(member_chunks, use.names = FALSE),
+    dims = c(n, n)
+  )
+}
+
 .coordinate_ball_members <- function(domain, radius) {
   .validate_domain(domain)
   coordinates <- domain$coordinates
   if (is.null(coordinates)) {
-    stop("Euclidean supports require domain coordinates.", call. = FALSE)
+    .input_error(sprintf(paste0(
+      "Searchlights need feature coordinates, and domain `%s` has none. ",
+      "Build it with `abstract_domain(n, coordinates = )`, `volume_domain()`, ",
+      "or `neuroim2_volume_domain()`; `regions()` and `whole_brain()` need no ",
+      "geometry."
+    ), domain$id))
   }
   dimensions <- ncol(coordinates)
   neighbor_cells <- 3^dimensions
   if (!is.finite(neighbor_cells) || neighbor_cells > 100000L) {
-    stop("High-dimensional coordinates require a domain-native neighborhood provider.",
-      call. = FALSE)
+    .input_error(paste0(
+      "High-dimensional coordinates require a domain-native neighborhood ",
+      "provider."
+    ))
   }
   cells <- floor(coordinates / radius)
   offsets <- as.matrix(expand.grid(
@@ -266,9 +378,8 @@
                                      provider = c("auto", "volume_stencil",
                                                   "coordinate_cells")) {
   .validate_domain(domain)
-  if (!is.numeric(radius) || length(radius) != 1L || is.na(radius) ||
-      !is.finite(radius) || radius <= 0) {
-    stop("Support radius must be one positive finite number.", call. = FALSE)
+  if (!.is_number(radius) || radius <= 0) {
+    .input_error("Support radius must be one positive finite number.")
   }
   provider <- match.arg(provider)
   if (provider == "auto") {
@@ -310,10 +421,10 @@
 
 .support_index_support <- function(index, nodes) {
   .validate_support_index(index)
-  if (!is.numeric(nodes) || length(nodes) < 1L || anyNA(nodes) ||
-      any(!is.finite(nodes)) || any(nodes %% 1 != 0) ||
-      any(nodes < 1L) || any(nodes > length(index$node_ids))) {
-    stop("Support nodes must be valid integer positions.", call. = FALSE)
+  if (!.is_finite_numeric(nodes) || length(nodes) < 1L || anyNA(nodes) ||
+      any(nodes %% 1 != 0) || any(nodes < 1L) ||
+      any(nodes > length(index$node_ids))) {
+    .input_error("Support nodes must be valid integer positions.")
   }
   lapply(as.integer(nodes), function(node) {
     start <- index$ptr[[node]] + 1
@@ -347,27 +458,27 @@
   support <- .support_index_support(index, node)[[1L]]
   if (is.atomic(x) && is.null(dim(x))) {
     if (length(x) != index$domain$n_features) {
-      stop("A gathered vector must match the support feature domain.",
-        call. = FALSE)
+      .contract_error(
+        "A gathered vector must match the support feature domain."
+      )
     }
     return(x[support])
   }
   if (!is.matrix(x) || !is.numeric(x) ||
       !is.numeric(margin) || length(margin) != 1L ||
       !margin %in% c(1L, 2L)) {
-    stop("Support gathering requires a numeric vector or matrix and margin 1 or 2.",
-      call. = FALSE)
+    .input_error(
+      "Support gathering requires a numeric vector or matrix and margin 1 or 2."
+    )
   }
   if (margin == 1L) {
     if (nrow(x) != index$domain$n_features) {
-      stop("Matrix rows do not match the support feature domain.",
-        call. = FALSE)
+      .contract_error("Matrix rows do not match the support feature domain.")
     }
     return(x[support, , drop = FALSE])
   }
   if (ncol(x) != index$domain$n_features) {
-    stop("Matrix columns do not match the support feature domain.",
-      call. = FALSE)
+    .contract_error("Matrix columns do not match the support feature domain.")
   }
   x[, support, drop = FALSE]
 }
@@ -375,17 +486,14 @@
 .support_index_preflight <- function(index, workspace_bytes = 4 * 1024^3,
                                      evaluation_edges = 1L) {
   .validate_support_index(index)
-  if (!is.numeric(workspace_bytes) || length(workspace_bytes) != 1L ||
-      is.na(workspace_bytes) || !is.finite(workspace_bytes) ||
-      workspace_bytes <= 0) {
-    stop("Support preflight requires one positive finite byte budget.",
-      call. = FALSE)
+  if (!.is_number(workspace_bytes) || workspace_bytes <= 0) {
+    .input_error("Support preflight requires one positive finite byte budget.")
   }
-  if (!is.numeric(evaluation_edges) || length(evaluation_edges) != 1L ||
-      is.na(evaluation_edges) || !is.finite(evaluation_edges) ||
-      evaluation_edges < 1 || evaluation_edges %% 1 != 0) {
-    stop("Support preflight requires a positive integer evaluation-edge count.",
-      call. = FALSE)
+  if (!.is_number(evaluation_edges) || evaluation_edges < 1 ||
+      evaluation_edges %% 1 != 0) {
+    .input_error(
+      "Support preflight requires a positive integer evaluation-edge count."
+    )
   }
   cost <- index$cost
   evaluation_edges <- as.double(evaluation_edges)
@@ -422,9 +530,8 @@
 .validate_support_index <- function(index, deep = FALSE) {
   expected <- c("domain", "node_ids", "ptr", "members", "pair_pattern",
     "construction", "cost", "signature")
-  if (!inherits(index, "effect_support_index") || !is.list(index) ||
-      !identical(names(index), expected)) {
-    stop("Support-index fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(index, "effect_support_index", expected)) {
+    .input_error("Support-index fields are missing or noncanonical.")
   }
   domain <- .validate_domain_reference(index$domain)
   nodes <- length(index$node_ids)
@@ -434,21 +541,19 @@
       utils::tail(index$ptr, 1L) != length(index$members) ||
       !is.integer(index$members) || any(index$members < 1L) ||
       any(index$members > domain$n_features)) {
-    stop("Support-index nodes or CSR membership are invalid.", call. = FALSE)
+    .input_error("Support-index nodes or CSR membership are invalid.")
   }
-  if (!inherits(index$pair_pattern, "symmetricMatrix") ||
-      !inherits(index$pair_pattern, "nMatrix") ||
-      !identical(as.integer(dim(index$pair_pattern)),
-        c(domain$n_features, domain$n_features))) {
-    stop("Support-index pair pattern is invalid.", call. = FALSE)
+  if (!is.null(index$pair_pattern) &&
+      (!inherits(index$pair_pattern, "symmetricMatrix") ||
+       !inherits(index$pair_pattern, "nMatrix") ||
+       !identical(as.integer(dim(index$pair_pattern)),
+         c(domain$n_features, domain$n_features)))) {
+    .input_error("Support-index pair pattern is invalid.")
   }
   if (!is.list(index$construction) ||
       !inherits(index$cost, "effect_support_cost") ||
-      !is.character(index$signature) || length(index$signature) != 1L ||
-      is.na(index$signature) ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", index$signature)) {
-    stop("Support-index identity or cost metadata are invalid.",
-      call. = FALSE)
+      !.strong_sha256(index$signature)) {
+    .input_error("Support-index identity or cost metadata are invalid.")
   }
   if (isTRUE(deep)) {
     sizes <- diff(index$ptr)
@@ -459,16 +564,20 @@
       length(values) == 1L || all(diff(values) > 0L)
     }, logical(1))
     if (!all(canonical)) {
-      stop("Support-index CSR rows must be strictly increasing and unique.",
-        call. = FALSE)
+      .input_error(
+        "Support-index CSR rows must be strictly increasing and unique."
+      )
     }
-    membership <- .support_index_membership(index)
-    expected_pattern <- methods::as(
-      Matrix::crossprod(membership), "nMatrix"
-    )
-    if (!identical(index$pair_pattern, expected_pattern)) {
-      stop("Support-index pair pattern does not match its supports.",
-        call. = FALSE)
+    if (!is.null(index$pair_pattern)) {
+      membership <- .support_index_membership(index)
+      expected_pattern <- methods::as(
+        Matrix::crossprod(membership), "nMatrix"
+      )
+      if (!identical(index$pair_pattern, expected_pattern)) {
+        .contract_error(
+          "Support-index pair pattern does not match its supports."
+        )
+      }
     }
     expected_cost <- .support_index_cost(
       domain, index$node_ids, index$ptr, index$members,
@@ -476,12 +585,11 @@
     )
     expected_signature <- .support_index_signature(
       domain, index$node_ids, index$ptr, index$members,
-      index$pair_pattern, index$construction
+      index$construction
     )
     if (!identical(index$cost, expected_cost) ||
         !identical(index$signature, expected_signature)) {
-      stop("Support-index cached cost or identity is inconsistent.",
-        call. = FALSE)
+      .contract_error("Support-index cached cost or identity is inconsistent.")
     }
   }
   invisible(index)

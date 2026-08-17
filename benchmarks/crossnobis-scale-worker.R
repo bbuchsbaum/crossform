@@ -108,6 +108,13 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
   rss_after <- crossform:::.current_rss_bytes()
 
   index <- frame$support_index
+  # The union pair graph is lazy: an ordinary searchlight compile leaves
+  # `pair_pattern` NULL, and the crossnobis path never needs it, so
+  # `index$cost$union_degree` and `pair_pattern_stored_nnz` are NA here.
+  # Materialize a receipt-only copy for the topology numbers below. This runs
+  # after the measured analysis and after `rss_after`, so the union graph
+  # stays out of the execution path this gate qualifies.
+  pair_topology <- crossform:::.support_index_materialize_pair_pattern(index)
   support_sizes <- diff(index$ptr)
   residual_reads <- vapply(
     plan$metric_schedule$statistics$execution$atomic,
@@ -138,9 +145,12 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
       mean = mean(support_sizes),
       max = max(support_sizes),
       memberships = length(index$members),
-      union_pair_stored_nnz = length(index$pair_pattern@i),
-      union_degree = index$cost$union_degree,
-      structural_bytes = index$cost$estimated_structural_bytes
+      union_pair_stored_nnz = length(pair_topology$pair_pattern@i),
+      union_degree = pair_topology$cost$union_degree,
+      # Structural bytes of the index the analysis actually used, which no
+      # longer carries the union pair graph.
+      structural_bytes = index$cost$estimated_structural_bytes,
+      pair_pattern_route = if (is.null(index$pair_pattern)) "lazy" else "eager"
     ),
     work = list(
       local_metric_derivations =

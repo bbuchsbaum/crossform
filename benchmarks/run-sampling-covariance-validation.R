@@ -14,6 +14,11 @@ if (is.na(repetitions) || repetitions < 1000L) {
   stop("Validation requires at least 1,000 Monte Carlo repetitions.")
 }
 
+repo <- normalizePath(getwd(), mustWork = TRUE)
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(
+  repo, "run-sampling-covariance-validation.R"
+)
 source(file.path(
   "tests", "testthat", "helper-evidence-sampling-laws.R"
 ), local = TRUE)
@@ -72,6 +77,7 @@ linear_estimates <- drop(signal$estimates %*% linear)
 linear_variance <- drop(t(linear) %*% signal$covariance %*% linear)
 diagnostics <- list(
   schema_version = 1L,
+  provenance = provenance,
   model = "fixed_metric_equal_partition_separable_matrix_normal",
   equation = "Diedrichsen_et_al_2016_Eq13",
   repetitions = repetitions,

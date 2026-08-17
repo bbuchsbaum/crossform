@@ -10,9 +10,41 @@ gaussian_covariance_model(provenance = list())
 \item{provenance}{Named metadata describing the fixed model assumption.}
 }
 \value{
-An `effect_gaussian_covariance_model` declaration.
+An \code{effect_gaussian_covariance_model} declaration recording its
+\verb{$family}, that it is \verb{$fixed}, the stated \verb{$provenance}, and a
+\verb{$signature} carried into the result identity. It performs no fitting
+and no goodness-of-fit test.
 }
 \description{
 This explicit declaration is required before canonical correlations are
 transformed into Gaussian mutual information.
 }
+\examples{
+# The declaration is required so that a Gaussian information number
+# cannot be produced without someone stating the model it rests on.
+model <- gaussian_covariance_model(
+  list(assumption = "joint Gaussian time observations")
+)
+model$family
+model$provenance$assumption
+
+# It records the assumption; it does not test it, so the signature is a
+# provenance trail rather than evidence of fit.
+model$fixed
+}
+\seealso{
+\code{\link[=connectivity]{connectivity()}} with \code{view = "gaussian_information"}, the only
+place this declaration is used, and \code{\link[=canonical_coupling]{canonical_coupling()}} for the
+correlation spectrum the information is computed from.
+
+Other neural metrics: 
+\code{\link{diagonal_precision}()},
+\code{\link{effect_covariance}()},
+\code{\link{identity_metric}()},
+\code{\link{metric_capabilities}()},
+\code{\link{metric_training_policy}()},
+\code{\link{neural_metric}()},
+\code{\link{noise_precision}()},
+\code{\link{shrinkage_precision}()}
+}
+\concept{neural metrics}

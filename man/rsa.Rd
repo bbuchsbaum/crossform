@@ -13,21 +13,112 @@ rsa(
 )
 }
 \arguments{
-\item{x}{An `effect_geometry_plan` or a complete effect form carrying the
+\item{x}{An \code{effect_geometry_plan} or a complete effect form carrying the
 symmetric self-form capability.}
 
-\item{models}{Named model RDMs, each matching the experimental dimension.}
+\item{models}{Named model RDMs, each a finite symmetric zero-diagonal
+matrix over the experimental effects. Row and column names are optional;
+when supplied they must identify every effect exactly once and are
+reordered to the relation's effect order.}
 
-\item{nuisance}{Optional named nuisance RDMs.}
+\item{nuisance}{Optional named nuisance RDMs, in the same form.}
 
-\item{intercept}{Whether to include an intercept in RDM space.}
+\item{intercept}{Whether to include an intercept in RDM space. It is \code{TRUE}
+by default, so a model RDM that is constant off the diagonal is collinear
+with it; the rank-deficiency message names the columns involved and
+\code{intercept = FALSE} fits the same models without the constant column.}
 
 \item{component}{Geometry component to read.}
 }
 \value{
-An `effect_rsa_view` with one coefficient per requested model,
-  nuisance model, and optional intercept.
+An \code{effect_rsa_view}. \verb{$coefficients} has one row per measurement
+and one named column per model, nuisance model, and the optional
+intercept; \verb{$component}, \verb{$index}, and \verb{$receipt} record what was read.
 }
 \description{
-Fit multiple-regression RSA as one compiled geometry query
+\code{rsa()} compiles the RDM transform and the least-squares coefficient map
+into a single fixed query, so the regression is executed as one pass over
+the plan rather than as a second analysis of a stored RDM. Model rows and
+columns are aligned to the relation's effect names before any geometry is
+read.
 }
+\section{Structure}{
+
+The fit is one measurement-by-term coefficient matrix; the other elements
+name its axes and record what was read.
+\itemize{
+\item \verb{$coefficients}: one row per spatial measurement, one named column per
+design term, in \verb{$terms} row order.
+\item \verb{$terms}: a data frame naming each column of \verb{$coefficients} in \code{term}
+and labeling it \code{intercept}, \code{model}, or \code{nuisance} in \code{role}.
+\item \verb{$component}: the geometry component the models were regressed on.
+\item \verb{$index}: the measurement identifiers, one per row of \verb{$coefficients},
+carried from the frame's \verb{$index$measurement}.
+\item \verb{$receipt}: the execution receipt for the run that produced the fit.
+}
+
+The compiled \verb{$query} and any other element not listed here are internal
+and may change.
+}
+
+\section{Refusal}{
+
+A rectangular cross-axis plan or a non-symmetric form signals an
+\code{effect_capability_refusal} with capability \code{"symmetric_self_form"} in
+namespace \code{"geometry_views"}; see \code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
+\examples{
+domain <- abstract_domain(4, id = "rsa-example")
+run1 <- rbind(
+  face = c(1, 0.2, 0, 0), house = c(0, 1, 0.1, 0), tool = c(0, 0, 1, 0.3)
+)
+run2 <- rbind(
+  face = c(0.9, 0.3, 0, 0), house = c(0.1, 0.9, 0, 0), tool = c(0, 0.1, 1.1, 0.2)
+)
+relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+plan <- plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(relation, independence = "independent")
+)
+
+# An animacy model: the two animate-inanimate pairs are far, the rest near.
+conditions <- rownames(run1)
+animacy <- matrix(
+  c(0, 0, 1, 0, 0, 1, 1, 1, 0), 3, 3,
+  dimnames = list(conditions, conditions)
+)
+fit <- rsa(plan, models = list(animacy = animacy))
+round(fit$coefficients, 3)
+as.data.frame(fit)
+
+# A model must be a dissimilarity matrix. Passing a similarity matrix,
+# whose diagonal is nonzero, is rejected before geometry is read.
+similarity <- 1 - animacy
+wrong <- try(rsa(plan, models = list(animacy = similarity)), silent = TRUE)
+conditionMessage(attr(wrong, "condition"))
+}
+\seealso{
+\code{\link[=rdm]{rdm()}} for the distances the regression is fitted to, and
+\code{\link[=plan_geometry]{plan_geometry()}} for the plan.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

@@ -60,7 +60,7 @@ test_that("couplings support unequal axes, missing matches, and eligibility", {
     spaces$left, spaces$right, eligible
   )
   controls <- control_coupling(matches)
-  query <- pair_contrast(matches, controls)
+  query <- coupling_contrast(matches, controls)
 
   expect_identical(dim(matches$value), c(3L, 4L))
   expect_equal(matches$value["e2", "r2"], 2)
@@ -70,7 +70,7 @@ test_that("couplings support unequal axes, missing matches, and eligibility", {
   expect_identical(query$metadata$claim, "observed_operator_balance_only")
   expect_equal(sum(query$operator), 0, tolerance = 1e-15)
   expect_error(match_coupling("e1", "r3", spaces$left, spaces$right,
-    eligible), "eligible")
+    eligible), "eligible", class = "effect_input_error")
 })
 
 test_that("pair LM coefficients equal explicit weighted least squares", {
@@ -154,19 +154,19 @@ test_that("rank-deficient and infeasible pair designs fail clearly", {
   design$duplicate <- design$match
   expect_error(pair_lm_query(
     design, "match", spaces$left, spaces$right
-  ), "rank deficient")
+  ), "rank deficient", class = "effect_input_error")
 
   infeasible <- design[design$left == "e1", c("left", "right", "match")]
   expect_error(pair_lm_query(
     infeasible, "match", spaces$left, spaces$right,
     encoding_nuisance = TRUE
-  ), "infeasible")
+  ), "infeasible", class = "effect_input_error")
   expect_error(pair_lm_query(
     design[, c("left", "right")], "match", spaces$left, spaces$right
-  ), "predictor")
+  ), "predictor", class = "effect_input_error")
   expect_error(pair_lm_query(
     full_pair_design(spaces), "missing", spaces$left, spaces$right
-  ), "Unknown")
+  ), "Unknown", class = "effect_input_error")
 })
 
 test_that("match-control compiles balanced nuisance-adjusted operators", {

@@ -21,6 +21,11 @@ if (!requireNamespace("crossform", quietly = TRUE)) {
 }
 
 library(crossform)
+repo <- normalizePath(getwd(), mustWork = TRUE)
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(
+  repo, "run-learned-metric-policy-validation.R"
+)
 
 arguments <- commandArgs(trailingOnly = TRUE)
 replications <- if (length(arguments) >= 1L) {
@@ -394,6 +399,7 @@ scientific_contract <- list(
   )
 )
 record <- list(
+  provenance = provenance,
   contract = scientific_contract,
   fixture = list(
     observations_per_partition = observations,

@@ -7,11 +7,51 @@
 relation_fit_capabilities(x)
 }
 \arguments{
-\item{x}{An `effect_relation` or `effect_relation_fit`.}
+\item{x}{An \code{effect_relation} or \code{effect_relation_fit}.}
 }
 \value{
-A data frame with one row per partition and explicit capability flags.
+A data frame with one row per partition: \code{partition} plus the
+logical columns \code{error_model}, \code{residual_blocks}, \code{effect_covariance},
+\code{residual_df}, \code{separable_error}, \code{learned_metric_input}, and
+\code{within_participant_calibration}.
 }
 \description{
-Inspect statistical capabilities of a relation or relation fit
+Call this before requesting anything that needs residuals, so a missing
+error channel surfaces as an explicit \code{FALSE} rather than a later refusal.
 }
+\examples{
+example <- example_fmri_effects()
+
+# A fit built from raw responses carries the full error channel.
+relation_fit_capabilities(example$fit)[
+  , c("partition", "residual_blocks", "within_participant_calibration")
+]
+
+# The bare relation underneath reports every statistical capability FALSE:
+# the point geometry is intact, the uncertainty channel is not there.
+relation_fit_capabilities(example$fit$relation)[1L, ]
+}
+\seealso{
+\code{\link[=lm_relation_fit]{lm_relation_fit()}} to obtain the capabilities,
+\code{\link[=sampling_capabilities]{sampling_capabilities()}} for the uncertainty-side report, and
+\code{\link[=catch_refusal]{catch_refusal()}} to inspect the refusal raised when one is missing.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

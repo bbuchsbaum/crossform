@@ -14,50 +14,115 @@ plan_geometry(
 )
 }
 \arguments{
-\item{x}{An `effect_relation` supplying the left experimental axis.}
+\item{x}{An \code{effect_relation} supplying the left experimental axis.}
 
-\item{at}{A compiled additive `effect_frame`.}
+\item{at}{A compiled additive \code{effect_frame}.}
 
-\item{over}{An `effect_pairing`. Rectangular plans require directed
-pairings whose left endpoints identify partitions of `x` and right
-endpoints identify partitions of `right`.}
+\item{over}{An \code{effect_pairing}. Rectangular plans require directed
+pairings whose left endpoints identify partitions of \code{x} and right
+endpoints identify partitions of \code{right}.}
 
-\item{compute}{A sequential `compute_policy()`.}
+\item{compute}{A sequential \code{compute_policy()}.}
 
-\item{metric}{Optional fixed `neural_metric()`. A domain-wide metric is
+\item{metric}{Optional fixed \code{neural_metric()}. A domain-wide metric is
 restricted to each frame support on demand; a support-local metric is
 accepted only for a matching one-node frame. Learned metric recipes are
 added by the statistical fitting layer rather than stored per node.
 Fixed metrics are not yet admitted on rectangular plans.}
 
-\item{right}{Optional second `effect_relation` supplying a distinct right
+\item{right}{Optional second \code{effect_relation} supplying a distinct right
 experimental axis. Supplying it compiles a rectangular cross-axis plan:
 the resulting form has one row axis per left effect and one column axis
-per right effect, is read with axis-bound [pair_query()]s through
-[evaluate_geometry()], and materializes to a rectangular effect form.
+per right effect, is read with axis-bound \code{\link[=pair_query]{pair_query()}}s through
+\code{\link[=evaluate_geometry]{evaluate_geometry()}}, and materializes to a rectangular effect form.
 Encoding-retrieval similarity is the canonical use.}
 }
 \value{
-An immutable-by-convention `effect_geometry_plan`.
+An \code{effect_geometry_plan} recording the compiled \verb{$task},
+\verb{$frame}, \verb{$pairing}, \verb{$metric_schedule}, and \verb{$compute} policy, the
+\verb{$logical_shape} and \verb{$measurements} it will produce, and a
+\verb{$scientific_plan_id} naming the estimand. Changing block size or storage
+changes the execution receipt, not this identity.
 }
 \description{
-`plan_geometry()` validates the relation, spatial frame, pairing, source
+\code{plan_geometry()} validates the relation, spatial frame, pairing, source
 capabilities, and compute policy without reading relation blocks. The plan
-can answer fixed queries with [evaluate_geometry()] or be explicitly
-materialized with [geometry()]. Complete packed geometry is therefore an
-optional materialization, not the object that every analysis must allocate.
+can answer fixed queries with \code{\link[=evaluate_geometry]{evaluate_geometry()}} or be explicitly
+materialized with \code{\link[=materialize_geometry]{materialize_geometry()}}. Complete packed geometry is
+therefore an optional materialization, not the object that every analysis
+must allocate.
 }
+\section{Structure}{
+
+A plan is a declaration, so every element describes what will be computed
+rather than a result.
+\itemize{
+\item \verb{$frame}: the compiled \code{effect_frame} the geometry is measured at.
+\item \verb{$pairing}: the \code{effect_pairing} whose rows are the partition products
+the plan may form.
+\item \verb{$measurements}: how many spatial measurements every view will return,
+one per row of \verb{$frame$weights}.
+\item \verb{$logical_shape}: the effect-axis extent as \code{c(left, right)}. The two
+entries are equal on a self-form plan.
+\item \verb{$task$left_relation}: the relation supplying the left experimental
+axis. Its \verb{$effects} is the order unnamed contrast weights are read in.
+\item \verb{$compute}: the \code{\link[=compute_policy]{compute_policy()}} the plan was compiled under.
+\item \verb{$scientific_plan_id}: the estimand identity. Keep it with the analysis
+record; block size, storage, and machine do not change it.
+}
+
+The rest of \verb{$task}, the \verb{$metric_schedule}, and every other element not
+listed here are the lowered form the executor consumes: internal, and
+free to change.
+}
+
 \examples{
 domain <- abstract_domain(3, id = "plan-example")
 run1 <- rbind(a = c(1, 0, 2), b = c(0, 1, 1))
 run2 <- rbind(a = c(1.1, 0.1, 1.9), b = c(0.1, 0.9, 1.2))
 relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+
+# The plan validates relation, frame, pairing, and metric agreement
+# without reading any neural value.
 plan <- plan_geometry(
   relation,
-  compile_frame(voxels(), domain),
+  compile_frame(voxelwise(), domain),
   cross_partitions(relation, independence = "independent")
 )
+plan
+
+# One plan answers many fixed queries. Save its identity with the
+# analysis record: it names the estimand, not the execution.
+plan$scientific_plan_id
 result <- evaluate_geometry(plan, query = bilinear_query(diag(2)))
-result
 as.data.frame(result)
+
+# The usual next step is a named view of the same plan.
+contrast_energy(plan, c(a = 1, b = -1))$total
 }
+\seealso{
+\code{\link[=contrast_energy]{contrast_energy()}}, \code{\link[=rdm]{rdm()}}, \code{\link[=rsa]{rsa()}}, and \code{\link[=crossnobis]{crossnobis()}} for the
+named views of a plan; \code{\link[=evaluate_geometry]{evaluate_geometry()}} for an arbitrary fixed
+query and \code{\link[=materialize_geometry]{materialize_geometry()}} for complete packed geometry;
+\code{\link[=coupling]{coupling()}} for the adjoint neural-side closure.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

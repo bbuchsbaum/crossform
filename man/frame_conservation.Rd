@@ -7,30 +7,60 @@
 frame_conservation(x, tolerance = 1e-10)
 }
 \arguments{
-\item{x}{A compiled `effect_frame`.}
+\item{x}{A compiled \code{effect_frame}.}
 
 \item{tolerance}{Nonnegative absolute per-feature mass tolerance.}
 }
 \value{
-An `effect_frame_conservation` list reporting `conserved`, the
-  covered `component` (`"total"`), the frame `normalization`, the maximum
-  per-feature mass deviation from one, and the per-feature mass vector.
+An \code{effect_frame_conservation} list reporting \code{conserved}, the
+covered \code{component} (\code{"total"}), the frame \code{normalization}, the maximum
+per-feature mass deviation from one, and the per-feature mass vector.
 }
 \description{
 Under a conservative frame every domain feature carries total weight mass
-one, so local `total` geometries sum exactly to the global geometry:
-\deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}
-Overlapping neighborhoods under `normalization = "local"` double-count
+one, so local \code{total} geometries sum exactly to the global geometry:
+\deqn{\sum_x G_x^{\mathrm{total}} = G_\Omega^{\mathrm{total}}.}{sum_x G_x^total = G_Omega^total.}
+Overlapping neighborhoods under \code{normalization = "local"} double-count
 shared features, so their local values are not contributions to a
 whole-brain quantity. Two preconditions matter when checking the law:
 the global comparator must be the unnormalized operator
-(`whole_brain("none")`), because default local normalization divides by
-the feature count; and the law covers the `total` component only —
-`coherent` is defined by each measurement's own weighted common mode, and
+(\code{whole_brain("none")}), because default local normalization divides by
+the feature count; and the law covers the \code{total} component only —
+\code{coherent} is defined by each measurement's own weighted common mode, and
 local coherent values do not sum to the global coherent component.
 }
 \examples{
 domain <- abstract_domain(4, id = "conservation-example")
-conservative <- compile_frame(voxels(), domain)
+
+# A conservative frame gives every feature total weight mass one, so local
+# `total` geometries sum exactly to the global one.
+conservative <- compile_frame(voxelwise(), domain)
 frame_conservation(conservative)$conserved
+
+# Under "local" each measurement is rescaled instead, and the per-feature
+# mass tells you by how much the accounting is off.
+report <- frame_conservation(compile_frame(whole_brain(), domain))
+report$conserved
+report$max_deviation
 }
+\seealso{
+\code{\link[=compile_frame]{compile_frame()}} and the normalization argument of \code{\link[=voxelwise]{voxelwise()}},
+\code{\link[=searchlights]{searchlights()}}, \code{\link[=regions]{regions()}}, and \code{\link[=whole_brain]{whole_brain()}}.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

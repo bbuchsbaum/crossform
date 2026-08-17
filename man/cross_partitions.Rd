@@ -7,33 +7,62 @@
 cross_partitions(partitions, independence = NULL, generalizes_over = NULL)
 }
 \arguments{
-\item{partitions}{Partition identifiers or an `effect_relation`. Pass
-`fit$relation` when starting from `lm_relation_fit()`.}
+\item{partitions}{Partition identifiers or an \code{effect_relation}. Pass
+\code{fit$relation} when starting from \code{lm_relation_fit()}.}
 
 \item{independence}{Explicit endpoint-independence declaration. Leaving it
-`NULL` preserves a point estimand but does not earn cross-generalized or
+\code{NULL} preserves a point estimand but does not earn cross-generalized or
 analytic sampling-law capabilities.}
 
 \item{generalizes_over}{Optional name of the sampling axis the partitions
-represent, such as `"run"` or `"session"`; see [pairing()]. The declared
+represent, such as \code{"run"} or \code{"session"}; see \code{\link[=pairing]{pairing()}}. The declared
 axis is bound into every plan identity built from this pairing.}
 }
 \value{
 An undirected pairing containing one row per unordered pair, with
-  normalized estimator weights. Its rows are computational contributions,
-  not a declaration of edge-level sampling independence.
+normalized estimator weights. Its rows are computational contributions,
+not a declaration of edge-level sampling independence.
 }
 \description{
 Distinct partition estimates are declared independent endpoints for unbiased
 cross-products. The resulting pair rows are not independent sampling
 replicates: pairs that share a partition also share its estimation error.
-In particular, `sd(pair_values) / sqrt(number_of_pairs)` is not a valid
+In particular, \code{sd(pair_values) / sqrt(number_of_pairs)} is not a valid
 standard error for their all-pairs mean. Under the fixed-metric,
-equal-partition separable model, use [rdm_sampling_covariance()] for the
+equal-partition separable model, use \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} for the
 admitted analytic RDM covariance law.
+}
+\examples{
+# Four runs give six unordered pairs, each weighted to unit total mass.
+example <- example_fmri_effects()
+over <- cross_partitions(
+  example$fit$relation,
+  independence = "independent", generalizes_over = "run"
+)
+nrow(over)
+sum(over$weight)
+
+# The declared axis and independence become part of the estimand, so they
+# travel into every plan built from this pairing.
+c(estimate = attr(over, "estimate"),
+  axis = attr(over, "generalizes_over"))
+
+# Leaving independence undeclared still yields a point estimand, but it
+# does not earn cross-generalized capabilities.
+attr(cross_partitions(example$fit$relation), "estimate")
 }
 \references{
 Diedrichsen J, Provost S, Zareamoghaddam H (2016),
-  "On the distribution of cross-validated Mahalanobis distances",
-  especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
+"On the distribution of cross-validated Mahalanobis distances",
+especially Eqs. 10, 13, and 35. \doi{10.48550/arXiv.1607.01371}
 }
+\seealso{
+\code{\link[=pairing]{pairing()}} for explicit or directed edge sets,
+\code{\link[=plan_geometry]{plan_geometry()}} which consumes this pairing, and
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} for the admitted uncertainty law.
+
+Other generalization pairings: 
+\code{\link{pairing}()},
+\code{\link{reduce_partitions}()}
+}
+\concept{generalization pairings}

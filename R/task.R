@@ -9,32 +9,29 @@
     if (!is.list(relations) || length(relations) < 1L ||
         is.null(names(relations)) || anyNA(names(relations)) ||
         any(!nzchar(names(relations))) || anyDuplicated(names(relations)) ||
-        !is.character(partitions) || length(partitions) < 1L ||
-        anyNA(partitions) || any(!nzchar(partitions)) ||
-        anyDuplicated(partitions) || !setequal(names(relations), partitions)) {
-      stop(sprintf("`%s_relations` must match one named partition family.", side),
-        call. = FALSE)
+        !.is_strings(partitions, unique = TRUE) || length(partitions) < 1L ||
+        !setequal(names(relations), partitions)) {
+      .input_error(
+        sprintf("`%s_relations` must match one named partition family.", side)
+      )
     }
     .validate_effect_names(effects, length(effects))
     expected <- c(length(effects), length(feature_ids))
     for (partition in partitions) {
       value <- relations[[partition]]
-      if (!is.matrix(value) || !is.numeric(value) ||
-          !identical(dim(value), expected) || any(!is.finite(value))) {
-        stop(sprintf(
+      if (!.is_finite_matrix(value) || !identical(dim(value), expected)) {
+        .input_error(sprintf(
           "Every %s relation input must be a finite effect-by-feature matrix.",
           side
-        ), call. = FALSE)
+        ))
       }
     }
     invisible(TRUE)
   }
-  if (!is.numeric(feature_ids) || length(feature_ids) < 1L ||
-      anyNA(feature_ids) || any(!is.finite(feature_ids)) ||
-      any(feature_ids < 1) || any(feature_ids %% 1 != 0) ||
+  if (!.is_finite_numeric(feature_ids) || length(feature_ids) < 1L ||
+      anyNA(feature_ids) || any(feature_ids < 1) || any(feature_ids %% 1 != 0) ||
       is.unsorted(feature_ids, strictly = TRUE)) {
-    stop("`feature_ids` must be strictly increasing positive integers.",
-      call. = FALSE)
+    .input_error("`feature_ids` must be strictly increasing positive integers.")
   }
   feature_ids <- as.integer(feature_ids)
   validate_family(left_relations, left_partitions, left_effects, "left")
@@ -47,27 +44,26 @@
       (!same_relation || !identical(left_effects, right_effects) ||
        !identical(attr(ordered_edges, "expansion"),
          "self_adjoint_half_edges"))) {
-    stop("Symmetric-packed atoms require a self-adjoint self-form task.",
-      call. = FALSE)
+    .input_error(
+      "Symmetric-packed atoms require a self-adjoint self-form task."
+    )
   }
   logical_width <- length(left_effects) * length(right_effects)
+  # Both codecs report `$physical_width` as an integer. `q * (q + 1L) / 2L` is
+  # exact but double-typed in R, so it is coerced here rather than leaving one
+  # codec reporting `6` and the other `6L` for the same quantity. This field
+  # reaches no signature: it is compared against `nrow(query)`, used as an
+  # output width, and returned. The same expression is still computed as a
+  # double for local widths in R/memory-plan.R and R/kernel.R, which are not
+  # reported anywhere; R/geometry-plan.R already coerces its `packed_width`.
   physical_width <- if (codec == "rectangular") {
     logical_width
   } else {
-    length(left_effects) * (length(left_effects) + 1L) / 2L
+    as.integer(length(left_effects) * (length(left_effects) + 1L) / 2L)
   }
-  if (!is.null(query)) {
-    if (.is_pair_difference_query(query)) {
-      .validate_pair_difference_for_task(
-        query, left_effects, right_effects, same_relation
-      )
-    } else if (!is.matrix(query) || !is.numeric(query) ||
-        nrow(query) != physical_width || ncol(query) < 1L ||
-        any(!is.finite(query))) {
-      stop("`query` must match the finite physical form coordinates.",
-        call. = FALSE)
-    }
-  }
+  .validate_task_query(
+    query, physical_width, left_effects, right_effects, same_relation
+  )
   list(
     feature_ids = feature_ids,
     codec = codec,
@@ -76,14 +72,50 @@
   )
 }
 
-.physical_query_operators <- function(query, q_left, q_right, codec) {
-  lapply(seq_len(ncol(query)), function(view) {
-    if (identical(codec, "rectangular")) {
-      matrix(query[, view], q_left, q_right)
-    } else {
-      .unsvec_symmetric(query[, view], q_left)
+.packed_effect_form_atoms_oracle <- function(left_relations, right_relations,
+                                             left_index, right_index,
+                                             edge_weight, codec) {
+  q_left <- nrow(left_relations[[1L]])
+  q_right <- nrow(right_relations[[1L]])
+  n_features <- ncol(left_relations[[1L]])
+  packed <- identical(codec, "symmetric_packed")
+  n_coords <- if (packed) {
+    as.integer(q_left * (q_left + 1L) / 2L)
+  } else {
+    q_left * q_right
+  }
+  atoms <- matrix(0, n_features, n_coords)
+  coordinate <- 0L
+  for (column in seq_len(q_right)) {
+    rows <- if (packed) column:q_left else seq_len(q_left)
+    for (row in rows) {
+      coordinate <- coordinate + 1L
+      work <- numeric(n_features)
+      for (edge in seq_along(edge_weight)) {
+        work <- work + edge_weight[[edge]] *
+          left_relations[[left_index[[edge]]]][row, ] *
+          right_relations[[right_index[[edge]]]][column, ]
+      }
+      if (packed && row != column) {
+        work <- sqrt(2) * work
+      }
+      atoms[, coordinate] <- work
     }
-  })
+  }
+  atoms
+}
+
+.packed_effect_form_atoms <- function(left_relations, right_relations,
+                                      left_index, right_index,
+                                      edge_weight, codec) {
+  .packed_effect_form_atoms_cpp(
+    unname(left_relations),
+    unname(right_relations),
+    as.integer(left_index),
+    as.integer(right_index),
+    as.numeric(edge_weight),
+    identical(codec, "symmetric_packed")
+  )
 }
 
 # The universal numerical primitive. Every edge forms one ordered outer
@@ -101,9 +133,7 @@
     left_partitions, right_partitions, ordered_edges, codec, query,
     same_relation
   )
-  if (!is.logical(form_atoms) || length(form_atoms) != 1L || is.na(form_atoms)) {
-    stop("`form_atoms` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(form_atoms, "form_atoms")
   feature_ids <- validated$feature_ids
   left_relations <- left_relations[left_partitions]
   right_relations <- right_relations[right_partitions]
@@ -117,106 +147,54 @@
   } else {
     .query_output_width(query)
   }
-  tiled_pair_output <- form_atoms && structured_query &&
-    is.null(query$coefficients)
-  atoms <- if (!form_atoms || tiled_pair_output) {
+  atoms <- if (!form_atoms || structured_query) {
     NULL
   } else {
     matrix(0, length(feature_ids), output_width)
   }
   feature_count <- length(feature_ids)
-  pair_tile_size <- if (structured_query) {
-    min(64L, length(query$pair_left))
-  } else {
-    0L
-  }
   max_atom_work_bytes <- if (!form_atoms) {
     0
   } else if (is.null(query)) {
-    8 * feature_count
+    # Native packed/rectangular accumulation writes directly to atoms.
+    0
   } else if (structured_query) {
-    # One accumulator and the difference/product temporaries for one bounded
-    # pair tile are live; the full pair-by-feature matrix is never formed.
-    8 * (6 * pair_tile_size * feature_count)
+    # Native fused evaluation writes directly to atoms. Difference and
+    # product tiles are never allocated, and there is no per-tile gc().
+    0
   } else {
     8 * (feature_count + q_left * q_right)
   }
 
   if (form_atoms && structured_query) {
-    atom_tiles <- if (tiled_pair_output) {
-      vector("list", ceiling(length(query$pair_left) / pair_tile_size))
-    } else {
-      NULL
-    }
-    tile_index <- 0L
-    for (pair_start in seq.int(1L, length(query$pair_left),
-        by = pair_tile_size)) {
-      tile_index <- tile_index + 1L
-      pair_indices <- pair_start:min(
-        pair_start + pair_tile_size - 1L, length(query$pair_left)
+    atoms <- .fused_pair_difference_atoms(
+      left_relations, right_relations, left_index, right_index,
+      ordered_edges$weight, query$pair_left, query$pair_right,
+      query$coefficients
+    )
+    if (any(!is.finite(atoms))) {
+      .input_error(
+        paste0("Direct effect-form querying produced non-finite values.",
+        " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
       )
-      pair_work <- matrix(0, length(pair_indices), feature_count)
-      for (edge in seq_len(nrow(ordered_edges))) {
-        edge_product <- .pair_difference_edge_products(
-          query,
-          left_relations[[left_index[[edge]]]],
-          right_relations[[right_index[[edge]]]],
-          pair_indices
-        )
-        pair_work <- pair_work + ordered_edges$weight[[edge]] * edge_product
-      }
-      if (any(!is.finite(pair_work))) {
-        stop("Direct effect-form querying produced non-finite values.",
-          call. = FALSE)
-      }
-      if (is.null(query$coefficients)) {
-        atom_tiles[[tile_index]] <- t(pair_work)
-      } else {
-        atoms <- atoms + t(
-          query$coefficients[, pair_indices, drop = FALSE] %*% pair_work
-        )
-      }
-      rm(pair_work, edge_product)
-      invisible(gc(full = FALSE))
-    }
-    if (tiled_pair_output) {
-      atoms <- do.call(cbind, atom_tiles)
     }
   } else if (form_atoms && is.null(query)) {
-    coordinate <- 0L
-    for (column in seq_len(q_right)) {
-      rows <- if (identical(validated$codec, "symmetric_packed")) {
-        column:q_left
-      } else {
-        seq_len(q_left)
-      }
-      for (row in rows) {
-        coordinate <- coordinate + 1L
-        work <- numeric(length(feature_ids))
-        for (edge in seq_len(nrow(ordered_edges))) {
-          left <- left_relations[[left_index[[edge]]]]
-          right <- right_relations[[right_index[[edge]]]]
-          work <- work + ordered_edges$weight[[edge]] *
-            left[row, ] * right[column, ]
-        }
-        if (identical(validated$codec, "symmetric_packed") && row != column) {
-          work <- sqrt(2) * work
-        }
-        if (any(!is.finite(work))) {
-          stop("Effect-form atom formation produced non-finite values.",
-            call. = FALSE)
-        }
-        atoms[, coordinate] <- work
-      }
+    atoms <- .packed_effect_form_atoms(
+      left_relations, right_relations, left_index, right_index,
+      ordered_edges$weight, validated$codec
+    )
+    if (any(!is.finite(atoms))) {
+      .input_error(
+        paste0("Effect-form atom formation produced non-finite values.",
+      " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+      )
     }
   } else if (form_atoms) {
     for (view in seq_len(ncol(query))) {
       work <- numeric(length(feature_ids))
-      operator <- if (identical(validated$codec, "rectangular")) {
-        matrix(query[, view], q_left, q_right)
-      } else {
-        .unsvec_symmetric(query[, view], q_left)
-      }
+      operator <- .physical_query_operator(
+        query[, view], q_left, q_right, validated$codec
+      )
       for (edge in seq_len(nrow(ordered_edges))) {
         left <- left_relations[[left_index[[edge]]]]
         right <- right_relations[[right_index[[edge]]]]
@@ -224,8 +202,10 @@
           colSums(left * (operator %*% right))
       }
       if (any(!is.finite(work))) {
-        stop("Direct effect-form querying produced non-finite values.",
-          call. = FALSE)
+        .input_error(
+          paste0("Direct effect-form querying produced non-finite values.",
+          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation.")
+        )
       }
       atoms[, view] <- work
     }

@@ -133,11 +133,11 @@ test_that("construction capabilities cannot be forged from diagnostics", {
   forged <- form
   forged$capabilities$guaranteed_psd <- TRUE
   expect_error(crossform:::.validate_measurement_form(forged),
-    "cannot be forged")
+    "cannot be forged", class = "effect_contract_error")
   forged <- form
   forged$diagnostics$blocks$observed_min_eigenvalue[] <- 1
   expect_error(crossform:::.validate_measurement_form(forged),
-    "diagnostics signature")
+    "diagnostics signature", class = "effect_contract_error")
 })
 
 test_that("joint covariance requires same-partition self-products", {
@@ -181,7 +181,7 @@ test_that("joint covariance requires same-partition self-products", {
     invalid$task, invalid_run,
     query_construction = "joint_covariance",
     edge_scope = "frame_complete"
-  ), "same-partition|crossvalidated")
+  ), "same-partition|crossvalidated", class = "effect_input_error")
   variation <- crossform:::.measurement_form_from_contraction(
     invalid$task, invalid_run,
     query_construction = "psd_variation",
@@ -222,11 +222,11 @@ test_that("swapped axes, incomplete stores, and forged plan identity fail", {
   swapped <- form
   swapped$left_frame <- form$right_frame
   expect_error(crossform:::.validate_measurement_form(swapped, probe = FALSE),
-    "axes|identity|disagree")
+    "axes|identity|disagree", class = "effect_contract_error")
   forged <- form
   forged$plan$edge_scope <- "frame_complete"
   expect_error(crossform:::.validate_measurement_form(forged, probe = FALSE),
-    "complete|identity")
+    "complete|identity", class = "effect_input_error")
 
   path <- tempfile(fileext = ".emf")
   on.exit(unlink(c(path, paste0(path, ".manifest.rds"))), add = TRUE)
@@ -235,7 +235,7 @@ test_that("swapped axes, incomplete stores, and forged plan identity fail", {
   )
   expect_error(crossform:::.new_measurement_form(
     incomplete, form$plan, form$capabilities, form$diagnostics, form$receipt
-  ), "incomplete")
+  ), "incomplete", class = "effect_input_error")
 })
 
 test_that("query-only measurement views cannot become complete forms", {
@@ -259,9 +259,9 @@ test_that("query-only measurement views cannot become complete forms", {
   upgraded <- view
   upgraded$completeness <- "complete"
   expect_error(crossform:::.validate_measurement_view(upgraded),
-    "query-only")
+    "query-only", class = "effect_input_error")
   expect_error(crossform:::.measurement_block(view, 1L),
-    "canonical complete")
+    "canonical complete", class = "effect_input_error")
 })
 
 test_that("typed view eligibility is capability-gated before block reads", {
@@ -275,9 +275,16 @@ test_that("typed view eligibility is capability-gated before block reads", {
   expect_silent(crossform:::.require_measurement_view_capabilities(
     arbitrary, "effect_coupling"
   ))
-  expect_error(crossform:::.require_measurement_view_capabilities(
+  # Capability gating is a classed refusal, so a caller can branch on the
+  # cause rather than on the message prose.
+  refusal <- catch_refusal(crossform:::.require_measurement_view_capabilities(
     arbitrary, "covariance_coupling"
-  ), "repeated variation")
+  ))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "certified_repeated_variation")
+  expect_identical(refusal$namespace, "coupling_views")
+  expect_identical(refusal$reasons, "repeated_variation_not_certified")
+  expect_match(conditionMessage(refusal), "repeated variation")
 
   joint <- joint_measurement_fixture(crossvalidated = FALSE)
   joint_run <- crossform:::.run_measurement_contraction(joint$task,
@@ -290,9 +297,18 @@ test_that("typed view eligibility is capability-gated before block reads", {
   expect_silent(crossform:::.require_measurement_view_capabilities(
     covariance, "covariance_coupling"
   ))
-  expect_error(crossform:::.require_measurement_view_capabilities(
-    covariance, "canonical_coupling", positive_self_blocks = FALSE
-  ), "positive self-blocks")
+  unvalidated <- catch_refusal(
+    crossform:::.require_measurement_view_capabilities(
+      covariance, "canonical_coupling", positive_self_blocks = FALSE
+    )
+  )
+  expect_s3_class(unvalidated, "effect_capability_refusal")
+  expect_identical(unvalidated$capability, "coherent_joint_covariance")
+  expect_identical(unvalidated$namespace, "coupling_views")
+  # The joint covariance is certified here, so only the self-block reason is
+  # unmet: the refusal reports every unmet reason, not the first one.
+  expect_identical(unvalidated$reasons, "self_blocks_not_validated")
+  expect_match(conditionMessage(unvalidated), "positive self-blocks")
   expect_silent(crossform:::.require_measurement_view_capabilities(
     covariance, "canonical_coupling", positive_self_blocks = TRUE
   ))
@@ -318,5 +334,5 @@ test_that("regularization identity is recorded but raw blocks cannot claim it ap
     regularization = crossform:::.measurement_regularization(
       "ridge", 1e-6, applied = TRUE
     )
-  ), "Raw measurement blocks")
+  ), "Raw measurement blocks", class = "effect_input_error")
 })

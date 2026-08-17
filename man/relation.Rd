@@ -18,19 +18,19 @@ relation(
 }
 \arguments{
 \item{sources}{A matrix, or a named list of matrix, function, or
-`effect_source_descriptor` response sources.}
+\code{effect_source_descriptor} response sources.}
 
-\item{extract}{NULL, one `effect_extractor`, or one extractor per partition.}
+\item{extract}{NULL, one \code{effect_extractor}, or one extractor per partition.}
 
-\item{effects}{An `effect_space()` for already estimated sources, or unique
+\item{effects}{An \code{effect_space()} for already estimated sources, or unique
 names used as shorthand for an unspecified-basis effect space.}
 
 \item{source_dims}{Required dimensions for function sources, as one
 two-element vector per partition.}
 
-\item{partitions}{Optional partition names when not supplied by `sources`.}
+\item{partitions}{Optional partition names when not supplied by \code{sources}.}
 
-\item{domain}{Optional `effect_domain`; its identity is recorded without
+\item{domain}{Optional \code{effect_domain}; its identity is recorded without
 resampling or changing neural features.}
 
 \item{domain_id}{Stable neural-domain identity.}
@@ -40,16 +40,87 @@ resampling or changing neural features.}
 \item{provenance}{Optional provenance metadata.}
 }
 \value{
-An `effect_relation`.
+An \code{effect_relation}: a list with the compiled \verb{$sources}, one
+\verb{$extractors} entry per partition, the shared \verb{$effect_space} and its
+\verb{$effects} labels, \verb{$partitions}, \verb{$n_features}, the \verb{$domain} reference
+and \verb{$domain_id}, optional source \verb{$capabilities}, and \verb{$provenance}. No
+neural values have been read.
 }
 \description{
 Each source is read only by neural feature block. Extractors map its
 observation rows into one common named experimental space. Omitting
-`extract` declares that sources already contain effect-by-feature matrices.
+\code{extract} declares that sources already contain effect-by-feature matrices.
 A relation made from precomputed effects supports point evidence but carries
 no residual error channel. Beta matrices alone cannot recover within-
 participant analytic uncertainty. If later work needs a learned neural
-metric or [rdm_sampling_covariance()], start from raw responses with
-[lm_relation_fit()]. Subject-level resampling answers a population question;
+metric or \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, start from raw responses with
+\code{\link[=lm_relation_fit]{lm_relation_fit()}}. Subject-level resampling answers a population question;
 it does not recreate discarded first-level residual information.
 }
+\section{Structure}{
+
+A relation declares what will be read, so its elements are identities and
+shapes rather than values.
+\itemize{
+\item \verb{$effects}: the effect labels, in the order every partition estimates
+them and the order unnamed contrast weights are read in.
+\item \verb{$effect_space}: the shared \code{effect_space()} those labels coordinate,
+carrying the basis identity, units, and signature every partition
+agrees on.
+\item \verb{$partitions}: the partition names, in the order they were supplied.
+These are what \code{\link[=cross_partitions]{cross_partitions()}} and \code{\link[=pairing]{pairing()}} name.
+\item \verb{$n_features}: the number of neural features every partition spans.
+\item \verb{$domain}: the neural domain the source columns are bound to, carrying
+its \code{id}, \code{n_features}, and \code{feature_ids}; \verb{$domain_id} repeats that
+\code{id}.
+\item \verb{$capabilities}: one \code{\link[=source_capabilities]{source_capabilities()}} per partition when the
+sources declared them, otherwise \code{NULL}.
+\item \verb{$provenance}: the metadata supplied at construction, unchanged.
+}
+
+\verb{$sources} and \verb{$extractors} are the compiled read path \code{\link[=relation_block]{relation_block()}}
+uses; they and any element not listed here are internal and may change.
+}
+
+\examples{
+# Precomputed condition betas: one effect-by-feature matrix per run.
+set.seed(1)
+domain <- abstract_domain(5L, id = "relation-example")
+betas <- lapply(c("run-1", "run-2"), function(partition) {
+  matrix(rnorm(15), 3L, 5L,
+    dimnames = list(c("face", "body", "tool"), NULL))
+})
+names(betas) <- c("run-1", "run-2")
+
+point <- relation(betas, domain = domain)
+point$effects
+point$partitions
+
+# Betas alone carry no residual information, so anything needing the error
+# channel refuses here rather than inventing a standard error.
+catch_refusal(residual_df(point, "run-1"))$capability
+}
+\seealso{
+\code{\link[=lm_relation_fit]{lm_relation_fit()}} when raw responses are available and a residual
+channel is needed, \code{\link[=relation_block]{relation_block()}} to read one block, and
+\code{\link[=plan_geometry]{plan_geometry()}} for the next step.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

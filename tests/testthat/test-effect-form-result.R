@@ -38,16 +38,16 @@ test_that("pair queries bind independent ordered axes", {
   expect_error(
     query_geometry(fixture$result, wrong_query),
     "axis identities"
-  )
+  , class = "effect_contract_error")
   expect_error(
     query_geometry(
       fixture$result,
       pair_query(t(H), fixture$right, fixture$left)
     ),
     "axis identities"
-  )
+  , class = "effect_contract_error")
   expect_error(pair_query(matrix(1, 3, 2), fixture$left, fixture$right),
-    "dimension")
+    "dimension", class = "effect_contract_error")
 })
 
 test_that("complete rectangular forms answer pair queries by column-major vec", {
@@ -111,7 +111,7 @@ test_that("packed and rectangular codecs contract symmetric forms identically", 
     crossprod(matrix(c(1, 2, 0, -1, 3, 4), nrow = 2)),
     crossprod(matrix(c(2, 0, 1, 5, -2, 3), nrow = 2))
   )
-  packed_values <- do.call(rbind, lapply(forms, crossform:::.svec_symmetric))
+  packed_values <- do.call(rbind, lapply(forms, oracle_svec))
   rectangular_values <- do.call(rbind, lapply(forms, as.vector))
   zero_packed <- matrix(0, nrow(packed_values), ncol(packed_values))
   zero_rectangular <- matrix(0, nrow(rectangular_values), ncol(rectangular_values))
@@ -150,47 +150,68 @@ test_that("complete-form and query-only claims cannot be forged", {
 
   forged <- fixture$result
   forged$result_capability <- "query_only"
-  expect_error(crossform:::.validate_effect_form(forged), "complete effect_form")
+  expect_error(crossform:::.validate_effect_form(forged), "complete effect_form",
+    class = "effect_input_error")
 
   forged <- fixture$result
   forged$capabilities$symmetric <- TRUE
   expect_error(crossform:::.validate_effect_form(forged),
-    "symmetric effect form|capabilities")
+    "symmetric effect form|capabilities", class = "effect_input_error")
 
   forged <- fixture$result
   forged$total$manifest$format <- "packed-double-v1"
-  expect_error(crossform:::.validate_effect_form(forged), "manifest")
+  expect_error(crossform:::.validate_effect_form(forged), "manifest",
+    class = "effect_input_error")
 
   self <- result_fixture()
   forged_self <- self
   forged_self$capabilities$guaranteed_psd <- TRUE
   expect_error(crossform:::.validate_effect_form(forged_self),
-    "contract signature")
+    "contract signature", class = "effect_contract_error")
 
   forged_view <- view
   forged_view$result_capability <- "complete_form"
   class(forged_view) <- c("effect_form", class(forged_view))
-  expect_error(crossform:::.validate_effect_view(forged_view), "query-only")
+  expect_error(crossform:::.validate_effect_view(forged_view), "query-only",
+    class = "effect_input_error")
 
   forged_view <- view
   forged_view$query$operator[1, 1] <- 2
   expect_error(crossform:::.validate_effect_view(forged_view),
-    "contract signature")
+    "contract signature", class = "effect_contract_error")
 })
 
 test_that("self-only and component views have explicit capability guards", {
   fixture <- rectangular_form_fixture()
 
-  expect_error(rdm(fixture$result), "symmetric self form")
-  expect_error(
-    rsa(fixture$result, models = list(model = diag(3))),
-    "symmetric self form"
+  rdm_refusal <- catch_refusal(rdm(fixture$result))
+  expect_s3_class(rdm_refusal, "effect_capability_refusal")
+  expect_identical(rdm_refusal$capability, "symmetric_self_form")
+  expect_identical(rdm_refusal$namespace, "geometry_views")
+  expect_identical(rdm_refusal$reasons, "form_is_not_a_symmetric_self_form")
+  expect_match(conditionMessage(rdm_refusal), "symmetric self form")
+
+  rsa_refusal <- catch_refusal(
+    rsa(fixture$result, models = list(model = diag(3)))
   )
-  expect_error(geometry_spectrum(fixture$result), "symmetric self form")
+  expect_s3_class(rsa_refusal, "effect_capability_refusal")
+  expect_identical(rsa_refusal$capability, "symmetric_self_form")
+  expect_identical(rsa_refusal$namespace, "geometry_views")
+  expect_identical(rsa_refusal$reasons, "form_is_not_a_symmetric_self_form")
+  expect_match(conditionMessage(rsa_refusal), "symmetric self form")
+
+  spectrum_refusal <- catch_refusal(geometry_spectrum(fixture$result))
+  expect_s3_class(spectrum_refusal, "effect_capability_refusal")
+  expect_identical(spectrum_refusal$capability, "symmetric_self_form")
+  expect_identical(spectrum_refusal$namespace, "geometry_views")
+  expect_identical(spectrum_refusal$reasons,
+    "form_is_not_a_symmetric_self_form")
+  expect_match(conditionMessage(spectrum_refusal), "symmetric self form")
+
   expect_error(
     geometry_component(fixture$result, "configuration"),
     "does not carry"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("rectangular block stores preserve codec and bounded queries", {

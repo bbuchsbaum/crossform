@@ -1,9 +1,9 @@
 # Capability-gated views over completed measurement forms ------------------
 
 .coupling_result_signature <- function(fields) {
-  paste0("sha256:", digest::digest(c(
+  .sha256_signature(c(
     list(schema_version = 1L), fields
-  ), algo = "sha256", serialize = TRUE))
+  ))
 }
 
 .new_coupling_result <- function(kind, values, x, normalization_axis,
@@ -14,24 +14,20 @@
                                  source_forms = list(x)) {
   .validate_measurement_form(x, probe = FALSE)
   if (!is.list(source_forms) || length(source_forms) < 1L) {
-    stop("Coupling results require at least one completed source form.",
-      call. = FALSE)
+    .input_error("Coupling results require at least one completed source form.")
   }
   lapply(source_forms, .validate_measurement_form, probe = FALSE)
   if (!is.null(partition_policy)) {
     .validate_coupling_partition_policy(partition_policy)
   }
-  if (!is.character(kind) || length(kind) != 1L || is.na(kind) ||
-      !nzchar(kind) || !is.character(normalization_axis) ||
-      length(normalization_axis) != 1L || is.na(normalization_axis) ||
-      !normalization_axis %in% c("none", "experimental_samples",
-        "neural_features", "partition_pairs", "form_entries") ||
-      !is.character(summary_axis) || length(summary_axis) != 1L ||
-      is.na(summary_axis) ||
-      !summary_axis %in% c("measurement_coordinates", "form_entries",
-        "canonical_modes") || !is.character(stage_order) ||
-      length(stage_order) < 1L || anyNA(stage_order)) {
-    stop("Coupling-view identity or axes are invalid.", call. = FALSE)
+  if (!.is_string(kind) ||
+      !.is_string(normalization_axis, allow_empty = TRUE) ||
+      !normalization_axis %in% c("none", "experimental_samples", "neural_features", "partition_pairs", "form_entries") ||
+      !.is_string(summary_axis, allow_empty = TRUE) ||
+      !summary_axis %in% c("measurement_coordinates", "form_entries", "canonical_modes") ||
+      !is.character(stage_order) || length(stage_order) < 1L ||
+      anyNA(stage_order)) {
+    .input_error("Coupling-view identity or axes are invalid.")
   }
   valid_values <- if (is.data.frame(values)) {
     nrow(values) >= 1L && "edge_id" %in% names(values) &&
@@ -50,8 +46,9 @@
     FALSE
   }
   if (!valid_values) {
-    stop("Coupling-view values do not match their completed edge set.",
-      call. = FALSE)
+    .contract_error(
+      "Coupling-view values do not match their completed edge set."
+    )
   }
   fields <- list(
     kind = kind,
@@ -82,19 +79,19 @@
     "source_receipt", "normalization_axis", "summary_axis", "stage_order",
     "regularization", "units", "terminology", "partition_policy",
     "edge_completeness", "signature")
-  if (!inherits(x, "effect_coupling_result") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Coupling result is missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(x, "effect_coupling_result", expected)) {
+    .input_error("Coupling result is missing or noncanonical.")
   }
   fields <- x[setdiff(names(x), "signature")]
-  if (!identical(x$signature, .coupling_result_signature(fields))) {
-    stop("Coupling-result identity is inconsistent.", call. = FALSE)
-  }
+  .check_signature(
+    x$signature, .coupling_result_signature(fields),
+    "Coupling-result identity is inconsistent."
+  )
   if (!is.character(x$source_plan) || length(x$source_plan) < 1L ||
       anyNA(x$source_plan) || !is.character(x$source_receipt) ||
       length(x$source_receipt) != length(x$source_plan) ||
       anyNA(x$source_receipt)) {
-    stop("Coupling-result source identities are inconsistent.", call. = FALSE)
+    .input_error("Coupling-result source identities are inconsistent.")
   }
   if (!is.null(x$partition_policy)) {
     .validate_coupling_partition_policy(x$partition_policy)
@@ -107,17 +104,19 @@
                            "after_partition_aggregation"),
     transform = NULL) {
   placement <- match.arg(placement)
-  if (!is.numeric(weights) || length(weights) < 1L || anyNA(weights) ||
-      any(!is.finite(weights)) || any(weights < 0) || sum(weights) <= 0) {
-    stop("Partitioned coupling requires finite nonnegative positive-mass weights.",
-      call. = FALSE)
+  if (!.is_finite_numeric(weights) || length(weights) < 1L || anyNA(weights) ||
+      any(weights < 0) || sum(weights) <= 0) {
+    .input_error(
+      "Partitioned coupling requires finite nonnegative positive-mass weights."
+    )
   }
   weights <- as.numeric(weights / sum(weights))
   if (is.null(transform)) transform <- .identity_edge_transform()
   transform <- .validate_edge_transform(transform)
   if (!transform$kind %in% c("identity", "fisher_z")) {
-    stop("Partitioned Pearson coupling supports identity or Fisher transforms.",
-      call. = FALSE)
+    .input_error(
+      "Partitioned Pearson coupling supports identity or Fisher transforms."
+    )
   }
   semantic <- list(
     schema_version = 1L,
@@ -126,24 +125,19 @@
     transform = unclass(transform)
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_coupling_partition_policy")
 }
 
 .validate_coupling_partition_policy <- function(x) {
   expected <- c("placement", "weights", "transform", "signature")
-  if (!inherits(x, "effect_coupling_partition_policy") || !is.list(x) ||
-      !identical(names(x), expected)) {
-    stop("Coupling partition policy is missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(x, "effect_coupling_partition_policy", expected)) {
+    .input_error("Coupling partition policy is missing or noncanonical.")
   }
   transform <- structure(x$transform, class = "effect_edge_transform")
   rebuilt <- .coupling_partition_policy(x$weights, x$placement, transform)
   if (!identical(x, rebuilt)) {
-    stop("Coupling partition-policy identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Coupling partition-policy identity is inconsistent.")
   }
   rebuilt
 }
@@ -161,8 +155,9 @@
   position <- .measurement_edge_position(x$block_index, edge)
   row <- x$block_index[position, , drop = FALSE]
   if (!identical(x$left_frame$signature, x$right_frame$signature)) {
-    stop("Normalized coupling requires one compatible self-measurement frame.",
-      call. = FALSE)
+    .input_error(
+      "Normalized coupling requires one compatible self-measurement frame."
+    )
   }
   locate <- function(left, right) {
     which(x$block_index$left == left & x$block_index$right == right)
@@ -170,15 +165,16 @@
   left_position <- locate(row$left[[1L]], row$left[[1L]])
   right_position <- locate(row$right[[1L]], row$right[[1L]])
   if (length(left_position) != 1L || length(right_position) != 1L) {
-    stop("Normalized coupling requires explicit left and right self-blocks.",
-      call. = FALSE)
+    .input_error(
+      "Normalized coupling requires explicit left and right self-blocks."
+    )
   }
   cross <- .measurement_block(x, position)
   left_self <- .measurement_block(x, left_position)
   right_self <- .measurement_block(x, right_position)
   if (max(abs(left_self - t(left_self))) > tolerance ||
       max(abs(right_self - t(right_self))) > tolerance) {
-    stop("Coupling self-blocks must be symmetric.", call. = FALSE)
+    .input_error("Coupling self-blocks must be symmetric.")
   }
   left_eigen <- eigen((left_self + t(left_self)) / 2,
     symmetric = TRUE, only.values = TRUE)$values
@@ -186,7 +182,7 @@
     symmetric = TRUE, only.values = TRUE)$values
   if (require_positive &&
       (min(left_eigen) < -tolerance || min(right_eigen) < -tolerance)) {
-    stop("Indefinite self-blocks cannot normalize coupling.", call. = FALSE)
+    .input_error("Indefinite self-blocks cannot normalize coupling.")
   }
   list(
     edge_id = row$edge_id[[1L]],
@@ -200,17 +196,67 @@
   )
 }
 
+# The one edge-reduction loop behind the four block-reducing coupling views.
+#
+# Each view walks the same completed edge set, pulls the same cross- and
+# self-blocks for each edge, and rbinds one row per edge. They differ in
+# exactly two places, which are the two parameters here:
+#
+#   * `statistic` -- what one edge reduces to. A view that returns `NULL`
+#     reduces to a validation sweep (`.covariance_coupling()` proves every
+#     edge has symmetric positive self-blocks and then reports the raw
+#     blocks); a view that returns a one-row data frame reports one number per
+#     edge; a view that returns several rows reports a spectrum.
+#   * the ridge, which is where the normalization is *placed*. Pearson and
+#     geometry alignment divide by a scalar built from the untouched
+#     self-blocks, so their ridge is zero; canonical coupling whitens by the
+#     inverse square root of the self-blocks, so its ridge has to be applied
+#     inside `.coupling_self_blocks()`, before this loop sees them.
+.coupling_edge_reduce <- function(x, statistic, tolerance = 1e-10,
+                                  ridge_left = 0, ridge_right = 0) {
+  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
+    statistic(.coupling_self_blocks(
+      x, edge, tolerance, ridge_left, ridge_right
+    ))
+  })
+  if (all(vapply(rows, is.null, logical(1)))) return(invisible(NULL))
+  do.call(rbind, rows)
+}
+
 .require_nondegenerate_variation <- function(x) {
   if (!isTRUE(x$capabilities$repeated_variation) ||
       is.null(x$capabilities$sampling_axis)) {
-    stop("Normalized connectivity requires certified repeated variation.",
-      call. = FALSE)
+    .capability_refusal(paste0(
+      "Normalized connectivity requires certified repeated variation along a ",
+      "named sampling axis: a correlation divides by a variance, and this ",
+      "form has not established that its variation is repeated sampling ",
+      "rather than a single fixed pattern."
+    ),
+      capability = "certified_repeated_variation",
+      namespace = "coupling_views",
+      reasons = "repeated_variation_not_certified",
+      remedies = paste0(
+        "Build the form with a `variation_query()` that declares its ",
+        "sampling axis, over a pairing whose partitions repeat that axis."
+      )
+    )
   }
   if (x$diagnostics$experimental_effective_rank <= 1L) {
-    stop(paste0(
-      "Normalized connectivity requires effective sampling rank above one; ",
-      "a rank-one effect direction is degenerate."
-    ), call. = FALSE)
+    .capability_refusal(sprintf(paste0(
+      "Normalized connectivity requires an effective sampling rank above ",
+      "one; this variation query has effective rank %s. A rank-one variation ",
+      "direction carries no independent repeats to normalize by, so every ",
+      "edge would report a correlation of plus or minus one by construction."
+    ), format(x$diagnostics$experimental_effective_rank)),
+      capability = "nondegenerate_variation",
+      namespace = "coupling_views",
+      reasons = "rank_one_variation_axis",
+      remedies = paste0(
+        "Supply a variation query of rank two or more, for example a ",
+        "centered covariance over several repeated observations, or read the ",
+        "unnormalized block with `effect_coupling()`."
+      )
+    )
   }
   invisible(x)
 }
@@ -234,9 +280,7 @@
   .require_measurement_view_capabilities(
     x, "canonical_coupling", positive_self_blocks = TRUE
   )
-  for (edge in seq_len(nrow(x$block_index))) {
-    .coupling_self_blocks(x, edge, tolerance = tolerance)
-  }
+  .coupling_edge_reduce(x, function(blocks) NULL, tolerance)
   .new_coupling_result(
     "covariance_coupling",
     .coupling_blocks(x),
@@ -254,28 +298,43 @@
   .require_measurement_view_capabilities(
     x, "canonical_coupling", positive_self_blocks = TRUE
   )
-  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
-    blocks <- .coupling_self_blocks(x, edge, tolerance = tolerance)
+  values <- .coupling_edge_reduce(x, function(blocks) {
     if (!identical(dim(blocks$cross), c(1L, 1L))) {
-      stop("Pearson coupling requires rank-one measurement axes.",
-        call. = FALSE)
+      .input_error("Pearson coupling requires rank-one measurement axes.")
     }
     denominator <- sqrt(blocks$left_self[[1L]] * blocks$right_self[[1L]])
     if (!is.finite(denominator) || denominator <= tolerance) {
-      stop("Pearson coupling requires strictly positive scalar self-variance.",
-        call. = FALSE)
+      # A correlation divides by this; a node that does not vary has no
+      # correlation to report, which is a capability refusal and not an
+      # arithmetic accident.
+      .capability_refusal(sprintf(paste0(
+        "Pearson coupling requires strictly positive scalar self-variance; ",
+        "edge %s has self-variances %s and %s, whose geometric mean is %s at ",
+        "tolerance %s. A node with no measured variation has no correlation."
+      ), .msg_names(blocks$edge_id), format(blocks$left_self[[1L]]),
+        format(blocks$right_self[[1L]]), format(denominator),
+        format(tolerance)),
+        capability = "nondegenerate_self_variance",
+        namespace = "coupling_views",
+        reasons = "self_variance_not_strictly_positive",
+        remedies = paste0(
+          "Drop the constant node from the edge frame, or read the ",
+          "unnormalized block with `effect_coupling()`."
+        )
+      )
     }
     value <- blocks$cross[[1L]] / denominator
     if (abs(value) > 1 + 10 * tolerance) {
-      stop("Scalar covariance blocks do not define a valid correlation.",
-        call. = FALSE)
+      .input_error(
+        "Scalar covariance blocks do not define a valid correlation."
+      )
     }
     data.frame(edge_id = blocks$edge_id,
       correlation = max(-1, min(1, value)), stringsAsFactors = FALSE)
-  })
+  }, tolerance)
   .new_coupling_result(
     "pearson_correlation",
-    do.call(rbind, rows),
+    values,
     x,
     normalization_axis = "experimental_samples",
     summary_axis = "measurement_coordinates",
@@ -288,8 +347,9 @@
 
 .validate_partitioned_coupling_forms <- function(forms) {
   if (!is.list(forms) || length(forms) < 1L) {
-    stop("Partitioned coupling requires a nonempty list of measurement forms.",
-      call. = FALSE)
+    .input_error(
+      "Partitioned coupling requires a nonempty list of measurement forms."
+    )
   }
   lapply(forms, .validate_measurement_form, probe = FALSE)
   reference <- forms[[1L]]
@@ -303,10 +363,10 @@
         reference$capabilities$sampling_axis)
   }, logical(1))
   if (!all(compatible)) {
-    stop(paste0(
+    .contract_error(paste0(
       "Partitioned coupling forms must share exact measurement edges, frames, ",
       "experimental query, and sampling axis."
-    ), call. = FALSE)
+    ))
   }
   lapply(forms, function(form) {
     .require_nondegenerate_variation(form)
@@ -320,7 +380,7 @@
 .scalar_correlations_from_blocks <- function(form, blocks,
                                               tolerance = 1e-10) {
   if (!is.list(blocks) || length(blocks) != nrow(form$block_index)) {
-    stop("Scalar coupling blocks are absent or incomplete.", call. = FALSE)
+    .input_error("Scalar coupling blocks are absent or incomplete.")
   }
   vapply(seq_len(nrow(form$block_index)), function(edge) {
     row <- form$block_index[edge, , drop = FALSE]
@@ -332,22 +392,24 @@
         !identical(dim(blocks[[edge]]), c(1L, 1L)) ||
         !identical(dim(blocks[[left_self]]), c(1L, 1L)) ||
         !identical(dim(blocks[[right_self]]), c(1L, 1L))) {
-      stop(paste0(
+      .input_error(paste0(
         "Partitioned Pearson coupling requires rank-one axes and explicit ",
         "self-blocks."
-      ), call. = FALSE)
+      ))
     }
     denominator <- sqrt(
       blocks[[left_self]][[1L]] * blocks[[right_self]][[1L]]
     )
     if (!is.finite(denominator) || denominator <= tolerance) {
-      stop("Partitioned Pearson coupling requires positive self-variance.",
-        call. = FALSE)
+      .input_error(
+        "Partitioned Pearson coupling requires positive self-variance."
+      )
     }
     value <- blocks[[edge]][[1L]] / denominator
     if (!is.finite(value) || abs(value) > 1 + 10 * tolerance) {
-      stop("Partitioned covariance blocks do not define valid correlations.",
-        call. = FALSE)
+      .input_error(
+        "Partitioned covariance blocks do not define valid correlations."
+      )
     }
     max(-1, min(1, value))
   }, numeric(1))
@@ -362,8 +424,7 @@
     weights, match.arg(placement), transform
   )
   if (length(policy$weights) != length(forms)) {
-    stop("Partition coupling weights must match the source forms.",
-      call. = FALSE)
+    .contract_error("Partition coupling weights must match the source forms.")
   }
   transform <- structure(policy$transform, class = "effect_edge_transform")
   reference <- forms[[1L]]
@@ -437,17 +498,12 @@
   )
   regularization <- .validate_measurement_regularization(regularization)
   if (regularization$kind != "ridge" || regularization$applied) {
-    stop(paste0(
+    .input_error(paste0(
       "Canonical coupling requires an explicit unapplied ridge policy; the ",
       "view applies it to its self-blocks."
-    ), call. = FALSE)
+    ))
   }
-  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
-    blocks <- .coupling_self_blocks(
-      x, edge, tolerance,
-      regularization$lambda_left,
-      regularization$lambda_right
-    )
+  values <- .coupling_edge_reduce(x, function(blocks) {
     left_inverse <- .decomposition_inverse_sqrt(
       blocks$left_regularized, tolerance
     )
@@ -457,8 +513,9 @@
     values <- svd(left_inverse %*% blocks$cross %*% right_inverse,
       nu = 0L, nv = 0L)$d
     if (any(values > 1 + 10 * tolerance)) {
-      stop("Regularized covariance blocks yield canonical values above one.",
-        call. = FALSE)
+      .input_error(
+        "Regularized covariance blocks yield canonical values above one."
+      )
     }
     data.frame(
       edge_id = blocks$edge_id,
@@ -466,10 +523,10 @@
       canonical_correlation = pmin(1, pmax(0, values)),
       stringsAsFactors = FALSE
     )
-  })
+  }, tolerance, regularization$lambda_left, regularization$lambda_right)
   .new_coupling_result(
     "canonical_coupling",
-    do.call(rbind, rows),
+    values,
     x,
     normalization_axis = "experimental_samples",
     summary_axis = "canonical_modes",
@@ -484,27 +541,27 @@
 .geometry_alignment <- function(x, tolerance = 1e-10) {
   .require_nondegenerate_variation(x)
   if (!isTRUE(x$capabilities$joint_covariance)) {
-    stop("Geometry alignment requires a coherent positive joint covariance.",
-      call. = FALSE)
+    .input_error(
+      "Geometry alignment requires a coherent positive joint covariance."
+    )
   }
-  rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
-    blocks <- .coupling_self_blocks(x, edge, tolerance)
+  values <- .coupling_edge_reduce(x, function(blocks) {
     denominator <- sqrt(sum(blocks$left_self^2) * sum(blocks$right_self^2))
     if (!is.finite(denominator) || denominator <= tolerance) {
-      stop("Geometry alignment requires nonzero self-geometries.",
-        call. = FALSE)
+      .input_error("Geometry alignment requires nonzero self-geometries.")
     }
     value <- sum(blocks$cross^2) / denominator
     if (value > 1 + 10 * tolerance) {
-      stop("Covariance blocks do not define bounded geometry alignment.",
-        call. = FALSE)
+      .input_error(
+        "Covariance blocks do not define bounded geometry alignment."
+      )
     }
     data.frame(edge_id = blocks$edge_id,
       geometry_alignment = min(1, max(0, value)), stringsAsFactors = FALSE)
-  })
+  }, tolerance)
   .new_coupling_result(
     "geometry_alignment",
-    do.call(rbind, rows),
+    values,
     x,
     normalization_axis = "form_entries",
     summary_axis = "form_entries",
@@ -526,25 +583,20 @@
     provenance = provenance
   )
   structure(c(semantic[-1L], list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_gaussian_covariance_model")
 }
 
 .validate_gaussian_covariance_model <- function(x) {
   expected <- c("family", "fixed", "provenance", "signature")
-  if (!inherits(x, "effect_gaussian_covariance_model") || !is.list(x) ||
-      !identical(names(x), expected) ||
+  if (!.sealed_fields(x, "effect_gaussian_covariance_model", expected) ||
       !identical(x$family, "joint_gaussian_covariance") ||
       !identical(x$fixed, TRUE)) {
-    stop("Gaussian covariance-model declaration is missing or invalid.",
-      call. = FALSE)
+    .input_error("Gaussian covariance-model declaration is missing or invalid.")
   }
   rebuilt <- .gaussian_covariance_model(x$provenance)
   if (!identical(x, rebuilt)) {
-    stop("Gaussian covariance-model identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Gaussian covariance-model identity is inconsistent.")
   }
   rebuilt
 }
@@ -562,8 +614,9 @@
   rows <- lapply(names(split_values), function(edge_id) {
     rho <- split_values[[edge_id]]
     if (any(rho >= 1 - tolerance)) {
-      stop("Gaussian information is infinite at canonical correlation one.",
-        call. = FALSE)
+      .input_error(
+        "Gaussian information is infinite at canonical correlation one."
+      )
     }
     value <- -0.5 * sum(log1p(-(rho^2)))
     if (units == "bits") value <- value / log(2)
@@ -594,18 +647,46 @@
     correlation = .pearson_coupling(x, tolerance),
     canonical = {
       if (is.null(regularization)) {
-        stop("Canonical connectivity requires an explicit regularization policy.",
-          call. = FALSE)
+        .capability_refusal(paste0(
+          "Canonical connectivity requires an explicit regularization ",
+          "policy: the canonical correlations invert both self-blocks, and ",
+          "the ridge that makes that inversion well posed changes the ",
+          "numbers, so it is never chosen for you."
+        ),
+          capability = "declared_regularization",
+          namespace = "coupling_views",
+          reasons = "regularization_not_declared",
+          remedies = "Pass `ridge = ` (and `ridge_right = ` when it differs)."
+        )
       }
       .canonical_coupling(x, regularization, tolerance)
     },
     geometry_alignment = .geometry_alignment(x, tolerance),
     gaussian_information = {
       if (is.null(regularization) || is.null(model)) {
-        stop(paste0(
+        missing_parts <- c(
+          if (is.null(regularization)) "`ridge`",
+          if (is.null(model)) "`model`"
+        )
+        .capability_refusal(sprintf(paste0(
           "Gaussian-information connectivity requires explicit ",
-          "regularization and a Gaussian model declaration."
-        ), call. = FALSE)
+          "regularization and an explicit Gaussian model declaration; %s ",
+          "%s missing. Mutual information is a modeling claim about the ",
+          "joint distribution, not a rescaling of the coupling block, so ",
+          "crossform records the declaration instead of assuming it."
+        ), paste(missing_parts, collapse = " and "),
+          if (length(missing_parts) == 1L) "is" else "are"),
+          capability = "declared_gaussian_model",
+          namespace = "coupling_views",
+          reasons = c(
+            if (is.null(model)) "gaussian_model_not_declared",
+            if (is.null(regularization)) "regularization_not_declared"
+          ),
+          remedies = paste0(
+            "Pass `model = gaussian_covariance_model(...)` recording the ",
+            "assumption, together with an explicit `ridge`."
+          )
+        )
       }
       .gaussian_information(
         x, regularization, model, match.arg(units), tolerance

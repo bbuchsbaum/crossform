@@ -28,9 +28,12 @@
     Output
       <effect_contrast_view>
         measurements: 2
-       measurement signed  coherent configuration    total coherence_fraction
-                m1   -1.0 0.8357864     0.3357864 1.171573          0.7133883
-                m2   -0.5 1.1715729     1.7573593 2.928932          0.4000000
+        contrast:     a 1, b -1
+       measurement signed coherent configuration total coherence_fraction
+                m1   -1.0   0.8358        0.3358 1.172             0.7134
+                m2   -0.5   1.1716        1.7574 2.929             0.4000
+        coherence_fraction: 2 of 2 valid; NA where coherent and configuration are
+          not a nonnegative partition
 
 ---
 
@@ -39,9 +42,9 @@
     Output
       <effect_rdm_view>
         measurements: 2
-       measurement    a - b
-                m1 1.171573
-                m2 2.928932
+       measurement a - b
+                m1 1.172
+                m2 2.929
 
 ---
 
@@ -50,9 +53,14 @@
     Output
       <effect_rsa_view>
         measurements: 2
+        models:       separation
+        intercept:    omitted
+        pairs:        1 distance over 2 effects
+        estimate:     OLS coefficients on the total component
        measurement separation
-                m1   1.171573
-                m2   2.928932
+                m1      1.172
+                m2      2.929
+        next:         as.data.frame(x), plot(x, terms = ...)
 
 ---
 
@@ -61,9 +69,9 @@
     Output
       <effect_spectrum_view>
         measurements: 2
-       measurement    root1     root2
-                m1 3.732051 0.2679492
-                m2 8.674235 1.3257654
+       measurement root1  root2
+                m1 3.732 0.2679
+                m2 8.674 1.3258
 
 # crossnobis views print and coerce without losing signs
 
@@ -72,6 +80,7 @@
     Output
       <effect_crossnobis_view>
         measurements: 3
+        contrast:     a 1, b -1
        measurement crossnobis
                  1        1.1
                  2        0.9

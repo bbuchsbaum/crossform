@@ -17,14 +17,22 @@ knitr::opts_chunk$set(
 library(crossform)
 ```
 
-Use this guide when your result should describe relationships within and
-between neural measurements, such as two regions or two multivariate
-populations. The inputs are repeated experimental observations, a fixed
-measurement for each neural node, a list of requested node pairs, and an
-experimental query: a fixed matrix that weights time points, conditions, or
-other experimental coordinates. `measurement_form()` returns one matrix block
-for every requested pair. A diagonal block describes one node; an off-diagonal
-block relates two nodes.
+Use this guide when your result must relate two neural measurements to each
+other, rather than report one number at each. Two regions, or two multivariate
+populations, are the usual cases.
+
+A **measurement** is the same spatial unit the other guides report at: a region,
+a searchlight, a voxel, or the whole brain. This guide also calls a measurement
+a **node** whenever it is one endpoint of a pair, because that is how the
+functions name it (`node_ids`, `edge_frame`). The two words denote the same
+object.
+
+The inputs are repeated experimental observations, a fixed measurement operator
+for each node, a list of requested node pairs, and an experimental query: a
+fixed matrix that weights time points, conditions, or other experimental
+coordinates. `measurement_form()` returns one matrix block for every requested
+pair. A diagonal block describes one node; an off-diagonal block relates two
+nodes.
 
 The later sections apply several views to those blocks. `connectivity()` can
 report an ordinary scalar correlation, `canonical_coupling()` reports a
@@ -93,7 +101,7 @@ the self-pairs to obtain the two variances in its denominator. For a seed map
 or selected network, list the scientific edges you need and the self-pairs
 required by the chosen normalization.
 
-The matrix `center / 7` centres the eight time points and divides their sum of
+The matrix `center / 7` centers the eight time points and divides their sum of
 products by seven. `variation_query()` records that operation on the time
 axis. The `joint_covariance` construction is valid here because both sides of
 each product use the same session and the same fitted relation.

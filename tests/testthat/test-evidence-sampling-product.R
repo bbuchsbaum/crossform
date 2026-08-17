@@ -57,56 +57,87 @@ test_that("relation-fit product path supplies exact fixed-metric covariance", {
 
 test_that("relation-fit product agrees with an independent direct oracle", {
   fixture <- sampling_product_fixture()
-  covariance <- rdm_sampling_covariance(
-    fixture$evidence, fixture$fit, target = "plugin"
+  # Two metrics. The exact precision metric makes Sigma_R spherical, which is
+  # the historically flattering case; the identity metric leaves the AR-like
+  # toeplitz residual covariance anisotropic, so the signal term's dependence
+  # on Sigma_R is identifiable here and not only in the oracle.
+  metrics <- list(
+    exact_precision = solve(fixture$covariance),
+    identity = diag(nrow(fixture$covariance))
   )
-  observed <- sampling_covariance(covariance, "materialize")
-  effects <- fixture$fit$relation$effects
-  contrasts <- sampling_oracle_condition_contrasts(length(effects))
-  estimates <- lapply(fixture$fit$relation$partitions, function(partition) {
-    relation_block(fixture$fit, partition,
-      seq_len(fixture$fit$relation$n_features))
-  })
-  mean_patterns <- Reduce(`+`, estimates) / length(estimates)
-  metric_root <- chol(solve(fixture$covariance))
-  # whole_brain(normalization = "local") composes K with weights 1 / P.
-  # Here Sigma_R is kept in the base whitened coordinates and Eq. 13 retains
-  # its explicit P normalization, matching the product specialization.
-  effective_root <- metric_root
-  whitened_signal <- mean_patterns %*% t(effective_root)
-  residual_products <- lapply(fixture$fit$relation$partitions,
-    function(partition) {
-      crossprod(residual_block(
-        fixture$fit, partition,
-        seq_len(fixture$fit$relation$n_features)
-      ))
+  for (name in names(metrics)) {
+    evidence <- plan_geometry(
+      fixture$fit$relation,
+      compile_frame(whole_brain(), fixture$domain),
+      cross_partitions(fixture$fit$relation, independence = "independent"),
+      metric = noise_precision(
+        metrics[[name]], fixture$domain,
+        covariance = solve(metrics[[name]]),
+        provenance = list(source = paste0("simulation_", name))
+      )
+    )
+    covariance <- rdm_sampling_covariance(
+      evidence, fixture$fit, target = "plugin", at = 1L
+    )
+    observed <- sampling_covariance(covariance, "materialize")
+    estimates <- lapply(fixture$fit$relation$partitions, function(partition) {
+      relation_block(fixture$fit, partition,
+        seq_len(fixture$fit$relation$n_features))
     })
-  total_df <- sum(vapply(fixture$fit$relation$partitions, function(partition) {
-    residual_df(fixture$fit, partition)
-  }, integer(1)))
-  residual <- Reduce(`+`, residual_products) / total_df
-  residual_whitened <- effective_root %*% residual %*% t(effective_root)
-  sigma_k <- effect_covariance(fixture$fit, 1L)
-  components <- sampling_oracle_components(
-    whitened_signal, sigma_k, residual_whitened
-  )
-  expected <- sampling_oracle_eq13(
-    components$delta, components$xi, residual_whitened,
-    length(fixture$fit$relation$partitions)
-  )$covariance
+    mean_patterns <- Reduce(`+`, estimates) / length(estimates)
+    # whole_brain(normalization = "local") composes K with weights 1 / P.
+    # Keeping Sigma_R in the base whitened coordinates and letting Eq. 13
+    # carry its explicit P normalization is the same law, so the two must
+    # agree exactly rather than coincidentally.
+    effective_root <- chol(metrics[[name]])
+    whitened_signal <- mean_patterns %*% t(effective_root)
+    residual_products <- lapply(fixture$fit$relation$partitions,
+      function(partition) {
+        crossprod(residual_block(
+          fixture$fit, partition,
+          seq_len(fixture$fit$relation$n_features)
+        ))
+      })
+    total_df <- sum(vapply(
+      fixture$fit$relation$partitions, function(partition) {
+        residual_df(fixture$fit, partition)
+      }, integer(1)
+    ))
+    residual <- Reduce(`+`, residual_products) / total_df
+    residual_whitened <- effective_root %*% residual %*% t(effective_root)
+    sigma_k <- effect_covariance(fixture$fit, 1L)
+    components <- sampling_oracle_components(
+      whitened_signal, sigma_k, residual_whitened
+    )
+    # `residual_whitened` is the pooled plug-in with `total_df` degrees of
+    # freedom, so the oracle corrects the quadratic noise term exactly as the
+    # package does; the signal term is linear and is left alone.
+    expected <- sampling_oracle_eq13(
+      components$differences, components$xi, residual_whitened,
+      length(fixture$fit$relation$partitions),
+      residual_df = total_df
+    )$covariance
 
-  expect_equal(unname(observed), unname(expected), tolerance = 4e-12)
-  expect_identical(dim(observed), dim(expected))
+    expect_equal(unname(observed), unname(expected), tolerance = 4e-12,
+      info = name)
+    expect_identical(dim(observed), dim(expected))
+  }
 })
 
 test_that("beta-only and learned-metric product paths refuse honestly", {
   fixture <- sampling_product_fixture()
-  expect_error(
+  beta_only <- catch_refusal(
     crossform:::.compile_fixed_metric_rdm_sampling(
       fixture$evidence, fixture$fit$relation
-    ),
-    "lm_relation_fit.*beta matrices alone"
+    )
   )
+  expect_s3_class(beta_only, "effect_capability_refusal")
+  expect_identical(beta_only$capability, "sampling_covariance")
+  expect_identical(beta_only$namespace, "evidence_sampling")
+  expect_true("missing_error_channel" %in% beta_only$reasons)
+  expect_match(conditionMessage(beta_only),
+    "lm_relation_fit.*beta matrices alone")
+
   learned <- plan_crossnobis(
     fixture$fit,
     compile_frame(searchlights(100), fixture$domain),
@@ -117,10 +148,14 @@ test_that("beta-only and learned-metric product paths refuse honestly", {
       justification = "test fixture; uncertainty remains unpropagated"
     )
   )
-  expect_error(
-    rdm_sampling_covariance(learned, fixture$fit, target = "null"),
-    "metric was learned"
+  learned_refusal <- catch_refusal(
+    rdm_sampling_covariance(learned, fixture$fit, target = "null", at = 1L)
   )
+  expect_s3_class(learned_refusal, "effect_capability_refusal")
+  expect_identical(learned_refusal$capability, "fixed_metric_sampling_law")
+  expect_identical(learned_refusal$namespace, "evidence_sampling")
+  expect_identical(learned_refusal$reasons, "learned_metric_law_not_admitted")
+  expect_match(conditionMessage(learned_refusal), "metric was learned")
 })
 
 test_that("overlapping supports reuse one exact sparse residual statistic", {
@@ -195,10 +230,99 @@ test_that("one-node sampling queries do not compile whole-frame residual state",
   )))
 })
 
+test_that("batched sampling covariance matches repeated single-node calls", {
+  fixture <- sampling_product_fixture(features = 9L)
+  frame <- compile_frame(searchlights(2.01), fixture$domain)
+  evidence <- plan_geometry(
+    fixture$fit$relation, frame,
+    cross_partitions(fixture$fit$relation, independence = "independent"),
+    metric = noise_precision(
+      solve(fixture$covariance), fixture$domain,
+      covariance = fixture$covariance,
+      provenance = list(source = "simulation_truth")
+    )
+  )
+  nodes <- c(1L, 4L, 7L, 9L)
+  query_vector <- c(1, -1, 0, 0, 0, 0)
+  selected <- cbind(1L, 2L)
+  transport <- rbind(first = query_vector, second = rev(query_vector))
+
+  repeated <- lapply(nodes, function(node) {
+    rdm_sampling_covariance(
+      evidence, fixture$fit, target = "null", at = node
+    )
+  })
+  batched <- rdm_sampling_covariance(
+    evidence, fixture$fit, target = "null", at = nodes
+  )
+  explicit_local <- rdm_sampling_covariance(
+    evidence, fixture$fit, target = "null", at = nodes,
+    residual_strategy = "node_local"
+  )
+
+  expect_s3_class(batched, "effect_rdm_sampling_covariance_batch")
+  expect_length(batched, length(nodes))
+  expect_identical(batched[[1L]]$plan$scientific_plan_id,
+    repeated[[1L]]$plan$scientific_plan_id)
+  expect_identical(batched[[1L]]$source$execution$route, "batched")
+  expect_identical(
+    batched[[1L]]$source$execution$residual_strategy,
+    "shared_pair_statistics"
+  )
+  expect_true(batched[[1L]]$source$execution$shared_residual_statistics)
+  expect_null(repeated[[1L]]$source$execution)
+  expect_identical(
+    explicit_local[[1L]]$source$execution$residual_strategy,
+    "node_local"
+  )
+  expect_false(explicit_local[[1L]]$source$execution$shared_residual_statistics)
+
+  for (index in seq_along(nodes)) {
+    expect_equal(
+      sampling_covariance(batched[[index]]),
+      sampling_covariance(repeated[[index]]),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      sampling_covariance(
+        batched[[index]], "selected_entries", query = selected
+      ),
+      sampling_covariance(
+        repeated[[index]], "selected_entries", query = selected
+      ),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      sampling_covariance(
+        batched[[index]], "quadratic_form", query = query_vector
+      ),
+      sampling_covariance(
+        repeated[[index]], "quadratic_form", query = query_vector
+      ),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      sampling_covariance(
+        batched[[index]], "transport", query = transport
+      ),
+      sampling_covariance(
+        repeated[[index]], "transport", query = transport
+      ),
+      tolerance = 1e-12
+    )
+  }
+  expect_equal(
+    sampling_covariance(batched, "quadratic_form", query = query_vector),
+    lapply(repeated, sampling_covariance, "quadratic_form",
+      query = query_vector),
+    tolerance = 1e-12
+  )
+})
+
 test_that("public RDM sampling covariance is explicit and exactly queryable", {
   fixture <- sampling_product_fixture()
   covariance <- rdm_sampling_covariance(
-    fixture$evidence, fixture$fit, target = "plugin"
+    fixture$evidence, fixture$fit, target = "plugin", at = 1L
   )
   dense <- sampling_covariance(covariance, "materialize")
   vector <- seq_len(nrow(dense)) / 10
@@ -221,14 +345,25 @@ test_that("public RDM sampling covariance is explicit and exactly queryable", {
     sampling_covariance(covariance, "transport", query = map),
     map %*% dense %*% t(map), tolerance = 4e-13
   )
-  expect_error(
-    rdm_sampling_covariance(fixture$evidence, fixture$fit),
-    "signal-dependent covariance target is not inferred"
+  target_refusal <- catch_refusal(
+    rdm_sampling_covariance(fixture$evidence, fixture$fit)
   )
-  expect_error(
+  expect_s3_class(target_refusal, "effect_capability_refusal")
+  expect_identical(target_refusal$capability, "calibration_target_declared")
+  expect_identical(target_refusal$namespace, "evidence_sampling")
+  expect_identical(target_refusal$reasons, "calibration_target_not_declared")
+  expect_match(conditionMessage(target_refusal),
+    "signal-dependent covariance target is not inferred")
+
+  beta_only <- catch_refusal(
     rdm_sampling_covariance(
-      fixture$evidence, fixture$fit$relation, target = "null"
-    ),
-    "lm_relation_fit.*beta matrices alone"
+      fixture$evidence, fixture$fit$relation, target = "null", at = 1L
+    )
   )
+  expect_s3_class(beta_only, "effect_capability_refusal")
+  expect_identical(beta_only$capability, "sampling_covariance")
+  expect_identical(beta_only$namespace, "evidence_sampling")
+  expect_true("missing_error_channel" %in% beta_only$reasons)
+  expect_match(conditionMessage(beta_only),
+    "lm_relation_fit.*beta matrices alone")
 })

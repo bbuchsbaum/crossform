@@ -11,11 +11,48 @@ identity_metric(domain = NULL)
 until schedule compilation.}
 }
 \value{
-An `effect_metric_recipe`.
+An \code{effect_metric_recipe} with \verb{$kind}, the optional bound
+\verb{$domain}, a \verb{$capabilities} record, the fixed \verb{$hyperparameters}
+(estimator, randomness, seed), and a \verb{$signature}. It allocates no
+matrix.
 }
 \description{
 These constructors describe how a local neural metric is to be produced.
-They do not allocate a domain-wide matrix. Use `compile_metric_schedule()`
+They do not allocate a domain-wide matrix. Use \code{compile_metric_schedule()}
 to bind a recipe to residual sufficient statistics, spatial supports, and
 evaluation edges.
 }
+\examples{
+# A recipe is a declaration, not a matrix: no domain-wide operator exists
+# until a schedule binds it to supports.
+recipe <- identity_metric()
+recipe$kind
+recipe$hyperparameters$estimator
+metric_capabilities(recipe)$materialized
+
+# Bind the domain up front when you want a domain mismatch caught before
+# schedule compilation rather than during it.
+domain <- abstract_domain(3, id = "identity-metric-example")
+identity_metric(domain)$domain$id
+
+# Unlike the residual-derived recipes, this one estimates nothing, so it
+# stays diagonal and needs no residual channel.
+c(identity = metric_capabilities(recipe)$native_diagonal,
+  shrinkage = metric_capabilities(shrinkage_precision())$native_diagonal)
+}
+\seealso{
+\code{\link[=diagonal_precision]{diagonal_precision()}} and \code{\link[=shrinkage_precision]{shrinkage_precision()}} for
+residual-derived recipes, \code{\link[=metric_capabilities]{metric_capabilities()}} to inspect one, and
+\code{\link[=plan_crossnobis]{plan_crossnobis()}}, which binds a recipe to residual statistics.
+
+Other neural metrics: 
+\code{\link{diagonal_precision}()},
+\code{\link{effect_covariance}()},
+\code{\link{gaussian_covariance_model}()},
+\code{\link{metric_capabilities}()},
+\code{\link{metric_training_policy}()},
+\code{\link{neural_metric}()},
+\code{\link{noise_precision}()},
+\code{\link{shrinkage_precision}()}
+}
+\concept{neural metrics}

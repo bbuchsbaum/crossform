@@ -19,23 +19,41 @@ library(crossform)
 
 Use this guide when you have one scan-by-feature response matrix per run, event
 and confound tables, and a design matrix or design compiler. The goal is to fit
-named condition effects in every run and pass them to `contrast()`, `rdm()`, or
-`rsa()`. The returned `effect_relation_fit` can also retain residuals for
-within-participant uncertainty calculations.
+named condition effects in every run and pass them to `contrast_energy()`,
+`rdm()`, or `rsa()`. The returned `effect_relation_fit` can also retain
+residuals for within-participant uncertainty calculations.
 
 The workflow has five steps: bind observations to their clocks and metadata,
 declare the condition effects, declare the observation model, call
-`plan_relation()`, and fit it with `estimate()`. A separate `plan_geometry()`
-then states what those fitted effects must reproduce across.
+`plan_relation()`, and fit it with `estimate_relation()`. A separate
+`plan_geometry()` then states what those fitted effects must reproduce across.
+
+If you already hold a compiled design matrix, or only per-run beta matrices,
+you do not need all five steps. Those two shorter routes are worked at the end
+of this guide; the only thing that changes along the way is whether the
+residual channel — and with it the analytic standard error — survives.
 
 ## What data does the fit require?
 
-The example has three runs, three named conditions, twelve neural features,
-and two censored scans per run. Each response matrix has scans in rows and
-neural features in columns. Event rows use the same clock units as the scan
-index, while confound rows join to scans by `partition` and `observation_id`.
+Three objects, and nothing else:
 
-```{r generate-data, include=FALSE}
+1. **one scan-by-feature response matrix per run**, in a named list — scans in
+   rows, neural features in columns;
+2. **an events table** — one row per event, with `partition`, `onset`,
+   `duration`, and the condition label, on the same clock as the scan index;
+3. **a confounds table** — one row per scan, joined to the responses by
+   `partition` and `observation_id`, carrying nuisance regressors and an
+   optional Boolean censor column.
+
+The example below generates all three so the vignette can check its own
+answers. It has three runs, three named conditions, twelve neural features, and
+two censored scans per run. Read the code as a description of the shape your own
+data must have; substitute your matrices and tables for the generated ones.
+
+The design and the planted signal come first. Each run's responses are the
+condition means plus a linear drift, a motion covariate, and noise.
+
+```{r simulate-responses}
 set.seed(20260815)
 partitions <- paste0("run-", 1:3)
 n_scan <- 18L
@@ -62,13 +80,21 @@ nuisance_truth <- matrix(
   rnorm(2L * domain$n_features, sd = 0.08),
   nrow = 2L
 )
+
+# (1) one scan-by-feature response matrix per run
 response_runs <- stats::setNames(lapply(partitions, function(partition) {
   design[, conditions, drop = FALSE] %*% truth +
     design[, c("drift", "motion"), drop = FALSE] %*% nuisance_truth +
     matrix(rnorm(n_scan * domain$n_features, sd = 0.4),
       nrow = n_scan)
 }), partitions)
+```
 
+Each response matrix needs a clock. `observation_index()` records the scan
+identifiers, their partition, and their acquisition times; the events table then
+speaks the same units.
+
+```{r simulate-tables}
 scan_indexes <- stats::setNames(lapply(partitions, function(partition) {
   observation_index(
     seq_len(n_scan), partition,
@@ -76,6 +102,7 @@ scan_indexes <- stats::setNames(lapply(partitions, function(partition) {
   )
 }), partitions)
 
+# (2) one events table for the whole study
 event_table <- do.call(rbind, lapply(partitions, function(partition) {
   data.frame(
     partition = partition,
@@ -85,6 +112,8 @@ event_table <- do.call(rbind, lapply(partitions, function(partition) {
     condition = as.character(condition)
   )
 }))
+
+# (3) one confounds table, one row per scan, with a censor column
 confound_table <- do.call(rbind, lapply(partitions, function(partition) {
   data.frame(
     partition = partition,
@@ -94,6 +123,8 @@ confound_table <- do.call(rbind, lapply(partitions, function(partition) {
   )
 }))
 ```
+
+That is the whole input. Its shape:
 
 ```{r inspect-inputs}
 data.frame(
@@ -114,7 +145,7 @@ events outside the observation window.
 
 ```{r bind-study}
 neural_record <- observations(response_runs, scan_indexes, domain)
-event_record <- events(event_table)
+event_record <- observation_events(event_table)
 confound_record <- observation_confounds(
   confound_table, censor = "retained"
 )
@@ -196,7 +227,7 @@ declared_design <- design_model(
 
 `design_model()` returns the declared design plus the metadata needed to check
 and reproduce its compilation. This example supplies matrices directly. An
-external compiler may instead build haemodynamic response functions and event
+external compiler may instead build hemodynamic response functions and event
 grammars, but it must provide the same named condition map, row lineage, ranks,
 aliasing information, and solver diagnostics.
 
@@ -232,7 +263,7 @@ The plan, design receipt, and fitted relation have separate identities:
 
 ```{r identity-ladder}
 receipts <- relation_plan_receipts(relation_request)
-fit <- estimate(relation_request)
+fit <- estimate_relation(relation_request)
 data.frame(
   object = c("relation plan", "run-1 design receipt", "fitted relation"),
   identity = substr(c(
@@ -248,14 +279,20 @@ condition-space request. A supported change from cell-means to treatment coding
 does the same. Changing the requested effects, units, observation law, or
 independence declaration changes the relation plan. `fit$signature` binds the
 plan, the realized receipts, and the exact observation revisions used by
-`estimate()`.
+`estimate_relation()`.
 
 ## Ask what reproduces across runs
 
-`estimate()` emits the same `effect_relation_fit` consumed everywhere else in
-the package. `cross_partitions()` requests products between different runs;
-`generalizes_over = "run"` records that run is the axis across which the effect
-must reproduce.
+`estimate_relation()` emits the same `effect_relation_fit` consumed everywhere
+else in the package. `cross_partitions()` requests products between different
+runs; `generalizes_over = "run"` records that run is the axis across which the
+effect must reproduce.
+
+The frame decides where results are reported. This example uses three
+anatomical regions, so every result below has three rows. Searchlights, single
+voxels, and the whole brain are the other choices; the package calls any one of
+them a *measurement*, and nothing downstream changes when you swap one for
+another.
 
 ```{r geometry}
 frame <- compile_frame(
@@ -270,7 +307,7 @@ generalization <- cross_partitions(
 geometry_plan <- plan_geometry(fit$relation, frame, generalization)
 
 face_minus_body <- c(face = 1, body = -1, tool = 0)
-effect <- contrast(geometry_plan, face_minus_body)
+effect <- contrast_energy(geometry_plan, face_minus_body)
 distances <- rdm(geometry_plan)
 
 tool_category <- outer(
@@ -281,7 +318,7 @@ tool_category <- outer(
 model_fit <- rsa(geometry_plan, models = list(tool = tool_category))
 ```
 
-`contrast()` returns the signed regional contrast and its coherent,
+`contrast_energy()` returns the signed regional contrast and its coherent,
 configuration, and total cross-run energies. `rdm()` returns the three pairwise
 condition distances for each region. `rsa()` returns an intercept and the
 coefficient for the named tool-category model.
@@ -331,6 +368,196 @@ as separate factors. They are not population-level uncertainty. A learned
 whitener would still permit the point estimates but would not receive this
 analytic uncertainty capability.
 
+### The assumption those standard errors rest on
+
+The analytic law assumes the observations *within a run* are independent given
+the design. fMRI residuals are not — they are temporally autocorrelated — and
+the consequence is not a rounding error. Under AR(1) errors with
+\(\rho = 0.75\) (32 trials, four conditions, six runs, 50 features), the true
+spread of the distance estimator divided by the standard error crossform
+reports is:
+
+```text
+randomly interleaved trial order   0.50   (standard error twice too large)
+blocked trial order                5.10   (standard error five times too small)
+blocked, with a correct whitener   1.03
+```
+
+A blocked design without a whitener is the dangerous case: the reported
+standard error is anticonservative by a factor of five, because the estimates
+in a block share the same slow drift. The direction flips for rapid
+event-related designs, where neighboring trials belong to different
+conditions and the same autocorrelation *removes* variance from a contrast.
+
+The remedy is a whitener \(L\) with \(L^\top L = \Sigma_t^{-1}\), so the fit
+is carried out on the whitened design \(L X\) and the whitened responses
+\(L y\). For a known AR(1) coefficient that is one
+line, and it is declared the same way as every other assumption --- as part of
+the observation model, which changes the relation's identity:
+
+```{r whitener}
+ar1_whitener <- function(observations, rho) {
+  covariance <- rho^abs(outer(
+    seq_len(observations), seq_len(observations), "-"
+  ))
+  t(backsolve(chol(covariance), diag(observations)))
+}
+
+gls_model <- observation_model(
+  "fixed_gls",
+  sampling_unit = "scan",
+  whitener = ar1_whitener(n_scan, 0.3),
+  independence = "runs independently acquired conditional on the model"
+)
+gls_fit <- estimate_relation(
+  plan_relation(study_facts, declared_design, named_effects, gls_model)
+)
+
+# A different observation model is a different relation, not a variant of the
+# same one, and the fit says so.
+c(ols = substr(fit$signature, 1, 24),
+  gls = substr(gls_fit$signature, 1, 24))
+```
+
+`lm_relation_fit()` takes the same matrix as `observation_whitener = L` on the
+short route below. crossform applies the \(L\) you supply and records its
+revision in the observation model's identity; it cannot check that \(L\)
+matches the autocorrelation actually present in your data, and estimating
+\(\rho\) from the same residuals you are about to calibrate against is a
+different procedure that this package does not validate. See `?lm_relation_fit` and
+[the evidence-sampling contract](https://github.com/bbuchsbaum/crossform/blob/main/design/evidence-sampling-contract.md)
+for the full statement.
+
+## Shorter routes: a compiled design, or beta matrices
+
+The ladder above declares the first-level model so that the request survives a
+change of coding, a change of solver, or a change of compiler. Not every
+project starts there. Two shorter routes reach the same
+`plan_geometry()`/`contrast_energy()` step from less input, and they differ in
+exactly one consequence: whether the residual channel survives, and with it the
+standard errors calculated above. `vignette("introduction")` builds its worked
+fixture on the first of these and its own-data walkthrough on the second.
+
+### From raw responses and a compiled design
+
+If you kept the scan-by-feature responses and already have a design matrix,
+`lm_relation_fit()` is the compact route that keeps the error channel. It skips
+`study()`, `design_model()`, and `plan_relation()`, so nothing checks the
+design's semantics against events, confounds, and clocks for you; in exchange
+it is a single call. The `effects` matrix says which linear combination of
+design columns each named condition is.
+
+```{r compiled-design}
+set.seed(20260815)
+condition_names <- c("face", "body", "house", "tool")
+native_domain <- abstract_domain(60L, id = "short-routes:v1")
+
+raw_n_scan <- 40L
+scan_condition <- factor(
+  rep(condition_names, length.out = raw_n_scan), levels = condition_names
+)
+design_matrix <- cbind(
+  stats::model.matrix(~ 0 + scan_condition),
+  drift = seq(-1, 1, length.out = raw_n_scan)
+)
+colnames(design_matrix) <- c(condition_names, "drift")
+
+target_matrix <- cbind(diag(length(condition_names)), drift = 0)
+dimnames(target_matrix) <- list(condition_names, colnames(design_matrix))
+
+# Substitute your own: one scan-by-feature response matrix per run.
+signal <- rbind(
+  matrix(rnorm(length(condition_names) * 60L, sd = 0.5), length(condition_names)),
+  rnorm(60L, sd = 0.1)
+)
+raw_response_runs <- lapply(seq_len(3), function(run) {
+  design_matrix %*% signal + matrix(rnorm(raw_n_scan * 60L), raw_n_scan, 60L)
+})
+names(raw_response_runs) <- paste0("run", seq_len(3))
+
+raw_fit <- lm_relation_fit(
+  raw_response_runs,
+  design = design_matrix,
+  effects = target_matrix,
+  effect_names = effect_space(condition_names, units = "percent-signal"),
+  sampling_unit = "trial",
+  domain = native_domain
+)
+raw_plan <- plan_geometry(
+  raw_fit$relation,
+  compile_frame(whole_brain(), native_domain),
+  cross_partitions(
+    raw_fit$relation,
+    independence = "independent", generalizes_over = "run"
+  )
+)
+sampling_capabilities(raw_plan, raw_fit)
+```
+
+`whole_brain()` reports one measurement over every feature in the domain, which
+is the simplest frame to check a pipeline against. Because this fit retained
+residuals, the analytic law is admitted and the standard errors from the
+section above are available here too:
+
+```{r compiled-design-uncertainty}
+round(sqrt(sampling_covariance(
+  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
+)), 4)
+```
+
+```{r compiled-design-checks, include=FALSE}
+raw_se <- sqrt(sampling_covariance(
+  rdm_sampling_covariance(raw_plan, raw_fit, target = "null", at = 1L)
+))
+stopifnot(length(raw_se) == 6L, all(is.finite(raw_se)), all(raw_se > 0))
+```
+
+### From beta matrices alone
+
+If the responses are gone and only condition-by-feature estimates per run
+remain, build a point relation directly. It needs a named list of matrices with
+one row per condition, a named effect space, and a neural domain.
+
+```{r beta-matrices}
+# Substitute your own: one condition-by-feature matrix per run, rows named.
+beta_runs <- lapply(seq_len(3), function(run) matrix(
+  rnorm(length(condition_names) * native_domain$n_features),
+  nrow = length(condition_names),
+  dimnames = list(condition_names, native_domain$feature_ids)
+))
+names(beta_runs) <- paste0("run", seq_len(3))
+
+rel <- relation(
+  beta_runs,
+  effects = effect_space(condition_names, units = "percent-signal"),
+  domain = native_domain
+)
+own_plan <- plan_geometry(
+  rel,
+  compile_frame(whole_brain(), native_domain),
+  cross_partitions(rel, independence = "independent", generalizes_over = "run")
+)
+own_plan
+```
+
+```{r beta-matrices-check, include=FALSE}
+own_capabilities <- sampling_capabilities(own_plan, rel)
+stopifnot(
+  nrow(compile_frame(whole_brain(), native_domain)$index) == 1L,
+  identical(dim(rdm(own_plan)$values), c(1L, 6L)),
+  !own_capabilities$available,
+  "missing_error_channel" %in% own_capabilities$reasons$reason
+)
+```
+
+`own_plan` supports `contrast_energy()`, `rdm()`, and `rsa()` exactly as the
+fitted relations above do. What it cannot support is the analytic standard
+error: beta matrices carry no residuals and no residual degrees of freedom, so
+`sampling_capabilities()` reports the law unavailable and names
+`missing_error_channel` as the unmet requirement. Give the domain a mask and
+voxel spacing instead of a bare feature count and searchlights become
+available; `vignette("introduction")` works that variant end to end.
+
 ## How do BIDS and external compilers fit?
 
 `bids_study()` adapts one task `events.tsv` and one row-aligned confound table
@@ -340,13 +567,25 @@ columns become target or nuisance terms. If censoring is intended, the call
 must name the Boolean censor column. This keeps BIDS at the file boundary; the
 core study object is not BIDS-shaped.
 
+The signature mirrors the `study()` call above: an `observations()` record,
+then one events file and one confounds file per partition, in partition order.
+
 ```{r bids-adapter, eval=FALSE}
-facts <- bids_study(
-  declared_observations,
-  event_files = named_event_tsvs,
-  confound_files = named_confound_tsvs,
-  partitions = names(named_event_tsvs),
-  censor = "retained"
+runs <- paste0("run-", 1:3)
+
+bids_facts <- bids_study(
+  observations(response_runs, scan_indexes, domain),
+  event_files = file.path(
+    "sub-01", "func",
+    sprintf("sub-01_task-objects_%s_events.tsv", runs)
+  ),
+  confound_files = file.path(
+    "sub-01", "func",
+    sprintf("sub-01_task-objects_%s_desc-confounds_timeseries.tsv", runs)
+  ),
+  partitions = runs,
+  censor = "retained",
+  units = "seconds"
 )
 ```
 
@@ -358,13 +597,12 @@ crossform cannot verify the required residual covariance contract from its
 result.
 
 If you have compiled design and target matrices but not their semantic
-condition mapping, use `raw_design_model()` with `raw_effect_map()`. Their
-numeric values then become part of the plan identity, and the fit cannot claim
-that a different coefficient coding represents the same request. If only beta
-matrices remain, use `relation()` for point geometry; analytic uncertainty is
-unavailable because the residual channel is missing.
+condition mapping, and you still want the declared ladder rather than the short
+route above, use `raw_design_model()` with `raw_effect_map()`. Their numeric
+values then become part of the plan identity, and the fit cannot claim that a
+different coefficient coding represents the same request.
 
-The next call depends on the result you need. Use `contrast()` for a named
-effect, `rdm()` for condition distances, `rsa()` for a fixed linear model, and
-`rdm_sampling_covariance()` only after `sampling_capabilities()` confirms that
-the fit and plan meet its assumptions.
+The next call depends on the result you need. Use `contrast_energy()` for a
+named effect, `rdm()` for condition distances, `rsa()` for a fixed linear
+model, and `rdm_sampling_covariance()` only after `sampling_capabilities()`
+confirms that the fit and plan meet its assumptions.

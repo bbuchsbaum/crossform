@@ -10,8 +10,8 @@ metric_training_policy(
 )
 }
 \arguments{
-\item{kind}{`"exclude_evaluation"` estimates each edge metric without its
-two evaluation partitions. `"all_partitions_residual_orthogonality"`
+\item{kind}{\code{"exclude_evaluation"} estimates each edge metric without its
+two evaluation partitions. \code{"all_partitions_residual_orthogonality"}
 admits evaluation-partition GLM residuals under an explicit orthogonality
 justification.}
 
@@ -19,8 +19,60 @@ justification.}
 residual reuse is scientifically admitted; it is not treated as proof.}
 }
 \value{
-An `effect_metric_training_policy`.
+An \code{effect_metric_training_policy} recording \verb{$kind},
+\verb{$includes_evaluation_residuals}, the named \verb{$assumption} it rests on,
+the stored \verb{$justification}, and a \verb{$signature} bound into plan identity.
 }
 \description{
-Declare which residual partitions may train a metric
+\code{metric_training_policy()} fixes the partition discipline used when a
+metric recipe is estimated from residuals, so metric training cannot
+silently borrow the partitions whose products are being evaluated. Pass it
+to \code{\link[=plan_crossnobis]{plan_crossnobis()}}.
 }
+\section{Refusal}{
+
+Requesting \code{"all_partitions_residual_orthogonality"} without a
+\code{justification} signals an \code{effect_capability_refusal} carrying capability
+\code{"evaluation_residual_reuse"} in namespace \code{"metric_learning"}, with reason
+\code{"residual_reuse_justification_absent"}. Inspect it with \code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
+\examples{
+# The default trains each edge's metric without its two evaluation
+# partitions, so the metric and the products stay disjoint.
+policy <- metric_training_policy()
+policy$kind
+c(reuses_evaluation = policy$includes_evaluation_residuals,
+  assumption = policy$assumption)
+
+# Reusing evaluation-partition residuals is admitted only with an explicit
+# written justification, which is recorded, not verified.
+permissive <- metric_training_policy(
+  "all_partitions_residual_orthogonality",
+  justification = "GLM residuals are orthogonal to the fitted effects."
+)
+permissive$includes_evaluation_residuals
+
+# Omitting that justification is refused, and the refusal is classed, so a
+# caller can branch on the capability rather than on the prose.
+refusal <- catch_refusal(
+  metric_training_policy("all_partitions_residual_orthogonality")
+)
+refusal$capability
+refusal$reasons
+}
+\seealso{
+\code{\link[=plan_crossnobis]{plan_crossnobis()}}, which enforces this policy, and
+\code{\link[=shrinkage_precision]{shrinkage_precision()}} for the recipe it governs.
+
+Other neural metrics: 
+\code{\link{diagonal_precision}()},
+\code{\link{effect_covariance}()},
+\code{\link{gaussian_covariance_model}()},
+\code{\link{identity_metric}()},
+\code{\link{metric_capabilities}()},
+\code{\link{neural_metric}()},
+\code{\link{noise_precision}()},
+\code{\link{shrinkage_precision}()}
+}
+\concept{neural metrics}

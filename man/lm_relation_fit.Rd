@@ -27,33 +27,41 @@ lm_relation_fit(
 )
 }
 \arguments{
-\item{sources}{Raw observation-by-feature sources accepted by `relation()`.}
+\item{sources}{Raw observation-by-feature sources accepted by \code{relation()}.}
 
 \item{design}{One design matrix, or one per partition.}
 
 \item{effects}{One effect target matrix, or one per partition.}
 
-\item{observation_whitener}{NULL, one observation whitener, or one per
-partition.}
+\item{observation_whitener}{NULL, one observation whitener \eqn{L}{L}, or one
+per partition. A finite square observation-by-observation matrix; the fit
+is carried out on \eqn{LX}{LX} and \eqn{Ly}{Ly}, so \eqn{L}{L} should satisfy
+\eqn{L^\top L=\Sigma_t^{-1}}{L^T L = Sigma_t^{-1}} for the within-partition error covariance
+\eqn{\Sigma_t}{Sigma_t}. Leaving it \code{NULL} asserts that the observations are
+already independent given the design; see the section above.}
 
 \item{effect_names}{One common effect space/name vector, or one per partition.}
 
 \item{tolerance}{Positive rank and estimability tolerance.}
 
 \item{source_dims, partitions, domain, domain_id, capabilities}{Passed to
-`relation()`.}
+\code{relation()}.}
 
 \item{sampling_unit}{One nonempty sampling-unit label, or one per partition.}
 
 \item{provenance}{Compact estimator provenance.}
 
-\item{whiten}{Deprecated alias for `observation_whitener`.}
+\item{whiten}{Deprecated alias for \code{observation_whitener}.}
 
 \item{solver}{One numerical route, or one per partition: automatic, QR, or
 SVD. The route is recorded in estimator provenance.}
 }
 \value{
-An `effect_relation_fit`.
+An \code{effect_relation_fit} whose \verb{$relation} carries the fitted effect
+map and whose \verb{$error_models} carry, per partition, the unscaled
+\code{effect_covariance}, \code{residual_df}, the lazy \code{residual_source}, the
+\code{observation_whitener} descriptor, and \code{estimator_provenance}. Every
+partition reports \code{within_participant_calibration}.
 }
 \description{
 The adapter compiles each supplied design once. Its pure effect map forms the
@@ -62,8 +70,80 @@ effect-coordinate covariance, residual degrees of freedom, and source
 revision form a separate separable-GLM error capability. Residual blocks are
 produced lazily without constructing a dense observation residualizer.
 This error channel is required by the admitted fixed-metric analytic RDM
-covariance in [rdm_sampling_covariance()]. The separable GLM is a declared
+covariance in \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. The separable GLM is a declared
 capability: it assumes the supplied observation model yields a common
 effect-coordinate covariance structure across neural features and, for the
 equal-partition specialization, across partitions.
 }
+\section{Independent observations, or a whitener}{
+
+The error channel this function records --- the effect covariance
+\eqn{\Xi=A A^\top}{Xi = A A^T} and the residual degrees of freedom \eqn{\nu=n-\mathrm{rank}(X)}{nu = n - rank(X)}
+--- describes observations that are independent given the design. fMRI
+residuals are not: they are temporally autocorrelated. Fitting without
+\code{observation_whitener} therefore leaves \eqn{\Xi}{Xi} as the plain OLS factor,
+which is not the covariance of the estimates under correlated errors, and
+leaves \eqn{\nu}{nu} counting observations rather than independent ones, so
+\eqn{\nu}{nu} overstates the residual information available.
+
+The consequence for \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} runs in \emph{either}
+direction and is not small. Under AR(1) errors with \eqn{\rho=0.75}{rho = 0.75}, 32
+trials, four conditions, six runs and 50 features, the ratio of the true
+spread of the distance estimator to the standard error crossform reports
+is 0.50 for a randomly interleaved trial order (the standard error is twice
+too large) and 5.10 for a blocked order (five times too small). Supplying
+\code{observation_whitener = L} with \eqn{L^\top L=\Sigma_t^{-1}}{L^T L = Sigma_t^{-1}} brings the same
+blocked design to 1.03. crossform applies the \eqn{L}{L} you give it and
+records its identity; it cannot check that \eqn{L}{L} matches the
+autocorrelation actually present in your data.
+}
+
+\examples{
+set.seed(20260815)
+domain <- abstract_domain(6L, id = "lm-relation-fit-example")
+condition <- factor(rep(c("face", "body", "tool"), each = 4L))
+design <- stats::model.matrix(~ 0 + condition)
+colnames(design) <- c("face", "body", "tool")
+
+# Ask for the three condition means themselves.
+targets <- diag(3)
+dimnames(targets) <- list(colnames(design), colnames(design))
+runs <- lapply(c("run-1", "run-2"), function(partition) {
+  design \%*\% matrix(rnorm(18), 3L, 6L) + matrix(rnorm(72), 12L, 6L)
+})
+names(runs) <- c("run-1", "run-2")
+
+fit <- lm_relation_fit(
+  runs, design, targets, domain = domain, sampling_unit = "trial"
+)
+relation_fit_capabilities(fit)$within_participant_calibration
+
+# Twelve trials minus three estimated means leaves nine residual df, which
+# is what later analytic uncertainty is calibrated against.
+residual_df(fit, "run-1")
+}
+\seealso{
+\code{\link[=relation]{relation()}} for precomputed effects with no error channel,
+\code{\link[=estimate_relation]{estimate_relation()}} to reach this object from a validated
+\code{\link[=plan_relation]{plan_relation()}}, and \code{\link[=residual_block]{residual_block()}}, \code{\link[=effect_covariance]{effect_covariance()}},
+\code{\link[=residual_df]{residual_df()}} to read the error channel.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

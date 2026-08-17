@@ -13,14 +13,32 @@
       !identical(x$schema_version, 1L) ||
       !x$kind %in% c("inner_product", "covariance", "cosine", "correlation") ||
       !x$zero_policy %in% c("error", "zero")) {
-    stop("Invalid edge normalizer.", call. = FALSE)
+    .input_error("Invalid edge normalizer.")
   }
   x
 }
 
 #' Declare uncentered inner-product edge geometry
 #'
-#' @return An immutable edge-normalization specification.
+#' `inner_product()` names the default edge normalization: raw uncentered
+#' products, with no centering, scaling, or correlation normalization applied
+#' to an edge before it is reduced. Use it wherever an operation stage must
+#' record that the geometry is the plain bilinear form.
+#'
+#' @return An `effect_edge_normalizer` recording `$kind` and its
+#'   `$zero_policy`. It is a declaration, not a computation.
+#' @seealso [reduce_partitions()] and [aggregate_first()] for the partition
+#'   stage that follows normalization; [connectivity()] for the normalized
+#'   views that are gated behind explicit capabilities.
+#' @family geometry plans and views
+#' @examples
+#' # The normalizer only names the stage; nothing is computed here.
+#' normalizer <- inner_product()
+#' normalizer$kind
+#'
+#' # Because no denominator is involved, there is no zero-norm case to
+#' # resolve at execution time.
+#' normalizer$zero_policy
 #' @export
 inner_product <- function() .new_edge_normalizer("inner_product")
 
@@ -56,15 +74,14 @@ correlation <- function(zero_variance = c("error", "zero")) {
 
 .validate_edge_transform <- function(x) {
   expected <- c("schema_version", "kind", "boundary", "delta", "ties")
-  if (!inherits(x, "effect_edge_transform") || !is.list(x) ||
-      !identical(names(x), expected) || !identical(x$schema_version, 1L) ||
+  if (!.sealed_fields(x, "effect_edge_transform", expected) ||
+      !identical(x$schema_version, 1L) ||
       !x$kind %in% c("identity", "fisher_z", "rank_edges")) {
-    stop("Invalid edge transform.", call. = FALSE)
+    .input_error("Invalid edge transform.")
   }
   if (x$kind == "identity" &&
       (!is.null(x$boundary) || !is.null(x$delta) || !is.null(x$ties))) {
-    stop("Identity edge transforms cannot carry policy parameters.",
-      call. = FALSE)
+    .input_error("Identity edge transforms cannot carry policy parameters.")
   }
   if (x$kind == "fisher_z") {
     if (!x$boundary %in% c("error", "clip") || !is.null(x$ties) ||
@@ -72,7 +89,7 @@ correlation <- function(zero_variance = c("error", "zero")) {
         (x$boundary == "clip" &&
           (!is.numeric(x$delta) || length(x$delta) != 1L || is.na(x$delta) ||
            !is.finite(x$delta) || x$delta <= 0 || x$delta >= 1))) {
-      stop("Invalid Fisher boundary policy.", call. = FALSE)
+      .input_error("Invalid Fisher boundary policy.")
     }
   }
   allowed_ties <- c("average", "first", "last", "min", "max")
@@ -80,7 +97,7 @@ correlation <- function(zero_variance = c("error", "zero")) {
       (!is.null(x$boundary) || !is.null(x$delta) ||
        !is.character(x$ties) || length(x$ties) != 1L || is.na(x$ties) ||
        !x$ties %in% allowed_ties)) {
-    stop("Invalid edge-ranking tie policy.", call. = FALSE)
+    .input_error("Invalid edge-ranking tie policy.")
   }
   x
 }
@@ -108,18 +125,48 @@ rank_edges <- function(ties = c("average", "first", "last", "min", "max")) {
 #' Reduce normalized and transformed partition edges
 #'
 #' This is the default estimand: normalize each declared edge, transform it,
-#' and only then apply the partition weights.
+#' and only then apply the partition weights. Choose it when the quantity you
+#' mean is the average of per-partition normalized edges.
 #'
-#' @return An immutable partition-reducer specification.
+#' @return An `effect_partition_reducer` recording `$kind`,
+#'   `$weight_convention`, and the stage `$order` (`"edge_first"`).
+#' @seealso [aggregate_first()], the other stage order, and [pairing()],
+#'   which supplies the partition weights this reducer applies.
+#' @family generalization pairings
+#' @examples
+#' # Edge-first: each partition pair is normalized and transformed before the
+#' # pairing weights are applied.
+#' reducer <- reduce_partitions()
+#' reducer$order
+#'
+#' # The two reducers name different estimands, so they are not
+#' # interchangeable defaults.
+#' c(edge_first = reduce_partitions()$order,
+#'   aggregate_first = aggregate_first()$order)
 #' @export
 reduce_partitions <- function() .new_partition_reducer("edge_first")
 
 #' Aggregate edge sufficient statistics before normalization
 #'
 #' This names a distinct estimand. Raw sufficient statistics are combined by
-#' partition weights before normalization and transformation.
+#' partition weights before normalization and transformation. It is the
+#' default for [measurement_form()] and [coupling()], where averaging raw
+#' partition products and normalizing once is the intended estimator.
 #'
-#' @return An immutable partition-reducer specification.
+#' @return An `effect_partition_reducer` recording `$kind`,
+#'   `$weight_convention`, and the stage `$order` (`"aggregate_first"`).
+#' @seealso [reduce_partitions()] for the edge-first order, and
+#'   [measurement_form()], which records this choice in its plan identity.
+#' @family geometry plans and views
+#' @examples
+#' # Aggregate-first: raw partition products are pooled, then normalized once.
+#' reducer <- aggregate_first()
+#' reducer$order
+#' reducer$weight_convention
+#'
+#' # This is the default measurement-pipeline order, so it is what
+#' # `measurement_form()` and `coupling()` record when `reducer` is omitted.
+#' identical(reducer, eval(formals(measurement_form)$reducer))
 #' @export
 aggregate_first <- function() .new_partition_reducer("aggregate_first")
 
@@ -131,8 +178,9 @@ aggregate_first <- function() .new_partition_reducer("aggregate_first")
   transform <- .validate_edge_transform(transform)
   reducer <- .validate_partition_reducer(reducer)
   if (transform$kind == "fisher_z" && normalizer$kind != "correlation") {
-    stop("Fisher transformation requires correlation-valued edge input.",
-      call. = FALSE)
+    .input_error(
+      "Fisher transformation requires correlation-valued edge input."
+    )
   }
   lowering <- if (transform$kind != "identity") {
     "required_edge_materialization"
@@ -156,9 +204,7 @@ aggregate_first <- function() .new_partition_reducer("aggregate_first")
     lowering = lowering
   )
   structure(c(semantic, list(
-    signature = paste0("sha256:", digest::digest(
-      semantic, algo = "sha256", serialize = TRUE
-    ))
+    signature = .sha256_signature(semantic)
   )), class = "effect_edge_operation_plan")
 }
 
@@ -169,8 +215,9 @@ aggregate_first <- function() .new_partition_reducer("aggregate_first")
       nrow(value), ncol(value)))
   }
   if (transform$boundary == "error" && any(abs(value) >= 1)) {
-    stop("Fisher transformation encountered an absolute-correlation boundary.",
-      call. = FALSE)
+    .input_error(
+      "Fisher transformation encountered an absolute-correlation boundary."
+    )
   }
   if (transform$boundary == "clip") {
     value <- pmax(-1 + transform$delta, pmin(1 - transform$delta, value))

@@ -17,6 +17,8 @@ output_dir <- if (length(args) >= 2L) args[[2L]] else file.path(repo, "benchmark
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 pkgload::load_all(repo, quiet = TRUE)
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(repo, "run-memory-benchmarks.R")
 scenarios <- crossform:::.memory_benchmark_scenarios()
 summary_rows <- vector("list", nrow(scenarios))
 
@@ -54,6 +56,7 @@ for (scenario_index in seq_len(nrow(scenarios))) {
     stop("benchmark worker failed: ", id)
   }
   result <- readRDS(result_path)
+  result$provenance <- provenance
   peak_rss <- max(peak_rss, result$rss_before_bytes, result$rss_after_bytes,
     na.rm = TRUE)
   result$os_peak_rss_bytes <- peak_rss
@@ -79,5 +82,6 @@ for (scenario_index in seq_len(nrow(scenarios))) {
   )
   unlink(ready_path)
 }
-write.csv(do.call(rbind, summary_rows), file.path(output_dir, "summary.csv"),
+write.csv(do.call(rbind, summary_rows),
+  file.path(output_dir, "memory-benchmark-summary.csv"),
   row.names = FALSE)

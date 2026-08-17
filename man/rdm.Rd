@@ -12,10 +12,10 @@ rdm(
 )
 }
 \arguments{
-\item{x}{An `effect_geometry_plan` or a complete effect form carrying the
+\item{x}{An \code{effect_geometry_plan} or a complete effect form carrying the
 symmetric self-form capability.}
 
-\item{component}{One of `total`, `coherent`, or `configuration`.}
+\item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.}
 
 \item{pairs}{Optional two-column matrix selecting the effect pairs to
 report, by effect name or index. The default reports every unordered
@@ -24,29 +24,113 @@ geometry: the RDM is a view, not a mandatory intermediate object.}
 
 \item{normalize}{Must be omitted. Correlation-style diagonal normalization
 of a signed cross-generalized form is refused: crossvalidated diagonals
-can be zero or negative, so `1 - r` here is not conventional Pearson
+can be zero or negative, so \code{1 - r} here is not conventional Pearson
 distance. The boundary is documented in the correlation-distance policy.}
 }
 \value{
-An `effect_rdm_view`; rows are spatial measurements and columns are
-  the requested experimental pairs. Cross-generalized distances may be
-  negative.
+An \code{effect_rdm_view}. \verb{$values} has one row per spatial
+measurement and one column per requested experimental pair, \verb{$pairs} is
+the \code{left}/\code{right} table naming those columns, and \verb{$component},
+\verb{$index}, and \verb{$receipt} record what was read. Cross-generalized
+distances may be negative.
 }
 \description{
-For effects `i` and `j`, this view applies the fixed contrast
-`c = e_i - e_j` to the selected geometry component `G`:
-\deqn{d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.}
+For effects \code{i} and \code{j}, this view applies the fixed contrast
+\code{c = e_i - e_j} to the selected geometry component \code{G}:
+\deqn{d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.}{d_ij = c^T G c = G_ii + G_jj - 2 G_ij.}
 With cross-partition geometry this is the signed crossvalidated squared
 Euclidean distance, or squared Mahalanobis distance when the plan carries a
-fixed neural metric. It is not `1 - Pearson correlation`: correlation
+fixed neural metric. It is not \verb{1 - Pearson correlation}: correlation
 distance requires data-dependent diagonal normalization and is outside this
 linear view.
 }
 \details{
 The returned values are point estimates. For equal-weight all-partition-
-pairs geometry with a common fixed metric, [rdm_sampling_covariance()] can
+pairs geometry with a common fixed metric, \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} can
 construct a separate analytic within-measurement covariance law when the
-plan was built from `lm_relation_fit()` and its residual error channel is
+plan was built from \code{lm_relation_fit()} and its residual error channel is
 still available. Pair rows that share a partition are not independent
 replicates for a spread-across-pairs standard error.
 }
+\section{Structure}{
+
+The distances are one measurement-by-pair matrix; the other elements name
+its axes and record what was read.
+\itemize{
+\item \verb{$values}: one row per spatial measurement, one column per requested
+pair, in \verb{$pairs} row order.
+\item \verb{$pairs}: a data frame whose \code{left} and \code{right} columns name the two
+effects behind each column of \verb{$values}.
+\item \verb{$component}: the geometry component the distances were taken from.
+\item \verb{$index}: the measurement identifiers, one per row of \verb{$values},
+carried from the frame's \verb{$index$measurement}.
+\item \verb{$receipt}: the execution receipt for the run that produced the values.
+}
+
+Any element not listed here is internal and may change.
+}
+
+\section{Refusals}{
+
+\code{normalize} signals an \code{effect_capability_refusal} with capability
+\code{"guaranteed_psd"}, and a rectangular cross-axis plan or a non-symmetric
+form signals capability \code{"symmetric_self_form"}, both in namespace
+\code{"geometry_views"}. Branch on them with \code{\link[=catch_refusal]{catch_refusal()}}.
+}
+
+\examples{
+# Three conditions over two regions, generalizing across two runs.
+domain <- abstract_domain(4, id = "rdm-example")
+run1 <- rbind(
+  face = c(1, 0.2, 0, 0), house = c(0, 1, 0.1, 0), tool = c(0, 0, 1, 0.3)
+)
+run2 <- rbind(
+  face = c(0.9, 0.3, 0, 0), house = c(0.1, 0.9, 0, 0), tool = c(0, 0.1, 1.1, 0.2)
+)
+relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+plan <- plan_geometry(
+  relation, compile_frame(regions(c("v1", "v1", "it", "it")), domain),
+  cross_partitions(
+    relation, independence = "independent", generalizes_over = "run"
+  )
+)
+
+# All three unordered pairs, one column each.
+distances <- rdm(plan)
+distances
+distances$pairs
+
+# Selecting pairs is a narrower view, not a post-hoc subset: the remaining
+# geometry is never computed.
+rdm(plan, pairs = cbind("face", "house"))$values
+
+# Correlation-style normalization is refused, because crossvalidated
+# diagonals can be zero or negative.
+refusal <- catch_refusal(rdm(plan, normalize = "correlation"))
+refusal$capability
+}
+\seealso{
+\code{\link[=rsa]{rsa()}} to regress model RDMs on these distances,
+\code{\link[=contrast_energy]{contrast_energy()}} for a single contrast, and
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} for the admitted analytic uncertainty law.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{bilinear_query}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

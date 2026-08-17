@@ -31,6 +31,8 @@ repetitions <- if (length(arguments) >= 3L) {
 if (is.na(repetitions) || repetitions < 3L) {
   stop("The query-first gate requires at least three repetitions.")
 }
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(repo, "run-query-first-scale.R")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 result_path <- file.path(output_dir, "query-first-scale-gate.rds")
 summary_path <- file.path(output_dir, "query-first-scale-gate-summary.csv")
@@ -107,7 +109,7 @@ run_query_first_worker <- function(repo, result_path, ready_path,
     rsa(plan, models = list(distance = model))
   }
   run_materialized <- function() {
-    rdm(geometry(plan))
+    rdm(materialize_geometry(plan))
   }
   runners <- list(
     selected_100 = run_selected,
@@ -341,6 +343,7 @@ timing_process <- processx::process$new(
 )
 timing <- monitor_process(timing_process, result_path, ready_path)
 result <- timing$result
+result$provenance <- provenance
 unlink(c(timing_stdout, timing_stderr, ready_path))
 
 # Process-level RSS is allocator-sensitive across routes. Certify each public
@@ -423,7 +426,7 @@ result$gate <- list(
     result$numerical$selected_column_max_abs_error <= 1e-12 &&
     result$numerical$fused_materialized_max_abs_error <= 1e-10,
   identity_pass = isTRUE(result$identity$route_identity_stable) &&
-    identical(result$identity$fused_kernel, "additive-query-fused-v2"),
+    identical(result$identity$fused_kernel, "additive-query-fused-native-v1"),
   fused_not_slower_pass = fused_ratio <= 1.2,
   selected_cheaper_pass = selected_seconds <= full_seconds,
   runtime_pass = max(

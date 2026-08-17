@@ -25,10 +25,46 @@ coordinate.}
 \item{provenance}{Optional design or contrast provenance as a list.}
 }
 \value{
-An immutable-by-convention `effect_space` value.
+An \code{effect_space}: a list with \verb{$coordinates} (the ordered names),
+\verb{$basis_id}, \verb{$units} and \verb{$scale} (both named by coordinate),
+\verb{$provenance}, and a \verb{$signature} that changes whenever any of those does.
+Treat the value as immutable.
 }
 \description{
 An effect space gives experimental coordinates a semantic identity beyond
 their display labels. Its stable signature covers coordinate order, basis,
 units, scaling, and provenance.
 }
+\examples{
+# Name the coordinates a fit will produce, and the basis they live in.
+space <- effect_space(
+  c("face", "house"),
+  basis_id = "condition-means:v1", units = "arbitrary-BOLD"
+)
+space$coordinates
+space$units[["face"]]
+
+# The signature covers meaning, not display labels: the same two names in
+# the default unspecified basis are a different space, so objects built
+# against one cannot be silently combined with the other.
+identical(space$signature, effect_space(c("face", "house"))$signature)
+}
+\seealso{
+\code{\link[=condition_space]{condition_space()}} for the mean-model vocabulary an
+\code{\link[=effect_map]{effect_map()}} is declared against, and \code{\link[=effect_extractor]{effect_extractor()}} for the map
+that produces coordinates in this space.
+
+Other studies and effect maps: 
+\code{\link{coefficient_parameterization}()},
+\code{\link{condition_space}()},
+\code{\link{design_model}()},
+\code{\link{effect_map}()},
+\code{\link{lower_effect_map}()},
+\code{\link{observation_model}()},
+\code{\link{raw_design_model}()},
+\code{\link{raw_effect_map}()},
+\code{\link{study}()},
+\code{\link{study_axis}()},
+\code{\link{study_capabilities}()}
+}
+\concept{studies and effect maps}

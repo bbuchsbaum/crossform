@@ -4,8 +4,10 @@ test_that("explicit extractors are named finite linear maps", {
   expect_s3_class(extractor, "effect_extractor")
   expect_identical(extractor$n_observations, 2L)
   expect_identical(rownames(extractor$map), c("a", "b"))
-  expect_error(effect_extractor(matrix(Inf, 1, 1)), "finite")
-  expect_error(effect_extractor(diag(2), c("same", "same")), "unique")
+  expect_error(effect_extractor(matrix(Inf, 1, 1)), "finite",
+    class = "effect_input_error")
+  expect_error(effect_extractor(diag(2), c("same", "same")), "unique",
+    class = "effect_input_error")
 })
 
 test_that("full-rank lm extraction agrees with explicit OLS", {
@@ -52,7 +54,7 @@ test_that("the deprecated whiten alias is deliberate and unambiguous", {
     lm_extractor(design, target,
       observation_whitener = whitener, whiten = whitener),
     "Supply only"
-  )
+  , class = "effect_input_error")
   expect_silent(lm_extractor(design, target, whiten = NULL))
   expect_silent(lm_extractor(
     design, target, observation_whitener = whitener, whiten = NULL
@@ -83,5 +85,5 @@ test_that("mutated extractor contracts fail closed", {
   extractor <- effect_extractor(diag(2), c("a", "b"))
   extractor$n_observations <- 3L
   expect_error(crossform:::.validate_effect_extractor(extractor),
-    "inconsistent")
+    "inconsistent", class = "effect_contract_error")
 })

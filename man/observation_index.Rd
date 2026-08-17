@@ -19,13 +19,44 @@ observation_index(
 
 \item{time}{Optional strictly increasing finite observation times.}
 
-\item{units}{One physical time unit when `time` is supplied.}
+\item{units}{One physical time unit when \code{time} is supplied.}
 
 \item{provenance}{Portable acquisition provenance.}
 }
 \value{
-An `effect_observation_index`.
+An \code{effect_observation_index}: a list with \verb{$observation_id},
+\verb{$partition}, \verb{$time} and \verb{$units} (both \code{NULL} when untimed), the
+\verb{$timing} flag, \verb{$provenance}, and a \verb{$signature}.
 }
 \description{
-Define one partition's observation axis
+Records what was acquired, in what order, and on which clock, for a single
+partition such as a run. Build one index per response matrix before calling
+\code{\link[=observations]{observations()}}.
 }
+\examples{
+# One acquisition axis: six scans on a 2 s clock.
+index <- observation_index(
+  seq_len(6L), partition = "run-1",
+  time = seq(0, by = 2, length.out = 6L), units = "seconds"
+)
+index$partition
+index$timing
+
+# The clock must be strictly increasing, so a repeated acquisition time is
+# rejected here rather than silently reordered later.
+try(observation_index(1:3, "run-1", time = c(0, 2, 2), units = "seconds"))
+}
+\seealso{
+\code{\link[=observations]{observations()}} to bind indexes to response sources, and
+\code{\link[=observation_events]{observation_events()}} whose clock must use the same units.
+
+Other typed observation facts: 
+\code{\link{bids_confounds}()},
+\code{\link{bids_events}()},
+\code{\link{bids_study}()},
+\code{\link{observation_confounds}()},
+\code{\link{observation_events}()},
+\code{\link{observations}()},
+\code{\link{partition_hierarchy}()}
+}
+\concept{typed observation facts}

@@ -1,14 +1,14 @@
 # Pair-space query constructors ---------------------------------------------
 
 .pair_axis_index <- function(value, space, label) {
-  if (!is.character(value) || anyNA(value) || any(!nzchar(value))) {
-    stop(sprintf("`%s` identifiers must be nonempty strings.", label),
-      call. = FALSE)
+  if (!.is_strings(value)) {
+    .input_error(sprintf("`%s` identifiers must be nonempty strings.", label))
   }
   index <- match(value, space$coordinates)
   if (anyNA(index)) {
-    stop(sprintf("Every `%s` identifier must belong to its effect space.", label),
-      call. = FALSE)
+    .input_error(
+      sprintf("Every `%s` identifier must belong to its effect space.", label)
+    )
   }
   index
 }
@@ -24,8 +24,9 @@
   }
   if (!is.data.frame(eligible) ||
       !identical(names(eligible), c("left", "right")) || nrow(eligible) < 1L) {
-    stop("`eligible` must be NULL, a logical pair matrix, or a left/right table.",
-      call. = FALSE)
+    .input_error(
+      "`eligible` must be NULL, a logical pair matrix, or a left/right table."
+    )
   }
   value <- matrix(FALSE, shape[[1L]], shape[[2L]],
     dimnames = list(left_space$coordinates, right_space$coordinates))
@@ -49,19 +50,18 @@
 .validate_pair_coupling <- function(x) {
   expected <- c("schema_version", "kind", "value", "eligible", "left_space",
     "right_space")
-  if (!inherits(x, "effect_pair_coupling") || !is.list(x) ||
-      !identical(names(x), expected) || !identical(x$schema_version, 1L) ||
-      !x$kind %in% c("match", "control") || !is.matrix(x$value) ||
-      !is.numeric(x$value) || any(!is.finite(x$value)) || any(x$value < 0) ||
+  if (!.sealed_fields(x, "effect_pair_coupling", expected) ||
+      !identical(x$schema_version, 1L) || !x$kind %in% c("match", "control") ||
+      !.is_finite_matrix(x$value) || any(x$value < 0) ||
       !is.matrix(x$eligible) || !is.logical(x$eligible) || anyNA(x$eligible)) {
-    stop("Invalid pair coupling.", call. = FALSE)
+    .input_error("Invalid pair coupling.")
   }
   left_space <- .validate_effect_space(x$left_space)
   right_space <- .validate_effect_space(x$right_space)
   shape <- c(length(left_space$coordinates), length(right_space$coordinates))
   if (!identical(dim(x$value), shape) || !identical(dim(x$eligible), shape) ||
       any(x$value[!x$eligible] != 0)) {
-    stop("Pair coupling shape or eligibility is inconsistent.", call. = FALSE)
+    .input_error("Pair coupling shape or eligibility is inconsistent.")
   }
   x
 }
@@ -74,13 +74,46 @@
 #' @param left,right Matched coordinate identifiers of equal positive length.
 #' @param left_space,right_space Ordered effect-space identities.
 #' @param eligible Optional restricted eligible-pair set.
-#' @return An `effect_pair_coupling`.
+#' @return An `effect_pair_coupling` with `kind = "match"`, a nonnegative
+#'   `$value` matrix counting the multiplicity of each matched cell, the
+#'   logical `$eligible` mask, and the bound `$left_space`/`$right_space`.
+#' @seealso [control_coupling()] for the complementary cells,
+#'   [coupling_contrast()] and [match_control()] to turn the pair into a
+#'   query.
+#' @family coupling and connectivity views
+#' @examples
+#' # Three studied items and their matched retrieval probes.
+#' encoding <- effect_space(
+#'   c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+#' )
+#' retrieval <- effect_space(
+#'   c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+#' )
+#' matches <- match_coupling(
+#'   c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+#'   encoding, retrieval
+#' )
+#' matches$value
+#'
+#' # Repeated retrievals of one item are multiplicity, not duplicates, so the
+#' # cell count rises rather than being silently collapsed.
+#' match_coupling(
+#'   c("item1", "item1", "item2"), c("probe1", "probe1", "probe2"),
+#'   encoding, retrieval
+#' )$value
+#'
+#' # Identifiers must belong to their declared axis.
+#' refused <- try(
+#'   match_coupling("item1", "item2", encoding, retrieval), silent = TRUE
+#' )
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 match_coupling <- function(left, right, left_space, right_space,
                            eligible = NULL) {
   if (length(left) != length(right) || length(left) < 1L) {
-    stop("Matched `left` and `right` identifiers must have equal positive length.",
-      call. = FALSE)
+    .input_error(
+      "Matched `left` and `right` identifiers must have equal positive length."
+    )
   }
   left_space <- .as_effect_space(left_space)
   right_space <- .as_effect_space(right_space)
@@ -88,7 +121,7 @@ match_coupling <- function(left, right, left_space, right_space,
   left_index <- .pair_axis_index(left, left_space, "left")
   right_index <- .pair_axis_index(right, right_space, "right")
   if (any(!eligible[cbind(left_index, right_index)])) {
-    stop("Every matched pair must be eligible.", call. = FALSE)
+    .input_error("Every matched pair must be eligible.")
   }
   value <- matrix(0, nrow(eligible), ncol(eligible), dimnames = dimnames(eligible))
   for (row in seq_along(left_index)) {
@@ -100,20 +133,52 @@ match_coupling <- function(left, right, left_space, right_space,
 
 #' Mark eligible control pairs
 #'
+#' `control_coupling()` names the comparison set for a matched-pair analysis:
+#' the eligible cells that are not matches. Pair it with the matches through
+#' [coupling_contrast()] to obtain the matched-versus-control query.
+#'
 #' @param matches A `match_coupling()` value.
 #' @param include_matches Whether matched cells are also controls. The default
 #'   excludes them.
-#' @return An `effect_pair_coupling` over the same axes and eligibility set.
+#' @return An `effect_pair_coupling` with `kind = "control"`, a 0/1 `$value`
+#'   indicator over the same axes and `$eligible` set as `matches`.
+#' @seealso [match_coupling()] and [coupling_contrast()].
+#' @family coupling and connectivity views
+#' @examples
+#' encoding <- effect_space(
+#'   c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+#' )
+#' retrieval <- effect_space(
+#'   c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+#' )
+#' matches <- match_coupling(
+#'   c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+#'   encoding, retrieval
+#' )
+#'
+#' # The default controls are the six mismatched cells.
+#' controls <- control_coupling(matches)
+#' controls$value
+#'
+#' # Including the matches gives every eligible cell, which is the marginal
+#' # baseline rather than a contrast partner.
+#' control_coupling(matches, include_matches = TRUE)$value
+#'
+#' # With no eligible non-matched cell left, there is nothing to contrast.
+#' saturated <- match_coupling(
+#'   rep(c("item1", "item2", "item3"), each = 3),
+#'   rep(c("probe1", "probe2", "probe3"), 3), encoding, retrieval
+#' )
+#' refused <- try(control_coupling(saturated), silent = TRUE)
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 control_coupling <- function(matches, include_matches = FALSE) {
   matches <- .validate_pair_coupling(matches)
-  if (matches$kind != "match" || !is.logical(include_matches) ||
-      length(include_matches) != 1L || is.na(include_matches)) {
-    stop("Controls require a match coupling and one inclusion flag.",
-      call. = FALSE)
+  if (matches$kind != "match" || !.is_flag(include_matches)) {
+    .input_error("Controls require a match coupling and one inclusion flag.")
   }
   selected <- matches$eligible & (include_matches | matches$value == 0)
-  if (!any(selected)) stop("No eligible control pairs remain.", call. = FALSE)
+  if (!any(selected)) .input_error("No eligible control pairs remain.")
   value <- matrix(as.numeric(selected), nrow(selected), ncol(selected),
     dimnames = dimnames(selected))
   .new_pair_coupling("control", value, matches$eligible,
@@ -138,35 +203,68 @@ control_coupling <- function(matches, include_matches = FALSE) {
 
 #' Contrast matched and control pair couplings
 #'
+#' `coupling_contrast()` subtracts the control coupling from the matched one
+#' to give the matched-versus-control readout as a single fixed pair query.
+#' Normalizing first makes the two sides comparable when they contain
+#' different numbers of cells.
+#'
 #' @param matches,controls Compatible match and control couplings.
 #' @param normalize Normalize each coupling to unit total mass before
 #'   subtraction.
-#' @return An axis-bound `pair_query()` with balance diagnostics.
+#' @return An axis-bound [pair_query()] whose `$operator` is the contrast, and
+#'   whose `$metadata$balance` reports the row and column marginals and
+#'   whether the operator is `additive_baseline_invariant`.
+#' @seealso [match_coupling()], [control_coupling()], and [match_control()],
+#'   which instead compiles the same comparison as a regression coefficient
+#'   with item nuisance effects.
+#' @family coupling and connectivity views
+#' @examples
+#' encoding <- effect_space(
+#'   c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+#' )
+#' retrieval <- effect_space(
+#'   c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+#' )
+#' matches <- match_coupling(
+#'   c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+#'   encoding, retrieval
+#' )
+#' contrast <- coupling_contrast(matches, control_coupling(matches))
+#' round(as.matrix(contrast$operator), 3)
+#'
+#' # Both marginals are zero here, so the readout is unchanged by adding a
+#' # constant to any item or probe effect.
+#' contrast$metadata$balance$additive_baseline_invariant
+#'
+#' # That balance is an observed property of this operator, not a promise
+#' # about anything applied downstream.
+#' contrast$metadata$claim
 #' @export
-pair_contrast <- function(matches, controls, normalize = TRUE) {
+coupling_contrast <- function(matches, controls, normalize = TRUE) {
   matches <- .validate_pair_coupling(matches)
   controls <- .validate_pair_coupling(controls)
   if (matches$kind != "match" || controls$kind != "control" ||
       !identical(matches$left_space, controls$left_space) ||
       !identical(matches$right_space, controls$right_space) ||
-      !identical(matches$eligible, controls$eligible) ||
-      !is.logical(normalize) || length(normalize) != 1L || is.na(normalize)) {
-    stop("Pair contrast couplings or normalization are incompatible.",
-      call. = FALSE)
+      !identical(matches$eligible, controls$eligible) || !.is_flag(normalize)) {
+    .contract_error(
+      "Pair contrast couplings or normalization are incompatible."
+    )
   }
   matched <- matches$value
   control <- controls$value
   if (normalize) {
     if (sum(matched) <= 0 || sum(control) <= 0) {
-      stop("Normalized pair contrasts require positive mass on both sides.",
-        call. = FALSE)
+      .input_error(
+        "Normalized pair contrasts require positive mass on both sides."
+      )
     }
     matched <- matched / sum(matched)
     control <- control / sum(control)
   }
   H <- matched - control
   pair_query(H, matches$left_space, matches$right_space, metadata = list(
-    constructor = "pair_contrast",
+    constructor = "coupling_contrast",
     balance = .pair_balance_diagnostics(H),
     claim = "observed_operator_balance_only"
   ))
@@ -176,8 +274,9 @@ pair_contrast <- function(matches, controls, normalize = TRUE) {
                                 encoding_nuisance, retrieval_nuisance) {
   if (!is.data.frame(design) || nrow(design) < 1L ||
       !all(c("left", "right") %in% names(design))) {
-    stop("`design` must be a nonempty data frame with `left` and `right`.",
-      call. = FALSE)
+    .input_error(
+      "`design` must be a nonempty data frame with `left` and `right`."
+    )
   }
   left_index <- .pair_axis_index(as.character(design$left), left_space, "left")
   right_index <- .pair_axis_index(as.character(design$right), right_space, "right")
@@ -187,14 +286,14 @@ pair_contrast <- function(matches, controls, normalize = TRUE) {
       any(!vapply(design[predictors], is.numeric, logical(1))) ||
       any(!vapply(design[predictors], function(value) all(is.finite(value)),
         logical(1)))) {
-    stop("Pair designs require at least one finite numeric predictor.",
-      call. = FALSE)
+    .input_error("Pair designs require at least one finite numeric predictor.")
   }
   X <- cbind(`(Intercept)` = 1, as.matrix(design[predictors]))
   if (encoding_nuisance) {
     if (length(unique(left_index)) < 2L) {
-      stop("Encoding nuisance effects are infeasible with fewer than two items.",
-        call. = FALSE)
+      .input_error(
+        "Encoding nuisance effects are infeasible with fewer than two items."
+      )
     }
     nuisance <- stats::model.matrix(~ factor(left_index))[, -1L, drop = FALSE]
     colnames(nuisance) <- paste0("encoding:", colnames(nuisance))
@@ -202,8 +301,9 @@ pair_contrast <- function(matches, controls, normalize = TRUE) {
   }
   if (retrieval_nuisance) {
     if (length(unique(right_index)) < 2L) {
-      stop("Retrieval nuisance effects are infeasible with fewer than two items.",
-        call. = FALSE)
+      .input_error(
+        "Retrieval nuisance effects are infeasible with fewer than two items."
+      )
     }
     nuisance <- stats::model.matrix(~ factor(right_index))[, -1L, drop = FALSE]
     colnames(nuisance) <- paste0("retrieval:", colnames(nuisance))
@@ -229,7 +329,46 @@ pair_contrast <- function(matches, controls, normalize = TRUE) {
 #' @param encoding_nuisance,retrieval_nuisance Include fixed-effect nuisance
 #'   columns for the respective item axis.
 #' @param sparse Return `H` as a sparse `Matrix` object.
-#' @return An axis-bound `pair_query()` carrying design and balance diagnostics.
+#' @return An axis-bound [pair_query()] whose `$operator` maps eligible pair
+#'   values to the requested coefficient, with
+#'   `$metadata$coefficient` (the contrast over compiled columns) and
+#'   `$metadata$diagnostics` reporting `rank`, `columns`, `observations`,
+#'   `unique_pairs`, and operator `balance`.
+#' @seealso [match_control()] for the matched-versus-control special case,
+#'   and [pair_query()] for a hand-written operator.
+#' @family coupling and connectivity views
+#' @examples
+#' # A pair-space regression: how does encoding-retrieval similarity change
+#' # with study-test lag, adjusting for a match indicator?
+#' encoding <- effect_space(
+#'   c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+#' )
+#' retrieval <- effect_space(
+#'   c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+#' )
+#' design <- expand.grid(
+#'   left = encoding$coordinates, right = retrieval$coordinates,
+#'   stringsAsFactors = FALSE
+#' )
+#' design$lag <- abs(
+#'   match(design$left, encoding$coordinates) -
+#'     match(design$right, retrieval$coordinates)
+#' )
+#' design$match <- as.numeric(design$lag == 0)
+#'
+#' # The result is the exact linear map from pair values to the `lag`
+#' # coefficient, compiled once and reusable as a fixed query.
+#' query <- pair_lm_query(design, "lag", encoding, retrieval)
+#' round(as.matrix(query$operator), 3)
+#' query$metadata$diagnostics[c("rank", "columns", "observations")]
+#'
+#' # A collinear predictor makes the coefficient undefined, and the design is
+#' # rejected before any geometry is read.
+#' design$lag_copy <- design$lag
+#' refused <- try(
+#'   pair_lm_query(design, "lag", encoding, retrieval), silent = TRUE
+#' )
+#' conditionMessage(attr(refused, "condition"))
 #' @export
 pair_lm_query <- function(design, coefficient, left_space, right_space,
                           weights = NULL, encoding_nuisance = FALSE,
@@ -238,42 +377,38 @@ pair_lm_query <- function(design, coefficient, left_space, right_space,
   right_space <- .as_effect_space(right_space)
   flags <- c(encoding_nuisance, retrieval_nuisance)
   if (!is.logical(flags) || length(flags) != 2L || anyNA(flags)) {
-    stop("Nuisance flags must be TRUE or FALSE.", call. = FALSE)
+    .input_error("Nuisance flags must be TRUE or FALSE.")
   }
-  if (!is.logical(sparse) || length(sparse) != 1L || is.na(sparse)) {
-    stop("`sparse` must be TRUE or FALSE.", call. = FALSE)
-  }
+  .check_flag(sparse, "sparse")
   compiled <- .pair_design_matrix(
     design, left_space, right_space,
     encoding_nuisance, retrieval_nuisance
   )
   X <- compiled$X
   if (is.character(weights) && length(weights) == 1L && !is.na(weights)) {
-    if (!weights %in% names(design)) stop("Unknown design weight column.",
-      call. = FALSE)
+    if (!weights %in% names(design)) .input_error("Unknown design weight column.")
     weights <- design[[weights]]
   } else if (is.null(weights) && "weight" %in% names(design)) {
     weights <- design$weight
   } else if (is.null(weights)) {
     weights <- rep(1, nrow(design))
   }
-  if (!is.numeric(weights) || length(weights) != nrow(design) ||
-      anyNA(weights) || any(!is.finite(weights)) || any(weights <= 0)) {
-    stop("Pair-design weights must be positive and finite.", call. = FALSE)
+  if (!.is_finite_numeric(weights) || length(weights) != nrow(design) ||
+      anyNA(weights) || any(weights <= 0)) {
+    .input_error("Pair-design weights must be positive and finite.")
   }
   if (is.character(coefficient) && length(coefficient) == 1L &&
       !is.na(coefficient)) {
-    if (!coefficient %in% colnames(X)) stop("Unknown pair-design coefficient.",
-      call. = FALSE)
+    if (!coefficient %in% colnames(X)) .input_error("Unknown pair-design coefficient.")
     contrast <- stats::setNames(rep(0, ncol(X)), colnames(X))
     contrast[[coefficient]] <- 1
   } else {
-    if (!is.numeric(coefficient) || is.null(names(coefficient)) ||
-        anyNA(coefficient) || any(!is.finite(coefficient)) ||
-        anyDuplicated(names(coefficient)) ||
+    if (!.is_finite_numeric(coefficient) || is.null(names(coefficient)) ||
+        anyNA(coefficient) || anyDuplicated(names(coefficient)) ||
         !setequal(names(coefficient), colnames(X))) {
-      stop("A coefficient contrast must name every compiled design column.",
-        call. = FALSE)
+      .input_error(
+        "A coefficient contrast must name every compiled design column."
+      )
     }
     contrast <- coefficient[colnames(X)]
   }
@@ -281,8 +416,9 @@ pair_lm_query <- function(design, coefficient, left_space, right_space,
   weighted_X <- X * root_weight
   qr_X <- qr(weighted_X, tol = 1e-10)
   if (qr_X$rank != ncol(X)) {
-    stop("Pair-space design is rank deficient; revise predictors or nuisances.",
-      call. = FALSE)
+    .input_error(
+      "Pair-space design is rank deficient; revise predictors or nuisances."
+    )
   }
   information <- crossprod(X, weights * X)
   weighted_transpose <- sweep(t(X), 2L, weights, `*`)
@@ -322,7 +458,40 @@ pair_lm_query <- function(design, coefficient, left_space, right_space,
 #' @param matches A `match_coupling()` value.
 #' @param weights Optional positive eligible-pair weights.
 #' @param encoding_nuisance,retrieval_nuisance Nuisance-effect flags.
-#' @return An axis-bound matched-versus-control `pair_query()`.
+#' @return An axis-bound [pair_query()] for the matched-versus-control
+#'   coefficient, with `$metadata$constructor` set to `"match_control"`,
+#'   `$metadata$diagnostics` (design `rank`, `columns`, operator `balance`),
+#'   and a `$metadata$claim` naming exactly what the reported balance covers.
+#' @seealso [match_coupling()] for the input, [coupling_contrast()] for the
+#'   plain difference without nuisance effects, and [pair_lm_query()] for the
+#'   general designed coefficient.
+#' @family coupling and connectivity views
+#' @examples
+#' encoding <- effect_space(
+#'   c("item1", "item2", "item3"), basis_id = "demo:encoding:v1"
+#' )
+#' retrieval <- effect_space(
+#'   c("probe1", "probe2", "probe3"), basis_id = "demo:retrieval:v1"
+#' )
+#' matches <- match_coupling(
+#'   c("item1", "item2", "item3"), c("probe1", "probe2", "probe3"),
+#'   encoding, retrieval
+#' )
+#'
+#' # Both item nuisance families are included by default, so item-specific
+#' # offsets cannot masquerade as a matching effect.
+#' query <- match_control(matches)
+#' query$metadata$diagnostics$columns
+#' round(as.matrix(query$operator), 3)
+#'
+#' # The result records what its balance diagnostics actually claim.
+#' query$metadata$claim
+#'
+#' # Dropping both nuisance families gives the simpler unadjusted contrast.
+#' unadjusted <- match_control(
+#'   matches, encoding_nuisance = FALSE, retrieval_nuisance = FALSE
+#' )
+#' unadjusted$metadata$diagnostics$columns
 #' @export
 match_control <- function(matches, weights = NULL,
                           encoding_nuisance = TRUE,

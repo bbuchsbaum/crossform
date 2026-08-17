@@ -1,1 +1,0 @@
-{"actor":"codex-effectgeom","entity":"bd-01KZTVR417M8Q99JDKYXZH9Z9T","kind":"reserve_open","mode":"exclusive","op":"20260812T123136.721605Z-p25484-c0000-rcf81-h798a72","paths":["R/memory.R","tests/testthat/test-memory.R","man/memory_plan.Rd"],"reservation_id":"rv-01KZTZ9TRHBS0BZPT72VP6R4V0","ts":"2026-08-12T12:31:36.721605Z","ttl_s":3600,"v":1}

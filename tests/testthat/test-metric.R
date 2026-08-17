@@ -50,9 +50,10 @@ test_that("metric and bridge roles cannot be confused", {
     measurement_space(2, "shared:metric-vs-bridge")
   )
 
-  expect_error(metric_capabilities(bridge), "bridge.*not.*metric")
+  expect_error(metric_capabilities(bridge), "bridge.*not.*metric",
+    class = "effect_input_error")
   expect_error(crossform:::metric_components(bridge, c(0.5, 0.5)),
-    "bridges do not admit")
+    "bridges do not admit", class = "effect_input_error")
 })
 
 test_that("support-local metrics never require a domain-wide dense matrix", {
@@ -121,7 +122,7 @@ test_that("conservative identity conservation is capability-gated", {
   expect_false(dense$identity_conservation)
   expect_null(dense$global_diagonal)
   expect_error(crossform:::.require_metric_conservation(dense, "identity"),
-    "not certified.*non-diagonal")
+    "not certified.*non-diagonal", class = "effect_input_error")
 })
 
 test_that("rank-one coherent and PSD configuration laws hold", {
@@ -252,9 +253,9 @@ test_that("singular and unfrozen metrics refuse coherent decomposition", {
 
   expect_false(metric_capabilities(singular)$positive_definite)
   expect_error(crossform:::metric_components(singular, rep(1 / 3, 3)),
-    "requires an SPD metric")
+    "requires an SPD metric", class = "effect_input_error")
   expect_error(crossform:::metric_components(recipe, rep(1 / 3, 3)),
-    "derived and frozen")
+    "derived and frozen", class = "effect_input_error")
 })
 
 test_that("component identity binds both metric and coherent functional", {
@@ -281,5 +282,5 @@ test_that("mutated metric identities fail at the deep boundary", {
   metric$value[1, 1] <- 2
 
   expect_error(crossform:::.validate_neural_metric(metric, deep = TRUE),
-    "identity")
+    "identity", class = "effect_contract_error")
 })

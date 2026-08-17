@@ -3,21 +3,20 @@
 .normalize_partition_matrices <- function(value, name) {
   if (is.matrix(value)) value <- list(value)
   if (!is.list(value) || length(value) < 1L) {
-    stop(sprintf("`%s` must provide at least one matrix.", name), call. = FALSE)
+    .input_error(sprintf("`%s` must provide at least one matrix.", name))
   }
   partitions <- names(value)
   if (is.null(partitions) || any(!nzchar(partitions))) {
-    stop(sprintf("Every `%s` matrix must have a partition name.", name),
-      call. = FALSE)
+    .input_error(sprintf("Every `%s` matrix must have a partition name.", name))
   }
   partitions <- .validate_partition_names(partitions, length(value), name)
   names(value) <- partitions
   for (partition in partitions) {
     matrix <- value[[partition]]
-    if (!is.matrix(matrix) || !is.numeric(matrix) || any(dim(matrix) < 1L) ||
-        any(!is.finite(matrix))) {
-      stop(sprintf("Partition `%s` `%s` is not a finite nonempty matrix.",
-        partition, name), call. = FALSE)
+    if (!.is_finite_matrix(matrix) || any(dim(matrix) < 1L)) {
+      .input_error(sprintf(
+        "Partition `%s` `%s` is not a finite nonempty matrix.",
+        partition, name))
     }
   }
   value
@@ -31,24 +30,25 @@
     row_ids <- list(row_ids)
   }
   if (!is.list(row_ids) || length(row_ids) != length(partitions)) {
-    stop("`row_ids` must provide one ordered observation axis per design.",
-      call. = FALSE)
+    .input_error(
+      "`row_ids` must provide one ordered observation axis per design."
+    )
   }
   names(row_ids) <- partitions
   for (partition in partitions) {
     ids <- row_ids[[partition]]
     if (is.null(ids) || length(ids) != nrow(designs[[partition]]) ||
         anyNA(ids) || anyDuplicated(ids)) {
-      stop(sprintf(
+      .input_error(sprintf(
         "Partition `%s` requires unique row identifiers for every design row.",
         partition
-      ), call. = FALSE)
+      ))
     }
     if (!is.null(rownames(designs[[partition]])) &&
         !identical(rownames(designs[[partition]]), as.character(ids))) {
-      stop(sprintf(
+      .contract_error(sprintf(
         "Partition `%s` design row names disagree with `row_ids`.", partition
-      ), call. = FALSE)
+      ))
     }
     rownames(designs[[partition]]) <- as.character(ids)
     row_ids[[partition]] <- unname(ids)
@@ -60,8 +60,7 @@
   if (!is.character(value) || anyNA(value) ||
       !length(value) %in% c(1L, length(partitions)) ||
       any(!value %in% c("auto", "qr", "svd"))) {
-    stop("`solver` must provide `auto`, `qr`, or `svd` per partition.",
-      call. = FALSE)
+    .input_error("`solver` must provide `auto`, `qr`, or `svd` per partition.")
   }
   if (length(value) == 1L) value <- rep(value, length(partitions))
   stats::setNames(unname(value), partitions)
@@ -111,7 +110,47 @@
 #' @param protocol,protocol_version Semantic compiler protocol identity.
 #' @param package,package_version Compiler implementation receipt fields.
 #' @param provenance Portable semantic model provenance.
-#' @return An `effect_design_model`.
+#' @return An `effect_design_model`: a list with the bound `$condition_space`,
+#'   the `$specification`, `$partitions`, the compiled `$designs`, their
+#'   `$parameterizations`, `$row_ids`, the `$compiler` record, the `$solver`
+#'   route, `$provenance`, a `$design_model_id` covering the semantic request
+#'   only, a `$compilation_route_id` covering the concrete compilation, and
+#'   `$capabilities` with `symbolic_model`, `coding_invariant`, `row_lineage`.
+#' @family studies and effect maps
+#' @seealso [coefficient_parameterization()] for the coding it carries,
+#'   [raw_design_model()] for the route without semantic coding, and
+#'   [plan_relation()], which binds this model to a study.
+#' @examples
+#' conditions <- condition_space(c("face", "body"), basis_id = "cond-mean:v1")
+#' design <- cbind(
+#'   face = c(1, 0, 1, 0, 1, 0), body = c(0, 1, 0, 1, 0, 1),
+#'   drift = seq(-1, 1, length.out = 6L)
+#' )
+#' rownames(design) <- paste0("scan-", 1:6)
+#' map <- cbind(diag(2), drift = 0)
+#' dimnames(map) <- list(conditions$coordinates, colnames(design))
+#' coding <- coefficient_parameterization(
+#'   map, conditions, coding_id = "cell-means-plus-drift"
+#' )
+#' specification <- list(target = "condition means", nuisance = "linear drift")
+#'
+#' model <- design_model(
+#'   specification, conditions,
+#'   designs = list(`run-1` = design), parameterizations = list(`run-1` = coding)
+#' )
+#' model$capabilities$coding_invariant
+#'
+#' # Semantic identity ignores the numerical route: switching solvers changes
+#' # the compilation receipt, not what was scientifically requested.
+#' route <- design_model(
+#'   specification, conditions,
+#'   designs = list(`run-1` = design), parameterizations = list(`run-1` = coding),
+#'   solver = "svd"
+#' )
+#' c(same_request = identical(model$design_model_id, route$design_model_id),
+#'   same_route = identical(
+#'     model$compilation_route_id, route$compilation_route_id
+#'   ))
 #' @export
 design_model <- function(
     specification, conditions, designs, parameterizations, row_ids = NULL,
@@ -119,8 +158,9 @@ design_model <- function(
     protocol_version = "1", package = "crossform",
     package_version = "0.0.0.9000", provenance = list()) {
   if (!is.list(specification)) {
-    stop("`specification` must be a portable semantic declaration list.",
-      call. = FALSE)
+    .input_error(
+      "`specification` must be a portable semantic declaration list."
+    )
   }
   .validate_effect_provenance(specification, "design specification")
   .validate_effect_provenance(provenance, "design-model provenance")
@@ -136,8 +176,9 @@ design_model <- function(
   }
   if (!is.list(parameterizations) ||
       length(parameterizations) != length(partitions)) {
-    stop("`parameterizations` must provide one coding per design partition.",
-      call. = FALSE)
+    .input_error(
+      "`parameterizations` must provide one coding per design partition."
+    )
   }
   names(parameterizations) <- partitions
   parameterizations <- lapply(parameterizations,
@@ -146,16 +187,17 @@ design_model <- function(
     parameterization <- parameterizations[[partition]]
     if (!identical(parameterization$condition_space$signature,
         conditions$signature)) {
-      stop(sprintf("Partition `%s` uses a different condition space.",
-        partition), call. = FALSE)
+      .contract_error(sprintf(
+        "Partition `%s` uses a different condition space.",
+        partition))
     }
     coefficients <- colnames(designs[[partition]])
     if (is.null(coefficients) ||
         !identical(coefficients, parameterization$coefficients)) {
-      stop(sprintf(
+      .input_error(sprintf(
         "Partition `%s` design columns must equal its coefficient axis.",
         partition
-      ), call. = FALSE)
+      ))
     }
   }
   solver <- .normalize_solver_routes(solver, partitions)
@@ -174,7 +216,7 @@ design_model <- function(
     specification = specification,
     provenance = provenance
   )
-  design_model_id <- .semantic_digest("design-model-sha256:", semantic)
+  design_model_id <- .sha256_signature(semantic, "design-model-sha256:")
   route <- list(
     schema_version = 1L,
     design_model_id = design_model_id,
@@ -198,9 +240,7 @@ design_model <- function(
     solver = solver,
     provenance = provenance,
     design_model_id = design_model_id,
-    compilation_route_id = .semantic_digest(
-      "design-compilation-route-sha256:", route
-    ),
+    compilation_route_id = .sha256_signature(route, "design-compilation-route-sha256:"),
     capabilities = list(
       symbolic_model = TRUE,
       coding_invariant = TRUE,
@@ -218,7 +258,28 @@ design_model <- function(
 #' @param row_ids Ordered observation identifiers per design.
 #' @param solver Numerical route per partition.
 #' @param provenance Portable provenance for the external construction.
-#' @return An `effect_raw_design_model`, also an `effect_design_model`.
+#' @return An `effect_raw_design_model` (also an `effect_design_model`) with
+#'   the same fields as [design_model()], except that `$condition_space` and
+#'   `$parameterizations` are `NULL`, `$design_model_id` includes the design
+#'   values themselves, and `$capabilities` reports `symbolic_model` and
+#'   `coding_invariant` as `FALSE`.
+#' @family studies and effect maps
+#' @seealso [design_model()] for the semantic route, and [raw_effect_map()],
+#'   the effect map this design must be paired with in [plan_relation()].
+#' @examples
+#' design <- cbind(b1 = c(1, 0, 1, 0), b2 = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' model <- raw_design_model(list(`run-1` = design))
+#'
+#' # The honest cost of skipping the condition space: the numeric design is
+#' # part of the identity, so a re-coded design is a different request.
+#' model$capabilities$coding_invariant
+#' model$capabilities$row_lineage
+#'
+#' # A raw design must be paired with a raw target on the same column axis.
+#' target <- rbind(`b1-b2` = c(1, -1))
+#' colnames(target) <- colnames(design)
+#' raw_effect_map(target)
 #' @export
 raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
                              provenance = list()) {
@@ -230,8 +291,9 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
   row_ids <- rows$row_ids
   for (partition in partitions) {
     if (is.null(colnames(designs[[partition]]))) {
-      stop(sprintf("Partition `%s` raw design requires coefficient names.",
-        partition), call. = FALSE)
+      .input_error(sprintf(
+        "Partition `%s` raw design requires coefficient names.",
+        partition))
     }
     .validate_effect_names(
       colnames(designs[[partition]]), ncol(designs[[partition]])
@@ -249,7 +311,7 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     row_ids = row_ids,
     provenance = provenance
   )
-  design_model_id <- .semantic_digest("raw-design-model-sha256:", semantic)
+  design_model_id <- .sha256_signature(semantic, "raw-design-model-sha256:")
   route <- list(
     schema_version = 1L,
     design_model_id = design_model_id,
@@ -267,9 +329,7 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     solver = solver,
     provenance = provenance,
     design_model_id = design_model_id,
-    compilation_route_id = .semantic_digest(
-      "design-compilation-route-sha256:", route
-    ),
+    compilation_route_id = .sha256_signature(route, "design-compilation-route-sha256:"),
     capabilities = list(
       symbolic_model = FALSE,
       coding_invariant = FALSE,
@@ -284,9 +344,8 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     "parameterizations", "row_ids", "compiler", "solver", "provenance",
     "design_model_id", "compilation_route_id", "capabilities"
   )
-  if (!inherits(value, "effect_design_model") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Design-model fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_design_model", expected)) {
+    .input_error("Design-model fields are missing or noncanonical.")
   }
   raw <- inherits(value, "effect_raw_design_model")
   rebuilt <- if (raw) {
@@ -312,7 +371,7 @@ raw_design_model <- function(designs, row_ids = NULL, solver = "auto",
     )
   }
   if (!identical(value, rebuilt)) {
-    stop("Design-model metadata or identity is inconsistent.", call. = FALSE)
+    .contract_error("Design-model metadata or identity is inconsistent.")
   }
   rebuilt
 }

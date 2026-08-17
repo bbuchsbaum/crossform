@@ -19,20 +19,24 @@ lm_extractor(
 
 \item{effects}{Finite effect-by-coefficient target matrix.}
 
-\item{observation_whitener}{Optional finite square observation whitener `L`.}
+\item{observation_whitener}{Optional finite square observation whitener \code{L}.}
 
-\item{effect_names}{Optional names or an `effect_space()` for target effects.}
+\item{effect_names}{Optional names or an \code{effect_space()} for target effects.}
 
 \item{tolerance}{Positive rank and estimability tolerance.}
 
-\item{whiten}{Deprecated alias for `observation_whitener`. Supplying both is
+\item{whiten}{Deprecated alias for \code{observation_whitener}. Supplying both is
 an error.}
 
 \item{solver}{Numerical factorization route: automatic, pivoted QR, or SVD.
 This changes execution provenance, not the requested effect.}
 }
 \value{
-An `effect_extractor`.
+An \code{effect_extractor} whose \verb{$map} is \verb{T (L X)^+ L}, with
+\verb{$diagnostics} recording \code{solver}, \code{solver_policy}, \code{observations},
+\code{coefficients}, \code{rank}, \code{rank_deficient}, per-effect
+\code{estimability_error}, \code{tolerance}, and the \code{observation_whitener}
+descriptor.
 }
 \description{
 The function accepts an already constructed design matrix; it does not own
@@ -40,3 +44,50 @@ event timing, HRF construction, nuisance selection, or a formula language.
 Full-rank designs use pivoted QR. Rank-deficient designs use an SVD
 pseudoinverse only after every requested effect is proven estimable.
 }
+\examples{
+condition <- factor(rep(c("face", "body"), each = 3L))
+design <- cbind(
+  stats::model.matrix(~ 0 + condition), drift = seq(-1, 1, length.out = 6L)
+)
+colnames(design)[1:2] <- c("face", "body")
+
+# Ask for one contrast on the design's coefficient axis.
+target <- rbind(`face-body` = c(1, -1, 0))
+colnames(target) <- colnames(design)
+extractor <- lm_extractor(design, target)
+extractor$diagnostics$solver
+round(extractor$map, 3)
+
+# Adding an intercept aliases the two condition columns, so a request for
+# `face` alone is refused and the aliased regressors are named.
+aliased <- cbind(intercept = 1, design)
+request <- matrix(0, 1L, ncol(aliased),
+  dimnames = list("face", colnames(aliased)))
+request[, "face"] <- 1
+refusal <- catch_refusal(lm_extractor(aliased, request))
+refusal$capability
+refusal$reasons
+}
+\seealso{
+\code{\link[=effect_extractor]{effect_extractor()}} for a hand-specified map, and
+\code{\link[=lm_relation_fit]{lm_relation_fit()}}, which additionally keeps the residual error channel.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

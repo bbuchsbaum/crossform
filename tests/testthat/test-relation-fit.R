@@ -137,27 +137,62 @@ test_that("pure relations advertise no recoverable error capability", {
   )))
   expect_equal(relation_block(relation_value, "run", 1:2),
     relation_block(wrapped, "run", 1:2), tolerance = 0)
-  expect_error(
+  required <- catch_refusal(
     crossform:::.require_relation_fit_capability(
       relation_value, "learned_metric_input"
-    ),
-    "precomputed effects.*lm_relation_fit"
+    )
   )
-  expect_error(residual_block(wrapped, "run", 1),
+  expect_s3_class(required, "effect_capability_refusal")
+  expect_identical(required$capability, "learned_metric_input")
+  expect_identical(required$namespace, "relation_fit")
+  expect_identical(required$reasons, "missing_error_channel")
+  expect_match(conditionMessage(required),
     "precomputed effects.*lm_relation_fit")
-  expect_error(residual_block(relation_value, "run", 1),
+
+  wrapped_block <- catch_refusal(residual_block(wrapped, "run", 1))
+  expect_s3_class(wrapped_block, "effect_capability_refusal")
+  expect_identical(wrapped_block$capability, "residual_blocks")
+  expect_identical(wrapped_block$namespace, "relation_fit")
+  expect_identical(wrapped_block$reasons, "missing_error_channel")
+  expect_match(conditionMessage(wrapped_block),
+    "precomputed effects.*lm_relation_fit")
+
+  bare_block <- catch_refusal(residual_block(relation_value, "run", 1))
+  expect_s3_class(bare_block, "effect_capability_refusal")
+  expect_identical(bare_block$capability, "residual_blocks")
+  expect_identical(bare_block$namespace, "relation_fit")
+  expect_identical(bare_block$reasons, "missing_error_channel")
+  expect_match(conditionMessage(bare_block),
     "beta matrices alone.*lm_relation_fit")
-  expect_error(effect_covariance(relation_value, "run"),
+
+  covariance <- catch_refusal(effect_covariance(relation_value, "run"))
+  expect_s3_class(covariance, "effect_capability_refusal")
+  expect_identical(covariance$capability, "effect_covariance")
+  expect_identical(covariance$namespace, "relation_fit")
+  expect_identical(covariance$reasons, "missing_error_channel")
+  expect_match(conditionMessage(covariance),
     "beta matrices alone.*lm_relation_fit")
-  expect_error(residual_df(relation_value, "run"),
+
+  degrees <- catch_refusal(residual_df(relation_value, "run"))
+  expect_s3_class(degrees, "effect_capability_refusal")
+  expect_identical(degrees$capability, "residual_df")
+  expect_identical(degrees$namespace, "relation_fit")
+  expect_identical(degrees$reasons, "missing_error_channel")
+  expect_match(conditionMessage(degrees),
     "beta matrices alone.*lm_relation_fit")
-  expect_error(
+
+  pair_statistics <- catch_refusal(
     residual_pair_statistics(
       relation_value,
       compile_frame(searchlights(1), abstract_domain(4))
-    ),
-    "beta matrices alone.*lm_relation_fit"
+    )
   )
+  expect_s3_class(pair_statistics, "effect_capability_refusal")
+  expect_identical(pair_statistics$capability, "learned_metric_input")
+  expect_identical(pair_statistics$namespace, "relation_fit")
+  expect_identical(pair_statistics$reasons, "missing_error_channel")
+  expect_match(conditionMessage(pair_statistics),
+    "beta matrices alone.*lm_relation_fit")
 })
 
 test_that("deep validation is a boundary operation, not a block-read rebuild", {
@@ -173,7 +208,7 @@ test_that("deep validation is a boundary operation, not a block-read rebuild", {
   expect_error(
     crossform:::.validate_relation_fit(mutated, deep = TRUE),
     "identity"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("a saturated model cannot claim a residual error channel", {
@@ -185,7 +220,7 @@ test_that("a saturated model cannot claim a residual error channel", {
   expect_error(
     lm_relation_fit(list(run = response), design, target),
     "residual degree of freedom"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("lm relation fits tolerate a forwarded NULL legacy whitener", {

@@ -9,7 +9,8 @@ test_that("complete geometry and query-only view are distinct contracts", {
   expect_s3_class(view, "effect_view")
   expect_identical(view$completeness, "query_only")
   expect_false(inherits(view, "effect_geometry"))
-  expect_error(geometry_component(view), "complete effect_geometry")
+  expect_error(geometry_component(view), "complete effect_geometry",
+    class = "effect_input_error")
 })
 
 test_that("geometry queries enforce experimental-space identity", {
@@ -18,7 +19,7 @@ test_that("geometry queries enforce experimental-space identity", {
     c("a", "b"), basis_id = "different:basis"))
 
   expect_error(query_geometry(geometry, incompatible),
-    "effect spaces are incompatible")
+    "effect spaces are incompatible", class = "effect_contract_error")
 })
 
 test_that("full materialization and direct query agree", {
@@ -44,7 +45,7 @@ test_that("full materialization and direct query agree", {
 test_that("bilinear operators compile only after their contracts are checked", {
   geometry <- result_fixture()
   operator <- matrix(c(2, -1, -1, 3), 2)
-  packed <- matrix(crossform:::.svec_symmetric(operator), ncol = 1)
+  packed <- matrix(oracle_svec(operator), ncol = 1)
 
   expect_equal(
     query_geometry(geometry, bilinear_query(operator))$values,
@@ -54,11 +55,12 @@ test_that("bilinear operators compile only after their contracts are checked", {
 
   asymmetric <- bilinear_query(diag(2))
   asymmetric$operator[1, 2] <- 1
-  expect_error(query_geometry(geometry, asymmetric), "symmetric")
+  expect_error(query_geometry(geometry, asymmetric), "symmetric",
+    class = "effect_input_error")
   expect_error(
     query_geometry(geometry, bilinear_query(diag(3))),
     "experimental dimension"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("invalid direct queries perform no store reads", {
@@ -119,22 +121,23 @@ test_that("public geometry consumers reject mutated result contracts", {
 
   mutated <- geometry
   mutated$completeness <- "query_only"
-  expect_error(geometry_component(mutated), "canonical complete")
+  expect_error(geometry_component(mutated), "canonical complete",
+    class = "effect_input_error")
 
   mutated <- geometry
   mutated$effects <- rev(mutated$effects)
   expect_error(query_geometry(mutated, matrix(1, 3, 1)),
-    "coordinate labels")
+    "coordinate labels", class = "effect_contract_error")
 
   mutated <- geometry
   mutated$receipt$completion_status <- "invented"
-  expect_error(rdm(mutated), "receipt|completion")
+  expect_error(rdm(mutated), "receipt|completion", class = "effect_input_error")
 
   mutated <- geometry
   mutated$storage <- "memory"
   mutated$total$representation <- "forged"
-  expect_error(contrast(mutated, c(a = 1, b = -1)),
-    "storage metadata")
+  expect_error(contrast_energy(mutated, c(a = 1, b = -1)),
+    "storage metadata", class = "effect_contract_error")
 })
 
 test_that("storage representation cannot change semantic completeness", {
@@ -167,10 +170,11 @@ test_that("malformed complete and query-only results fail loudly", {
     effect_geometry(matrix(1, 1, 2), matrix(1, 2, 1), geometry$marginals,
       effects = geometry$effects, receipt = geometry$receipt),
     "identical dimensions"
-  )
-  expect_error(query_geometry(geometry, matrix(1, nrow = 2)), "input dimension")
+  , class = "effect_input_error")
+  expect_error(query_geometry(geometry, matrix(1, nrow = 2)), "input dimension",
+    class = "effect_input_error")
   expect_error(effect_view(matrix(NA_real_, 1, 1), diag(1), "total",
-    receipt = geometry$receipt), "finite")
+    receipt = geometry$receipt), "finite", class = "effect_input_error")
 })
 
 test_that("full certification rejects malformed packed and marginal structure", {
@@ -178,21 +182,21 @@ test_that("full certification rejects malformed packed and marginal structure", 
   expect_error(effect_geometry(
     matrix(1, 2, 2), matrix(1, 2, 2), geometry$marginals,
     effects = "effect", receipt = geometry$receipt
-  ), "not triangular")
+  ), "not triangular", class = "effect_input_error")
 
   empty <- structure(list(), semantics = "undirected_endpoint",
     class = c("effect_marginals", "list"))
   expect_error(effect_geometry(
     matrix(1, 2, 1), matrix(1, 2, 1), empty,
     effects = "effect", receipt = geometry$receipt
-  ), "nonempty")
+  ), "nonempty", class = "effect_input_error")
 
   wrong <- geometry$marginals
   colnames(wrong$endpoint) <- c("other", "b")
   expect_error(effect_geometry(
     matrix(1, 2, 1), matrix(1, 2, 1), wrong,
     effects = "effect", receipt = geometry$receipt
-  ), "named effect columns")
+  ), "named effect columns", class = "effect_input_error")
 })
 
 test_that("full certification probes manifests, readers, indices, and receipts", {
@@ -203,7 +207,7 @@ test_that("full certification probes manifests, readers, indices, and receipts",
     forged, geometry$coherent, geometry$marginals,
     effects = geometry$effects, receipt = geometry$receipt,
     index = geometry$index
-  ), "store manifest")
+  ), "store manifest", class = "effect_input_error")
 
   broken_reader <- geometry$total
   broken_reader$read <- function(rows = NULL) matrix(1, 1, 1)
@@ -211,17 +215,17 @@ test_that("full certification probes manifests, readers, indices, and receipts",
     broken_reader, geometry$coherent, geometry$marginals,
     effects = geometry$effects, receipt = geometry$receipt,
     index = geometry$index
-  ), "reader cannot supply")
+  ), "reader cannot supply", class = "effect_input_error")
 
   expect_error(effect_geometry(
     geometry$total, geometry$coherent, geometry$marginals,
     effects = geometry$effects, receipt = geometry$receipt,
     index = c("same", "same")
-  ), "uniquely identify")
+  ), "uniquely identify", class = "effect_input_error")
 
   expect_error(effect_geometry(
     geometry$total, geometry$coherent, geometry$marginals,
     effects = geometry$effects, receipt = geometry$receipt,
     metadata = list(scientific_plan_id = "different")
-  ), "different scientific plans")
+  ), "different scientific plans", class = "effect_contract_error")
 })

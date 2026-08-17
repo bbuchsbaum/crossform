@@ -13,24 +13,27 @@ measurement_frame(
 )
 }
 \arguments{
-\item{x}{A compiled additive `effect_frame`, or a uniquely named list of
+\item{x}{A compiled additive \code{effect_frame}, or a uniquely named list of
 fixed measurement matrices.}
 
 \item{domain}{Required for a list of matrices; the exact source
-`effect_domain`.}
+\code{effect_domain}.}
 
-\item{mode}{For an additive frame, one of `"total"`, `"coherent"`, or
-`"coherent_configuration"`.}
+\item{mode}{For an additive frame, one of \code{"total"}, \code{"coherent"}, or
+\code{"coherent_configuration"}.}
 
 \item{id}{Stable identity used for custom measurement axes.}
 
 \item{units}{One unit or one per row of each custom operator.}
 }
 \value{
-An identified `effect_measurement_frame`.
+An \code{effect_measurement_frame} with one oriented \verb{$legs} entry per
+node, the \verb{$node_ids} naming them, the stacked \verb{$frame_operator}, and
+\verb{$coverage}, \verb{$injectivity}, and \verb{$dual} diagnostics used by
+\code{\link[=reconstruct_evidence]{reconstruct_evidence()}}.
 }
 \description{
-`measurement_frame()` preserves the oriented measurement legs needed for
+\code{measurement_frame()} preserves the oriented measurement legs needed for
 cross-region forms. An additive frame can be adapted as total, coherent, or
 coherent/configuration measurements. A named list of fixed matrices can be
 used for prespecified measurements. Learned operators are intentionally not
@@ -39,7 +42,57 @@ training provenance.
 }
 \details{
 Version 0.1 exposes this as a deliberately small-node dense path.
-  Construction fails before dense conversion when its estimated frame and
-  leg payload exceeds 256 MiB. Brain-scale work should use the support-local
-  geometry-plan path until matrix-free measurement frames are qualified.
+Construction fails before dense conversion when its estimated frame and
+leg payload exceeds 256 MiB. Brain-scale work should use the support-local
+geometry-plan path until matrix-free measurement frames are qualified.
 }
+\examples{
+# Two scalar regional measurements, each a fixed oriented row of weights.
+native <- abstract_domain(4, id = "demo:native:v1")
+nodes <- measurement_frame(
+  list(
+    anterior = matrix(c(1, 0, 0, 0), 1),
+    posterior = matrix(c(0, 1, 0, 0), 1)
+  ),
+  domain = native, id = "demo:regional-means:v1"
+)
+nodes$node_ids
+nodes$legs$anterior$operator
+
+# An additive frame can be adapted instead. In coherent/configuration
+# mode each measurement keeps its weighted-mean direction and the
+# orthogonal remainder as separate components.
+additive <- additive_frame(
+  matrix(c(1, 2, 1, 0, 0, 1, 2, 1), 2, 4, byrow = TRUE), domain = native
+)
+decomposed <- measurement_frame(additive, mode = "coherent_configuration")
+decomposed$node_ids
+
+# An additive frame already names its domain, so supplying one is refused.
+refused <- try(
+  measurement_frame(additive, domain = native), silent = TRUE
+)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=edge_frame]{edge_frame()}} to request node pairs, \code{\link[=measurement_form]{measurement_form()}} to
+evaluate them, and \code{\link[=additive_frame]{additive_frame()}} or \code{\link[=compile_frame]{compile_frame()}} for the
+additive frames this can adapt.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

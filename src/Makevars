@@ -1,0 +1,3 @@
+# Deterministic ordered reductions: do not enable -ffast-math or OpenMP.
+# Pair products accumulate in declared edge order, then pair order.
+# Leave the C++ standard unspecified so R CMD check does not warn about C++11.

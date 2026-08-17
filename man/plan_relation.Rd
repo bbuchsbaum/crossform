@@ -13,22 +13,92 @@ plan_relation(
 )
 }
 \arguments{
-\item{study}{A [study()].}
+\item{study}{A \code{\link[=study]{study()}}.}
 
-\item{model}{A [design_model()] or [raw_design_model()].}
+\item{model}{A \code{\link[=design_model]{design_model()}} or \code{\link[=raw_design_model]{raw_design_model()}}.}
 
-\item{effects}{An [effect_map()] for a semantic model, or [raw_effect_map()]
+\item{effects}{An \code{\link[=effect_map]{effect_map()}} for a semantic model, or \code{\link[=raw_effect_map]{raw_effect_map()}}
 for a raw design.}
 
-\item{observation_model}{An [observation_model()].}
+\item{observation_model}{An \code{\link[=observation_model]{observation_model()}}.}
 
 \item{tolerance}{Positive numerical rank and estimability tolerance.}
 }
 \value{
-An `effect_relation_plan`.
+An \code{effect_relation_plan}: a list with the validated \verb{$study},
+\verb{$model}, \verb{$effects} and \verb{$observation_model}, the \verb{$partitions}, the
+per-partition \verb{$lowered_effects} and portable \verb{$design_receipts}, the
+\verb{$retained_rows} left by censoring, the resolved \verb{$sampling_unit} and
+\verb{$whiteners}, the \verb{$tolerance}, \verb{$capabilities}, and a
+\verb{$relation_plan_id}.
 }
 \description{
 The plan composes factual study identity, a semantic or raw design model,
 named effects, and the observation-model assumptions. Design compilation and
 estimability are validated without reading neural values.
 }
+\examples{
+# Four scans, two conditions, three neural features.
+set.seed(1)
+domain <- abstract_domain(3L, id = "plan-relation-example")
+index <- observation_index(paste0("scan-", 1:4), "run-1")
+facts <- study(observations(
+  list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+))
+
+conditions <- condition_space(c("face", "body"))
+design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+rownames(design) <- paste0("scan-", 1:4)
+coding <- coefficient_parameterization(
+  diag(2), conditions,
+  coefficients = colnames(design), coding_id = "cell-means"
+)
+model <- design_model(
+  list(target = "condition means"), conditions,
+  designs = list(`run-1` = design),
+  parameterizations = list(`run-1` = coding)
+)
+weights <- rbind(`face-body` = c(1, -1))
+colnames(weights) <- conditions$coordinates
+
+# Compilation and estimability are checked without reading neural values.
+plan <- plan_relation(
+  facts, model, effect_map(weights, conditions),
+  observation_model("ols", sampling_unit = "scan")
+)
+plan
+plan$design_receipts$`run-1`$rank
+
+# Effects and design must bind the same condition space: a different basis
+# is a different scientific request, and is refused rather than coerced.
+other <- condition_space(c("face", "body"), basis_id = "other-basis")
+catch_refusal(plan_relation(
+  facts, model, effect_map(weights, other),
+  observation_model("ols", sampling_unit = "scan")
+))$capability
+}
+\seealso{
+\code{\link[=estimate_relation]{estimate_relation()}} to execute the plan,
+\code{\link[=relation_plan_receipts]{relation_plan_receipts()}} and \code{\link[=compiler_conformance]{compiler_conformance()}} to inspect it, and
+\code{\link[=study]{study()}}, \code{\link[=design_model]{design_model()}}, \code{\link[=effect_map]{effect_map()}}, \code{\link[=observation_model]{observation_model()}} for the
+four inputs.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

@@ -7,11 +7,53 @@
 reverse_bridge(bridge)
 }
 \arguments{
-\item{bridge}{A factorized `measurement_bridge()`.}
+\item{bridge}{A factorized \code{measurement_bridge()}.}
 }
 \value{
-The exact bridge with source domains and legs exchanged.
+An \code{effect_measurement_bridge} with \verb{$left_leg}/\verb{$right_leg} and
+\verb{$left_domain}/\verb{$right_domain} exchanged; its induced operator is the
+transpose of the original.
 }
 \description{
-Reverse a factorized measurement bridge
+\code{reverse_bridge()} exchanges the two sides of a fixed bridge, so a bridge
+built left-to-right can be reused when the same two domains appear in the
+opposite order. The common space and provenance are preserved exactly.
 }
+\examples{
+left_domain <- abstract_domain(3, id = "subject01:native")
+right_domain <- abstract_domain(4, id = "subject02:native")
+bridge <- measurement_bridge(
+  rbind(c(1, 0, 0), c(0, 1, 0)), rbind(c(1, 0, 0, 0), c(0, 0, 1, 0)),
+  left_domain, right_domain,
+  measurement_space(2, id = "study:common-modes:v1")
+)
+reversed <- reverse_bridge(bridge)
+reversed$left_domain$id
+
+# Reversing transposes the induced cross-space operator exactly.
+all.equal(
+  t(bridge$left_leg) \%*\% bridge$right_leg,
+  t(t(reversed$left_leg) \%*\% reversed$right_leg)
+)
+
+# Reversing twice returns the original bridge, signature included.
+identical(reverse_bridge(reversed), bridge)
+}
+\seealso{
+\code{\link[=measurement_bridge]{measurement_bridge()}}.
+
+Other coupling and connectivity views: 
+\code{\link{connectivity}()},
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()}
+}
+\concept{coupling and connectivity views}

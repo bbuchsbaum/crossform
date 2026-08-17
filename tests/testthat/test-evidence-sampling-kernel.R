@@ -28,9 +28,10 @@ sampling_kernel_fixture <- function(dimension = 7L) {
     partitions = 4L, labels = paste0("d", seq_len(dimension)),
     source = list(oracle = "test-fixture")
   )
-  dense <- sampling_oracle_eq13(
-    delta, xi,
-    sigma_r = diag(sqrt(0.37 * 13), 13L),
+  # The fixture builds its row factors by hand, so the oracle is applied to
+  # the same signal Gram (0.37 Delta) and noise trace (0.37) directly.
+  dense <- sampling_oracle_eq13_terms(
+    signal_gram = 0.37 * delta, xi = xi, noise_trace = 0.37,
     partitions = 4L
   )$covariance
   list(base = base, plan = plan, covariance = covariance, dense = dense)
@@ -85,7 +86,7 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
     patterns, effect_covariance, residual_covariance
   )
   expected <- sampling_oracle_eq13(
-    components$delta, components$xi, residual_covariance,
+    components$differences, components$xi, residual_covariance,
     five_plan$partition$count
   )$covariance
   observed <- crossform:::.sampling_covariance_from_components(
@@ -101,6 +102,133 @@ test_that("component constructor preserves Eq. 13 without dense factors", {
     c(nrow(contrasts), features))
   expect_identical(nrow(observed$xi_factor), nrow(contrasts))
   expect_false(any(c("delta", "xi", "covariance") %in% names(observed)))
+})
+
+test_that("the component constructor equals a scalar-loop law exactly", {
+  # An algebraic court for the constructor: random small inputs, an
+  # entry-by-entry base-R evaluation of
+  #   Cov(d_r, d_s) = 4 Xi_rs (mu_r Sigma_R mu_s') / (M nu^2)
+  #                 + 2 Xi_rs^2 tr(Sigma_R^2) / (M (M - 1) nu^2),
+  # and no shared code path with the implementation.
+  set.seed(81325)
+  for (case in seq_len(6L)) {
+    conditions <- sample(2:5, 1L)
+    features <- sample(2:7, 1L)
+    partitions <- sample(2:5, 1L)
+    normalization <- sample(c(1, features, 2.5), 1L)
+    labels <- paste0("condition", seq_len(conditions))
+    design <- kronecker(rep(1, 4L), diag(conditions))
+    colnames(design) <- labels
+    effect_map <- diag(conditions)
+    dimnames(effect_map) <- list(labels, labels)
+    domain <- abstract_domain(
+      features, id = sprintf("sampling-scalar-law-%d", case)
+    )
+    sources <- stats::setNames(lapply(seq_len(partitions), function(index) {
+      matrix(rnorm(4L * conditions * features), 4L * conditions, features)
+    }), paste0("run", seq_len(partitions)))
+    fit <- lm_relation_fit(
+      sources, design, effect_map, sampling_unit = "trial", domain = domain
+    )
+    plan <- crossform:::.compile_evidence_sampling_plan(
+      plan_geometry(
+        fit$relation, compile_frame(whole_brain(), domain),
+        cross_partitions(fit$relation, independence = "independent")
+      ),
+      fit
+    )
+    contrasts <- sampling_oracle_condition_contrasts(conditions)
+    patterns <- matrix(
+      rnorm(conditions * features), conditions, features
+    )
+    effect_raw <- matrix(rnorm(conditions^2), conditions, conditions)
+    effect_covariance <- tcrossprod(effect_raw) / conditions +
+      diag(0.15, conditions)
+    residual_raw <- matrix(
+      rnorm(features * (features + 2L)), features, features + 2L
+    )
+    residual_covariance <- tcrossprod(residual_raw) / (features + 2L)
+    observed <- crossform:::.sampling_covariance_materialize(
+      crossform:::.sampling_covariance_from_components(
+        plan, contrasts, patterns, effect_covariance, residual_covariance,
+        normalization = normalization, labels = rownames(contrasts)
+      )
+    )
+    expected <- sampling_oracle_scalar_law(
+      contrasts %*% patterns,
+      contrasts %*% effect_covariance %*% t(contrasts),
+      residual_covariance, partitions, normalization
+    )
+
+    expect_equal(unname(observed), expected, tolerance = 1e-12,
+      info = sprintf(
+        "case %d: %d conditions, %d features, %d partitions, nu = %g",
+        case, conditions, features, partitions, normalization
+      ))
+  }
+})
+
+test_that("a rank-deficient residual covariance keeps a valid factor", {
+  set.seed(81326)
+  conditions <- 4L
+  features <- 5L
+  partitions <- 3L
+  labels <- paste0("condition", seq_len(conditions))
+  design <- kronecker(rep(1, 4L), diag(conditions))
+  colnames(design) <- labels
+  effect_map <- diag(conditions)
+  dimnames(effect_map) <- list(labels, labels)
+  domain <- abstract_domain(features, id = "sampling-rank-deficient")
+  sources <- stats::setNames(lapply(seq_len(partitions), function(index) {
+    matrix(rnorm(4L * conditions * features), 4L * conditions, features)
+  }), paste0("run", seq_len(partitions)))
+  fit <- lm_relation_fit(
+    sources, design, effect_map, sampling_unit = "trial", domain = domain
+  )
+  plan <- crossform:::.compile_evidence_sampling_plan(
+    plan_geometry(
+      fit$relation, compile_frame(whole_brain(), domain),
+      cross_partitions(fit$relation, independence = "independent")
+    ),
+    fit
+  )
+  contrasts <- sampling_oracle_condition_contrasts(conditions)
+  patterns <- matrix(rnorm(conditions * features), conditions, features)
+  effect_covariance <- diag(0.4, conditions)
+  deficient_raw <- matrix(rnorm(features * 2L), features, 2L)
+  deficient <- tcrossprod(deficient_raw)
+  degenerate <- matrix(0, features, features)
+
+  rank_two <- crossform:::.sampling_covariance_from_components(
+    plan, contrasts, patterns, effect_covariance, deficient,
+    normalization = 1, labels = rownames(contrasts)
+  )
+  empty <- crossform:::.sampling_covariance_from_components(
+    plan, contrasts, patterns, effect_covariance, degenerate,
+    normalization = 1, labels = rownames(contrasts)
+  )
+
+  expect_identical(ncol(rank_two$signal_factor), 2L)
+  expect_equal(
+    unname(crossform:::.sampling_covariance_materialize(rank_two)),
+    sampling_oracle_scalar_law(
+      contrasts %*% patterns,
+      contrasts %*% effect_covariance %*% t(contrasts),
+      deficient, partitions, 1
+    ), tolerance = 1e-12
+  )
+  expect_identical(ncol(empty$signal_factor), 1L)
+  expect_true(all(
+    crossform:::.sampling_covariance_materialize(empty) == 0
+  ))
+  expect_error(
+    crossform:::.sampling_covariance_from_components(
+      plan, contrasts, patterns, effect_covariance,
+      diag(c(1, 1, 1, 1, -1)), normalization = 1,
+      labels = rownames(contrasts)
+    ),
+    "Residual covariance must be positive semidefinite"
+  , class = "effect_input_error")
 })
 
 test_that("every exact query route agrees with dense covariance", {
@@ -169,7 +297,7 @@ test_that("every exact query route agrees with dense covariance", {
       stats::setNames(vector, paste0("wrong", seq_along(vector)))
     ),
     "identify every sampling-covariance coordinate"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("compiled operation plans execute the requested exact route", {
@@ -208,7 +336,7 @@ test_that("dense materialization is explicit and size-preflighted", {
       materialize, fixture$covariance, max_bytes = 8
     ),
     "exceeding.*materialization budget"
-  )
+  , class = "effect_input_error")
   expect_identical(
     dim(crossform:::.execute_evidence_sampling_plan(
       materialize, fixture$covariance,
@@ -226,7 +354,7 @@ test_that("sampling covariance detects plan and source mutation", {
   expect_error(
     crossform:::.validate_sampling_covariance(forged),
     "identity"
-  )
+  , class = "effect_contract_error")
   different_target <- crossform:::.compile_evidence_sampling_plan(
     fixture$base$evidence, fixture$base$fit,
     target = crossform:::.sampling_target("null")
@@ -236,5 +364,5 @@ test_that("sampling covariance detects plan and source mutation", {
       different_target, fixture$covariance
     ),
     "different scientific identities"
-  )
+  , class = "effect_contract_error")
 })

@@ -10,7 +10,10 @@ numerical_contract(atol = 1e-12, rtol = 1e-10)
 \item{atol, rtol}{Nonnegative finite absolute and relative tolerances.}
 }
 \value{
-A declarative numerical contract.
+An \code{effect_numerical_contract}: the declared \verb{$atol} and \verb{$rtol}
+plus one guarantee record per claim (\verb{$scheduling}, \verb{$block_partition},
+\verb{$cross_platform}) and the two explicit non-promises
+\verb{$bitwise_across_blocking} and \verb{$bitwise_across_platforms}.
 }
 \description{
 The contract separates three claims. Reordering completion of fixed tasks is
@@ -19,3 +22,25 @@ blocks or numerical platform is guaranteed only within the declared combined
 absolute and relative tolerance. Bitwise equality across block partitions or
 platforms is deliberately not promised.
 }
+\examples{
+# The default contract. Read the guarantee you intend to rely on rather
+# than assuming bitwise equality everywhere.
+contract <- numerical_contract()
+contract$scheduling
+contract$block_partition
+
+# Bitwise reproducibility across block partitions is deliberately not
+# promised, so a tolerance is the only portable claim.
+contract$bitwise_across_blocking
+
+# Tighten the tolerance when a downstream check needs it.
+numerical_contract(atol = 1e-14, rtol = 1e-12)$rtol
+}
+\seealso{
+\code{\link[=numerical_agreement]{numerical_agreement()}}, which tests two results against one of
+these named guarantees.
+
+Other numerical contracts and receipts: 
+\code{\link{numerical_agreement}()}
+}
+\concept{numerical contracts and receipts}

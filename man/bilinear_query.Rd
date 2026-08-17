@@ -11,12 +11,60 @@ bilinear_query(operator, fixed = TRUE, effects = NULL)
 
 \item{fixed}{Whether the query is fixed before local data are inspected.}
 
-\item{effects}{Optional `effect_space()` binding for the operator axes.}
+\item{effects}{Optional \code{effect_space()} binding for the operator axes.}
 }
 \value{
-A declarative query value.
+An \code{effect_query} with \code{kind = "bilinear"}, carrying the symmetric
+\verb{$operator}, the \verb{$fixed} flag, and an optional \verb{$effect_space} binding.
 }
 \description{
 This compatibility constructor describes a symmetric query on one effect
-space. Use `pair_query()` for distinct or unequal axes.
+space. Use \code{pair_query()} for distinct or unequal axes.
 }
+\examples{
+# A contrast read as a rank-one bilinear query: `t(c) G c` for c = a - b.
+contrast <- c(1, -1)
+query <- bilinear_query(tcrossprod(contrast))
+query$operator
+
+# Evaluate it against a plan without materializing complete geometry.
+domain <- abstract_domain(3, id = "bilinear-example")
+relation <- relation(
+  list(run1 = rbind(a = c(1, 0, 2), b = c(0, 1, 1)),
+       run2 = rbind(a = c(1.1, 0.1, 1.9), b = c(0.1, 0.9, 1.2))),
+  domain = domain
+)
+plan <- plan_geometry(
+  relation, compile_frame(whole_brain(), domain),
+  cross_partitions(relation, independence = "independent")
+)
+evaluate_geometry(plan, query = query)$values
+
+# A bilinear query is symmetric by construction; asymmetry is refused.
+asymmetric <- try(bilinear_query(matrix(c(1, 2, 3, 4), 2)), silent = TRUE)
+conditionMessage(attr(asymmetric, "condition"))
+}
+\seealso{
+\code{\link[=evaluate_geometry]{evaluate_geometry()}}, which reads a plan with this query, and
+\code{\link[=pair_query]{pair_query()}} for distinct or unequal axes.
+
+Other geometry plans and views: 
+\code{\link{aggregate_first}()},
+\code{\link{compute_policy}()},
+\code{\link{contrast_energy}()},
+\code{\link{crossnobis}()},
+\code{\link{evaluate_geometry}()},
+\code{\link{example_fmri_effects}()},
+\code{\link{geometry_component}()},
+\code{\link{geometry_spectrum}()},
+\code{\link{inner_product}()},
+\code{\link{materialize_geometry}()},
+\code{\link{plan_crossnobis}()},
+\code{\link{plan_geometry}()},
+\code{\link{plot_views}},
+\code{\link{query_geometry}()},
+\code{\link{rdm}()},
+\code{\link{rsa}()},
+\code{\link{variation_query}()}
+}
+\concept{geometry plans and views}

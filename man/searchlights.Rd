@@ -12,13 +12,55 @@ searchlights(radius, normalization = "local")
 \item{normalization}{Explicit frame normalization.}
 }
 \value{
-An additive frame specification.
+An \code{effect_frame_spec} with \verb{$kind} \code{"searchlights"}, the requested
+\verb{$radius}, and \verb{$normalization}. Pass it to \code{\link[=compile_frame]{compile_frame()}}.
 }
 \description{
-The default `"local"` normalization matches the conventional
+The default \code{"local"} normalization matches the conventional
 center-assigned searchlight map, in which overlapping neighborhoods
 repeatedly count shared features. Local values under this default cannot
 be summed into a whole-brain quantity. Request
-`normalization = "conservative"` for exact local-to-global accounting of
-the `total` component, and check any frame with [frame_conservation()].
+\code{normalization = "conservative"} for exact local-to-global accounting of
+the \code{total} component, and check any frame with \code{\link[=frame_conservation]{frame_conservation()}}.
 }
+\examples{
+grid <- as.matrix(expand.grid(x = 1:4, y = 1:4))
+domain <- abstract_domain(
+  nrow(grid), coordinates = grid, id = "searchlight-example"
+)
+
+# One center-assigned neighborhood per feature; the radius is read in the
+# domain's own coordinate units.
+local <- compile_frame(searchlights(1.5), domain)
+dim(local$weights)
+
+# The default "local" normalization double-counts features shared between
+# overlapping neighborhoods, so its local values are not contributions to a
+# whole-brain total. Ask for "conservative" when they must be.
+frame_conservation(local)$conserved
+frame_conservation(
+  compile_frame(searchlights(1.5, normalization = "conservative"), domain)
+)$conserved
+}
+\seealso{
+\code{\link[=compile_frame]{compile_frame()}}, \code{\link[=frame_conservation]{frame_conservation()}} to check the
+normalization you chose, and \code{\link[=neuroim2_searchlights]{neuroim2_searchlights()}} for neighborhoods
+built by neuroim2 instead.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{additive_frame}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

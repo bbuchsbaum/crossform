@@ -17,17 +17,17 @@ coherent_functional(
 
 \item{domain}{Exact neural feature domain.}
 
-\item{support}{Ordered feature identities for `value`.}
+\item{support}{Ordered feature identities for \code{value}.}
 
 \item{label}{Nonempty scientific identity for the functional.}
 
 \item{provenance}{Compact provenance.}
 }
 \value{
-An immutable `effect_coherent_functional`.
+An immutable \code{effect_coherent_functional}.
 }
 \description{
-The vector `a` defines the scientifically oriented amplitude `B a`. It is
+The vector \code{a} defines the scientifically oriented amplitude \verb{B a}. It is
 separate from the metric that normalizes the energy of that amplitude.
 }
 \keyword{internal}

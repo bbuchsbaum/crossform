@@ -17,13 +17,50 @@ observation_confounds(
 
 \item{partition, observation_id}{Columns binding rows to observation indexes.}
 
-\item{censor}{Optional logical censor column. `TRUE` means retained.}
+\item{censor}{Optional logical censor column. \code{TRUE} means retained.}
 
 \item{provenance}{Portable confound provenance.}
 }
 \value{
-An `effect_observation_confounds` fact object.
+An \code{effect_observation_confounds} fact object: a list with the
+canonical \verb{$data} and its \verb{$schema}, the \verb{$partition_column},
+\verb{$observation_id_column} and \verb{$censor_column} role names, \verb{$provenance},
+and a \verb{$confounds_id}.
 }
 \description{
-Declare observation-level confounds and censor facts
+Records one row per observation. Censoring is never inferred from motion or
+outlier columns: to exclude observations you must name an explicit logical
+retain column.
 }
+\examples{
+confounds <- data.frame(
+  partition = "run-1",
+  observation_id = 1:6,
+  framewise_displacement = c(0.1, 0.2, 0.9, 0.1, 0.1, 0.3),
+  retained = c(TRUE, TRUE, FALSE, TRUE, TRUE, TRUE)
+)
+
+# Naming the censor column is what makes the exclusion a declared fact.
+record <- observation_confounds(confounds, censor = "retained")
+record$censor_column
+sum(record$data$retained)
+
+# Without `censor`, the motion column is kept but nothing is excluded: no
+# censor policy is inferred from it.
+is.null(observation_confounds(confounds)$censor_column)
+}
+\seealso{
+\code{\link[=study]{study()}}, which joins these rows to the observation axis and
+records the resulting row lineage, and \code{\link[=bids_confounds]{bids_confounds()}} for
+fMRIPrep-style TSV input.
+
+Other typed observation facts: 
+\code{\link{bids_confounds}()},
+\code{\link{bids_events}()},
+\code{\link{bids_study}()},
+\code{\link{observation_events}()},
+\code{\link{observation_index}()},
+\code{\link{observations}()},
+\code{\link{partition_hierarchy}()}
+}
+\concept{typed observation facts}

@@ -7,14 +7,83 @@
 fmrireg_relation(x)
 }
 \arguments{
-\item{x}{A [plan_relation()] result using an OLS observation model.}
+\item{x}{A \code{\link[=plan_relation]{plan_relation()}} result using an OLS observation model.}
 }
 \value{
-An `effect_relation_fit` with point-relation capabilities only.
+An \code{effect_relation_fit} with point-relation capabilities only: its
+\verb{$error_models} are all \code{NULL}, so \code{residual_blocks},
+\code{effect_covariance}, and \code{residual_df} are \code{FALSE} for every partition.
+Its \verb{$provenance} records the \code{relation_plan_id}, the adapter, and the
+pinned \code{adapter_version}.
 }
 \description{
 This installed-consumer adapter independently executes the OLS point
-relation using `fmrireg::fmri_ols_fit()`. It deliberately returns no
+relation using \code{fmrireg::fmri_ols_fit()}. It deliberately returns no
 residual error channel; analytic second-moment uncertainty therefore
 refuses rather than borrowing unsupported standard-error output.
 }
+\examples{
+# This adapter is certified against exactly one fmrireg version and refuses
+# any other, so the example runs only under that version.
+if (requireNamespace("fmrireg", quietly = TRUE) &&
+    identical(as.character(utils::packageVersion("fmrireg")), "0.1.2")) {
+  set.seed(1)
+  domain <- abstract_domain(3L, id = "fmrireg-example")
+  index <- observation_index(paste0("scan-", 1:4), "run-1")
+  facts <- study(observations(
+    list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+  ))
+  design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+  rownames(design) <- paste0("scan-", 1:4)
+  target <- rbind(`face-body` = c(1, -1))
+  colnames(target) <- colnames(design)
+  plan <- plan_relation(
+    facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+    observation_model("ols", sampling_unit = "scan")
+  )
+
+  # An independent execution of the same point relation: use it to check
+  # parity against the in-package estimator.
+  external <- fmrireg_relation(plan)
+  print(all.equal(
+    relation_block(external, "run-1", 1:3),
+    relation_block(estimate_relation(plan), "run-1", 1:3)
+  ))
+
+  # Parity is for point estimates only; no residual channel is claimed.
+  print(relation_fit_capabilities(external)$residual_blocks)
+
+  # A plan outside the certified OLS slice is refused, not approximated.
+  gls <- plan_relation(
+    facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+    observation_model(
+      "fixed_gls", sampling_unit = "scan", whitener = diag(4)
+    )
+  )
+  print(catch_refusal(fmrireg_relation(gls))$capability)
+}
+}
+\seealso{
+\code{\link[=estimate_relation]{estimate_relation()}}, the in-package execution verb that does
+return a residual channel, and \code{\link[=relation_fit_capabilities]{relation_fit_capabilities()}} to see the
+difference.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

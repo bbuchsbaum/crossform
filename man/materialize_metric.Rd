@@ -14,7 +14,7 @@ materialize_metric(schedule, node, edge = 1L)
 \item{edge}{One evaluation-edge position or name.}
 }
 \value{
-A support-local `neural_metric()`.
+A support-local \code{neural_metric()}.
 }
 \description{
 This is an inspection operation. Execution kernels should request one

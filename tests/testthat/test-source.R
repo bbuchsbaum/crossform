@@ -17,11 +17,11 @@ test_that("ordinary matrices remain coordinator-local strong-revision sources", 
   expect_error(
     crossform:::.relation_source_descriptors(rel, require_reopenable = TRUE),
     "requires reopenable"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.open_source_descriptor(descriptor),
     "cannot be reopened"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("file matrix descriptors reopen to the same relation blocks", {
@@ -62,7 +62,7 @@ test_that("opening fails closed when file content no longer matches revision", {
   expect_error(
     crossform:::.open_source_descriptor(descriptor),
     "stale content revision"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("file handles close idempotently without owning the backing file", {
@@ -79,7 +79,7 @@ test_that("file handles close idempotently without owning the backing file", {
   crossform:::.close_source_handle(handle)
   crossform:::.close_source_handle(handle)
   expect_true(file.exists(path))
-  expect_error(handle$read(1), "closed")
+  expect_error(handle$read(1), "closed", class = "effect_input_error")
 })
 
 test_that("shared descriptors delegate attachment but never backing ownership", {
@@ -123,7 +123,7 @@ test_that("invalid shared attachments clean up before failing", {
   expect_error(
     crossform:::.open_source_descriptor(descriptor, shared_opener = opener),
     "invalid or stale"
-  )
+  , class = "effect_input_error")
   expect_identical(closed, 1L)
 })
 
@@ -140,7 +140,7 @@ test_that("reopenable claims without descriptors are rejected at construction", 
       )
     ),
     "require a reopenable descriptor"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("descriptor specifications reject closures and environments", {
@@ -150,13 +150,13 @@ test_that("descriptor specifications reject closures and environments", {
       "test", list(callback = function() NULL), c(2, 2), revision
     ),
     "serializable values"
-  )
+  , class = "effect_input_error")
   expect_error(
     crossform:::.shared_source_descriptor(
       "test", new.env(), c(2, 2), revision
     ),
     "serializable values"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("execution sessions deduplicate descriptors and close exactly once", {
@@ -229,6 +229,6 @@ test_that("source-session close failures are reported rather than swallowed", {
     open_descriptor = opener)
 
   expect_error(crossform:::.close_source_session(session),
-    "cleanup failed.*detach failed")
+    "cleanup failed.*detach failed", class = "effect_input_error")
   expect_true(session$summary()$closed)
 })

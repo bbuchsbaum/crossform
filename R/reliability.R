@@ -44,8 +44,12 @@
   )
 }
 
-.execution_error <- function(message, receipt, cleanup_status,
-                             cause = NULL, observer_failures = character()) {
+# A failed run reports the same five fields whether it errored or was
+# interrupted -- the partial receipt, what cleanup managed to do, the
+# underlying cause, and any observer that itself failed. Only the condition
+# class differs, so only the class is a parameter.
+.execution_condition <- function(message, receipt, cleanup_status, cause,
+                                 observer_failures, class) {
   structure(
     list(
       message = message,
@@ -55,23 +59,21 @@
       cause = cause,
       observer_failures = observer_failures
     ),
-    class = c("effect_execution_error", "error", "condition")
+    class = class
   )
+}
+
+.execution_error <- function(message, receipt, cleanup_status,
+                             cause = NULL, observer_failures = character()) {
+  .execution_condition(message, receipt, cleanup_status, cause,
+    observer_failures, c("effect_execution_error", "error", "condition"))
 }
 
 .execution_interrupt <- function(message, receipt, cleanup_status,
                                  cause = NULL, observer_failures = character()) {
-  structure(
-    list(
-      message = message,
-      call = NULL,
-      receipt = receipt,
-      cleanup_status = cleanup_status,
-      cause = cause,
-      observer_failures = observer_failures
-    ),
-    class = c("effect_execution_interrupt", "interrupt", "condition")
-  )
+  .execution_condition(message, receipt, cleanup_status, cause,
+    observer_failures,
+    c("effect_execution_interrupt", "interrupt", "condition"))
 }
 
 .receipt_with_status <- function(receipt, status, elapsed_seconds,
@@ -87,7 +89,7 @@
 .execute_guarded <- function(compute, receipt, reporter = NULL, cleanup = NULL,
                              observations = NULL, receipt_sink = NULL) {
   if (!is.function(compute)) {
-    stop("`compute` must be a function.", call. = FALSE)
+    .input_error("`compute` must be a function.")
   }
   .validate_execution_receipt(receipt)
   state <- new.env(parent = emptyenv())
@@ -97,10 +99,10 @@
   state$observer_failures <- character()
   if (is.null(observations)) observations <- function() receipt$observed
   if (!is.function(observations)) {
-    stop("`observations` must be NULL or a function.", call. = FALSE)
+    .input_error("`observations` must be NULL or a function.")
   }
   if (!is.null(receipt_sink) && !is.function(receipt_sink)) {
-    stop("`receipt_sink` must be NULL or a function.", call. = FALSE)
+    .input_error("`receipt_sink` must be NULL or a function.")
   }
   started <- proc.time()[["elapsed"]]
   report_failure <- .safe_report(reporter, list(type = "start", receipt = receipt))

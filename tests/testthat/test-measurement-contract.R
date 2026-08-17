@@ -21,7 +21,8 @@ test_that("measurement legs bind source, output, basis, units, and support", {
 
   forged <- leg
   forged$support <- c("v1", "v2")
-  expect_error(crossform:::.validate_measurement_leg(forged), "support")
+  expect_error(crossform:::.validate_measurement_leg(forged), "support",
+    class = "effect_input_error")
 })
 
 test_that("equal metrics do not erase oriented measurement identity", {
@@ -62,7 +63,7 @@ test_that("learned legs require frozen portable training provenance", {
 
   expect_error(crossform:::.measurement_leg(
     matrix(c(1, 2), 1), domain, output, estimation = "learned_frozen"
-  ), "frozen training provenance")
+  ), "frozen training provenance", class = "effect_input_error")
   learned <- crossform:::.measurement_leg(
     matrix(c(1, 2), 1), domain, output, estimation = "learned_frozen",
     provenance = list(
@@ -76,7 +77,7 @@ test_that("learned legs require frozen portable training provenance", {
   expect_error(crossform:::.measurement_leg(
     matrix(c(1, 2), 1), domain, output, estimation = "learned_frozen",
     provenance = list(frozen = TRUE, training_signature = identity)
-  ), "nonportable")
+  ), "nonportable", class = "effect_input_error")
 })
 
 test_that("direct sums preserve named component identities and ranges", {
@@ -138,7 +139,7 @@ test_that("measurement frames keep ordered legs and conservative dual metadata",
   expect_false(rank_deficient$dual$eligible)
   expect_error(crossform:::.measurement_frame(
     legs[1:2], injectivity = "positive_diagonal_coverage"
-  ), "strictly positive diagonal")
+  ), "strictly positive diagonal", class = "effect_input_error")
 })
 
 test_that("measurement edges contain only explicit ordered requests", {
@@ -172,7 +173,7 @@ test_that("measurement edges contain only explicit ordered requests", {
   )
   expect_error(crossform:::.measurement_edges(
     c("a", "a"), c("b", "b"), frame
-  ), "unique explicit")
+  ), "unique explicit", class = "effect_input_error")
 })
 
 test_that("square-root additive legs exactly recover every local geometry", {

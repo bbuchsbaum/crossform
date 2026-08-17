@@ -6,14 +6,24 @@ development:
 template:
   bootstrap: 5
 
+navbar:
+  structure:
+    left: [reference, articles]
+    right: [design, search, github]
+  components:
+    design:
+      text: Design
+      href: https://github.com/bbuchsbaum/crossform/tree/main/design
+      aria-label: Design documents and contracts
+
 home:
   links:
   - text: Novelty and claim boundaries
-    href: novelty.html
+    href: articles/novelty.html
   - text: Correlation-distance policy
-    href: correlation-distance-policy.html
+    href: articles/correlation-distance-policy.html
   - text: Failure gallery
-    href: failure-gallery.html
+    href: articles/failure-gallery.html
   - text: Haxby 2001 real-data exemplar
     href: https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001
 
@@ -21,19 +31,39 @@ articles:
 - title: Start here
   navbar: ~
   contents:
-  - from-observations
   - introduction
+  - from-observations
+  - neuroim2-data
+
 - title: Advanced evidence forms
   contents:
   - evidence-pairing
 
+- title: Guides
+  desc: Reading the results, and mapping in from another package's vocabulary.
+  contents:
+  - interpreting-results
+  - from-rmvpa
+
+- title: Claims and policies
+  desc: What the package claims, what it refuses, and where the boundaries are drawn.
+  contents:
+  - novelty
+  - failure-gallery
+  - correlation-distance-policy
+
 reference:
+- title: Package overview
+  desc: What crossform is for, and the boundaries it will not cross.
+  contents:
+  - crossform-package
+
 - title: From observations to a fitted relation
   desc: Typed facts, condition-space effects, relation plans, design receipts, and optional compiler adapters.
   contents:
   - observation_index
   - observations
-  - events
+  - observation_events
   - observation_confounds
   - partition_hierarchy
   - study
@@ -50,7 +80,7 @@ reference:
   - plan_relation
   - relation_plan_receipts
   - compiler_conformance
-  - estimate
+  - estimate_relation
   - bids_events
   - bids_confounds
   - bids_study
@@ -68,19 +98,21 @@ reference:
   - additive_frame
   - searchlights
   - regions
-  - voxels
+  - voxelwise
   - whole_brain
   - frame_conservation
   - catch_refusal
+  - crossform_conditions
   - relation
   - lm_relation_fit
   - cross_partitions
   - plan_geometry
-  - geometry
+  - materialize_geometry
   - evaluate_geometry
-  - contrast
+  - contrast_energy
   - rdm
   - rsa
+  - plot_views
   - geometry_component
   - geometry_spectrum
   - rdm_sampling_covariance
@@ -106,7 +138,7 @@ reference:
   contents:
   - bilinear_query
   - pair_query
-  - pair_contrast
+  - coupling_contrast
   - pair_lm_query
   - match_coupling
   - match_control

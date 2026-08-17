@@ -20,8 +20,44 @@ local residual variance.}
 until schedule compilation.}
 }
 \value{
-An `effect_metric_recipe`.
+An \code{effect_metric_recipe} whose \verb{$hyperparameters} record the
+\code{residual_diagonal_inverse} estimator and both variance floors, with
+\verb{$capabilities$native_diagonal} true and \verb{$capabilities$materialized}
+false until a schedule binds it.
 }
 \description{
-Specify on-demand diagonal residual-variance precision
+The local metric is the inverse of the residual variance of each feature,
+floored so that a near-silent feature cannot dominate. Use it for
+univariate noise normalization when a full local covariance is not wanted
+or not estimable.
 }
+\examples{
+# The estimator and both floors are fixed by the recipe, so they are part
+# of the plan identity rather than a runtime tuning choice.
+recipe <- diagonal_precision(relative_variance_floor = 1e-6)
+recipe$kind
+recipe$hyperparameters[c("estimator", "relative_variance_floor")]
+
+# The floor is a guard against dividing by a near-zero residual variance.
+diagonal_precision(absolute_variance_floor = 0.01)$
+  hyperparameters$absolute_variance_floor
+
+# A nonpositive relative floor would remove that guard, so it is refused.
+refused <- try(diagonal_precision(relative_variance_floor = 0), silent = TRUE)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=shrinkage_precision]{shrinkage_precision()}} for a full local covariance shrunk to its
+diagonal, and \code{\link[=plan_crossnobis]{plan_crossnobis()}}, which consumes the recipe.
+
+Other neural metrics: 
+\code{\link{effect_covariance}()},
+\code{\link{gaussian_covariance_model}()},
+\code{\link{identity_metric}()},
+\code{\link{metric_capabilities}()},
+\code{\link{metric_training_policy}()},
+\code{\link{neural_metric}()},
+\code{\link{noise_precision}()},
+\code{\link{shrinkage_precision}()}
+}
+\concept{neural metrics}

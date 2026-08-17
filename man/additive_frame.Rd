@@ -13,19 +13,89 @@ additive_frame(
 }
 \arguments{
 \item{weights}{A finite, nonnegative measurement-by-feature base or sparse
-`Matrix` matrix.}
+\code{Matrix} matrix.}
 
-\item{normalization}{One of `none`, `local` (row sums equal one), or
-`conservative` (column sums equal one).}
+\item{normalization}{One of \code{none}, \code{local} (row sums equal one), or
+\code{conservative} (column sums equal one).}
 
 \item{domain_id}{Stable identity of the neural feature domain.}
 
-\item{domain}{Optional exact `effect_domain` or internal domain reference.}
+\item{domain}{Optional exact \code{effect_domain} or internal domain reference.}
 }
 \value{
-A declarative frame value.
+An \code{effect_frame} with \code{representation = "additive_diagonal"},
+carrying the \verb{$weights} matrix, its \verb{$normalization}, and the \verb{$domain}
+reference the weights are bound to.
 }
 \description{
 An additive frame is the only frame representation whose locations collapse
 to rows of one spatial contraction in the version 0.1 compiler.
 }
+\section{Structure}{
+
+A declared frame carries the operator and the domain it claims, and nothing
+about how it was chosen.
+\itemize{
+\item \verb{$weights}: the measurement-by-feature operator exactly as supplied. Row
+\code{m} holds the weight each domain feature contributes to measurement \code{m},
+in domain feature order.
+\item \verb{$normalization}: the normalization asserted about those rows. It is
+checked, not applied.
+\item \verb{$domain}: the neural domain reference the columns are bound to, and
+\verb{$domain_id} its identity.
+}
+
+Unlike a \code{\link[=compile_frame]{compile_frame()}} result, a declared frame has no \verb{$index} and no
+\verb{$specification}: nothing generated it, so views index its measurements by
+position. Any other element is internal and may change.
+}
+
+\examples{
+# Two overlapping local averages over four features, declared directly.
+# `"local"` asserts that each measurement's weights already sum to one, so
+# a frame row is a weighted mean rather than a weighted sum.
+domain <- abstract_domain(4, id = "demo:native:v1")
+frame <- additive_frame(
+  matrix(c(
+    1 / 2, 1 / 2, 0, 0,
+    0, 1 / 3, 1 / 3, 1 / 3
+  ), 2, 4, byrow = TRUE),
+  normalization = "local", domain = domain
+)
+dim(frame$weights)
+rowSums(as.matrix(frame$weights))
+
+# The assertion is checked, not applied: unnormalized rows are refused
+# rather than silently rescaled.
+unnormalized <- try(
+  additive_frame(matrix(1, 1, 4), normalization = "local", domain = domain),
+  silent = TRUE
+)
+conditionMessage(attr(unnormalized, "condition"))
+
+# The declared width must match the domain it claims.
+wrong <- try(additive_frame(matrix(1, 1, 3), domain = domain), silent = TRUE)
+conditionMessage(attr(wrong, "condition"))
+}
+\seealso{
+\code{\link[=compile_frame]{compile_frame()}} with \code{\link[=searchlights]{searchlights()}}, \code{\link[=regions]{regions()}}, or
+\code{\link[=voxelwise]{voxelwise()}}, which build additive frames from a neural domain;
+\code{\link[=measurement_frame]{measurement_frame()}}, which adapts one into oriented measurements.
+
+Other neural domains and frames: 
+\code{\link{abstract_domain}()},
+\code{\link{as_neurovol}()},
+\code{\link{compile_frame}()},
+\code{\link{edge_frame}()},
+\code{\link{frame_conservation}()},
+\code{\link{measurement_frame}()},
+\code{\link{measurement_space}()},
+\code{\link{neuroim2_searchlights}()},
+\code{\link{neuroim2_volume_domain}()},
+\code{\link{regions}()},
+\code{\link{searchlights}()},
+\code{\link{volume_domain}()},
+\code{\link{voxelwise}()},
+\code{\link{whole_brain}()}
+}
+\concept{neural domains and frames}

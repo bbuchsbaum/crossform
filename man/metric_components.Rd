@@ -7,19 +7,19 @@
 metric_components(metric, coherent = NULL)
 }
 \arguments{
-\item{metric}{A materialized `neural_metric()` or an internal composed
+\item{metric}{A materialized \code{neural_metric()} or an internal composed
 frame-metric value.}
 
-\item{coherent}{A matching `coherent_functional()` or numeric vector. It may
+\item{coherent}{A matching \code{coherent_functional()} or numeric vector. It may
 be omitted for a composed frame metric.}
 }
 \value{
-An `effect_metric_components` value.
+An \code{effect_metric_components} value.
 }
 \description{
-For SPD `K` and an oriented covector `a`, the exact metric-aware split is
-`K_coh = a a^T / (a^T K^-1 a)` and `K_cfg = K - K_coh`. The coherent
-amplitude remains `B a`; the metric controls only its normalization.
+For SPD \code{K} and an oriented covector \code{a}, the exact metric-aware split is
+\verb{K_coh = a a^T / (a^T K^-1 a)} and \code{K_cfg = K - K_coh}. The coherent
+amplitude remains \verb{B a}; the metric controls only its normalization.
 }
 \examples{
 domain <- abstract_domain(3, id = "component-example")

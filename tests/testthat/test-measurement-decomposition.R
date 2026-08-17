@@ -147,7 +147,7 @@ test_that("raw entries require oriented bases while coordinate access remains ex
   ))
   expect_error(crossform:::.measurement_component_block(
     lifted, "configuration", "configuration", interpretation = "raw"
-  ), "oriented bases|subspace")
+  ), "oriented bases|subspace", class = "effect_input_error")
   coordinate <- crossform:::.measurement_component_block(
     lifted, "configuration", "configuration", interpretation = "coordinate"
   )

@@ -2,6 +2,10 @@
 .RData
 .Rhistory
 .Rproj.user/
+src/*.o
+src/*.so
+src/*.dll
+src/symbols.rds
 *.Rcheck/
 *.tar.gz
 Rplots.pdf
@@ -13,10 +17,23 @@ Rplots.pdf
 benchmark-results/*.stdout.txt
 benchmark-results/*.stderr.txt
 
-# Mote's operation log is durable project history; actor identity is local.
-.mote/local/
+# Mote message-board op-log is authoring scratch, not package content.
+.mote/
 /doc/
 /Meta/
 
 # Exemplar raw and prepared data are fetched, not versioned; results are evidence.
 exemplars/*/data/
+
+# The pkgdown site is built in CI and deployed to gh-pages.
+/docs/
+
+# Knit byproducts.
+/figure/
+
+# Runner outputs are promoted into inst/extdata/certification by
+# benchmarks/promote-artifacts.R; only the two large validation records that
+# stay out of the tarball are tracked here.
+benchmark-results/*
+!benchmark-results/learned-metric-policy-validation.rds
+!benchmark-results/sampling-covariance-validation.rds

@@ -13,8 +13,9 @@ view_geometry_fixture <- function() {
     tcrossprod(c(1, 0.5, 0, 0)),
     diag(c(0.5, 0.25, -0.1, -0.25))
   )
-  pack <- function(values) do.call(rbind,
-    lapply(values, crossform:::.svec_symmetric))
+  # Packed with the independent oracle codec, so a shared svec/unsvec
+  # scaling error cannot cancel between the fixture and the reader.
+  pack <- function(values) do.call(rbind, lapply(values, oracle_svec))
   endpoint <- matrix(c(
     1, 2, 3, 4,
     -1, 0, 1, 2
@@ -30,7 +31,7 @@ view_geometry_fixture <- function() {
 test_that("contrast returns one exact decomposition and signed marginal", {
   fixture <- view_geometry_fixture()
   weights <- c(a = 1, b = -1, c = 0, d = 0)
-  got <- contrast(fixture$geometry, weights)
+  got <- contrast_energy(fixture$geometry, weights)
   expected_total <- vapply(fixture$total,
     function(value) drop(weights %*% value %*% weights), numeric(1))
   expected_coherent <- vapply(fixture$coherent,
@@ -41,18 +42,65 @@ test_that("contrast returns one exact decomposition and signed marginal", {
   expect_equal(got$coherent, expected_coherent, tolerance = 1e-12)
   expect_equal(got$configuration, expected_total - expected_coherent,
     tolerance = 1e-12)
-  expect_equal(got$total, got$coherent + got$configuration,
-    tolerance = 0)
+  expect_equal(
+    got$coherence_fraction[got$coherence_fraction_valid],
+    (expected_coherent / expected_total)[got$coherence_fraction_valid],
+    tolerance = 1e-12
+  )
   expect_true(all(is.na(got$coherence_fraction[!got$coherence_fraction_valid])))
+})
+
+test_that("the contrast decomposition matches a first-principles oracle", {
+  # The fixture above supplies `total` and `coherent` directly, which cannot
+  # say whether the compiler forms them correctly. Here the same three
+  # components are read from a real relation and each is compared to an
+  # independent oracle built from the frame weights and partition products.
+  # `configuration` is computed by the package as `total - coherent`, so
+  # asserting `total == coherent + configuration` would be vacuous; the
+  # oracle is what makes the assertion informative.
+  set.seed(4471)
+  domain <- abstract_domain(5L, id = "views-contrast-oracle")
+  effects <- c("a", "b", "c")
+  sources <- list(
+    run1 = matrix(rnorm(15), 3L, 5L, dimnames = list(effects, NULL)),
+    run2 = matrix(rnorm(15), 3L, 5L, dimnames = list(effects, NULL))
+  )
+  relation <- relation(
+    sources, effects = effect_space(effects), domain = domain
+  )
+  frame <- additive_frame(
+    rbind(c(1, 1, 0, 0, 0), c(0, 0.5, 2, 1.5, 0), c(1, 1, 1, 1, 1)),
+    domain = domain
+  )
+  over <- cross_partitions(relation, independence = "independent")
+  weights <- c(a = 1, b = -1, c = 0)
+  got <- contrast_energy(plan_geometry(relation, frame, over), weights)
+  oracle <- geometry_contrast_oracle(
+    weights = unname(weights),
+    relation_values = sources,
+    frame_weights = frame$weights,
+    partition_edges = over
+  )
+
+  expect_equal(unname(got$total), oracle$total, tolerance = 1e-12)
+  expect_equal(unname(got$coherent), oracle$coherent, tolerance = 1e-12)
+  expect_equal(unname(got$configuration), oracle$configuration,
+    tolerance = 1e-12)
+  # A three-node frame with genuinely different supports, so the oracle is
+  # not accidentally reporting the same number three times.
+  expect_length(unique(round(oracle$total, 9L)), 3L)
+  expect_true(any(oracle$configuration != 0))
 })
 
 test_that("contrast names are semantic rather than positional when supplied", {
   fixture <- view_geometry_fixture()
-  ordered <- contrast(fixture$geometry, c(a = 1, b = -1, c = 0, d = 0))
-  permuted <- contrast(fixture$geometry, c(d = 0, b = -1, a = 1, c = 0))
+  ordered <- contrast_energy(fixture$geometry, c(a = 1, b = -1, c = 0, d = 0))
+  permuted <- contrast_energy(fixture$geometry, c(d = 0, b = -1, a = 1, c = 0))
   expect_equal(permuted$total, ordered$total, tolerance = 0)
-  expect_error(contrast(fixture$geometry, c(a = 1, b = -1, c = 0, x = 0)),
-    "identify every effect")
+  expect_error(
+    contrast_energy(fixture$geometry, c(a = 1, b = -1, c = 0, x = 0)),
+    "`x` is not a declared effect; `d` has no weight",
+    class = "effect_input_error")
 })
 
 test_that("RDM view equals explicit squared geometry distances", {
@@ -133,10 +181,12 @@ test_that("RSA rejects rank-deficient and malformed RDM designs", {
   model <- matrix(1, 4, 4)
   diag(model) <- 0
   expect_error(rsa(fixture$geometry,
-    models = list(first = model, duplicate = model)), "rank deficient")
+    models = list(first = model, duplicate = model)), "rank deficient",
+    class = "effect_input_error")
   asymmetric <- model
   asymmetric[1, 2] <- 2
-  expect_error(rsa(fixture$geometry, list(bad = asymmetric)), "symmetric")
+  expect_error(rsa(fixture$geometry, list(bad = asymmetric)), "symmetric",
+    class = "effect_input_error")
 })
 
 test_that("geometry spectrum preserves negative cross-generalized roots", {

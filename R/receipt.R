@@ -2,11 +2,36 @@
 
 #' Declare source execution capabilities
 #'
+#' `source_capabilities()` states what an out-of-memory relation source can
+#' actually do, so the compiler can choose a bounded execution route and
+#' record the source revision in the receipt. Declare it when supplying a
+#' custom source such as [file_matrix_source()].
+#'
 #' @param block_read Whether bounded feature-block reads are supported.
 #' @param reopenable Whether a fresh read-only handle can be opened safely.
 #' @param thread_safe Whether concurrent reads through one handle are supported.
 #' @param stable_revision A strong immutable source revision or checksum.
-#' @return A declarative source-capability value.
+#' @return An `effect_source_capabilities` value with the three logical flags
+#'   `$block_read`, `$reopenable`, `$thread_safe`, and the
+#'   `$stable_revision` identifier bound into the execution receipt.
+#' @seealso [file_matrix_source()], which carries these capabilities, and
+#'   [compute_policy()], which is checked against them before execution.
+#' @family relation planning and fitting
+#' @examples
+#' # A block-readable, reopenable source identified by a content checksum.
+#' revision <- paste0("sha256:", paste(rep("a", 64), collapse = ""))
+#' capabilities <- source_capabilities(
+#'   block_read = TRUE, reopenable = TRUE, stable_revision = revision
+#' )
+#' capabilities$block_read
+#' capabilities$thread_safe
+#'
+#' # The revision must be a strong identifier: a mutable label such as a file
+#' # modification time is refused, because receipts must stay verifiable.
+#' weak <- try(
+#'   source_capabilities(TRUE, stable_revision = "2026-08-15"), silent = TRUE
+#' )
+#' conditionMessage(attr(weak, "condition"))
 #' @export
 source_capabilities <- function(block_read, reopenable = FALSE,
                                 thread_safe = FALSE, stable_revision) {
@@ -18,13 +43,13 @@ source_capabilities <- function(block_read, reopenable = FALSE,
   if (!all(vapply(flags, function(x) {
     is.logical(x) && length(x) == 1L && !is.na(x)
   }, logical(1)))) {
-    stop("Source capability flags must each be TRUE or FALSE.", call. = FALSE)
+    .input_error("Source capability flags must each be TRUE or FALSE.")
   }
-  if (!is.character(stable_revision) || length(stable_revision) != 1L ||
-      is.na(stable_revision) ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", stable_revision)) {
-    stop("`stable_revision` must be a sha256 identifier with 64 hexadecimal digits.",
-      call. = FALSE)
+  if (!.strong_sha256(stable_revision)) {
+    .input_error(paste0(
+      "`stable_revision` must be a sha256 identifier with 64 hexadecimal ",
+      "digits."
+    ))
   }
   value <- structure(
     c(flags, list(stable_revision = stable_revision)),
@@ -37,19 +62,18 @@ source_capabilities <- function(block_read, reopenable = FALSE,
   expected <- c("block_read", "reopenable", "thread_safe", "stable_revision")
   if (!inherits(value, "effect_source_capabilities") ||
       !identical(names(value), expected)) {
-    stop("Source capabilities are missing required canonical fields.", call. = FALSE)
+    .input_error("Source capabilities are missing required canonical fields.")
   }
   flags <- value[c("block_read", "reopenable", "thread_safe")]
   if (!all(vapply(flags, function(x) {
     is.logical(x) && length(x) == 1L && !is.na(x)
   }, logical(1)))) {
-    stop("Source capability flags must each be TRUE or FALSE.", call. = FALSE)
+    .input_error("Source capability flags must each be TRUE or FALSE.")
   }
-  if (!is.character(value$stable_revision) || length(value$stable_revision) != 1L ||
-      is.na(value$stable_revision) ||
-      !grepl("^sha256:[[:xdigit:]]{64}$", value$stable_revision)) {
-    stop("Source capability revision must be one strong sha256 identifier.",
-      call. = FALSE)
+  if (!.strong_sha256(value$stable_revision)) {
+    .input_error(
+      "Source capability revision must be one strong sha256 identifier."
+    )
   }
   structure(as.list(value), class = "effect_source_capabilities")
 }
@@ -101,17 +125,15 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   if (!all(vapply(ids, function(x) {
     is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
   }, logical(1)))) {
-    stop("Receipt identities must be nonempty character scalars.", call. = FALSE)
+    .input_error("Receipt identities must be nonempty character scalars.")
   }
   if (!identical(precision, "double")) {
-    stop("crossform 0.1 supports only `precision = \"double\"`.", call. = FALSE)
+    .input_error("crossform 0.1 supports only `precision = \"double\"`.")
   }
-  if (!is.null(domain_signature) &&
-      (!is.character(domain_signature) || length(domain_signature) != 1L ||
-       is.na(domain_signature) ||
-       !grepl("^sha256:[[:xdigit:]]{64}$", domain_signature))) {
-    stop("`domain_signature` must be NULL or one strong sha256 identifier.",
-      call. = FALSE)
+  if (!is.null(domain_signature) && !.strong_sha256(domain_signature)) {
+    .input_error(
+      "`domain_signature` must be NULL or one strong sha256 identifier."
+    )
   }
   completion_status <- match.arg(completion_status,
     c("complete", "planned", "failed", "interrupted"))
@@ -122,11 +144,11 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   compute <- .validate_compute_policy(compute)
   if (!is.list(sources) || length(sources) < 1L ||
       !all(vapply(sources, inherits, logical(1), "effect_source_capabilities"))) {
-    stop("`sources` must be a nonempty list of source capabilities.", call. = FALSE)
+    .input_error("`sources` must be a nonempty list of source capabilities.")
   }
   sources <- lapply(sources, .validate_source_capabilities)
   if (!all(vapply(sources, function(x) isTRUE(x$block_read), logical(1)))) {
-    stop("Receipt sources must support bounded block reads.", call. = FALSE)
+    .input_error("Receipt sources must support bounded block reads.")
   }
   memory <- .validate_memory_plan_for_receipt(memory)
   numeric_contract <- .validate_numeric_contract_for_receipt(numeric_contract)
@@ -136,28 +158,27 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   completed_task_count <- .receipt_whole(completed_task_count,
     "completed_task_count")
   if (completed_task_count > task_count) {
-    stop("Completed task count cannot exceed total task count.", call. = FALSE)
+    .input_error("Completed task count cannot exceed total task count.")
   }
   if (completion_status == "complete" && completed_task_count != task_count) {
-    stop("A complete receipt must report every task completed.", call. = FALSE)
+    .input_error("A complete receipt must report every task completed.")
   }
   if (completion_status == "planned" && completed_task_count != 0) {
-    stop("A planned receipt cannot report completed tasks.", call. = FALSE)
+    .input_error("A planned receipt cannot report completed tasks.")
   }
-  if (!is.numeric(elapsed_seconds) || length(elapsed_seconds) != 1L ||
-      is.na(elapsed_seconds) || !is.finite(elapsed_seconds) || elapsed_seconds < 0) {
-    stop("`elapsed_seconds` must be one nonnegative finite number.", call. = FALSE)
-  }
+  .check_number(elapsed_seconds, "elapsed_seconds", nonnegative = TRUE)
   if (!identical(memory$workers, compute$workers)) {
-    stop("Receipt compute and memory plans must use the same worker count.",
-      call. = FALSE)
+    .contract_error(
+      "Receipt compute and memory plans must use the same worker count."
+    )
   }
   if (!identical(is.null(compute$workspace_bytes), is.null(memory$budget_bytes)) ||
       (!is.null(compute$workspace_bytes) &&
        !isTRUE(all.equal(compute$workspace_bytes, memory$budget_bytes,
          tolerance = 0)))) {
-    stop("Receipt compute and memory plans must declare the same memory budget.",
-      call. = FALSE)
+    .contract_error(
+      "Receipt compute and memory plans must declare the same memory budget."
+    )
   }
 
   receipt <- structure(
@@ -229,36 +250,34 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
 .validate_execution_observations <- function(x) {
   expected <- names(.empty_execution_observations())
   if (!is.list(x) || !identical(names(x), expected)) {
-    stop("Execution observations are missing or noncanonical.", call. = FALSE)
+    .input_error("Execution observations are missing or noncanonical.")
   }
   expected_counts <- c("planned", "started", "completed", "failed", "retried")
   if (!is.numeric(x$task_counts) || !identical(names(x$task_counts), expected_counts) ||
       anyNA(x$task_counts) || any(!is.finite(x$task_counts)) ||
       any(x$task_counts < 0) || any(x$task_counts %% 1 != 0)) {
-    stop("Observed task counts are invalid.", call. = FALSE)
+    .input_error("Observed task counts are invalid.")
   }
   .receipt_whole(x$features_completed, "features_completed")
-  if (!is.numeric(x$bytes_read) || length(x$bytes_read) != 1L ||
-      is.na(x$bytes_read) || !is.finite(x$bytes_read) || x$bytes_read < 0) {
-    stop("Observed bytes read are invalid.", call. = FALSE)
+  if (!.is_number(x$bytes_read) || x$bytes_read < 0) {
+    .input_error("Observed bytes read are invalid.")
   }
   tile_names <- c("feature_block", "row_tile", "coordinate_tile")
   if (!is.list(x$tiles) || !identical(names(x$tiles), tile_names) ||
       any(!vapply(x$tiles, function(value) is.null(value) ||
         (is.numeric(value) && length(value) == 1L && !is.na(value) &&
          is.finite(value) && value >= 1 && value %% 1 == 0), logical(1)))) {
-    stop("Observed execution tiles are invalid.", call. = FALSE)
+    .input_error("Observed execution tiles are invalid.")
   }
-  if (!is.numeric(x$stage_seconds) || anyNA(x$stage_seconds) ||
-      any(!is.finite(x$stage_seconds)) || any(x$stage_seconds < 0) ||
-      (length(x$stage_seconds) &&
-       (is.null(names(x$stage_seconds)) || any(!nzchar(names(x$stage_seconds)))))) {
-    stop("Observed stage timings are invalid.", call. = FALSE)
+  if (!.is_finite_numeric(x$stage_seconds) || anyNA(x$stage_seconds) ||
+      any(x$stage_seconds < 0) ||
+      (length(x$stage_seconds) && (is.null(names(x$stage_seconds)) || any(!nzchar(names(x$stage_seconds)))))) {
+    .input_error("Observed stage timings are invalid.")
   }
   if (!is.character(x$source_access) || anyNA(x$source_access) ||
       (length(x$source_access) && (is.null(names(x$source_access)) ||
        any(!nzchar(names(x$source_access)))))) {
-    stop("Observed source access modes are invalid.", call. = FALSE)
+    .input_error("Observed source access modes are invalid.")
   }
   memory_names <- c("baseline_rss_bytes", "incremental_peak_rss_bytes",
     "absolute_peak_rss_bytes", "measured_workspace_bytes")
@@ -266,50 +285,48 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
       any(!vapply(x$memory, function(value) is.null(value) ||
         (is.numeric(value) && length(value) == 1L && !is.na(value) &&
          is.finite(value) && value >= 0), logical(1)))) {
-    stop("Observed memory evidence is invalid.", call. = FALSE)
+    .input_error("Observed memory evidence is invalid.")
   }
   if (!is.list(x$runtime) ||
       !identical(names(x$runtime), c("package_version", "r_version", "platform")) ||
       any(!vapply(x$runtime, function(value) is.character(value) &&
         length(value) == 1L && !is.na(value) && nzchar(value), logical(1)))) {
-    stop("Observed runtime identity is invalid.", call. = FALSE)
+    .input_error("Observed runtime identity is invalid.")
   }
   if (!is.character(x$reporter_failures) || anyNA(x$reporter_failures)) {
-    stop("Observed reporter failures are invalid.", call. = FALSE)
+    .input_error("Observed reporter failures are invalid.")
   }
   if (!is.list(x$checkpoint) ||
       !identical(names(x$checkpoint), c("enabled", "resumed", "artifacts_written")) ||
       !all(vapply(x$checkpoint[c("enabled", "resumed")], function(value) {
         is.logical(value) && length(value) == 1L && !is.na(value)
       }, logical(1)))) {
-    stop("Observed checkpoint state is invalid.", call. = FALSE)
+    .input_error("Observed checkpoint state is invalid.")
   }
   .receipt_whole(x$checkpoint$artifacts_written, "artifacts_written")
   if (!is.list(x$cleanup) ||
       !identical(names(x$cleanup), c("attempted", "success", "message")) ||
-      !is.logical(x$cleanup$attempted) || length(x$cleanup$attempted) != 1L ||
-      is.na(x$cleanup$attempted) || !is.logical(x$cleanup$success) ||
+      !.is_flag(x$cleanup$attempted) || !is.logical(x$cleanup$success) ||
       length(x$cleanup$success) != 1L ||
       !(is.na(x$cleanup$success) || !is.na(x$cleanup$success)) ||
-      !(is.null(x$cleanup$message) || (is.character(x$cleanup$message) &&
-        length(x$cleanup$message) == 1L && !is.na(x$cleanup$message)))) {
-    stop("Observed cleanup outcome is invalid.", call. = FALSE)
+      !(is.null(x$cleanup$message) || (is.character(x$cleanup$message) && length(x$cleanup$message) == 1L && !is.na(x$cleanup$message)))) {
+    .input_error("Observed cleanup outcome is invalid.")
   }
   x
 }
 
 .receipt_whole <- function(value, name) {
-  if (!is.numeric(value) || length(value) != 1L || is.na(value) ||
-      !is.finite(value) || value < 0 || value %% 1 != 0 || value > 2^53) {
-    stop(sprintf("`%s` must be one nonnegative exact whole number.", name),
-      call. = FALSE)
+  if (!.is_number(value) || value < 0 || value %% 1 != 0 || value > 2^53) {
+    .input_error(
+      sprintf("`%s` must be one nonnegative exact whole number.", name)
+    )
   }
   value
 }
 
 .validate_memory_plan_for_receipt <- function(memory) {
   if (!inherits(memory, "effect_memory_plan") || !is.numeric(memory$categories)) {
-    stop("`memory` must be a crossform memory plan.", call. = FALSE)
+    .input_error("`memory` must be a crossform memory plan.")
   }
   expected_categories <- c(
     "frame", "resident_source", "source_handles", "source_block",
@@ -318,7 +335,7 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     "checkpoint_buffer"
   )
   if (!identical(names(memory$categories), expected_categories)) {
-    stop("Memory-plan categories are missing or noncanonical.", call. = FALSE)
+    .input_error("Memory-plan categories are missing or noncanonical.")
   }
   c <- memory$categories
   rebuilt <- memory_plan(
@@ -351,38 +368,35 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   )
   if (!all(vapply(derived, function(name) identical(memory[[name]], rebuilt[[name]]),
     logical(1)))) {
-    stop("Memory-plan derived fields are inconsistent with its categories.",
-      call. = FALSE)
+    .contract_error(
+      "Memory-plan derived fields are inconsistent with its categories."
+    )
   }
   rebuilt
 }
 
 .validate_numeric_contract_for_receipt <- function(contract) {
-  if (!inherits(contract, "effect_numerical_contract")) {
-    stop("`numeric_contract` must be a crossform numerical contract.",
-      call. = FALSE)
-  }
+  .check_class(
+    contract, "effect_numerical_contract", "numeric_contract",
+    what = "a crossform numerical contract"
+  )
   rebuilt <- numerical_contract(contract$atol, contract$rtol)
   if (!identical(contract, rebuilt)) {
-    stop("Numerical contract fields are inconsistent or noncanonical.",
-      call. = FALSE)
+    .contract_error(
+      "Numerical contract fields are inconsistent or noncanonical."
+    )
   }
   rebuilt
 }
 
 .validate_blas_identity <- function(blas) {
-  if (!is.list(blas) || !identical(names(blas),
-      c("vendor", "requested_threads", "observed_threads")) ||
-      !is.character(blas$vendor) || length(blas$vendor) != 1L ||
-      is.na(blas$vendor) || !nzchar(blas$vendor) ||
-      !is.numeric(blas$requested_threads) || length(blas$requested_threads) != 1L ||
-      is.na(blas$requested_threads) || !is.finite(blas$requested_threads) ||
-      blas$requested_threads != 1 ||
-      !is.numeric(blas$observed_threads) || length(blas$observed_threads) != 1L ||
-      (!is.na(blas$observed_threads) && (!is.finite(blas$observed_threads) ||
-       blas$observed_threads < 1 || blas$observed_threads %% 1 != 0))) {
-    stop("`blas` must separate requested and observed thread counts.",
-      call. = FALSE)
+  if (!is.list(blas) ||
+      !identical(names(blas), c("vendor", "requested_threads", "observed_threads")) ||
+      !.is_string(blas$vendor) || !.is_number(blas$requested_threads) ||
+      blas$requested_threads != 1 || !is.numeric(blas$observed_threads) ||
+      length(blas$observed_threads) != 1L ||
+      (!is.na(blas$observed_threads) && (!is.finite(blas$observed_threads) || blas$observed_threads < 1 || blas$observed_threads %% 1 != 0))) {
+    .input_error("`blas` must separate requested and observed thread counts.")
   }
   list(vendor = blas$vendor, requested_threads = 1L,
     observed_threads = if (is.na(blas$observed_threads)) NA_integer_ else
@@ -390,9 +404,10 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
 }
 
 .validate_execution_receipt <- function(receipt) {
-  if (!inherits(receipt, "effect_execution_receipt")) {
-    stop("`receipt` must be a crossform execution receipt.", call. = FALSE)
-  }
+  .check_class(
+    receipt, "effect_execution_receipt", "receipt",
+    what = "a crossform execution receipt"
+  )
   expected <- c(
     "scientific_plan_id", "domain_signature", "kernel_version", "task_partition_id",
     "reduction_plan_id", "precision", "compute", "sources", "memory",
@@ -400,28 +415,26 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
     "completed_task_count", "elapsed_seconds", "blas", "observed"
   )
   if (!identical(names(receipt), expected)) {
-    stop("Execution receipt fields are missing or noncanonical.", call. = FALSE)
+    .input_error("Execution receipt fields are missing or noncanonical.")
   }
   ids <- receipt[c("scientific_plan_id", "kernel_version", "task_partition_id",
     "reduction_plan_id", "precision")]
   if (!all(vapply(ids, function(x) {
     is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
   }, logical(1))) || !identical(receipt$precision, "double")) {
-    stop("Execution receipt identities or precision are invalid.", call. = FALSE)
+    .input_error("Execution receipt identities or precision are invalid.")
   }
   if (!is.null(receipt$domain_signature) &&
-      (!is.character(receipt$domain_signature) ||
-       length(receipt$domain_signature) != 1L || is.na(receipt$domain_signature) ||
-       !grepl("^sha256:[[:xdigit:]]{64}$", receipt$domain_signature))) {
-    stop("Execution receipt domain signature is invalid.", call. = FALSE)
+      !.strong_sha256(receipt$domain_signature)) {
+    .input_error("Execution receipt domain signature is invalid.")
   }
   canonical_compute <- .validate_compute_policy(receipt$compute)
   if (!is.list(receipt$sources) || length(receipt$sources) < 1L) {
-    stop("Execution receipt sources must be a nonempty list.", call. = FALSE)
+    .input_error("Execution receipt sources must be a nonempty list.")
   }
   canonical_sources <- lapply(receipt$sources, .validate_source_capabilities)
   if (!all(vapply(canonical_sources, function(x) isTRUE(x$block_read), logical(1)))) {
-    stop("Receipt sources must support bounded block reads.", call. = FALSE)
+    .input_error("Receipt sources must support bounded block reads.")
   }
   canonical_memory <- .validate_memory_plan_for_receipt(receipt$memory)
   .validate_numeric_contract_for_receipt(receipt$numeric_contract)
@@ -430,18 +443,16 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   status <- receipt$completion_status
   if (!is.character(status) || length(status) != 1L ||
       !status %in% c("complete", "planned", "failed", "interrupted")) {
-    stop("Execution receipt completion status is invalid.", call. = FALSE)
+    .input_error("Execution receipt completion status is invalid.")
   }
   task_count <- .receipt_whole(receipt$task_count, "task_count")
   completed <- .receipt_whole(receipt$completed_task_count, "completed_task_count")
   if (completed > task_count || (status == "complete" && completed != task_count) ||
       (status == "planned" && completed != 0)) {
-    stop("Execution receipt completion counts contradict its status.", call. = FALSE)
+    .input_error("Execution receipt completion counts contradict its status.")
   }
-  if (!is.numeric(receipt$elapsed_seconds) || length(receipt$elapsed_seconds) != 1L ||
-      is.na(receipt$elapsed_seconds) || !is.finite(receipt$elapsed_seconds) ||
-      receipt$elapsed_seconds < 0) {
-    stop("Execution receipt elapsed time is invalid.", call. = FALSE)
+  if (!.is_number(receipt$elapsed_seconds) || receipt$elapsed_seconds < 0) {
+    .input_error("Execution receipt elapsed time is invalid.")
   }
   if (!identical(canonical_memory$workers, canonical_compute$workers) ||
       !identical(is.null(canonical_compute$workspace_bytes),
@@ -449,8 +460,9 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
       (!is.null(canonical_compute$workspace_bytes) &&
        !isTRUE(all.equal(canonical_compute$workspace_bytes,
          canonical_memory$budget_bytes, tolerance = 0)))) {
-    stop("Execution receipt compute and memory policies are inconsistent.",
-      call. = FALSE)
+    .contract_error(
+      "Execution receipt compute and memory policies are inconsistent."
+    )
   }
   invisible(receipt)
 }

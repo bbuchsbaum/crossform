@@ -18,14 +18,19 @@ test_that("effect spaces have stable semantic identity", {
 })
 
 test_that("effect-space validators reject ambiguous and mutated identity", {
-  expect_error(effect_space(character()), "at least one")
-  expect_error(effect_space(c("a", "a")), "unique")
-  expect_error(effect_space(c("a", "b"), units = c("z", "")), "unit")
-  expect_error(effect_space(c("a", "b"), scale = c(1, 0)), "positive")
+  expect_error(effect_space(character()), "nonempty character vector",
+    class = "effect_input_error")
+  expect_error(effect_space(c("a", "a")), "unique",
+    class = "effect_input_error")
+  expect_error(effect_space(c("a", "b"), units = c("z", "")), "unit",
+    class = "effect_input_error")
+  expect_error(effect_space(c("a", "b"), scale = c(1, 0)), "positive",
+    class = "effect_input_error")
   expect_error(effect_space("a", provenance = list(fun = identity)),
-    "nonportable")
+    "nonportable", class = "effect_input_error")
 
   space <- effect_space(c("a", "b"), basis_id = "basis:v1")
   space$units[[1L]] <- "other"
-  expect_error(crossform:::.validate_effect_space(space), "inconsistent")
+  expect_error(crossform:::.validate_effect_space(space), "inconsistent",
+    class = "effect_contract_error")
 })

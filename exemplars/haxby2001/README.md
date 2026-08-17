@@ -84,6 +84,7 @@ estimand* rather than a comparison row.
 | `03-rmvpa-searchlight.R` | the rMVPA arm |
 | `04-compare.R` | center-by-center agreement report, tolerance gates, divergence taxonomy |
 | `05-crossnobis-uncertainty.R` | the error-channel arm (crossform only) |
+| `06-coherent-configuration.R` | the coherent/configuration arm (crossform only) |
 | `models.R` | model RDMs and shared constants (radius, tolerance, seeds) |
 
 Run order is numeric. Every script is idempotent and writes only under
@@ -107,18 +108,18 @@ contradicted the estimand written above.
 
 The committed smoke report predates the package rename and therefore retains
 `effectagram` in its historical receipt text. Rerunning the current scripts
-writes `crossform`-labelled artifacts; the earlier evidence is not rewritten.
+writes `crossform`-labeled artifacts; the earlier evidence is not rewritten.
 
 ### Smoke tier result: matched estimand agrees, README estimand is not expressible
 
 Both arms consume the identical prepared object, and their searchlight
 geometry was verified rather than assumed: `neuroim2::searchlight_indices`
 (crossform) and `neuroim2::searchlight` (rMVPA) return **bit-identical
-sphere membership at all 577 VT centres** at radius 11.25 mm.
+sphere membership at all 577 VT centers** at radius 11.25 mm.
 
 | comparison | result |
 |---|---|
-| matched estimand, **crossform vs rMVPA's own crossnobis estimator** | max abs difference **8.88e-16**, 0/577 centres above the 1e-8 gate — PASS |
+| matched estimand, **crossform vs rMVPA's own crossnobis estimator** | max abs difference **8.88e-16**, 0/577 centers above the 1e-8 gate — PASS |
 | matched estimand, crossform vs an independent reference loop | max abs difference 1.33e-15, 0/577 — PASS |
 | shared Spearman score | max abs difference **0** (exact), map r = 1 — PASS |
 | native estimands (crossform vs rMVPA `rsa_model`) | r ≈ 0.54, fully accounted for by five named semantic differences |
@@ -138,7 +139,7 @@ system can express that combination:
 - **rMVPA's `rsa_model`** couples the two choices: `distmethod` sets both the
   neural RDM metric and the second-order correlation method, and `regtype` is
   inert for `"pearson"`/`"spearman"` — verified on this data, max abs
-  difference exactly 0 across 577 centres between the two `regtype` values.
+  difference exactly 0 across 577 centers between the two `regtype` values.
   (`vector_rsa_model` does decouple them, but it averages 96 per-trial row
   correlations rather than correlating over a condition RDM's lower triangle,
   so it is a different estimand again.)
@@ -161,7 +162,7 @@ of the headline comparison are package estimators — crossform's `rdm()` over
 a cross-run geometry against rMVPA's
 `compute_crossvalidated_means_sl(estimation_method = "crossnobis")` +
 `compute_crossnobis_distances_sl()` — and they agree to 8.88e-16 at every
-centre.
+center.
 
 The conditions:
 
@@ -189,7 +190,7 @@ the latter the way the Estimand section describes.
 ### Cost
 
 The parity tier (scripts 02–04) is genuinely cheap: about 20 s total, of which
-crossform's `rdm()` over 577 centres is 0.48 s and rMVPA's crossnobis RDM is
+crossform's `rdm()` over 577 centers is 0.48 s and rMVPA's crossnobis RDM is
 0.40 s. The error-channel arm (05) is heavier, but the old estimate in this
 section was stale. A 2026-08-14 rerun of 25 evenly spaced nodes on the current
 tree took 16.2 s total (0.65 s/node). A linear projection is therefore about
@@ -207,13 +208,13 @@ current runtime claim; rerunning script 05 writes the current per-node timings.
 
 `05` refits the same effects from raw volumes with `lm_relation_fit()` —
 reproducing `02`'s RDM to 4.44e-16, so the point estimand is unchanged — and
-then does what rMVPA cannot. Over 120 evenly spaced VT centres: RDM standard
+then does what rMVPA cannot. Over 120 evenly spaced VT centers: RDM standard
 errors (median 0.0207), and an **exact** transport of the RDM sampling
 covariance to the RSA coefficient (median estimate 0.0372, median SE 0.0121,
-median |z| 3.47, 72.5 % of centres above |z| = 1.96). The transport is exact
+median |z| 3.47, 72.5 % of centers above |z| = 1.96). The transport is exact
 rather than approximate because `rsa()` is a linear functional of the
 distances, verified to 1.1e-16. Learned-metric crossnobis (face − house) over
-all 577 centres: median 0.300, positive at 99.8 %.
+all 577 centers: median 0.300, positive at 99.8 %.
 
 All three capability **refusals** fired and are recorded verbatim in the
 report: no analytic covariance on a learned-metric plan, none from precomputed
@@ -229,6 +230,84 @@ requested; it was left in place rather than deleted, and needs an explicit
 accept-or-undo. It is load-bearing for the results: the crossnobis arm only
 works on the newer build, and `rsa_model` with `distmethod="spearman"` differs
 between builds by 2.97e-4 (`"pearson"` agrees to 1.11e-16).
+
+### Coherent/configuration arm: the central claim on real data
+
+Added 2026-08-16. `06-coherent-configuration.R` runs the decomposition that
+had previously only been shown on a generated fixture. Same prepared object,
+same VT searchlight frame, same cross-run pairing as `02`; the only new thing
+is what is read off the plan. Two contrasts:
+
+- **face − house**, weights `+1 / −1`;
+- **animate − inanimate**, `(cat, face)` at `+1/2` each against
+  `(bottle, chair, house, scissors, shoe)` at `−1/5` each. `scrambledpix` is a
+  visual control rather than an object category and carries weight 0. The
+  animacy coding is `models.R`'s `ANIMATE`, not a new one.
+
+The partition is exact where it must be: over 577 searchlights,
+`max |total − (coherent + configuration)|` is **5.55e-17** for face − house and
+**1.39e-17** for animate − inanimate.
+
+| face − house | value |
+|---|---|
+| peak searchlight (position 573, centre voxel 77745) | signed **−1.0694**, coherent **1.1390**, configuration **0.0902**, total **1.2292**, coherent share **0.927** |
+| coherent share over VT (536 of 577 searchlights with a valid fraction) | median **0.529**, IQR **[0.278, 0.773]**; above 0.5 at 281 of 536 |
+| total > 0 | **576 / 577** (99.8 %) |
+| configuration > 0 | 553 / 577 (95.8 %) |
+| coherent > 0 | 559 / 577 (96.9 %) |
+| signed < 0 | 568 / 577 |
+
+| animate − inanimate | value |
+|---|---|
+| peak searchlight (position 278, centre voxel 67417) | signed **−0.3786**, coherent **0.1420**, configuration **0.0556**, total **0.1977**, coherent share **0.719** |
+| coherent share over VT (503 of 577 valid) | median **0.442**, IQR **[0.200, 0.659]** |
+| total > 0 | 575 / 577 (99.7 %) |
+| configuration > 0 | 554 / 577 (96.0 %) |
+| coherent > 0 | 526 / 577 (91.2 %) |
+
+Read at a single whole-VT region (`regions()` over all 577 VT voxels), from
+the same relation and pairing:
+
+| contrast | signed | coherent | configuration | total | coherent share |
+|---|---|---|---|---|---|
+| face − house | −0.46292 | 0.21220 | 0.22371 | 0.43592 | 0.4868 |
+| animate − inanimate | −0.16541 | 0.02662 | 0.06287 | 0.08949 | 0.2975 |
+
+Three things are worth reading out of that.
+
+1. **A substantial share of the reproducible energy is coherent.** In this
+   subject's VT, the median searchlight puts about half of the crossvalidated
+   face/house energy in its own weighted common spatial mode. An analysis that
+   demeans each searchlight and reports the remainder would discard it; one
+   that reports only the total would not know it was there.
+2. **The signed marginal carries the direction, and both directions are
+   negative.** For face − house, `signed` is negative at 568 of 577
+   searchlights and at the whole-VT reading, so the common mode runs *house
+   above face*; animate − inanimate is negative at 512 of 577 and at the
+   whole-VT reading, *inanimate above animate*. Energies are squared
+   quantities and cannot say this; keeping the first-moment marginal in the
+   same plan is what makes the coherent part interpretable rather than merely
+   large.
+3. **The coherent part is the crossvalidated version of that mean
+   difference.** Across searchlights, `coherent` correlates with `signed²` at
+   r = 0.9999 (face − house) and 0.9994 (animate − inanimate), with a median
+   ratio of 0.964 and 0.942 — just below one, which is what a bias-free
+   cross-partition product should be relative to a squared average that still
+   contains its own noise.
+
+Cost: 0.41 s for face − house and 0.49 s for animate − inanimate over 577
+searchlights, 0.16 s for both whole-VT region reads, 1.8 s of analysis, and
+3.4 s of wall clock including R startup and reading the mask. Evidence:
+`results/coherent-configuration.rds` and `results/coherent-configuration.png`.
+
+**Caveats, which are not small.** One subject. A block design. Per-run
+condition means, not GLM betas, computed from within-run z-scored time series
+with a 2 TR haemodynamic shift. An identity metric, not a whitened or learned
+one. And **no inference of any kind**: no permutation test, no group model, no
+p-values, no correction. Every number above is a description of one subject's
+ventral temporal cortex, and the claim it supports is that the decomposition
+runs exactly and informatively on real data — not anything about faces,
+houses, or animacy.
 
 ### Not done
 

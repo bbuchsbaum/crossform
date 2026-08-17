@@ -13,28 +13,98 @@ sampling_covariance(
 )
 }
 \arguments{
-\item{x}{An object from [rdm_sampling_covariance()].}
+\item{x}{An object from \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, or a batch of those
+objects. A batch returns one result per measurement.}
 
 \item{operation}{One exact covariance operation.}
 
 \item{query}{Operation-specific argument: a two-column integer matrix for
-`selected_entries`, an evidence-coordinate vector for `apply` or
-`quadratic_form`, or an output-by-evidence matrix for `transport`.}
+\code{selected_entries}, an evidence-coordinate vector for \code{apply} or
+\code{quadratic_form}, or an output-by-evidence matrix for \code{transport}.}
 
 \item{max_bytes}{Positive payload/workspace budget used only for explicit
 dense materialization.}
 }
 \value{
-A named variance vector, selected covariance vector, covariance
-  action, scalar quadratic form, transported covariance, or explicitly
-  materialized covariance matrix.
+A named variance vector (\code{"diagonal"}), selected covariance vector,
+covariance action, scalar quadratic form, transported covariance, or
+explicitly materialized covariance matrix, according to \code{operation}.
+Names come from the distance labels carried by \code{x}.
 }
 \description{
 Applies exact linear covariance operations without materializing the full
-covariance unless `operation = "materialize"` is requested explicitly.
+covariance unless \code{operation = "materialize"} is requested explicitly.
 A returned diagonal is a vector of variances, not standard errors or an
 automatic confidence interval.
 }
-\seealso{
-[rdm_sampling_covariance()]
+\details{
+The values returned inherit the calibration target chosen when \code{x} was
+built. Under \code{target = "plugin"} they carry the documented upward bias of
+the partition-mean plug-in policy; see the \code{target} argument of
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Under \code{target = "null"} the law is exact on
+the variance scale.
+
+In both cases the residual covariance behind the law is a plug-in with
+\eqn{\nu}{nu} degrees of freedom, so its \emph{quadratic} contribution carries the
+Wishart finite-sample correction described under
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Read \code{x$source$residual_df} and
+\code{x$source$residual_effective_dimension} to see \eqn{\nu}{nu} and
+\eqn{P_{\mathrm{eff}}}{P_eff} for the measurement you queried; \code{print(x)} shows
+both.
 }
+\examples{
+# Three conditions in three runs, with a fixed identity noise metric.
+set.seed(11)
+conditions <- c("face", "house", "tool")
+design <- model.matrix(~ 0 + factor(rep(conditions, each = 3)))
+colnames(design) <- conditions
+effects <- diag(3)
+rownames(effects) <- conditions
+truth <- rbind(
+  face = c(0.6, 0.1, 0), house = c(0, 0.5, 0.2), tool = c(0.1, 0, 0.6)
+)
+responses <- setNames(lapply(1:3, function(run) {
+  design \%*\% truth + matrix(rnorm(9 * 3, sd = 0.3), 9, 3)
+}), paste0("run", 1:3))
+domain <- abstract_domain(3, id = "sampling-covariance-example")
+fit <- lm_relation_fit(
+  responses, design, effects, effect_names = conditions,
+  sampling_unit = "trial", domain = domain
+)
+plan <- plan_geometry(
+  fit$relation, compile_frame(whole_brain(), domain),
+  cross_partitions(fit$relation, independence = "independent"),
+  metric = noise_precision(diag(3), domain, covariance = diag(3))
+)
+uncertainty <- rdm_sampling_covariance(plan, fit, target = "null", at = 1L)
+
+# The diagonal is a vector of variances, so take a square root yourself if
+# you want standard errors. No interval is implied.
+round(sqrt(sampling_covariance(uncertainty)), 4)
+
+# Distances that share a condition covary; read one entry without
+# building the full matrix.
+uncertainty$labels
+round(sampling_covariance(
+  uncertainty, "selected_entries", query = cbind(1, 2)
+), 6)
+
+# The variance of a fixed contrast of distances, again without the matrix.
+round(sampling_covariance(
+  uncertainty, "quadratic_form", query = c(1, -1, 0)
+), 6)
+
+# Materialization is explicit, never a silent fallback.
+round(sampling_covariance(uncertainty, "materialize"), 6)
+}
+\seealso{
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} to build \code{x}, and
+\code{\link[=sampling_capabilities]{sampling_capabilities()}} to check the law is available first.
+
+Other sampling uncertainty: 
+\code{\link{rdm_sampling_covariance}()},
+\code{\link{reconstruct_evidence}()},
+\code{\link{residual_pair_statistics}()},
+\code{\link{sampling_capabilities}()}
+}
+\concept{sampling uncertainty}

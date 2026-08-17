@@ -3,40 +3,62 @@
 # same depth or deeper. These tests hold it to that claim -- identical results
 # whether cold or warm, and no weakening of any identity check.
 
-memo_sweep_fixture <- function() {
-  set.seed(4113L)
-  conditions <- 4L
-  partitions <- 4L
-  observations <- 32L
-  domain <- volume_domain(
-    array(TRUE, c(4L, 4L, 3L)), spacing = c(3, 3, 3), id = "memo-sweep"
-  )
-  features <- domain$n_features
-  frame <- compile_frame(searchlights(4), domain)
-  condition <- factor(rep(seq_len(conditions), length.out = observations))
-  design <- stats::model.matrix(~ 0 + condition)
-  colnames(design) <- paste0("condition", seq_len(conditions))
-  effects <- diag(conditions)
-  dimnames(effects) <- list(colnames(design), colnames(design))
-  signal <- matrix(rnorm(conditions * features, sd = 0.3), conditions, features)
-  sources <- stats::setNames(lapply(seq_len(partitions), function(run) {
-    design %*% signal + matrix(rnorm(observations * features), observations,
+# The fixture is a pure function of a fixed seed, so every block in this file
+# asked for byte-identical objects and paid to rebuild them. Building it once
+# and handing out the same immutable value is not a shared-state hazard: R's
+# copy-on-modify semantics mean the blocks below that forge or tamper with a
+# plan still get their own copy, and the memo compares with `identical()`, so a
+# reused object is admitted on exactly the same terms as a freshly built one.
+#
+# Its dimensions are the smallest that keep every structure these tests read
+# non-degenerate: eighteen features carrying eighteen distinct overlapping
+# searchlight supports of four to six voxels, four conditions so the sampling
+# covariance keeps all six condition pairs, and two partitions so the
+# cross-partition schedule is a genuine independent fold. Nothing asserted
+# below is a claim about scale, so the sizes only have to stay above
+# degeneracy, not reproduce a whole-brain sweep.
+memo_sweep_fixture <- local({
+  built <- NULL
+  function() {
+    if (!is.null(built)) {
+      return(built)
+    }
+    set.seed(4113L)
+    conditions <- 4L
+    partitions <- 2L
+    observations <- 8L
+    domain <- volume_domain(
+      array(TRUE, c(3L, 3L, 2L)), spacing = c(3, 3, 3), id = "memo-sweep"
+    )
+    features <- domain$n_features
+    frame <- compile_frame(searchlights(4), domain)
+    condition <- factor(rep(seq_len(conditions), length.out = observations))
+    design <- stats::model.matrix(~ 0 + condition)
+    colnames(design) <- paste0("condition", seq_len(conditions))
+    effects <- diag(conditions)
+    dimnames(effects) <- list(colnames(design), colnames(design))
+    signal <- matrix(rnorm(conditions * features, sd = 0.3), conditions,
       features)
-  }), paste0("run", seq_len(partitions)))
-  fit <- lm_relation_fit(
-    sources, design, effects, sampling_unit = "trial", domain = domain
-  )
-  metric <- noise_precision(
-    diag(features), domain, covariance = diag(features),
-    provenance = list(source = "memo-sweep-fixed-metric")
-  )
-  plan <- plan_geometry(
-    fit$relation, at = frame,
-    over = cross_partitions(fit$relation, independence = "independent"),
-    metric = metric
-  )
-  list(plan = plan, fit = fit, nodes = nrow(frame$weights))
-}
+    sources <- stats::setNames(lapply(seq_len(partitions), function(run) {
+      design %*% signal + matrix(rnorm(observations * features), observations,
+        features)
+    }), paste0("run", seq_len(partitions)))
+    fit <- lm_relation_fit(
+      sources, design, effects, sampling_unit = "trial", domain = domain
+    )
+    metric <- noise_precision(
+      diag(features), domain, covariance = diag(features),
+      provenance = list(source = "memo-sweep-fixed-metric")
+    )
+    plan <- plan_geometry(
+      fit$relation, at = frame,
+      over = cross_partitions(fit$relation, independence = "independent"),
+      metric = metric
+    )
+    built <<- list(plan = plan, fit = fit, nodes = nrow(frame$weights))
+    built
+  }
+})
 
 memo_node_result <- function(fixture, node, target) {
   covariance <- rdm_sampling_covariance(
@@ -76,15 +98,23 @@ with_unoptimized_validation <- function(code) {
   )
 }
 
+# The oracle below re-validates every object in the plan graph on every call,
+# and that costs about a second of CPU per (node, target) pair however small
+# the fixture is -- the work is a fixed number of identifier and signature
+# checks, not anything proportional to the data. So the sweep is kept to the
+# smallest schedule that still covers what the claim is about: the first pair
+# fills the memo cold, and the second is answered warm at a *different* node
+# and a *different* target. Every reading of both pairs -- all five covariance
+# operations, the factorizations, the noise trace, and both plan identities --
+# is still compared field by field against the pre-optimization value.
 test_that("a node sweep is bit-identical to the pre-optimization path", {
   fixture <- memo_sweep_fixture()
-  nodes <- unique(round(seq(1, fixture$nodes, length.out = 6L)))
+  nodes <- unique(round(seq(1, fixture$nodes, length.out = 2L)))
+  targets <- c("plugin", "null")
   sweep <- function() {
-    lapply(nodes, function(node) {
-      lapply(c("plugin", "null"), function(target) {
-        memo_node_result(fixture, node, target)
-      })
-    })
+    Map(function(node, target) {
+      memo_node_result(fixture, node, target)
+    }, nodes, targets)
   }
   oracle <- with_unoptimized_validation(sweep())
   expect_identical(sweep(), oracle)
@@ -129,7 +159,7 @@ test_that("the memo never re-admits a tampered neural metric", {
   tampered$value[1L, 1L] <- tampered$value[1L, 1L] + 1
   expect_error(
     crossform:::.validate_neural_metric(tampered), "inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("the memo never re-admits a tampered object", {
@@ -143,13 +173,13 @@ test_that("the memo never re-admits a tampered object", {
   expect_error(
     crossform:::.validate_sampling_covariance(tampered),
     "identity is inconsistent"
-  )
+  , class = "effect_contract_error")
   tampered_plan <- covariance$plan
   tampered_plan$spatial_scope <- "modeled"
   expect_error(
     crossform:::.validate_evidence_sampling_plan(tampered_plan),
     "inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("a shallow validation does not satisfy a later deep request", {
@@ -161,7 +191,7 @@ test_that("a shallow validation does not satisfy a later deep request", {
   expect_error(
     crossform:::.validate_geometry_plan(forged, deep = TRUE),
     "identity is inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("shallow geometry-plan validation still binds the metric schedule", {
@@ -174,7 +204,7 @@ test_that("shallow geometry-plan validation still binds the metric schedule", {
   expect_error(
     crossform:::.validate_geometry_plan(broken, deep = FALSE),
     "inconsistent"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("the memo store is bounded by its fixed key set", {

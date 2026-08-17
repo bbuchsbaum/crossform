@@ -20,7 +20,9 @@ test_that("compiler receipts expose exact neural-domain identity", {
     id = "line:v1")
   matrices <- list(run1 = matrix(1, 2, 3), run2 = matrix(2, 2, 3))
   rel <- relation(matrices, effects = c("a", "b"), domain = domain)
-  geometry <- geometry(rel, compile_frame(voxels(), domain), cross_partitions(rel))
+  geometry <- materialize_geometry(
+    rel, compile_frame(voxelwise(), domain), cross_partitions(rel)
+  )
 
   expect_identical(geometry$receipt$domain_signature,
     domain$reference$signature)
@@ -56,37 +58,37 @@ test_that("receipt construction rejects contradictory execution claims", {
   expect_error(execution_receipt(
     "plan", compute_policy(), source, memory_plan(workers = 2, n_active = 1),
     "kernel", "tasks", "reduction"
-  ), "same worker count")
+  ), "same worker count", class = "effect_contract_error")
   expect_error(execution_receipt(
     "plan", compute_policy(workspace_bytes = 100), source,
     memory_plan(budget_bytes = 200), "kernel", "tasks", "reduction"
-  ), "same memory budget")
+  ), "same memory budget", class = "effect_contract_error")
   expect_error(execution_receipt(
     "plan", compute_policy(), source, memory_plan(),
     "kernel", "tasks", "reduction", precision = "single"
-  ), "only.*double")
+  ), "only.*double", class = "effect_input_error")
   expect_error(execution_receipt(
     "plan", compute_policy(), source, memory_plan(),
     "kernel", "tasks", "reduction", task_count = 3,
     completed_task_count = 2
-  ), "every task")
+  ), "every task", class = "effect_input_error")
   expect_error(execution_receipt(
     "plan", compute_policy(), source, memory_plan(),
     "kernel", "tasks", "reduction", completion_status = "planned",
     task_count = 3, completed_task_count = 1
-  ), "cannot report")
+  ), "cannot report", class = "effect_input_error")
   expect_error(execution_receipt(
     "plan", compute_policy(), source, memory_plan(),
     "kernel", "tasks", "reduction",
     blas = list(vendor = "OpenBLAS", requested_threads = 2,
       observed_threads = 2)
-  ), "requested and observed")
+  ), "requested and observed", class = "effect_input_error")
   blocked_source <- list(source_capabilities(FALSE,
     stable_revision = paste0("sha256:", paste(rep("e", 64), collapse = ""))))
   expect_error(execution_receipt(
     "plan", compute_policy(), blocked_source, memory_plan(),
     "kernel", "tasks", "reduction"
-  ), "block reads")
+  ), "block reads", class = "effect_input_error")
 })
 
 test_that("mutated receipt internals fail result certification", {
@@ -94,11 +96,16 @@ test_that("mutated receipt internals fail result certification", {
 
   bad_compute <- geometry$receipt
   bad_compute$compute$workers <- 2
-  expect_error(effect_geometry(
+  compute_refusal <- catch_refusal(effect_geometry(
     geometry_component(geometry, "total"),
     geometry_component(geometry, "coherent"), geometry$marginals,
     effects = geometry$effects, receipt = bad_compute, index = geometry$index
-  ), "workers")
+  ))
+  expect_s3_class(compute_refusal, "effect_capability_refusal")
+  expect_identical(compute_refusal$capability, "parallel_execution")
+  expect_identical(compute_refusal$namespace, "compute_policy")
+  expect_identical(compute_refusal$reasons, "worker_pool_not_implemented")
+  expect_match(conditionMessage(compute_refusal), "workers")
 
   bad_memory <- geometry$receipt
   bad_memory$memory$modeled_workspace_bytes <- 999
@@ -106,7 +113,7 @@ test_that("mutated receipt internals fail result certification", {
     geometry_component(geometry, "total"),
     geometry_component(geometry, "coherent"), geometry$marginals,
     effects = geometry$effects, receipt = bad_memory, index = geometry$index
-  ), "derived fields")
+  ), "derived fields", class = "effect_contract_error")
 
   bad_source <- geometry$receipt
   bad_source$sources[[1]]$stable_revision <- "path-and-mtime"
@@ -114,7 +121,7 @@ test_that("mutated receipt internals fail result certification", {
     geometry_component(geometry, "total"),
     geometry_component(geometry, "coherent"), geometry$marginals,
     effects = geometry$effects, receipt = bad_source, index = geometry$index
-  ), "sha256")
+  ), "sha256", class = "effect_input_error")
 
   bad_status <- geometry$receipt
   bad_status$completed_task_count <- 0
@@ -122,19 +129,19 @@ test_that("mutated receipt internals fail result certification", {
     geometry_component(geometry, "total"),
     geometry_component(geometry, "coherent"), geometry$marginals,
     effects = geometry$effects, receipt = bad_status, index = geometry$index
-  ), "completion counts")
+  ), "completion counts", class = "effect_input_error")
 })
 
 test_that("source capabilities require a strong stable revision", {
   expect_error(
     source_capabilities(TRUE, stable_revision = ""),
     "sha256 identifier"
-  )
+  , class = "effect_input_error")
   expect_error(
     source_capabilities(NA,
       stable_revision = paste0("sha256:", paste(rep("b", 64), collapse = ""))),
     "TRUE or FALSE"
-  )
+  , class = "effect_input_error")
 })
 
 test_that("receipt rejects noncanonical execution objects", {
@@ -144,7 +151,7 @@ test_that("receipt rejects noncanonical execution objects", {
       "kernel", "tasks", "reduction"
     ),
     "nonempty list"
-  )
+  , class = "effect_input_error")
   expect_error(
     execution_receipt(
       "", compute_policy(),
@@ -153,5 +160,5 @@ test_that("receipt rejects noncanonical execution objects", {
       memory_plan(), "kernel", "tasks", "reduction"
     ),
     "nonempty character"
-  )
+  , class = "effect_input_error")
 })

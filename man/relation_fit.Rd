@@ -7,7 +7,7 @@
 relation_fit(relation, error_models = NULL, provenance = list())
 }
 \arguments{
-\item{relation}{A validated `effect_relation`.}
+\item{relation}{A validated \code{effect_relation}.}
 
 \item{error_models}{Optional named list of internal error-model values, one
 per relation partition. Omitting it records an explicitly absent channel.}
@@ -15,11 +15,52 @@ per relation partition. Omitting it records an explicitly absent channel.}
 \item{provenance}{Compact fit-level provenance.}
 }
 \value{
-An `effect_relation_fit`.
+An \code{effect_relation_fit}: a list with the untouched \verb{$relation}, one
+\verb{$error_models} entry per partition (\code{NULL} where absent), the derived
+per-partition \verb{$capabilities}, \verb{$provenance}, and a \verb{$signature} binding
+the relation and every error model.
 }
 \description{
-`relation_fit()` keeps the mathematical `effect_relation` intact and adds a
+\code{relation_fit()} keeps the mathematical \code{effect_relation} intact and adds a
 separate, capability-bearing error channel. A relation can remain valid
 without this envelope; operations that learn a neural metric or calibrate
 within-participant uncertainty must require the corresponding capability.
 }
+\examples{
+set.seed(1)
+domain <- abstract_domain(4L, id = "relation-fit-example")
+betas <- matrix(rnorm(8), 2L, 4L,
+  dimnames = list(c("face", "body"), NULL))
+point <- relation(list(`run-1` = betas), domain = domain)
+
+# Wrapping a point relation records an explicitly absent error channel,
+# which is different from an unstated one.
+fit <- relation_fit(point)
+relation_fit_capabilities(fit)
+
+# The relation itself is unchanged, so point geometry still works.
+identical(fit$relation, point)
+}
+\seealso{
+\code{\link[=lm_relation_fit]{lm_relation_fit()}}, the route that installs a real residual
+channel, and \code{\link[=relation_fit_capabilities]{relation_fit_capabilities()}} to inspect the result.
+
+Other relation planning and fitting: 
+\code{\link{compiler_conformance}()},
+\code{\link{effect_extractor}()},
+\code{\link{estimate_relation}()},
+\code{\link{file_matrix_source}()},
+\code{\link{fmridesign_design_model}()},
+\code{\link{fmrireg_relation}()},
+\code{\link{lm_extractor}()},
+\code{\link{lm_relation_fit}()},
+\code{\link{plan_relation}()},
+\code{\link{relation}()},
+\code{\link{relation_block}()},
+\code{\link{relation_fit_capabilities}()},
+\code{\link{relation_plan_receipts}()},
+\code{\link{residual_block}()},
+\code{\link{residual_df}()},
+\code{\link{source_capabilities}()}
+}
+\concept{relation planning and fitting}

@@ -47,10 +47,10 @@ test_that("block store refuses overwrite and malformed tiles", {
   store <- crossform:::.file_geometry_store(path, c(3, 4), create = TRUE)
 
   expect_error(crossform:::.file_geometry_store(path, c(3, 4), create = TRUE),
-    "Refusing to overwrite")
+    "Refusing to overwrite", class = "effect_input_error")
   expect_error(crossform:::.write_geometry_tile(
     store, c(1, 3), 1, matrix(1, 2, 1)
-  ), "Invalid geometry tile")
+  ), "Invalid geometry tile", class = "effect_input_error")
 })
 
 test_that("selected block-store tiles round-trip without full-row reads", {
@@ -62,5 +62,5 @@ test_that("selected block-store tiles round-trip without full-row reads", {
 
   expect_equal(crossform:::.read_geometry_tile(store, 2:4, c(2, 5)), value)
   expect_error(crossform:::.read_geometry_tile(store, c(1, 3), 2),
-    "Invalid geometry tile")
+    "Invalid geometry tile", class = "effect_input_error")
 })

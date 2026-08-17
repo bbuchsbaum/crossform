@@ -3,21 +3,21 @@
 .normalize_whitener_declaration <- function(value, kind) {
   if (identical(kind, "ols")) {
     if (!is.null(value)) {
-      stop("`whitener` must be NULL for `kind = \"ols\"`.", call. = FALSE)
+      .input_error("`whitener` must be NULL for `kind = \"ols\"`.")
     }
     return(NULL)
   }
   if (is.matrix(value)) value <- list(value)
   if (!is.list(value) || length(value) < 1L) {
-    stop("GLS observation models require at least one whitener matrix.",
-      call. = FALSE)
+    .input_error("GLS observation models require at least one whitener matrix.")
   }
   for (index in seq_along(value)) {
     matrix <- value[[index]]
-    if (!is.matrix(matrix) || !is.numeric(matrix) || nrow(matrix) < 1L ||
-        nrow(matrix) != ncol(matrix) || any(!is.finite(matrix))) {
-      stop("Every declared whitener must be a finite nonempty square matrix.",
-        call. = FALSE)
+    if (!.is_finite_matrix(matrix) || nrow(matrix) < 1L ||
+        nrow(matrix) != ncol(matrix)) {
+      .input_error(
+        "Every declared whitener must be a finite nonempty square matrix."
+      )
     }
   }
   value
@@ -26,13 +26,18 @@
 .whitener_revisions <- function(value) {
   if (is.null(value)) return(NULL)
   revisions <- vapply(value, function(matrix) {
-    .semantic_digest("sha256:", unname(matrix))
+    .sha256_signature(unname(matrix))
   }, character(1))
   names(revisions) <- names(value)
   revisions
 }
 
 #' Declare the first-moment observation model
+#'
+#' States the estimation assumptions the data tables cannot prove: the error
+#' law, the sampling unit, any whitener, and whether independence was asserted.
+#' Nothing here is inferred from events or confounds, and the declaration is
+#' what determines whether analytic uncertainty is later available.
 #'
 #' @param kind `"ols"`, `"fixed_gls"`, or `"learned_frozen_gls"`.
 #' @param sampling_unit One sampling-unit axis name, or a named value per
@@ -45,17 +50,45 @@
 #' @param training_provenance Portable learned-model provenance.
 #' @param assumptions Additional portable declared assumptions.
 #' @param provenance Portable model provenance.
-#' @return An `effect_observation_model`.
+#' @return An `effect_observation_model`: a list with `$kind`,
+#'   `$sampling_unit`, the `$whitener` and its `$whitener_revisions`,
+#'   `$independence`, learned-model `$training_revision` and
+#'   `$training_provenance`, `$assumptions`, `$provenance`, an
+#'   `$observation_model_id`, and `$capabilities` with
+#'   `fixed_observation_model`, `learned_observation_model`,
+#'   `separable_glm_law`, `analytic_effect_covariance`, and
+#'   `declared_independence`.
+#' @family studies and effect maps
+#' @seealso [plan_relation()], which consumes this declaration, and
+#'   [rdm_sampling_covariance()], whose analytic route requires
+#'   `analytic_effect_covariance`.
+#' @examples
+#' # OLS with scans as the sampling unit. Independence must be declared; it is
+#' # never read off the event table.
+#' ols <- observation_model(
+#'   "ols", sampling_unit = "scan",
+#'   independence = "runs independently acquired conditional on the model"
+#' )
+#' ols$capabilities$analytic_effect_covariance
+#' ols$capabilities$declared_independence
+#'
+#' # A frozen learned whitener still yields point estimates, but the analytic
+#' # error channel is withheld because its training is not accounted for.
+#' learned <- observation_model(
+#'   "learned_frozen_gls", sampling_unit = "scan", whitener = diag(6),
+#'   training_revision = paste0("sha256:", strrep("a", 64)),
+#'   training_provenance = list(method = "AR1", fitted_on = "held-out runs")
+#' )
+#' learned$capabilities$analytic_effect_covariance
 #' @export
 observation_model <- function(
     kind = c("ols", "fixed_gls", "learned_frozen_gls"), sampling_unit,
     whitener = NULL, independence = NULL, training_revision = NULL,
     training_provenance = list(), assumptions = list(), provenance = list()) {
   kind <- match.arg(kind)
-  if (missing(sampling_unit) || !is.character(sampling_unit) ||
-      length(sampling_unit) < 1L || anyNA(sampling_unit) ||
-      any(!nzchar(sampling_unit))) {
-    stop("`sampling_unit` must be declared explicitly.", call. = FALSE)
+  if (missing(sampling_unit) || !.is_strings(sampling_unit) ||
+      length(sampling_unit) < 1L) {
+    .input_error("`sampling_unit` must be declared explicitly.")
   }
   if (!is.null(independence)) {
     independence <- .validate_nonempty_id(independence, "independence")
@@ -64,15 +97,13 @@ observation_model <- function(
   learned <- identical(kind, "learned_frozen_gls")
   if (learned) {
     if (!.strong_sha256(training_revision)) {
-      stop("Learned GLS requires one strong `training_revision`.",
-        call. = FALSE)
+      .input_error("Learned GLS requires one strong `training_revision`.")
     }
     if (!is.list(training_provenance) || !length(training_provenance)) {
-      stop("Learned GLS requires nonempty `training_provenance`.",
-        call. = FALSE)
+      .input_error("Learned GLS requires nonempty `training_provenance`.")
     }
   } else if (!is.null(training_revision) || length(training_provenance)) {
-    stop("Training provenance is only valid for learned GLS.", call. = FALSE)
+    .input_error("Training provenance is only valid for learned GLS.")
   }
   .validate_effect_provenance(training_provenance, "training provenance")
   .validate_effect_provenance(assumptions, "observation-model assumptions")
@@ -99,9 +130,7 @@ observation_model <- function(
     training_provenance = training_provenance,
     assumptions = assumptions,
     provenance = provenance,
-    observation_model_id = .semantic_digest(
-      "observation-model-sha256:", semantic
-    ),
+    observation_model_id = .sha256_signature(semantic, "observation-model-sha256:"),
     capabilities = list(
       fixed_observation_model = !learned,
       learned_observation_model = learned,
@@ -118,10 +147,8 @@ observation_model <- function(
     "independence", "training_revision", "training_provenance",
     "assumptions", "provenance", "observation_model_id", "capabilities"
   )
-  if (!inherits(value, "effect_observation_model") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Observation-model fields are missing or noncanonical.",
-      call. = FALSE)
+  if (!.sealed_fields(value, "effect_observation_model", expected)) {
+    .input_error("Observation-model fields are missing or noncanonical.")
   }
   rebuilt <- observation_model(
     kind = value$kind,
@@ -134,8 +161,7 @@ observation_model <- function(
     provenance = value$provenance
   )
   if (!identical(value, rebuilt)) {
-    stop("Observation-model metadata or identity is inconsistent.",
-      call. = FALSE)
+    .contract_error("Observation-model metadata or identity is inconsistent.")
   }
   rebuilt
 }
@@ -148,14 +174,12 @@ observation_model <- function(
     sampling <- rep(sampling, length(partitions))
   } else if (!is.null(names(sampling))) {
     if (!setequal(names(sampling), partitions)) {
-      stop("Named sampling units must cover every study partition.",
-        call. = FALSE)
+      .input_error("Named sampling units must cover every study partition.")
     }
     sampling <- sampling[partitions]
   }
   if (length(sampling) != length(partitions)) {
-    stop("`sampling_unit` must provide one value per study partition.",
-      call. = FALSE)
+    .input_error("`sampling_unit` must provide one value per study partition.")
   }
   names(sampling) <- partitions
 
@@ -168,14 +192,12 @@ observation_model <- function(
       whiteners <- rep(whiteners, length(partitions))
     } else if (!is.null(names(whiteners))) {
       if (!setequal(names(whiteners), partitions)) {
-        stop("Named whiteners must cover every study partition.",
-          call. = FALSE)
+        .input_error("Named whiteners must cover every study partition.")
       }
       whiteners <- whiteners[partitions]
     }
     if (length(whiteners) != length(partitions)) {
-      stop("`whitener` must provide one matrix per study partition.",
-        call. = FALSE)
+      .input_error("`whitener` must provide one matrix per study partition.")
     }
     names(whiteners) <- partitions
     for (partition in partitions) {

@@ -1,0 +1,15 @@
+"path","repetitions","median_elapsed_seconds","max_resident_delta_bytes","result_bytes"
+"plan_relation_cell_fixed",3,0.218,24707072,652144
+"plan_relation_treatment_fixed",3,0.0229999999999997,376832,654640
+"estimate_native_fixed",3,0.114999999999999,7159808,615344
+"compiler_conformance",3,0.0190000000000001,0,2624
+"fmrireg_relation_ols",3,0.0110000000000001,180224,88328
+"plan_geometry",3,0.117,5390336,268248
+"contrast_query_first",3,0.206,13418496,26360
+"rdm_query_first",3,0.0399999999999991,49152,27352
+"rsa_query_first",3,0.0419999999999998,0,29576
+"rdm_sampling_covariance",3,0.176,8421376,919024
+"bids_events",3,0.00200000000000067,0,17920
+"bids_confounds",3,0.0150000000000006,0,13152
+"bids_study",3,0.00500000000000078,0,95392
+"fmridesign_design_model",3,0.0150000000000006,0,64640

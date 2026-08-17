@@ -45,9 +45,8 @@
     "aliases", "residual_df", "observation_whitener", "capabilities",
     "design_receipt_id"
   )
-  if (!inherits(value, "effect_design_receipt") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Design-receipt fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_design_receipt", expected)) {
+    .input_error("Design-receipt fields are missing or noncanonical.")
   }
   if (!is.matrix(value$design) || !is.matrix(value$lowered_target) ||
       !is.character(value$coefficient_axis) ||
@@ -55,15 +54,15 @@
       !identical(colnames(value$lowered_target), value$coefficient_axis) ||
       !inherits(value$effect_space, "effect_space") ||
       !is.data.frame(value$row_lineage) || !is.list(value$capabilities)) {
-    stop("Design-receipt values or axes are invalid.", call. = FALSE)
+    .input_error("Design-receipt values or axes are invalid.")
   }
   .validate_effect_space(value$effect_space)
   semantic <- c(list(schema_version = 1L), value[setdiff(
     names(value), "design_receipt_id"
   )])
   if (!identical(value$design_receipt_id,
-      .semantic_digest("design-receipt-sha256:", semantic))) {
-    stop("Design-receipt identity is inconsistent.", call. = FALSE)
+      .sha256_signature(semantic, "design-receipt-sha256:"))) {
+    .contract_error("Design-receipt identity is inconsistent.")
   }
   value
 }
@@ -101,7 +100,7 @@
     design <- model$designs[[partition]][rows, , drop = FALSE]
     lowered[[partition]] <- if (raw) {
       if (!inherits(effects, "effect_raw_map")) {
-        stop("Raw design models require `raw_effect_map()`.", call. = FALSE)
+        .input_error("Raw design models require `raw_effect_map()`.")
       }
       if (!identical(colnames(effects$target), colnames(design))) {
         .capability_refusal(
@@ -192,7 +191,7 @@
       capabilities = capabilities
     )
     receipts[[partition]] <- structure(c(semantic[-1L], list(
-      design_receipt_id = .semantic_digest("design-receipt-sha256:", semantic)
+      design_receipt_id = .sha256_signature(semantic, "design-receipt-sha256:")
     )), class = "effect_design_receipt")
   }
   list(
@@ -216,7 +215,56 @@
 #'   for a raw design.
 #' @param observation_model An [observation_model()].
 #' @param tolerance Positive numerical rank and estimability tolerance.
-#' @return An `effect_relation_plan`.
+#' @return An `effect_relation_plan`: a list with the validated `$study`,
+#'   `$model`, `$effects` and `$observation_model`, the `$partitions`, the
+#'   per-partition `$lowered_effects` and portable `$design_receipts`, the
+#'   `$retained_rows` left by censoring, the resolved `$sampling_unit` and
+#'   `$whiteners`, the `$tolerance`, `$capabilities`, and a
+#'   `$relation_plan_id`.
+#' @family relation planning and fitting
+#' @seealso [estimate_relation()] to execute the plan,
+#'   [relation_plan_receipts()] and [compiler_conformance()] to inspect it, and
+#'   [study()], [design_model()], [effect_map()], [observation_model()] for the
+#'   four inputs.
+#' @examples
+#' # Four scans, two conditions, three neural features.
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "plan-relation-example")
+#' index <- observation_index(paste0("scan-", 1:4), "run-1")
+#' facts <- study(observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' ))
+#'
+#' conditions <- condition_space(c("face", "body"))
+#' design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' coding <- coefficient_parameterization(
+#'   diag(2), conditions,
+#'   coefficients = colnames(design), coding_id = "cell-means"
+#' )
+#' model <- design_model(
+#'   list(target = "condition means"), conditions,
+#'   designs = list(`run-1` = design),
+#'   parameterizations = list(`run-1` = coding)
+#' )
+#' weights <- rbind(`face-body` = c(1, -1))
+#' colnames(weights) <- conditions$coordinates
+#'
+#' # Compilation and estimability are checked without reading neural values.
+#' plan <- plan_relation(
+#'   facts, model, effect_map(weights, conditions),
+#'   observation_model("ols", sampling_unit = "scan")
+#' )
+#' plan
+#' plan$design_receipts$`run-1`$rank
+#'
+#' # Effects and design must bind the same condition space: a different basis
+#' # is a different scientific request, and is refused rather than coerced.
+#' other <- condition_space(c("face", "body"), basis_id = "other-basis")
+#' catch_refusal(plan_relation(
+#'   facts, model, effect_map(weights, other),
+#'   observation_model("ols", sampling_unit = "scan")
+#' ))$capability
 #' @export
 plan_relation <- function(study, model, effects, observation_model,
                           tolerance = sqrt(.Machine$double.eps)) {
@@ -239,7 +287,7 @@ plan_relation <- function(study, model, effects, observation_model,
   if (raw) {
     effects <- .validate_lowered_effect_map(effects)
     if (!inherits(effects, "effect_raw_map")) {
-      stop("A raw design requires `raw_effect_map()`.", call. = FALSE)
+      .input_error("A raw design requires `raw_effect_map()`.")
     }
   } else {
     effects <- .validate_effect_map(effects)
@@ -257,10 +305,7 @@ plan_relation <- function(study, model, effects, observation_model,
       )
     }
   }
-  if (!is.numeric(tolerance) || length(tolerance) != 1L ||
-      is.na(tolerance) || !is.finite(tolerance) || tolerance <= 0) {
-    stop("`tolerance` must be one positive finite number.", call. = FALSE)
-  }
+  .check_number(tolerance, "tolerance", positive = TRUE)
   effect_map_id <- effects$effect_map_id
   semantic <- list(
     schema_version = 1L,
@@ -270,7 +315,7 @@ plan_relation <- function(study, model, effects, observation_model,
     effect_map_id = effect_map_id,
     observation_model_id = observation_model$observation_model_id
   )
-  relation_plan_id <- .semantic_digest("relation-plan-sha256:", semantic)
+  relation_plan_id <- .sha256_signature(semantic, "relation-plan-sha256:")
   compiled <- .compile_relation_receipts(
     study, model, effects, observation_model, tolerance
   )
@@ -310,24 +355,58 @@ plan_relation <- function(study, model, effects, observation_model,
     "lowered_effects", "design_receipts", "retained_rows", "sampling_unit",
     "whiteners", "tolerance", "capabilities", "relation_plan_id"
   )
-  if (!inherits(value, "effect_relation_plan") || !is.list(value) ||
-      !identical(names(value), expected)) {
-    stop("Relation-plan fields are missing or noncanonical.", call. = FALSE)
+  if (!.sealed_fields(value, "effect_relation_plan", expected)) {
+    .input_error("Relation-plan fields are missing or noncanonical.")
   }
   rebuilt <- plan_relation(
     value$study, value$model, value$effects, value$observation_model,
     tolerance = value$tolerance
   )
   if (!identical(value, rebuilt)) {
-    stop("Relation-plan metadata or identity is inconsistent.", call. = FALSE)
+    .contract_error("Relation-plan metadata or identity is inconsistent.")
   }
   rebuilt
 }
 
 #' Inspect portable design receipts
 #'
+#' Returns the per-partition record of how each design was actually compiled:
+#' the matrix used, the rows censoring retained, the achieved rank and any
+#' aliased regressors, the solver, and the whitening provenance.
+#'
 #' @param x An [plan_relation()] result.
-#' @return A named list of `effect_design_receipt` values.
+#' @return A named list of `effect_design_receipt` values, one per partition.
+#'   Each carries `$design`, `$coefficient_axis`, `$lowered_target`,
+#'   `$effect_space`, `$row_lineage`, `$censoring`, `$solver`, `$rank`,
+#'   `$aliases`, `$residual_df`, `$observation_whitener`, `$capabilities`, and
+#'   a `$design_receipt_id`.
+#' @family relation planning and fitting
+#' @seealso [plan_relation()] for the plan, [compiler_conformance()] for the
+#'   boolean conformance summary of the same receipts, and
+#'   [estimate_relation()] to execute them.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "receipts-example")
+#' index <- observation_index(paste0("scan-", 1:4), "run-1")
+#' facts <- study(observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' ))
+#' design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' target <- rbind(`face-body` = c(1, -1))
+#' colnames(target) <- colnames(design)
+#'
+#' # Even the raw route, which claims no semantic coding, yields a complete
+#' # receipt: rank, aliases, censoring, solver, and whitening are all recorded.
+#' plan <- plan_relation(
+#'   facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+#'   observation_model("ols", sampling_unit = "scan")
+#' )
+#' receipts <- relation_plan_receipts(plan)
+#' names(receipts)
+#' receipts$`run-1`$rank
+#' receipts$`run-1`$residual_df
+#' receipts$`run-1`$aliases
 #' @export
 relation_plan_receipts <- function(x) {
   x <- .validate_relation_plan(x)
@@ -350,7 +429,7 @@ relation_plan_receipts <- function(x) {
   names(dimensions) <- plan$partitions
   capabilities <- lapply(plan$partitions, function(partition) {
     source <- observations$capabilities[[partition]]
-    revision <- .semantic_digest("sha256:", list(
+    revision <- .sha256_signature(list(
       source_revision = source$stable_revision,
       retained_rows = plan$retained_rows[[partition]],
       design_receipt_id =
@@ -375,13 +454,45 @@ relation_plan_receipts <- function(x) {
 #'
 #' @param x An [plan_relation()] result.
 #' @param ... Reserved for future execution policies.
-#' @return An `effect_relation_fit` whose identity binds the relation plan,
-#'   source revisions, realized row lineage, and design receipts.
+#' @return An `effect_relation_fit` whose `$signature` binds the relation plan,
+#'   source revisions, realized row lineage, and design receipts, and whose
+#'   `$provenance` records `relation_plan_id`, `design_receipt_ids`,
+#'   `study_id`, and `observation_model_id`.
+#' @family relation planning and fitting
+#' @seealso [plan_relation()] for the plan it executes, [fmrireg_relation()]
+#'   for the external point-parity adapter, and [plan_geometry()] for the
+#'   second-moment question that follows.
+#' @examples
+#' set.seed(1)
+#' domain <- abstract_domain(3L, id = "estimate-relation-example")
+#' index <- observation_index(paste0("scan-", 1:4), "run-1")
+#' facts <- study(observations(
+#'   list(`run-1` = matrix(rnorm(12), 4L, 3L)), list(`run-1` = index), domain
+#' ))
+#' design <- cbind(face = c(1, 0, 1, 0), body = c(0, 1, 0, 1))
+#' rownames(design) <- paste0("scan-", 1:4)
+#' target <- rbind(`face-body` = c(1, -1))
+#' colnames(target) <- colnames(design)
+#' plan <- plan_relation(
+#'   facts, raw_design_model(list(`run-1` = design)), raw_effect_map(target),
+#'   observation_model("ols", sampling_unit = "scan")
+#' )
+#'
+#' # Reading neural values happens here, and only here.
+#' fit <- estimate_relation(plan)
+#' round(relation_block(fit, "run-1", 1:3), 3)
+#'
+#' # A fixed observation model earns the residual channel, and the fit records
+#' # which plan produced it.
+#' relation_fit_capabilities(fit)$residual_blocks
+#' identical(fit$provenance$relation_plan_id, plan$relation_plan_id)
 #' @export
-estimate <- function(x, ...) {
+estimate_relation <- function(x, ...) {
   if (length(list(...))) {
-    stop("No additional `estimate()` arguments are currently supported.",
-      call. = FALSE)
+    .input_error(
+      "No additional `estimate_relation()` arguments are currently supported.",
+      call. = FALSE
+    )
   }
   plan <- .validate_relation_plan(x)
   sources <- .planned_observation_sources(plan)

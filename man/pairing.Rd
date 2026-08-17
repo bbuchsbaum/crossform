@@ -27,19 +27,58 @@ admitted as noise-biased estimates.}
 
 \item{independence}{Whether distinct endpoint estimates are declared
 independent. It must be stated explicitly for an independence-based
-interpretation. `NULL` records `"undeclared"`; self-products must be
-marked `"not_independent"`.}
+interpretation. \code{NULL} records \code{"undeclared"}; self-products must be
+marked \code{"not_independent"}.}
 
 \item{generalizes_over}{Optional name of the sampling axis this pairing
-generalizes across, such as `"run"`, `"session"`, or `"task"`. The axis
+generalizes across, such as \code{"run"}, \code{"session"}, or \code{"task"}. The axis
 is part of the scientific estimand: cross-run and cross-session
 reproduction are different quantities even at identical fold counts, so
 the declared axis is bound into every plan identity built from this
-pairing. Leaving it `NULL` records the axis as undeclared.}
+pairing. Leaving it \code{NULL} records the axis as undeclared.}
 }
 \value{
-An edge table with explicit endpoint semantics.
+An \code{effect_pairing} data frame with \code{left}, \code{right}, and unit-mass
+\code{weight} columns, plus the \code{directed}, \code{self_pairs}, \code{independence},
+\code{generalizes_over}, and derived \code{estimate} attributes that name the
+estimand.
 }
 \description{
-Construct a partition pairing
+\code{pairing()} declares exactly which partition products a plan may form and
+what may be claimed about them. Use it when you need an explicit or
+directed edge set; use \code{\link[=cross_partitions]{cross_partitions()}} for the usual all-distinct-pairs
+case.
 }
+\examples{
+# Directed cross-session edges, declared independent and named as
+# generalizing across sessions.
+over <- pairing(
+  c("ses1", "ses1"), c("ses2", "ses3"),
+  directed = TRUE, independence = "independent",
+  generalizes_over = "session"
+)
+over
+attr(over, "estimate")
+
+# Weights are normalized to unit mass, so they are estimator weights, not
+# counts of independent replicates.
+sum(over$weight)
+
+# Self-products are biased and must say so; the default forbids them.
+refused <- try(pairing("run1", "run1"), silent = TRUE)
+conditionMessage(attr(refused, "condition"))
+attr(
+  pairing("run1", "run1", self_pairs = "allow_biased",
+    independence = "not_independent"),
+  "estimate"
+)
+}
+\seealso{
+\code{\link[=cross_partitions]{cross_partitions()}} for all distinct pairs, and \code{\link[=plan_geometry]{plan_geometry()}},
+which binds the pairing into plan identity.
+
+Other generalization pairings: 
+\code{\link{cross_partitions}()},
+\code{\link{reduce_partitions}()}
+}
+\concept{generalization pairings}

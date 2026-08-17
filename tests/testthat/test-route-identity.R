@@ -10,10 +10,10 @@ route_fixture <- function() {
     sources, design, effects, sampling_unit = "trial", domain = domain
   )
   plan <- plan_geometry(
-    fit$relation, compile_frame(voxels(), domain),
+    fit$relation, compile_frame(voxelwise(), domain),
     cross_partitions(fit$relation)
   )
-  list(plan = plan, form = geometry(plan))
+  list(plan = plan, form = materialize_geometry(plan))
 }
 
 test_that("rdm carries one estimand identity on both execution routes", {
@@ -35,8 +35,8 @@ test_that("rdm carries one estimand identity on both execution routes", {
 test_that("contrast carries one estimand identity on both execution routes", {
   fixture <- route_fixture()
   weights <- c(level = 0, condition = 1, extra = 0)
-  fused <- contrast(fixture$plan, weights)
-  projected <- contrast(fixture$form, weights)
+  fused <- contrast_energy(fixture$plan, weights)
+  projected <- contrast_energy(fixture$form, weights)
   expect_identical(
     fused$receipt$scientific_plan_id,
     projected$receipt$scientific_plan_id
@@ -75,7 +75,7 @@ test_that("distinct view estimands stay distinct from each other", {
     rdm_configuration = rdm(
       fixture$plan, component = "configuration"
     )$receipt$scientific_plan_id,
-    contrast = contrast(
+    contrast = contrast_energy(
       fixture$plan, c(level = 0, condition = 1, extra = 0)
     )$receipt$scientific_plan_id
   )

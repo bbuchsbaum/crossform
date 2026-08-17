@@ -56,8 +56,9 @@
       is.null(names(block_map)) || !setequal(names(block_map), partitions) ||
       anyNA(block_map) || any(block_map %% 1 != 0) ||
       any(block_map < 1L | block_map > count) || anyDuplicated(block_map)) {
-    stop("`block_map` must map every study partition to one unique model block.",
-      call. = FALSE)
+    .input_error(
+      "`block_map` must map every study partition to one unique model block."
+    )
   }
   stats::setNames(as.integer(block_map[partitions]), partitions)
 }
@@ -127,10 +128,10 @@
     if (!is.matrix(explicit) || !is.numeric(explicit) ||
         !identical(rownames(explicit), conditions$coordinates) ||
         !identical(colnames(explicit), coefficients)) {
-      stop(paste0(
+      .input_error(paste0(
         "An explicit `semantic_map` must be a numeric condition-by-coefficient ",
         "matrix on the declared axes."
-      ), call. = FALSE)
+      ))
     }
     return(explicit)
   }
@@ -184,7 +185,62 @@
 #' @param specification Optional portable semantic declaration. When omitted,
 #'   the adapter derives one from the pinned fmridesign model.
 #' @param solver Numerical route recorded in the design receipt.
-#' @return An [design_model()] suitable for [plan_relation()].
+#' @return An [design_model()] suitable for [plan_relation()], whose
+#'   `$condition_space` holds the fmridesign condition names, whose `$designs`
+#'   hold one compiled matrix per study partition with study observation ids as
+#'   row names, and whose `$compiler` records the pinned fmridesign version.
+#' @family relation planning and fitting
+#' @seealso [design_model()] for the generic contract, [plan_relation()] for
+#'   the next step, and [compiler_conformance()] to check the receipt this
+#'   adapter produced.
+#' @examples
+#' # This adapter is certified against exactly one fmridesign version and
+#' # refuses any other, so the example runs only under that version.
+#' if (requireNamespace("fmridesign", quietly = TRUE) &&
+#'     identical(as.character(utils::packageVersion("fmridesign")), "0.6.0")) {
+#'   set.seed(1)
+#'   domain <- abstract_domain(3L, id = "fmridesign-example")
+#'   index <- observation_index(
+#'     1:20, "run-1", time = seq(0, by = 2, length.out = 20L), units = "seconds"
+#'   )
+#'   events <- data.frame(
+#'     partition = "run-1", event_id = paste0("e", 1:4),
+#'     onset = c(2, 10, 18, 26), duration = 0,
+#'     condition = c("face", "body", "face", "body")
+#'   )
+#'   facts <- study(
+#'     observations(list(`run-1` = matrix(rnorm(60), 20L, 3L)),
+#'       list(`run-1` = index), domain),
+#'     observation_events(events)
+#'   )
+#'
+#'   # The event model must be the one compiled from these exact facts; the
+#'   # adapter re-checks onsets, durations, and condition labels against them.
+#'   external <- fmridesign::event_model(
+#'     onset ~ fmridesign::hrf(condition), data = events,
+#'     block = rep(1L, nrow(events)),
+#'     sampling_frame = fmridesign::sampling_frame(
+#'       blocklens = 20L, TR = 2, start_time = 0
+#'     ),
+#'     durations = events$duration
+#'   )
+#'   model <- fmridesign_design_model(
+#'     external, facts, basis_id = "canonical-hrf-amplitude",
+#'     units = "percent-signal-change"
+#'   )
+#'   print(model$condition_space$coordinates)
+#'   print(model$capabilities$coding_invariant)
+#'
+#'   # Effects are now named in condition space, so the contrast below does not
+#'   # depend on which columns the HRF compiler emitted.
+#'   weights <- rbind(`face-body` = c(1, -1))
+#'   colnames(weights) <- model$condition_space$coordinates
+#'   plan <- plan_relation(
+#'     facts, model, effect_map(weights, model$condition_space),
+#'     observation_model("ols", sampling_unit = "scan")
+#'   )
+#'   print(all(as.matrix(compiler_conformance(plan)[-1L])))
+#' }
 #' @export
 fmridesign_design_model <- function(
     model, study, basis_id, units, scale = 1, block_map = NULL,
@@ -192,8 +248,7 @@ fmridesign_design_model <- function(
   version <- .require_adapter_version("fmridesign", "0.6.0")
   study <- .validate_study(study)
   if (!inherits(model, "event_model")) {
-    stop("`model` must inherit from `fmridesign::event_model()`.",
-      call. = FALSE)
+    .input_error("`model` must inherit from `fmridesign::event_model()`.")
   }
   block_map <- .fmridesign_block_map(study$partitions, model, block_map)
   .fmridesign_assert_event_binding(model, study, block_map)
@@ -209,8 +264,9 @@ fmridesign_design_model <- function(
   if (!is.null(semantic_map) &&
       (!is.list(semantic_map) || !setequal(names(semantic_map),
         study$partitions))) {
-    stop("`semantic_map` must be one matrix or a named matrix per partition.",
-      call. = FALSE)
+    .input_error(
+      "`semantic_map` must be one matrix or a named matrix per partition."
+    )
   }
   designs <- parameterizations <- stats::setNames(
     vector("list", length(study$partitions)), study$partitions
@@ -253,7 +309,7 @@ fmridesign_design_model <- function(
     package_version = version,
     provenance = list(
       # Frozen because semantic model provenance participates in plan identity.
-      adapter = "effectagram::fmridesign_design_model",
+      adapter = "crossform::fmridesign_design_model",
       block_map = as.list(block_map)
     )
   )

@@ -7,13 +7,54 @@
 metric_capabilities(x)
 }
 \arguments{
-\item{x}{A `neural_metric()` or an on-demand metric recipe. A
-`measurement_bridge()` is refused because cross-space bridges are not
+\item{x}{A \code{neural_metric()} or an on-demand metric recipe. A
+\code{measurement_bridge()} is refused because cross-space bridges are not
 same-space metrics.}
 }
 \value{
-An `effect_metric_capabilities` record.
+An \code{effect_metric_capabilities} record of logical flags, including
+\verb{$identity}, \verb{$native_diagonal}, \verb{$feature_additive}, \verb{$support_dense},
+\verb{$positive_definite}, \verb{$fixed}, \verb{$learned_recipe}, \verb{$materialized}, and
+\verb{$inverse_quadratic}.
 }
 \description{
-Inspect exact neural-metric capabilities
+\code{metric_capabilities()} answers what a metric or recipe admits before a
+plan provokes a refusal: whether it is diagonal, feature-additive,
+positive definite, already materialized, and whether inverse quadratic
+forms are available.
 }
+\examples{
+# A materialized diagonal metric is feature-additive, so it restricts
+# cleanly to any searchlight support.
+domain <- abstract_domain(3, id = "capability-example")
+fixed <- metric_capabilities(neural_metric(diag(c(1, 2, 3)), domain))
+fixed[c("native_diagonal", "feature_additive", "materialized")]
+
+# A recipe is not yet a matrix: it promises a local metric per support.
+recipe <- metric_capabilities(shrinkage_precision(0.2))
+recipe[c("learned_recipe", "materialized", "support_dense")]
+
+# A cross-space bridge is not a same-space metric and is refused.
+bridge <- measurement_bridge(
+  rbind(c(1, 0, 0)), rbind(c(1, 0, 0)), domain, domain,
+  measurement_space(1, id = "capability-example:common")
+)
+refused <- try(metric_capabilities(bridge), silent = TRUE)
+conditionMessage(attr(refused, "condition"))
+}
+\seealso{
+\code{\link[=neural_metric]{neural_metric()}} and \code{\link[=noise_precision]{noise_precision()}} for fixed metrics;
+\code{\link[=identity_metric]{identity_metric()}}, \code{\link[=diagonal_precision]{diagonal_precision()}}, and \code{\link[=shrinkage_precision]{shrinkage_precision()}}
+for on-demand recipes.
+
+Other neural metrics: 
+\code{\link{diagonal_precision}()},
+\code{\link{effect_covariance}()},
+\code{\link{gaussian_covariance_model}()},
+\code{\link{identity_metric}()},
+\code{\link{metric_training_policy}()},
+\code{\link{neural_metric}()},
+\code{\link{noise_precision}()},
+\code{\link{shrinkage_precision}()}
+}
+\concept{neural metrics}

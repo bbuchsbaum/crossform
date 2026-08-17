@@ -20,6 +20,10 @@ repo <- if (length(arguments)) {
 output_dir <- if (length(arguments) >= 2L) arguments[[2L]] else {
   file.path(repo, "benchmark-results")
 }
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+provenance <- crossform_benchmark_provenance(
+  repo, "run-crossnobis-scale-gate.R"
+)
 full_dim <- if (length(arguments) >= 5L) {
   as.integer(arguments[3:5])
 } else {
@@ -71,6 +75,7 @@ if (is.null(collected) || inherits(collected[[1L]], "try-error") ||
   stop("The isolated crossnobis scale worker failed.")
 }
 result <- readRDS(result_path)
+result$provenance <- provenance
 peak_rss <- max(
   peak_rss,
   result$memory$baseline_rss_bytes,

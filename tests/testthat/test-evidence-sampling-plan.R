@@ -89,10 +89,13 @@ test_that("a bare relation cannot gain a sampling law from its shape", {
   expect_false(identical(
     fitted$scientific_plan_id, bare$scientific_plan_id
   ))
-  expect_error(
-    crossform:::.require_sampling_covariance(bare),
-    "lm_relation_fit.*beta matrices alone"
-  )
+  refusal <- catch_refusal(crossform:::.require_sampling_covariance(bare))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "sampling_covariance")
+  expect_identical(refusal$namespace, "evidence_sampling")
+  expect_identical(refusal$reasons, "missing_error_channel")
+  expect_match(conditionMessage(refusal),
+    "lm_relation_fit.*beta matrices alone")
 })
 
 test_that("error channels are identity-bound to the evidence relation", {
@@ -104,7 +107,7 @@ test_that("error channels are identity-bound to the evidence relation", {
       first$evidence, second$fit
     ),
     "identity-bound"
-  )
+  , class = "effect_contract_error")
 })
 
 test_that("learned metric uncertainty and spatial scope are explicit gates", {
@@ -123,17 +126,23 @@ test_that("learned metric uncertainty and spatial scope are explicit gates", {
       "sha256:learned-metric", status = "learned"
     ),
     "must declare uncertainty"
-  )
+  , class = "effect_input_error")
 
   fixture <- sampling_plan_fixture()
   spatial <- crossform:::.compile_evidence_sampling_plan(
     fixture$evidence, fixture$fit, spatial_scope = "modeled"
   )
   expect_identical(spatial$capabilities$spatial_covariance, "unavailable")
-  expect_error(
-    crossform:::.require_sampling_covariance(spatial),
-    "cross-location sampling covariance requires an explicit spatial model"
+  spatial_refusal <- catch_refusal(
+    crossform:::.require_sampling_covariance(spatial)
   )
+  expect_s3_class(spatial_refusal, "effect_capability_refusal")
+  expect_identical(spatial_refusal$capability, "sampling_covariance")
+  expect_identical(spatial_refusal$namespace, "evidence_sampling")
+  expect_identical(spatial_refusal$reasons,
+    "spatial_covariance_model_unavailable")
+  expect_match(conditionMessage(spatial_refusal),
+    "cross-location sampling covariance requires an explicit spatial model")
 })
 
 test_that("sampling-plan mutation is detected by canonical validation", {
@@ -147,5 +156,5 @@ test_that("sampling-plan mutation is detected by canonical validation", {
   expect_error(
     crossform:::.validate_evidence_sampling_plan(forged),
     "capabilities"
-  )
+  , class = "effect_contract_error")
 })

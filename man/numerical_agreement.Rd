@@ -14,14 +14,41 @@ numerical_agreement(
 \arguments{
 \item{x, y}{Numeric objects with identical dimensions.}
 
-\item{guarantee}{One of `scheduling`, `block_partition`, or `cross_platform`.}
+\item{guarantee}{One of \code{scheduling}, \code{block_partition}, or \code{cross_platform}.
+\code{scheduling} is checked bitwise; the other two are checked against the
+contract tolerance.}
 
-\item{contract}{An `effect_numerical_contract`.}
+\item{contract}{An \code{effect_numerical_contract}.}
 }
 \value{
-A diagnostic `effect_numeric_agreement` value.
+An \code{effect_numeric_agreement} with \verb{$passed}, the \verb{$guarantee} and
+\verb{$comparison} used (\code{"bitwise"} or \code{"tolerance"}),
+\verb{$max_absolute_error}, \verb{$max_allowed_error}, and the \verb{$atol}/\verb{$rtol} in
+force.
 }
 \description{
 Tolerance agreement uses
-`abs(x - y) <= atol + rtol * max(abs(x), abs(y))` elementwise.
+\code{abs(x - y) <= atol + rtol * max(abs(x), abs(y))} elementwise.
 }
+\examples{
+# Re-running the same fixed plan under a different feature-block size is a
+# `block_partition` change: crossform promises tolerance, not bitwise
+# equality.
+baseline <- c(1, 2, 3) / 7
+reblocked <- baseline + c(0, 1e-15, -2e-15)
+agreement <- numerical_agreement(baseline, reblocked, "block_partition")
+agreement$passed
+agreement$max_absolute_error
+
+# The same pair fails the strict bitwise scheduling guarantee, which is
+# reserved for reordering completion of identical tasks.
+numerical_agreement(baseline, reblocked, "scheduling")$passed
+numerical_agreement(baseline, baseline, "scheduling")$passed
+}
+\seealso{
+\code{\link[=numerical_contract]{numerical_contract()}} for the guarantees themselves.
+
+Other numerical contracts and receipts: 
+\code{\link{numerical_contract}()}
+}
+\concept{numerical contracts and receipts}

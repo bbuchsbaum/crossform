@@ -73,7 +73,7 @@ test_that("clock unit mismatch and missing clocks refuse explicitly", {
     wrong_units$events_id, "events_id"
   )
   # Rebuild rather than relying on a mutated identity.
-  wrong_units <- events(wrong_units$data, units = "milliseconds")
+  wrong_units <- observation_events(wrong_units$data, units = "milliseconds")
   unit_refusal <- catch_refusal(study(
     fixture$observations,
     wrong_units,
@@ -109,7 +109,7 @@ test_that("event coverage failures name events and acquisition range", {
   table <- fixture$events$data
   selected <- table$partition == "run-2" & table$event_id == "run-2-event-3"
   table$onset[selected] <- 1000
-  outside <- events(table)
+  outside <- observation_events(table)
   refusal <- catch_refusal(study(
     fixture$observations,
     outside,
@@ -158,7 +158,7 @@ test_that("untimed reduced facts remain valid but do not earn timing", {
     event_id = c("block-a", "block-b"),
     condition = c("face", "place")
   )
-  events <- events(event_table, onset = NULL, duration = NULL)
+  events <- observation_events(event_table, onset = NULL, duration = NULL)
   value <- study(observations, events)
 
   expect_false(value$capabilities$timing_resolved)
@@ -171,7 +171,7 @@ test_that("unknown partitions and hierarchy order refuse before source reads", {
   bad_events$partition[1] <- "missing-run"
   refusal <- catch_refusal(study(
     fixture$observations,
-    events(bad_events),
+    observation_events(bad_events),
     fixture$confounds,
     fixture$hierarchy
   ))
@@ -211,6 +211,6 @@ test_that("study identity includes factual binding and detects tampering", {
   tampered <- value
   tampered$lineage$`run-1`$retained[1] <- FALSE
   expect_error(crossform:::.validate_study(tampered),
-    "lineage or capabilities")
+    "lineage or capabilities", class = "effect_contract_error")
   expect_true(study_capabilities(value)$stable_source_revision)
 })

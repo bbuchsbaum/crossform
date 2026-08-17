@@ -31,11 +31,11 @@ test_that("precomputed coordinate ambiguity fails during construction", {
   partial <- matrix(1:6, 2, 3, dimnames = list(c("a", ""), NULL))
 
   expect_error(relation(list(run = missing), effects = space),
-    "missing or extra")
+    "does not carry the declared effects", class = "effect_input_error")
   expect_error(relation(list(run = partial), effects = space),
-    "complete and unique")
+    "row names that are incomplete or repeated", class = "effect_input_error")
   expect_error(relation(list(run = unname(matrix(1:6, 2, 3)))),
-    "complete row names")
+    "Partition `run` has no row names", class = "effect_input_error")
 })
 
 test_that("extractor bases and units must match across partitions", {
@@ -48,9 +48,9 @@ test_that("extractor bases and units must match across partitions", {
   sources <- list(one = matrix(1, 2, 3), two = matrix(1, 2, 3))
 
   expect_error(relation(sources, extract = list(first, other_basis)),
-    "identical effect space")
+    "identical effect space", class = "effect_input_error")
   expect_error(relation(sources, extract = list(first, other_units)),
-    "identical effect space")
+    "identical effect space", class = "effect_input_error")
 })
 
 test_that("raw response and materialized effect relations are equivalent", {
@@ -84,7 +84,8 @@ test_that("function-backed sources are lazy and validated", {
     source_dims = list(c(6, 5)))
 
   expect_identical(reads, 0L)
-  expect_error(relation_block(rel, "run1", 0), "valid neural feature")
+  expect_error(relation_block(rel, "run1", 0), "valid neural feature",
+    class = "effect_input_error")
   expect_identical(reads, 0L)
   got <- relation_block(rel, "run1", c(2, 4))
   expect_identical(reads, 1L)
@@ -93,11 +94,11 @@ test_that("function-backed sources are lazy and validated", {
 
 test_that("relation construction rejects incompatible partitions", {
   expect_error(relation(list(matrix(1, 2, 3), matrix(1, 2, 4)), effects = c("a", "b")),
-    "feature dimension")
+    "must span the same neural features", class = "effect_input_error")
 
   extractor <- effect_extractor(diag(2), c("a", "b"))
   expect_error(relation(list(matrix(1, 3, 4)), extract = extractor),
-    "observations")
+    "observations", class = "effect_contract_error")
 })
 
 test_that("mutated relation metadata fails before source reads", {
@@ -110,7 +111,8 @@ test_that("mutated relation metadata fails before source reads", {
     source_dims = list(c(2, 3)))
   rel$n_features <- 4L
 
-  expect_error(relation_block(rel, "run1", 1), "metadata")
+  expect_error(relation_block(rel, "run1", 1), "metadata",
+    class = "effect_contract_error")
   expect_identical(reads, 0L)
 })
 
@@ -137,7 +139,9 @@ test_that("a relation accepts a domain without exposing identity plumbing", {
   expect_identical(rel$domain_id, domain$id)
   expect_identical(rel$domain, domain$reference)
   expect_error(relation(list(run1 = matrix(1, 2, 3)), effects = c("a", "b"),
-    domain = domain), "feature count")
+    domain = domain), "domain `native:s01` declares 4 features",
+    class = "effect_input_error")
   expect_error(relation(list(run1 = matrix(1, 2, 4)), effects = c("a", "b"),
-    domain = domain, domain_id = "other"), "different neural domains")
+    domain = domain, domain_id = "other"), "different neural domains",
+    class = "effect_contract_error")
 })

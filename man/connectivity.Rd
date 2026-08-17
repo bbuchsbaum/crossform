@@ -15,7 +15,7 @@ connectivity(
 )
 }
 \arguments{
-\item{x}{A complete `effect_measurement_form`.}
+\item{x}{A complete \code{effect_measurement_form}.}
 
 \item{view}{One of signed scalar correlation, a canonical spectrum, static
 geometry alignment, or Gaussian mutual information.}
@@ -23,15 +23,114 @@ geometry alignment, or Gaussian mutual information.}
 \item{ridge, ridge_right}{Explicit ridge values for canonical or Gaussian
 views.}
 
-\item{model}{A [gaussian_covariance_model()] for Gaussian information.}
+\item{model}{A \code{\link[=gaussian_covariance_model]{gaussian_covariance_model()}} for Gaussian information.}
 
 \item{units}{Information units, when applicable.}
 
 \item{tolerance}{Positive numerical tolerance.}
 }
 \value{
-A typed `effect_coupling_result`.
+An \code{effect_coupling_result} whose \verb{$values} data frame carries one
+row per edge with the view's column (\code{correlation},
+\code{canonical_correlation} per \code{mode}, \code{geometry_alignment}, or
+\code{information} plus \code{units}), alongside \verb{$kind}, \verb{$normalization_axis},
+\verb{$regularization}, and \verb{$terminology}.
 }
 \description{
-Request a validated connectivity view
+\code{connectivity()} is the one entry point for the normalized views, and it
+checks their preconditions before reporting a number: repeated variation of
+effective rank above one, valid self-blocks, explicit regularization for
+the canonical and Gaussian views, and an explicit model declaration for
+Gaussian information.
 }
+\section{Refusals}{
+
+Each precondition signals an \code{effect_capability_refusal} in namespace
+\code{"coupling_views"}, so \code{\link[=catch_refusal]{catch_refusal()}} can branch on the cause instead of
+the prose: capability \code{"certified_repeated_variation"} when the form has not
+established repeated variation along a named sampling axis,
+\code{"nondegenerate_variation"} when the variation query has effective rank one,
+\code{"declared_regularization"} for a canonical view without \code{ridge}, and
+\code{"declared_gaussian_model"} for Gaussian information without \code{model} or
+\code{ridge}.
+}
+
+\examples{
+# Two scalar, oriented regional measurements over six repeated time
+# points in two sessions.
+native <- abstract_domain(4, id = "demo:native:v1")
+times <- effect_space(paste0("time", 1:6), basis_id = "demo:time:v1")
+trend <- seq(-1.5, 1.5, length.out = 6)
+session <- function(shift) cbind(
+  trend + shift,
+  -0.8 * trend + c(0.2, -0.1, 0.1, 0, -0.1, -0.1),
+  sin(seq(shift, pi, length.out = 6)),
+  cos(seq(shift, pi, length.out = 6))
+)
+signals <- relation(
+  list(session1 = session(0), session2 = session(0.1)),
+  effects = times, domain = native
+)
+nodes <- measurement_frame(
+  list(anterior = matrix(c(1, 0, 0, 0), 1),
+       posterior = matrix(c(0, 1, 0, 0), 1)),
+  domain = native, id = "demo:regional-means:v1"
+)
+pairs <- expand.grid(
+  from = nodes$node_ids, to = nodes$node_ids, stringsAsFactors = FALSE
+)
+covariance_over_time <- variation_query(
+  (diag(6) - matrix(1 / 6, 6, 6)) / 5, times, "time", "joint_covariance"
+)
+within_session <- pairing(
+  signals$partitions, signals$partitions, directed = TRUE,
+  self_pairs = "allow_biased", independence = "not_independent"
+)
+form <- measurement_form(
+  signals, edge_frame(pairs$from, pairs$to, nodes),
+  covariance_over_time, within_session
+)
+
+# Both nodes are scalar and oriented, so the correlation view returns
+# ordinary signed Pearson correlations. The generated data are negatively
+# related, and the sign is recovered.
+connectivity(form, view = "correlation")$values
+
+# Gaussian mutual information additionally needs an explicit model and
+# information units, because it is a modeling claim, not a rescaling.
+connectivity(
+  form, view = "gaussian_information", ridge = 0.05,
+  model = gaussian_covariance_model(
+    list(assumption = "joint Gaussian time observations")
+  ),
+  units = "bits"
+)$values
+
+# Omitting the model declaration is refused rather than defaulted, and the
+# refusal names the missing capability.
+refusal <- catch_refusal(
+  connectivity(form, view = "gaussian_information", ridge = 0.05)
+)
+refusal$capability
+refusal$reasons
+}
+\seealso{
+\code{\link[=effect_coupling]{effect_coupling()}} for the uninterpreted block,
+\code{\link[=gaussian_covariance_model]{gaussian_covariance_model()}} for the declaration Gaussian information
+requires, and \code{\link[=measurement_form]{measurement_form()}} to build \code{x}.
+
+Other coupling and connectivity views: 
+\code{\link{control_coupling}()},
+\code{\link{coupling}()},
+\code{\link{coupling_contrast}()},
+\code{\link{coupling_views}},
+\code{\link{match_control}()},
+\code{\link{match_coupling}()},
+\code{\link{measurement_bridge}()},
+\code{\link{measurement_components}()},
+\code{\link{measurement_form}()},
+\code{\link{pair_lm_query}()},
+\code{\link{pair_query}()},
+\code{\link{reverse_bridge}()}
+}
+\concept{coupling and connectivity views}
