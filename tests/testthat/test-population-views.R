@@ -546,14 +546,26 @@ test_that("every population and default method is registered for dispatch", {
       info = paste0(entry[[1L]], ".", entry[[2L]]))
   }
 
-  # Declared: the line is in NAMESPACE, so a roxygen run or a hand edit that
-  # drops one fails here rather than in somebody else's script.
+  # Declared: the method is written down somewhere a reader can find it, so a
+  # roxygen run or a hand edit that drops one fails here rather than in
+  # somebody else's script. There are two places it can be written: a NAMESPACE
+  # line, or an entry in the `.pf_records` descriptor registry that
+  # `R/print-methods.R` registers the printer and formatter from.
   namespace_file <- testthat::test_path("..", "..", "NAMESPACE")
   skip_if_not(file.exists(namespace_file), "NAMESPACE not available")
   declared <- sub("^S3method\\(\\s*([^,]+?)\\s*,\\s*(.+?)\\s*\\).*$", "\\1|\\2",
     grep("^S3method\\(", readLines(namespace_file, warn = FALSE), value = TRUE))
+  records <- get(".pf_records", envir = asNamespace("crossform"))
+  described <- unlist(lapply(names(records), function(class) {
+    descriptor <- records[[class]]
+    c(
+      if (!is.null(descriptor$fields) ||
+        identical(descriptor$emit, "capabilities")) paste0("print|", class),
+      if (!is.null(descriptor$inline)) paste0("format|", class)
+    )
+  }))
   expected <- vapply(pvw_dispatch, paste, character(1), collapse = "|")
-  expect_identical(setdiff(expected, declared), character(0))
+  expect_identical(setdiff(expected, c(declared, described)), character(0))
 })
 
 
