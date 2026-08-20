@@ -484,8 +484,20 @@
   requirements <- plan$requirements
   learned <- .execution_scheduled_metric(plan)
   value <- list(
+    # `declared_normalization` is what a reader of the result must branch on:
+    # a diagonal metric folds into the weights and leaves `normalization =
+    # "none"` on a frame that was declared conservative
+    # (`design/conservative-geometry-contract.md` section 5.3), so the raw
+    # label alone cannot say whether the values are shares of a conserved
+    # budget. `contribution()` is the consumer.
     frame = list(representation = at$representation,
-      normalization = at$normalization, domain = at$domain),
+      normalization = at$normalization,
+      declared_normalization = if (is.null(at$metric_folded)) {
+        at$normalization
+      } else {
+        at$metric_folded$declared_normalization
+      },
+      domain = at$domain),
     metric_schedule = c(list(
       kind = plan$metric_schedule$kind,
       signature = plan$metric_schedule$signature,
@@ -572,7 +584,7 @@
   if (identical(component, "contrast")) {
     return(.new_effect_contrast_view(
       values$total, values$coherent, marginals, plan$signed_query,
-      index, planned_receipt
+      index, planned_receipt, metadata
     ))
   }
   total_matrix <- if (requirements$total) values$total else NULL

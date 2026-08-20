@@ -52,6 +52,7 @@ Other geometry plans and views:
 \code{\link{aggregate_first}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
+\code{\link{contribution}()},
 \code{\link{crossnobis}()},
 \code{\link{evaluate_geometry}()},
 \code{\link{example_fmri_effects}()},

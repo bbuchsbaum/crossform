@@ -143,7 +143,7 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
     )
   )
   .new_effect_contrast_view(
-    total, coherent, x$marginals, weights, x$index, receipt
+    total, coherent, x$marginals, weights, x$index, receipt, x$metadata
   )
 }
 
@@ -793,5 +793,596 @@ geometry_spectrum <- function(x,
     list(values = values, component = component, index = x$index,
       indefinite_estimates_preserved = TRUE, receipt = x$receipt),
     class = "effect_spectrum_view"
+  )
+}
+
+# `contribution()` -- additive aggregation over a territory -------------------
+#
+# The attribution reading of a conservative frame
+# (`design/conservative-geometry-contract.md` section 1.2) says a node's value
+# is its share of one fixed global budget. Reading a ledger means adding shares
+# up over a territory, and this is the operation that does it. Four decisions,
+# each forced by the contract rather than chosen for convenience:
+#
+#  1. Grouping is BY ROW. Every row of the view belongs to exactly one group,
+#     so the group sums partition the budget exactly. Gap G4 of section 11.4
+#     names the alternative -- splitting an overlapping node's mass across
+#     several regions -- and it is deliberately not offered: a row is one node,
+#     a node is not divisible, and any split needs a second partition of the
+#     weights that can double-count. If overlap-splitting is ever wanted it has
+#     to arrive as its own declared, separately certified reduction.
+#  2. `total` is budget-exact: the group sums add back to the whole-domain
+#     total (section 2, claim 2). The signed marginal is NOT, and this is the
+#     one place the arithmetic is genuinely asymmetric. `$signed` is the local
+#     weighted *mean* contrast -- `.ordered_pairing_marginals()` divides the
+#     node's first moment by the node's own frame mass -- so it is intensive,
+#     exactly the kind of quantity section 1.1 says must never be summed. A
+#     mass-weighted mean would be the defensible aggregate and a view carries
+#     no masses, so the aggregate reports `NA` and says why, on the same
+#     masking discipline the coherence fraction uses.
+#  3. `coherent` and `configuration` add up too, but their sums are
+#     FRAME-RELATIVE (section 4, claim 4): `sum_x G_x^coh` is not a global
+#     quantity, so a coherent budget is a share of that frame's coherent mass
+#     and two frames give two incomparable denominators. The result records
+#     `frame_relative` and the print says it.
+#  4. Coherence fractions are recomputed, never averaged. A fraction of sums is
+#     not a sum of fractions, so the group fraction comes from the aggregated
+#     components under `.coherence_fraction()`, the same nonnegative-partition
+#     mask a node's fraction gets.
+
+.contribution_measurement_ids <- function(index) {
+  if (is.data.frame(index)) {
+    if ("measurement" %in% names(index)) {
+      return(as.character(index$measurement))
+    }
+    return(as.character(seq_len(nrow(index))))
+  }
+  as.character(index)
+}
+
+# What `contribution()` accepts, and the reasoned refusal for everything else.
+.contribution_source <- function(x) {
+  if (inherits(x, "effect_contrast_view")) {
+    return(list(kind = "contrast", measurements = length(x$total)))
+  }
+  if (inherits(x, "effect_view") && !inherits(x, "effect_form")) {
+    .validate_effect_view(x)
+    return(list(kind = "view", measurements = nrow(x$values)))
+  }
+  .contribution_unsupported(x)
+}
+
+.contribution_supported_sentence <- function() {
+  paste0(
+    "`contribution()` aggregates the two per-measurement views whose values ",
+    "are additive contributions to one budget: an `effect_contrast_view` ",
+    "from `contrast_energy()`, and a query-only `effect_view` from ",
+    "`evaluate_geometry()` or `query_geometry()`."
+  )
+}
+
+.contribution_unsupported <- function(x) {
+  supported <- .contribution_supported_sentence()
+  if (inherits(x, "effect_spectrum_view")) {
+    .capability_refusal(paste0(
+      "`contribution()` will not aggregate an `effect_spectrum_view`. ",
+      "Eigenvalues are not additive across measurements: a territory's ",
+      "spectrum is not the sum of its nodes' spectra, so the sums would not ",
+      "be the spectrum of anything. ", supported
+    ),
+      capability = "additive_contribution",
+      namespace = "geometry_views",
+      reasons = "eigenvalues_are_not_additive",
+      remedies = paste0(
+        "Aggregate a linear read of the same geometry -- `contrast_energy()`, ",
+        "or `evaluate_geometry(plan, query = ...)` -- and decompose the ",
+        "aggregate afterwards if a spectrum of the territory is the question."
+      )
+    )
+  }
+  comparative <- c("effect_rdm_view", "effect_rsa_view",
+    "effect_crossnobis_view")
+  if (any(comparative %in% class(x))) {
+    kind <- comparative[[which(comparative %in% class(x))[[1L]]]]
+    .capability_refusal(sprintf(paste0(
+      "`contribution()` does not aggregate an `%s`. Each row is read as a ",
+      "dissimilarity between conditions or a regression coefficient on one ",
+      "-- a comparison, not a share of a declared whole -- and summing those ",
+      "over a territory would present a budget for an object nobody declared ",
+      "to be one. %s"
+    ), kind, supported),
+      capability = "additive_contribution",
+      namespace = "geometry_views",
+      reasons = "comparative_readout_is_not_a_budget",
+      remedies = paste0(
+        "Run the same fixed query through `evaluate_geometry(plan, query = ",
+        "...)`, which returns those numbers as an additive `effect_view`, ",
+        "and aggregate that instead."
+      )
+    )
+  }
+  if (inherits(x, "effect_form") || inherits(x, "effect_geometry")) {
+    .capability_refusal(paste0(
+      "`contribution()` aggregates a readout, not packed geometry: a stored ",
+      "form holds every effect pair at once and has no single per-measurement ",
+      "value to add up. ", supported
+    ),
+      capability = "additive_contribution",
+      namespace = "geometry_views",
+      reasons = "packed_geometry_is_not_a_readout",
+      remedies = paste0(
+        "Read one component first -- `contrast_energy(x, weights)` or ",
+        "`query_geometry(x, query, component)` -- then aggregate the view."
+      )
+    )
+  }
+  if (inherits(x, "effect_geometry_plan")) {
+    .capability_refusal(paste0(
+      "`contribution()` aggregates values, and an `effect_geometry_plan` ",
+      "names an estimand without holding any. ", supported
+    ),
+      capability = "additive_contribution",
+      namespace = "geometry_views",
+      reasons = "plan_holds_no_values",
+      remedies = paste0(
+        "Evaluate the plan first -- `contrast_energy(plan, weights)` or ",
+        "`evaluate_geometry(plan, query = ...)` -- then aggregate the view."
+      )
+    )
+  }
+  .input_error(sprintf("%s Received %s.", supported, .msg_value(x)),
+    arg = "x", received = .msg_value(x),
+    expected = "an `effect_contrast_view` or a query-only `effect_view`")
+}
+
+# The frame normalization the view was read through, preferring the declared
+# one: a diagonal metric folds into the weights and leaves `normalization =
+# "none"` on a frame that was declared conservative (contract section 5.3).
+.contribution_frame_normalization <- function(x) {
+  metadata <- x$metadata
+  if (!is.list(metadata) || !is.list(metadata$frame)) return(NULL)
+  value <- metadata$frame$declared_normalization
+  if (is.null(value)) value <- metadata$frame$normalization
+  if (.is_string(value)) value else NULL
+}
+
+.contribution_require_conservative <- function(x) {
+  normalization <- .contribution_frame_normalization(x)
+  if (identical(normalization, "conservative")) return(normalization)
+  if (identical(normalization, "local")) {
+    .capability_refusal(paste0(
+      "`contribution()` refuses a locally normalized frame. A local frame is ",
+      "a detection map: every node reports the mean evidence density inside ",
+      "its own support, overlapping neighbourhoods double-count the features ",
+      "they share, and adding those values up estimates nothing ",
+      "(`design/conservative-geometry-contract.md` section 1.1). Only a ",
+      "column-normalized conservative frame partitions one fixed global ",
+      "budget, which is what makes a territory sum a ledger entry."
+    ),
+      capability = "conservative_frame",
+      namespace = "geometry_views",
+      reasons = "local_frame_is_a_detection_map",
+      remedies = paste0(
+        "Rebuild the frame with `normalization = \"conservative\"` -- for ",
+        "example `regions(labels, \"conservative\")` or ",
+        "`searchlights(radius, \"conservative\")` -- rerun the view, and ",
+        "aggregate that. Which instrument to use is a decision about the ",
+        "question, not about scaling: a detection map answers *where is ",
+        "there evidence*, an attribution map answers *how is the total ",
+        "distributed*."
+      )
+    )
+  }
+  .capability_refusal(sprintf(paste0(
+    "`contribution()` needs a conservative frame, and this view %s. Without ",
+    "column normalization there is no fixed global budget for the group sums ",
+    "to divide, so the aggregate would not be an attribution ledger."
+  ), if (is.null(normalization)) {
+    "does not record the normalization of the frame it was read through"
+  } else {
+    sprintf("was read through a frame declaring `normalization = \"%s\"`",
+      normalization)
+  }),
+    capability = "conservative_frame",
+    namespace = "geometry_views",
+    reasons = if (is.null(normalization)) {
+      "frame_normalization_not_recorded"
+    } else {
+      "frame_is_not_column_normalized"
+    },
+    remedies = paste0(
+      "Rerun the view through a frame built with `normalization = ",
+      "\"conservative\"`, and confirm the budget with ",
+      "`frame_conservation(frame)`."
+    )
+  )
+}
+
+# Align an external per-measurement metadata table to the view's rows. A frame
+# family's `$index` is the intended input, so a `measurement` column is joined
+# on rather than assumed to be in row order.
+.contribution_using_table <- function(using, ids) {
+  if (is.null(using)) return(NULL)
+  if (!is.data.frame(using) || !ncol(using) || !nrow(using)) {
+    .input_error(sprintf(paste0(
+      "`using` must be a nonempty data frame of per-measurement metadata; a ",
+      "frame family's `$index` is the intended one. Received %s."
+    ), .msg_value(using)),
+      arg = "using", received = .msg_value(using),
+      expected = "a per-measurement metadata data frame")
+  }
+  if ("measurement" %in% names(using)) {
+    keys <- as.character(using$measurement)
+    if (anyDuplicated(keys)) {
+      repeated <- unique(keys[duplicated(keys)])
+      .input_error(sprintf(paste0(
+        "`using$measurement` repeats %s. Each measurement of the view must ",
+        "match exactly one metadata row, or a node would be counted twice."
+      ), .msg_names(repeated)),
+        arg = "using", received = sprintf("repeated %s", .msg_names(repeated)),
+        expected = "one row per measurement")
+    }
+    position <- match(ids, keys)
+    if (anyNA(position)) {
+      absent <- ids[is.na(position)]
+      .input_error(sprintf(paste0(
+        "`using` has no row for %s of the view's %s (%s). The join is by ",
+        "`measurement`, so every measurement in the view must appear in the ",
+        "table exactly once."
+      ), .msg_count(length(absent), "measurement"),
+        .msg_count(length(ids), "measurement"), .msg_names(absent)),
+        arg = "using",
+        received = sprintf("no row for %s", .msg_names(absent)),
+        expected = "one row per measurement of the view")
+    }
+    return(using[position, , drop = FALSE])
+  }
+  if (nrow(using) != length(ids)) {
+    .input_error(sprintf(paste0(
+      "`using` has %s but the view has %s, and the table carries no ",
+      "`measurement` column to join on. Supply one row per measurement in ",
+      "`$index` order, or add a `measurement` column."
+    ), .msg_count(nrow(using), "row"),
+      .msg_count(length(ids), "measurement")),
+      arg = "using", received = .msg_count(nrow(using), "row"),
+      expected = .msg_count(length(ids), "row"))
+  }
+  using
+}
+
+# Resolve `by` to one label per measurement: a column of the metadata, or the
+# grouping itself.
+.contribution_grouping <- function(by, label, table, x, n) {
+  if (.is_string(by)) {
+    sources <- list()
+    if (!is.null(table)) sources[["using"]] <- table
+    if (is.data.frame(x$index)) sources[["the view's `$index`"]] <- x$index
+    for (name in names(sources)) {
+      candidate <- sources[[name]]
+      if (by %in% names(candidate)) {
+        return(list(label = by, values = candidate[[by]]))
+      }
+    }
+    available <- unique(unlist(lapply(sources, names), use.names = FALSE))
+    .input_error(sprintf(paste0(
+      "`by = \"%s\"` names no column of the grouping metadata. Available ",
+      "columns: %s. Pass the per-measurement table as `using =` -- a frame ",
+      "family's `$index` carries `measurement`, `family`, `node`, `scale`, ",
+      "`center` and `alpha` -- or pass the grouping itself as a vector with ",
+      "one entry per measurement."
+    ), by, if (length(available)) {
+      .msg_names(available)
+    } else {
+      paste0("none, because this view's `$index` is a plain identifier ",
+        "vector and no `using` table was supplied")
+    }),
+      arg = "by", received = sprintf("\"%s\"", by),
+      expected = if (length(available)) {
+        .msg_names(available)
+      } else {
+        "a grouping vector, or a `using` table"
+      })
+  }
+  if ((!is.atomic(by) && !is.factor(by)) || length(by) != n) {
+    .input_error(sprintf(paste0(
+      "`by` must be one column name, or one group label per measurement. ",
+      "The view has %s and `by` has %s."
+    ), .msg_count(n, "measurement"), .msg_count(length(by), "entry", "entries")),
+      arg = "by", received = .msg_count(length(by), "entry", "entries"),
+      expected = .msg_count(n, "entry", "entries"))
+  }
+  list(label = label, values = by)
+}
+
+# Group labels to an ordered factor with no empty and no missing group. A row
+# outside every group would silently take part of the budget with it, so an
+# `NA` label is refused rather than dropped.
+.contribution_groups <- function(values, label) {
+  if (anyNA(values)) {
+    .input_error(sprintf(paste0(
+      "The grouping `%s` is missing for %s. Every measurement must belong to ",
+      "exactly one group, or the aggregate would drop part of the budget it ",
+      "claims to partition. (A frame family's `scale` is `NA` for a member ",
+      "that has no scale, such as a point or region member; group by ",
+      "`family` instead, or supply a grouping that covers every row.)"
+    ), label, .msg_count(sum(is.na(values)), "measurement")),
+      arg = "by",
+      received = sprintf("%s missing of %s",
+        .msg_count(sum(is.na(values)), "label"),
+        .msg_count(length(values), "measurement")),
+      expected = "one group label for every measurement")
+  }
+  if (is.factor(values)) {
+    groups <- droplevels(values)
+    return(list(groups = groups, keys = levels(groups)))
+  }
+  levels <- as.character(sort(unique(values)))
+  groups <- factor(as.character(values), levels = levels)
+  list(groups = groups, keys = values[match(levels, as.character(values))])
+}
+
+.contribution_group_sums <- function(values, rows) {
+  vapply(rows, function(subset) sum(values[subset]), numeric(1),
+    USE.NAMES = FALSE)
+}
+
+.contribution_group_column_sums <- function(values, rows) {
+  out <- matrix(0, length(rows), ncol(values),
+    dimnames = list(NULL, colnames(values)))
+  for (position in seq_along(rows)) {
+    out[position, ] <- colSums(values[rows[[position]], , drop = FALSE])
+  }
+  out
+}
+
+# One row per group. The key goes under `measurement`, because a group *is* the
+# aggregate's measurement identity and every reader of a crossform result index
+# -- `as.data.frame()`, the plot highlight resolver, a `merge()` back onto
+# frame metadata -- looks for that column. A second column under the grouping's
+# own name is added only when `as.character()` would lose the key's type, which
+# is what grouping a frame family by `scale` does; for character or factor keys
+# it would be a verbatim copy, and the grouping's name is on the print line and
+# in `$metadata$aggregation$aggregated_by` either way.
+.contribution_index <- function(label, keys, rows) {
+  index <- data.frame(measurement = as.character(keys),
+    stringsAsFactors = FALSE, check.names = FALSE)
+  typed <- !is.character(keys) && !is.factor(keys)
+  if (typed && !identical(label, "measurement")) index[[label]] <- keys
+  index[["n_rows"]] <- as.integer(lengths(rows, use.names = FALSE))
+  index
+}
+
+.contribution_scientific_id <- function(parent, label, keys) {
+  .sha256_signature(list(
+    schema_version = 1L,
+    role = "geometry_contribution",
+    parent = parent,
+    aggregated_by = label,
+    groups = as.character(keys)
+  ), "geometry-sha256:")
+}
+
+.contribution_provenance <- function(label, keys, rows, normalization,
+                                     budget_exact, frame_relative_components,
+                                     masked = character()) {
+  list(
+    aggregated_by = label,
+    groups = length(rows),
+    measurements = sum(lengths(rows)),
+    frame_normalization = normalization,
+    frame_relative = length(frame_relative_components) > 0L,
+    budget_exact = budget_exact,
+    frame_relative_components = frame_relative_components,
+    masked = masked,
+    overlap_split = FALSE,
+    group_keys = as.character(keys)
+  )
+}
+
+# `$signed` is the local weighted mean contrast, not a contribution: it is
+# already divided by the node's own frame mass. Summing means over a territory
+# is the error `contribution()` exists to prevent, and the mass-weighted mean
+# that would be defensible needs masses no view carries. So the shape is kept
+# and the values are masked, which is what the package does everywhere else a
+# number is not earned.
+.contribution_masked_signed <- function(signed, groups) {
+  if (is.list(signed)) {
+    return(lapply(signed, function(value) rep(NA_real_, groups)))
+  }
+  rep(NA_real_, groups)
+}
+
+#' Add a conservative attribution map up over a territory
+#'
+#' A conservative frame partitions one fixed global budget: each node's value
+#' is its share, not its density, so the shares of a territory add up
+#' (`design/conservative-geometry-contract.md` sections 1.2 and 2).
+#' `contribution()` performs exactly that addition, and nothing else. It is the
+#' ledger reading of an attribution map, and it refuses a detection map, whose
+#' overlapping nodes double-count and whose sum estimates nothing.
+#'
+#' Grouping is **by row**: each row of `x` belongs to exactly one group, so the
+#' group totals partition the whole-domain total exactly. Splitting an
+#' overlapping node's mass across several territories is deliberately not
+#' offered -- a row is one node, a node is not divisible, and any split needs a
+#' second partition of the frame weights that can double-count.
+#'
+#' @param x A view whose per-measurement values are additive contributions: an
+#'   `effect_contrast_view` from [contrast_energy()], or a query-only
+#'   `effect_view` from [evaluate_geometry()] or [query_geometry()]. Every
+#'   other result kind is refused with the reason; see *Refusals*.
+#' @param by The grouping. Either one column name of the per-measurement
+#'   metadata (searched in `using` first, then in `x$index` when that is a
+#'   table), or the grouping itself as a vector or factor with one entry per
+#'   measurement -- a region or network label, say. A length-one character
+#'   value is always read as a column name. Every measurement must carry a
+#'   group; an `NA` label is refused rather than dropped.
+#' @param using Optional per-measurement metadata table naming the groups a
+#'   view cannot carry itself. A [frame_family()]'s `$index` is the intended
+#'   one: it is joined on its `measurement` column, so row order does not
+#'   matter. A table without that column must have one row per measurement, in
+#'   `$index` order.
+#' @return The same class as `x`, with one row per group instead of one per
+#'   measurement.
+#'
+#'   `$index` has one row per group: `measurement`, holding the group key, and
+#'   `n_rows`, the number of measurements that went into it. A key that
+#'   `as.character()` would flatten -- a numeric `scale`, say -- also gets a
+#'   typed column under the grouping's own name. Groups appear in sorted key
+#'   order, or in level order when `by` is a factor; an empty group is dropped.
+#'   `$metadata$aggregation` records `aggregated_by`, the group count,
+#'   `frame_relative`, and which components are budget-exact. `$receipt` is the
+#'   parent receipt under a derived `scientific_plan_id`.
+#' @section What conserves and what does not:
+#' `total` is budget-exact: the group totals add back to the whole-domain
+#' total, which is the value the same contrast takes under
+#' `whole_brain("none")` (contract section 2, claim 2).
+#'
+#' `signed` is **not**, and the aggregate reports `NA` for it. A contrast
+#' view's signed marginal is the local weighted *mean* contrast -- already
+#' divided by the node's own frame mass -- so it is a density, and adding
+#' densities over a territory is the error a conservative frame exists to
+#' avoid (contract section 1.1). The defensible aggregate is a mass-weighted
+#' mean, which needs the node masses a view does not carry, so the field is
+#' masked rather than filled with a number nobody can interpret.
+#'
+#' `coherent` and `configuration` add up as arithmetic, but their sums are
+#' **frame-relative** (contract section 4, claim 4): \eqn{\sum_x G_x^{coh}} is
+#' not a global quantity, so a coherent budget is a share of *this frame's*
+#' coherent mass and two frames give two incomparable denominators. The result
+#' carries `frame_relative = TRUE` and the print says so. Never compare a
+#' coherent budget across frames.
+#'
+#' `coherence_fraction` is recomputed from the aggregated components, not
+#' averaged: a fraction of sums is not a sum of fractions. It is masked by the
+#' same rule a node's fraction is masked by -- reported only where the
+#' aggregated total is finite and positive and both components are nonnegative
+#' -- so a group whose components do not form a nonnegative partition reports
+#' `NA` rather than a clamped number.
+#' @section Refusals:
+#' A locally normalized frame signals an `effect_capability_refusal` with
+#' capability `"conservative_frame"` in namespace `"geometry_views"`; so does a
+#' view that does not record its frame normalization. A view whose values are
+#' not additive contributions -- an `effect_spectrum_view`, `effect_rdm_view`,
+#' `effect_rsa_view`, `effect_crossnobis_view` -- a stored `effect_geometry`,
+#' and an unevaluated `effect_geometry_plan` each signal capability
+#' `"additive_contribution"`. Branch on them with [catch_refusal()].
+#' @seealso [contrast_energy()] and [evaluate_geometry()] for the views this
+#'   aggregates, [frame_family()] for the `$index` that names scales and
+#'   members, and [frame_conservation()] for the certificate that the frame
+#'   conserves the budget being divided.
+#' @family geometry plans and views
+#' @examples
+#' # Four regions over eight voxels, read as an attribution map.
+#' domain <- abstract_domain(8, id = "contribution-example")
+#' run1 <- rbind(
+#'   face = c(1, 0.2, 0, 0, 0.5, 0.1, 0, 0),
+#'   house = c(0, 1, 0.1, 0, 0, 0.6, 0.2, 0)
+#' )
+#' run2 <- rbind(
+#'   face = c(0.9, 0.3, 0, 0, 0.4, 0.2, 0, 0),
+#'   house = c(0.1, 0.9, 0, 0, 0.1, 0.5, 0.3, 0)
+#' )
+#' relation <- relation(list(run1 = run1, run2 = run2), domain = domain)
+#' labels <- rep(c("r1", "r2", "r3", "r4"), each = 2)
+#' plan <- plan_geometry(
+#'   relation, compile_frame(regions(labels, "conservative"), domain),
+#'   cross_partitions(relation, independence = "independent")
+#' )
+#' effect <- contrast_energy(plan, c(face = 1, house = -1))
+#'
+#' # Two networks, each two regions. The ledger adds up exactly.
+#' network <- c("early", "early", "late", "late")
+#' ledger <- contribution(effect, by = network)
+#' ledger
+#' sum(ledger$total) - sum(effect$total)
+#'
+#' # A detection map is refused: overlapping local nodes double-count, so
+#' # their sum is not a share of anything.
+#' detection <- contrast_energy(
+#'   plan_geometry(
+#'     relation, compile_frame(regions(labels), domain),
+#'     cross_partitions(relation, independence = "independent")
+#'   ),
+#'   c(face = 1, house = -1)
+#' )
+#' refusal <- catch_refusal(contribution(detection, by = network))
+#' refusal$capability
+#' @export
+contribution <- function(x, by, using = NULL) {
+  source <- .contribution_source(x)
+  if (missing(by)) {
+    .input_error(paste0(
+      "`by` is required: name the grouping to add the contributions up over, ",
+      "either as a column of the per-measurement metadata (for example ",
+      "`contribution(view, by = \"family\", using = family$index)`) or as ",
+      "one label per measurement (`contribution(view, by = network)`)."
+    ),
+      arg = "by", received = "no argument",
+      expected = "a column name, or one group label per measurement")
+  }
+  label <- substitute(by)
+  label <- if (is.symbol(label)) as.character(label) else "group"
+  if (!is.null(using) && !.is_string(by)) {
+    # Checked before the table is aligned, so the message names the real
+    # mistake rather than reporting a join that was never going to be used.
+    .input_error(paste0(
+      "`using` is only meaningful when `by` names one of its columns. `by` ",
+      "was given as a grouping vector, which already says which group every ",
+      "measurement belongs to."
+    ),
+      arg = "using", received = "a table alongside a grouping vector",
+      expected = "`by` as a column name, or `using = NULL`")
+  }
+  normalization <- .contribution_require_conservative(x)
+  ids <- .contribution_measurement_ids(x$index)
+  table <- .contribution_using_table(using, ids)
+  resolved <- .contribution_grouping(by, label, table, x, source$measurements)
+  grouped <- .contribution_groups(resolved$values, resolved$label)
+  rows <- split(seq_len(source$measurements), grouped$groups)
+  index <- .contribution_index(resolved$label, grouped$keys, rows)
+  receipt <- .projection_receipt(
+    x$receipt,
+    .contribution_scientific_id(x$receipt$scientific_plan_id,
+      resolved$label, grouped$keys)
+  )
+  metadata <- if (is.list(x$metadata)) x$metadata else list()
+  metadata$scientific_plan_id <- NULL
+  metadata$aggregated_from <- x$receipt$scientific_plan_id
+
+  if (identical(source$kind, "contrast")) {
+    metadata$aggregation <- .contribution_provenance(
+      resolved$label, grouped$keys, rows, normalization,
+      budget_exact = "total",
+      frame_relative_components = c("coherent", "configuration"),
+      masked = "signed"
+    )
+    signed <- .contribution_masked_signed(x$signed, length(rows))
+    coherent <- .contribution_group_sums(x$coherent, rows)
+    total <- .contribution_group_sums(x$total, rows)
+    return(.effect_contrast_view_record(
+      signed, coherent, total - coherent, total, x$weights, index, receipt,
+      metadata
+    ))
+  }
+
+  metadata$aggregation <- .contribution_provenance(
+    resolved$label, grouped$keys, rows, normalization,
+    budget_exact = if (identical(x$component, "total")) "values" else character(),
+    frame_relative_components = if (identical(x$component, "total")) {
+      character()
+    } else {
+      x$component
+    }
+  )
+  effect_view(
+    values = .contribution_group_column_sums(x$values, rows),
+    query = x$query,
+    component = x$component,
+    receipt = receipt,
+    index = index,
+    metadata = metadata,
+    left_space = x$left_space,
+    right_space = x$right_space
   )
 }

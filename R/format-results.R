@@ -219,6 +219,44 @@ as.data.frame.effect_view <- function(x, row.names = NULL, optional = FALSE,
 print.effect_view <- function(x, ...) {
   .validate_effect_view(x)
   .format_result_preview(x, "effect_view", ...)
+  .pf_aggregation_note(x)
+  invisible(x)
+}
+
+# An aggregated view prints as one row per territory, and nothing in that table
+# says the rows are group sums rather than measurements -- or that a coherent
+# budget belongs to one frame and cannot be compared across frames
+# (`design/conservative-geometry-contract.md` section 4). `contribution()` is
+# the only thing that sets `$metadata$aggregation`, so the note appears exactly
+# on the objects it describes and no other print changes at all.
+.pf_aggregation_note <- function(x) {
+  record <- x$metadata$aggregation
+  if (!is.list(record)) return(invisible(NULL))
+  .pf_note(sprintf(
+    "aggregated_by: `%s`; %s over %s, summed by row",
+    record$aggregated_by, .msg_count(record$groups, "group"),
+    .msg_count(record$measurements, "measurement")
+  ))
+  if (isTRUE(record$frame_relative)) {
+    .pf_note(sprintf(paste0(
+      "frame_relative: TRUE -- %s %s a share of this frame's own mass, not of ",
+      "a global one, and %s not comparable across frames"
+    ), .msg_names(record$frame_relative_components),
+      if (length(record$frame_relative_components) == 1L) "is" else "are",
+      if (length(record$frame_relative_components) == 1L) "is" else "are"))
+  }
+  if (length(record$masked)) {
+    .pf_note(sprintf(paste0(
+      "masked: %s NA over groups; a local weighted mean is a density, and ",
+      "densities do not add over a territory"
+    ), .msg_names(record$masked)))
+  }
+  invisible(NULL)
+}
+
+.pf_note <- function(text) {
+  cat(strwrap(text, width = .pf_line_width, prefix = "    ", initial = "  "),
+    sep = "\n")
 }
 
 #' @export
@@ -293,6 +331,7 @@ print.effect_contrast_view <- function(x, ...) {
     "configuration are not a nonnegative partition"
   ), sum(valid), length(valid)),
     width = .pf_line_width, prefix = "    ", initial = "  "), sep = "\n")
+  .pf_aggregation_note(x)
   invisible(x)
 }
 

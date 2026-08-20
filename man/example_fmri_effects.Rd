@@ -133,6 +133,7 @@ Other geometry plans and views:
 \code{\link{bilinear_query}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
+\code{\link{contribution}()},
 \code{\link{crossnobis}()},
 \code{\link{evaluate_geometry}()},
 \code{\link{geometry_component}()},
