@@ -352,6 +352,430 @@ compile_frame <- function(specification, domain) {
   rebuilt
 }
 
+# Frame families ------------------------------------------------------------
+
+#' Combine conservative frames into one alpha-weighted family
+#'
+#' Stacks several conservative frames over one domain into a single compiled
+#' frame whose rows are the members' rows scaled by family weights `alpha`.
+#' Because each member is column-normalized on its own and the weights sum to
+#' one, the stacked columns still sum to one, so the family is conservative and
+#' the `total` component conserves both overall and block by block:
+#' \deqn{\sum_{x \in s} G_{s,x} = \alpha_s\,G_\Omega,\qquad
+#'       \sum_x G_x = G_\Omega.}{sum_{x in s} G_{s,x} = alpha_s G_Omega, and sum_x G_x = G_Omega.}
+#'
+#' The consequence is that per-scale *energy* is fixed by `alpha` alone and is
+#' never a finding. What varies with the data is the split of each block's
+#' fixed budget into coherent and configuration parts. See
+#' `design/conservative-geometry-contract.md` section 3.
+#'
+#' @param ... Two or more compiled `effect_frame`s over one domain, ideally
+#'   named. A member's name becomes its `family` identity; unnamed members are
+#'   named `frame1`, `frame2`, and so on by position. Pass a list of frames
+#'   with `do.call(frame_family, c(frames, list(alpha = alpha)))`.
+#' @param alpha One positive family weight per member, summing to one. Named
+#'   weights are matched to member names; `NULL` (the default) weights the
+#'   members equally. Weights are never renormalized for you, because the
+#'   per-block law reads against the weight actually applied.
+#' @param normalization Frame normalization of the family. Only
+#'   `"conservative"` is defined: the per-block law needs column-normalized
+#'   members, and a family of locally normalized frames has no conserved
+#'   budget to weight.
+#' @param tolerance Nonnegative absolute tolerance for the two construction
+#'   checks: that `alpha` sums to one, and that each member's columns sum to
+#'   one on its own.
+#' @return An `effect_frame` usable anywhere a compiled frame is, carrying
+#'   `$weights` (the alpha-scaled row-bind), `$index` (one row per
+#'   measurement, see *Per-row metadata*), and a `$specification` recording
+#'   every member specification together with its applied weight.
+#' @section Per-row metadata:
+#' A family row must be self-describing, because its own scale and provenance
+#' can no longer be read off a frame-wide specification. `$index` therefore
+#' carries one row per measurement, in `$weights` row order:
+#'
+#' - `measurement`: the row's identity, `"<family>::<node>"`. It is unique
+#'   across the family, which the same node label appearing at several scales
+#'   is not, and it is what reaches a result's `$index`.
+#' - `family`: the member the row came from.
+#' - `node`: the row's label inside its own member, exactly as that member's
+#'   `$index$measurement` had it.
+#' - `scale`: the member's scale parameter -- the radius for a searchlight
+#'   member, `NA` for a member that has no scale.
+#' - `center`: the anchor feature identifier, for members whose rows are
+#'   anchored at a feature (points and searchlights); `NA` otherwise.
+#' - `alpha`: the family weight applied to the row.
+#'
+#' Join a result back to this table by `measurement` to group values by scale,
+#' by center, or by member.
+#' @family neural domains and frames
+#' @seealso [compile_frame()] for the members, and [frame_conservation()],
+#'   which certifies a family both overall and block by block.
+#' @examples
+#' domain <- abstract_domain(
+#'   9L, coordinates = cbind(seq_len(9L) - 1, 0), id = "frame-family-example"
+#' )
+#'
+#' # Two conservative scales over one domain, weighted one quarter and three
+#' # quarters.
+#' family <- frame_family(
+#'   point = compile_frame(voxelwise("conservative"), domain),
+#'   narrow = compile_frame(searchlights(1.01, "conservative"), domain),
+#'   alpha = c(point = 0.25, narrow = 0.75)
+#' )
+#' head(family$index, 3L)
+#'
+#' # The stacked family conserves, and each block carries exactly its alpha.
+#' report <- frame_conservation(family)
+#' report$conserved
+#' report$members
+#'
+#' # Weights that do not sum to one are refused rather than renormalized: the
+#' # per-block law reads against the weight actually applied.
+#' refused <- try(
+#'   frame_family(
+#'     point = compile_frame(voxelwise("conservative"), domain),
+#'     narrow = compile_frame(searchlights(1.01, "conservative"), domain),
+#'     alpha = c(1, 1)
+#'   ),
+#'   silent = TRUE
+#' )
+#' conditionMessage(attr(refused, "condition"))
+#' @export
+frame_family <- function(..., alpha = NULL, normalization = "conservative",
+                         tolerance = 1e-12) {
+  members <- list(...)
+  if (!length(members)) {
+    .input_error(paste0(
+      "`frame_family()` needs at least one compiled frame: pass the members ",
+      "as named arguments, for example `frame_family(point = ..., ",
+      "narrow = ...)`."
+    ),
+      arg = "...", received = "no frames",
+      expected = "one or more compiled `effect_frame`s")
+  }
+  if (!.is_string(normalization) ||
+      !identical(normalization, "conservative")) {
+    received <- if (.is_string(normalization)) {
+      paste0("\"", normalization, "\"")
+    } else {
+      .msg_value(normalization)
+    }
+    .input_error(sprintf(paste0(
+      "`normalization` must be \"conservative\"; received %s. The family law ",
+      "sum over the rows of scale s of G equals alpha_s times G_Omega is ",
+      "defined only for column-normalized members, so a family of locally ",
+      "normalized frames has no conserved budget for `alpha` to divide."
+    ), received),
+      arg = "normalization", received = received,
+      expected = "\"conservative\"")
+  }
+  .check_number(tolerance, "tolerance", nonnegative = TRUE)
+  names(members) <- .frame_family_names(names(members), length(members))
+  for (position in seq_along(members)) {
+    .validate_frame_family_member(members[[position]], names(members)[[position]],
+      tolerance)
+  }
+  domain <- .frame_family_domain(members)
+  alpha <- .frame_family_alpha(alpha, names(members), tolerance)
+
+  blocks <- Map(function(member, weight) {
+    weight * .frame_family_block(member$weights)
+  }, members, alpha)
+  weights <- if (length(blocks) == 1L) blocks[[1L]] else do.call(rbind, blocks)
+  column_mass <- as.numeric(Matrix::colSums(weights))
+  deviation <- max(abs(column_mass - 1))
+  if (!all(is.finite(column_mass)) || deviation > 1e-12) {
+    .input_error(sprintf(paste0(
+      "The stacked family columns deviate from unit mass by %s, so the ",
+      "family is not conservative. A conservative frame's columns must sum to ",
+      "one within 1e-12 whatever `tolerance` the per-member checks were given: ",
+      "every member must be column normalized on its own, and `alpha` must sum ",
+      "to one."
+    ), format(deviation, digits = 3)),
+      arg = "...", received = sprintf("column mass off by %s",
+        format(deviation, digits = 3)),
+      expected = "columns summing to one")
+  }
+
+  index <- do.call(rbind, Map(.frame_family_member_index, members,
+    names(members), alpha))
+  rownames(index) <- NULL
+  if (anyDuplicated(index$measurement)) {
+    duplicated_label <- index$measurement[[anyDuplicated(index$measurement)]]
+    .input_error(sprintf(paste0(
+      "Family measurement identifiers must be unique, but `%s` appears more ",
+      "than once. Identifiers are `\"<family>::<node>\"`, so give the members ",
+      "distinct names, or the offending member distinct node labels."
+    ), duplicated_label),
+      arg = "...", received = sprintf("duplicated identifier `%s`",
+        duplicated_label),
+      expected = "one identifier per measurement")
+  }
+
+  frame <- additive_frame(weights, normalization = "conservative",
+    domain = domain)
+  frame$index <- index
+  domain_kind <- .frame_family_domain_kind(members)
+  if (!is.null(domain_kind)) frame$domain_kind <- domain_kind
+  frame$specification <- .frame_family_specification(members, alpha)
+  .validate_frame_for_compile(frame)
+  frame
+}
+
+.frame_family_names <- function(supplied, count) {
+  names <- if (is.null(supplied)) rep("", count) else supplied
+  names[is.na(names)] <- ""
+  blank <- !nzchar(names)
+  names[blank] <- paste0("frame", seq_len(count))[blank]
+  if (anyDuplicated(names)) {
+    duplicated_name <- names[[anyDuplicated(names)]]
+    .input_error(sprintf(paste0(
+      "Family member names must be unique, but `%s` names more than one ",
+      "member. The name is the row's `family` identity, so it has to ",
+      "distinguish the members it labels."
+    ), duplicated_name),
+      arg = "...", received = sprintf("duplicated name `%s`", duplicated_name),
+      expected = "one name per member")
+  }
+  names
+}
+
+.validate_frame_family_member <- function(member, name, tolerance) {
+  if (!inherits(member, "effect_frame")) {
+    .input_error(sprintf(paste0(
+      "Family member `%s` must be a compiled `effect_frame` from ",
+      "`compile_frame()`; received %s. Frame weights and `alpha` are ",
+      "separate arguments: pass the frames in `...` and the weights in ",
+      "`alpha`."
+    ), name, .msg_value(member)),
+      arg = name, received = .msg_value(member),
+      expected = "a compiled `effect_frame`")
+  }
+  .validate_frame_for_compile(member)
+  if (!identical(member$representation, "additive_diagonal")) {
+    .input_error(sprintf(paste0(
+      "Family member `%s` uses the `%s` representation; only additive ",
+      "diagonal frames stack into a family."
+    ), name, member$representation),
+      arg = name, received = member$representation,
+      expected = "an additive diagonal frame")
+  }
+  if (!is.null(member$metric_folded)) {
+    .input_error(sprintf(paste0(
+      "Family member `%s` has a diagonal metric folded into its weights, so ",
+      "its columns carry the metric diagonal rather than unit mass and the ",
+      "per-block law has no fixed budget to divide. Build the family from ",
+      "declared frames and supply the metric to `plan_geometry()` instead."
+    ), name),
+      arg = name, received = "a metric-folded frame",
+      expected = "a frame whose columns sum to one")
+  }
+  # Gap G2 of the contract: the stacked family can conserve while no single
+  # block does, so column normalization is checked per member and never on the
+  # stack. A member that leaves a feature uncovered cannot be column
+  # normalized at all, and is refused here rather than absorbed.
+  column_mass <- as.numeric(Matrix::colSums(member$weights))
+  deviation <- max(abs(column_mass - 1))
+  if (!all(is.finite(column_mass)) || deviation > tolerance) {
+    uncovered <- sum(column_mass <= 0)
+    .input_error(sprintf(paste0(
+      "Family member `%s` is not column normalized on its own: its per-",
+      "feature mass is off by %s%s. The per-block law needs every member to ",
+      "partition the whole domain separately, which a conserving stack does ",
+      "not imply. Compile it with `normalization = \"conservative\"`."
+    ), name, format(deviation, digits = 3),
+      if (uncovered > 0L) {
+        sprintf(", and %s carry no mass at all",
+          .msg_count(uncovered, "feature"))
+      } else {
+        ""
+      }),
+      arg = name,
+      received = sprintf("per-feature mass off by %s",
+        format(deviation, digits = 3)),
+      expected = "a member whose columns sum to one")
+  }
+  invisible(member)
+}
+
+.frame_family_domain <- function(members) {
+  domain <- .domain_reference(members[[1L]]$domain)
+  for (position in seq_along(members)) {
+    other <- .domain_reference(members[[position]]$domain)
+    if (!.same_domain_reference(other, domain)) {
+      .contract_error(sprintf(paste0(
+        "Family member `%s` is bound to neural domain `%s`, but member `%s` ",
+        "is bound to `%s`. A family stacks rows over one domain, so every ",
+        "member must be compiled against the same one."
+      ), names(members)[[position]], other$id, names(members)[[1L]],
+        domain$id),
+        arg = names(members)[[position]], received = other$id,
+        expected = domain$id)
+    }
+  }
+  domain
+}
+
+.frame_family_alpha <- function(alpha, names, tolerance) {
+  count <- length(names)
+  if (is.null(alpha)) alpha <- rep(1 / count, count)
+  if (!is.numeric(alpha) || length(alpha) != count ||
+      any(!is.finite(alpha))) {
+    .input_error(sprintf(paste0(
+      "`alpha` must be %s, one per family member, and every weight finite; ",
+      "received %s."
+    ), .msg_count(count, "finite number"), .msg_value(alpha)),
+      arg = "alpha", received = .msg_value(alpha),
+      expected = .msg_count(count, "finite weight"))
+  }
+  if (!is.null(names(alpha))) {
+    if (!setequal(names(alpha), names) || anyDuplicated(names(alpha))) {
+      .input_error(sprintf(paste0(
+        "Named `alpha` must name every family member exactly once. The ",
+        "members are %s; `alpha` names %s."
+      ), .frame_family_name_list(names), .frame_family_name_list(names(alpha))),
+        arg = "alpha", received = .frame_family_name_list(names(alpha)),
+        expected = .frame_family_name_list(names))
+    }
+    alpha <- alpha[names]
+  }
+  if (any(alpha <= 0)) {
+    .input_error(sprintf(paste0(
+      "Every family weight must be positive; `alpha` holds %s. A nonpositive ",
+      "weight does not remove a member: it contributes rows of zero or ",
+      "negative mass, which is not a share of the budget. Drop the member ",
+      "from the family instead."
+    ), format(min(alpha))),
+      arg = "alpha", received = sprintf("a weight of %s", format(min(alpha))),
+      expected = "positive weights")
+  }
+  total <- sum(alpha)
+  if (abs(total - 1) > tolerance) {
+    .input_error(sprintf(paste0(
+      "Family weights must sum to one; `alpha` sums to %s, off by %s. The ",
+      "per-block law reads the weight that was actually applied, so `alpha` ",
+      "is never renormalized for you: pass weights summing to one, for ",
+      "example `alpha / sum(alpha)`."
+    ), format(total, digits = 12), format(abs(total - 1), digits = 3)),
+      arg = "alpha", received = sprintf("weights summing to %s",
+        format(total, digits = 12)),
+      expected = "weights summing to one")
+  }
+  stats::setNames(as.numeric(alpha), names)
+}
+
+.frame_family_name_list <- function(names) {
+  paste0("`", names, "`", collapse = ", ")
+}
+
+.frame_family_block <- function(weights) {
+  if (!inherits(weights, "Matrix")) {
+    weights <- Matrix::Matrix(weights, sparse = TRUE)
+  }
+  weights <- methods::as(weights, "dMatrix")
+  methods::as(methods::as(weights, "generalMatrix"), "CsparseMatrix")
+}
+
+# One row of per-row metadata per measurement of one member. A row's scale and
+# center used to be readable only from the frame-wide `$specification`, which
+# stacking destroys; carrying them here is what lets a transported or grouped
+# result say which instrument produced a number.
+.frame_family_member_index <- function(member, family, alpha) {
+  count <- nrow(member$weights)
+  specification <- member$specification
+  node <- .frame_family_nodes(member, count)
+  scale <- if (.is_number(specification$radius)) {
+    as.numeric(specification$radius)
+  } else {
+    NA_real_
+  }
+  # A center exists exactly when the row is anchored at a feature: a
+  # neighborhood records its anchor in `$support_index$node_ids`, and a point
+  # frame's row *is* one feature. A region or whole-brain row has none.
+  center <- if (!is.null(member$support_index)) {
+    as.character(member$support_index$node_ids)
+  } else if (identical(specification$kind, "voxels")) {
+    node
+  } else {
+    rep(NA_character_, count)
+  }
+  data.frame(
+    measurement = paste0(family, "::", node),
+    family = rep(family, count),
+    node = node,
+    scale = rep(scale, count),
+    center = center,
+    alpha = rep(as.numeric(alpha), count),
+    stringsAsFactors = FALSE
+  )
+}
+
+.frame_family_nodes <- function(member, count) {
+  index <- member$index
+  if (is.data.frame(index) && "measurement" %in% names(index) &&
+      nrow(index) == count) {
+    return(as.character(index$measurement))
+  }
+  as.character(seq_len(count))
+}
+
+.frame_family_domain_kind <- function(members) {
+  kinds <- unique(unlist(lapply(members, `[[`, "domain_kind")))
+  if (length(kinds) != 1L) NULL else kinds
+}
+
+.frame_family_specification <- function(members, alpha) {
+  records <- Map(function(member, family, weight) {
+    list(
+      family = family,
+      alpha = as.numeric(weight),
+      scale = if (.is_number(member$specification$radius)) {
+        as.numeric(member$specification$radius)
+      } else {
+        NA_real_
+      },
+      measurements = nrow(member$weights),
+      declared_normalization = member$normalization,
+      specification = member$specification
+    )
+  }, members, names(members), alpha)
+  structure(list(
+    kind = "frame_family",
+    normalization = "conservative",
+    members = records,
+    alpha = alpha
+  ), class = "effect_frame_family_spec")
+}
+
+# The per-block certificate of contract claim 3b, read off the weights alone:
+# a family conserves block by block exactly when every member's columns sum to
+# its own alpha. It costs one column sum per member and needs no geometry.
+.frame_family_conservation <- function(frame, tolerance) {
+  specification <- frame$specification
+  index <- frame$index
+  if (!identical(specification$kind, "frame_family") ||
+      !is.data.frame(index) || !"family" %in% names(index)) {
+    return(NULL)
+  }
+  records <- specification$members
+  rows <- split(seq_len(nrow(frame$weights)),
+    factor(index$family, levels = names(records)))
+  blocks <- lapply(names(records), function(family) {
+    positions <- rows[[family]]
+    weight <- records[[family]]$alpha
+    mass <- as.numeric(Matrix::colSums(
+      frame$weights[positions, , drop = FALSE]
+    ))
+    deviation <- max(abs(mass - weight))
+    data.frame(family = family, alpha = weight,
+      measurements = length(positions), max_deviation = deviation,
+      conserved = deviation <= tolerance, stringsAsFactors = FALSE)
+  })
+  result <- do.call(rbind, blocks)
+  rownames(result) <- NULL
+  result
+}
+
 #' Diagnose local-to-global conservation of a compiled frame
 #'
 #' Under a conservative frame every domain feature carries total weight mass
@@ -375,7 +799,11 @@ compile_frame <- function(specification, domain) {
 #'   per-feature deviation from the conserving `reference_mass`, and the
 #'   per-feature mass vector. `reference_mass` is one for a declared frame and
 #'   the folded metric diagonal for a metric-folded one, because that frame's
-#'   global comparator is read under the same metric.
+#'   global comparator is read under the same metric. A [frame_family()]
+#'   additionally reports `members`, one row per family member giving its
+#'   `alpha`, its measurement count, and the deviation of its own per-feature
+#'   mass from that `alpha` -- the block-by-block half of the law, which the
+#'   whole family conserving does not imply.
 #' @family neural domains and frames
 #' @seealso [compile_frame()] and the normalization argument of [voxelwise()],
 #'   [searchlights()], [regions()], and [whole_brain()].
@@ -405,7 +833,8 @@ frame_conservation <- function(x, tolerance = 1e-10) {
   reference <- .frame_conservation_reference(x)
   fold <- x$metric_folded
   max_deviation <- max(abs(mass - reference))
-  structure(list(
+  members <- .frame_family_conservation(x, tolerance)
+  report <- structure(list(
     conserved = max_deviation <= tolerance,
     component = "total",
     normalization = x$normalization,
@@ -420,6 +849,8 @@ frame_conservation <- function(x, tolerance = 1e-10) {
     reference_mass = reference,
     tolerance = tolerance
   ), class = "effect_frame_conservation")
+  if (!is.null(members)) report$members <- members
+  report
 }
 
 .normalize_frame <- function(weights, normalization) {

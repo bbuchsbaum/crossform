@@ -419,6 +419,25 @@ compile_lowering <- function(frame, query) {
         !normalization %in% c("none", "local", "conservative")) {
       .input_error("Frame normalization must be none, local, or conservative.")
     }
+    # A frame index is optional, but when present it is the row labelling the
+    # rest of the package reads: the executor takes a result's measurement
+    # identifiers from it, and a frame family's per-row metadata is carried in
+    # it. An index that does not line up with the weights, or that names one
+    # row twice, would mislabel every value downstream rather than fail, so it
+    # is refused here.
+    if (!is.null(frame$index)) {
+      measurement <- if (is.data.frame(frame$index)) {
+        frame$index$measurement
+      } else {
+        NULL
+      }
+      if (is.null(measurement) || nrow(frame$index) != nrow(weights) ||
+          anyNA(measurement) || anyDuplicated(measurement)) {
+        .input_error(
+          "A frame index must name every measurement row exactly once."
+        )
+      }
+    }
     row_mass <- if (inherits(weights, "Matrix")) Matrix::rowSums(weights) else rowSums(weights)
     if (any(!is.finite(row_mass)) || any(row_mass <= 0)) {
       .input_error("Every additive frame row must have finite positive mass.")

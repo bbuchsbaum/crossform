@@ -22,7 +22,8 @@ crossform_public_api <- c(
   "effect_space", "estimate_relation", "evaluate_geometry",
   "example_fmri_effects", "file_matrix_source",
   "fmridesign_design_model", "fmrireg_relation",
-  "frame_conservation", "gaussian_covariance_model",
+  "frame_conservation", "frame_family",
+  "gaussian_covariance_model",
   "geometry_alignment", "geometry_component", "geometry_spectrum",
   "identity_metric", "lm_extractor", "lm_relation_fit",
   "lower_effect_map", "match_control", "match_coupling",
@@ -56,8 +57,10 @@ test_that("the exported surface is exactly the ledgered set", {
   expect_identical(exports, expected)
 
   # The count is stated separately because the ledger quotes it: the
-  # subtraction release took 105 exports to 97.
-  expect_identical(length(exports), 97L)
+  # subtraction release took 105 exports to 97, and WS-D has since added
+  # `frame_family()` (`design/api-tiers.md`, "Additions after the subtraction
+  # release").
+  expect_identical(length(exports), 98L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

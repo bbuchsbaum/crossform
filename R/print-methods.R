@@ -414,6 +414,34 @@ print.effect_frame_spec <- function(x, ...) {
 }
 
 #' @export
+format.effect_frame_family_spec <- function(x, ...) {
+  .pf_inline("effect_frame_family_spec",
+    paste0(length(x$members), " members"),
+    paste0(x$normalization, " normalization"))
+}
+
+#' @export
+print.effect_frame_family_spec <- function(x, ...) {
+  .pf_emit("effect_frame_family_spec", list(
+    kind = x$kind,
+    normalization = x$normalization,
+    members = .pf_frame_family_members(x),
+    alpha = paste0("sums to ", .pf_num(sum(x$alpha)))
+  ))
+  invisible(x)
+}
+
+# "point (alpha 0.25), narrow (alpha 0.75, scale 1.01)" -- the one line that
+# says what a stacked family is made of and with what weight.
+.pf_frame_family_members <- function(specification) {
+  paste0(vapply(specification$members, function(member) {
+    paste0(member$family, " (alpha ", .pf_num(member$alpha),
+      if (is.na(member$scale)) "" else paste0(", scale ", .pf_num(member$scale)),
+      ")")
+  }, character(1)), collapse = ", ")
+}
+
+#' @export
 format.effect_frame <- function(x, ...) {
   .pf_inline("effect_frame", paste0(nrow(x$index), " nodes"),
     x$representation, x$specification$kind)
@@ -435,6 +463,11 @@ print.effect_frame <- function(x, ...) {
     nodes = nrow(x$index),
     features = x$domain$n_features,
     specification = placement,
+    members = if (identical(specification$kind, "frame_family")) {
+      .pf_frame_family_members(specification)
+    } else {
+      NULL
+    },
     normalization = x$normalization,
     weights = paste0(.pf_dim(weights), ", ", .pf_stored(weights), " stored"),
     domain = paste0(x$domain_id, " (", x$domain_kind, ")"),
@@ -1846,7 +1879,15 @@ print.effect_frame_conservation <- function(x, ...) {
     "max deviation" = .pf_num(x$max_deviation),
     tolerance = .pf_num(x$tolerance),
     "feature mass" = paste0(length(mass), " features, ",
-      .pf_num(min(mass)), " to ", .pf_num(max(mass)))
+      .pf_num(min(mass)), " to ", .pf_num(max(mass))),
+    members = if (is.null(x$members)) {
+      NULL
+    } else {
+      paste0(nrow(x$members), " family blocks, ",
+        if (all(x$members$conserved)) "each" else "not each",
+        " carrying its own alpha (max deviation ",
+        .pf_num(max(x$members$max_deviation)), ")")
+    }
   ))
   invisible(x)
 }
