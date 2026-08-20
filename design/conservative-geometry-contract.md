@@ -26,6 +26,16 @@ every numbered claim to a test id or an oracle path.
 Line numbers below are as of `elite-pass`, 2026-08-17; the accompanying
 function name is the durable reference.
 
+**Reviewer note (2026-08-20).** All source line numbers in this document were
+re-checked against commit `7ec6e37` (the contract's own commit) and resolve
+correctly there. They are already stale against the working tree: `R/metric.R`
+has since grown by 72 lines ahead of line 590, so every `R/metric.R:NNN`
+citation below is off by `+72` in an uncommitted checkout (`.metric_additive_frame`
+590→662, `.compose_frame_metric` 814→886, `metric_components` 915→987,
+`.metric_frame_conservation` 998→1070). The function names resolve in both. The
+line numbers have deliberately **not** been rewritten to the working tree, which
+is mid-edit by other work streams; readers should resolve by name.
+
 ---
 
 ## 1. Two instruments: the detection map and the attribution map
@@ -133,12 +143,29 @@ radius-1.01 and radius-2.01 conservative frames on a 12-feature line domain,
 
 ## 3. The conservative total is a smoothed univariate voxel ledger
 
-**Claim 3.** Because the total is \(\sum_v w_{xv}b_v^{(L)}b_v^{(R)\top}\), the
+**Claim 3** (identity or diagonal metric only — see the precondition below).
+Because the total is \(\sum_v w_{xv}b_v^{(L)}b_v^{(R)\top}\), the
 per-voxel outer products form a **fixed ledger** that the frame merely
 reallocates. The frame appears only as a nonnegative linear map applied *after*
 the multivariate content has been fixed per voxel. Consequently the total
 field at any scale is a spatially smoothed version of one univariate map (one
 per query coordinate), and carries no cross-voxel information whatsoever.
+
+**Metric precondition (load-bearing).** The expression
+\(G_x=\sum_v w_{xv}b_v^{(L)}b_v^{(R)\top}\) is the *feature-additive* branch of
+the native composition of §5.1: it is \(BD(\sqrt{w_x})QD(\sqrt{w_x})B^\top\)
+specialized to \(Q=I\) or \(Q=D(q)\), where \(D(\sqrt{w})QD(\sqrt{w})=D(wq)\)
+stays diagonal. For a **dense** \(Q\) the node form is
+\[
+G_x=\sum_{u,v}\sqrt{w_{xu}w_{xv}}\;Q_{uv}\,b_u^{(L)}b_v^{(R)\top},
+\]
+which pairs *distinct* voxels inside the node. There is then no per-voxel
+ledger, the total is genuinely multivariate across space, and neither the
+smoothing picture nor §3.1 applies. Claim 3 is therefore scoped to schedules
+for which `metric_capabilities()$feature_additive` is `TRUE`; §5 is where the
+general metric enters, and it is exactly the case where the ledger dissolves
+and conservation fails together. Both the oracle and the cited test exercise the
+identity-metric branch, so the evidence matches the scoped claim.
 
 This is visible in the implementation: `.effect_form_feature_task()`
 (`R/task.R:123-190`) forms one atom row per feature — the ordered outer product
@@ -161,6 +188,22 @@ conservative — and, block by block,
 \[
 \sum_{x\in\text{scale }s}G_{s,x}=\alpha_s\,G_\Omega .
 \]
+
+Two preconditions are load-bearing here and must be enforced by the family
+constructor (D2/D3), not assumed:
+
+1. **Every scale must be column-normalized *on its own*.** The per-scale
+   identity needs \(\sum_{x\in s}w^{(s)}_{xv}=1\) for every feature `v`
+   separately, which is strictly stronger than the stacked frame conserving.
+   A scale that leaves any feature uncovered cannot be column-normalized at
+   all (`.normalize_frame()` refuses), so the constructor must reject a family
+   member whose support does not cover the domain rather than renormalizing the
+   stack as a whole — the stack can conserve while no individual block does.
+2. **α must sum to one**, or the block identity reads \(\alpha_s G_\Omega\)
+   against a family that does not conserve. Whether the constructor
+   renormalizes α, or refuses, is a D2 decision; this contract requires only
+   that it be one of the two and that the applied α be recorded per row
+   (§7.1).
 
 Measured (three scales, `α = (0.2, 0.5, 0.3)`, 12-feature domain): worst
 absolute deviation `8.88e-16`, worst relative deviation `3.43e-16`. For the
@@ -190,6 +233,18 @@ coherent and configuration parts. The coherent share
 depends on the data through cross-voxel products and is the only scale-resolved
 quantity in the table above that is not proportional to α. The same holds
 location-wise: the coherent share as a function of node is a genuine map.
+
+**Reviewer note (2026-08-20): the statement is stronger than "not proportional
+to α" — φ_s is *exactly invariant* to α_s, and that is what makes the coherence
+spectrum well-posed.** Both components are homogeneous of degree one under a
+rescaling \(w_x\mapsto\alpha w_x\) of a single row: the total is linear in `w`;
+and the coherent part is \(K_{\mathrm{coh}}=aa^\top/(a^\top K_x^{-1}a)\) with
+\(a=w_x/\!\sum w_x\) *invariant* to α while \(K_x^{-1}\) scales as \(1/\alpha\),
+so \(K_{\mathrm{coh}}\) scales as α (identity-metric form
+\((Bw)(Bw)^\top/\!\sum w\): manifestly degree one). The ratio therefore cancels
+α exactly. Consequence for D5: the coherence spectrum is a property of the
+frame family's *geometry*, not of the analyst's α vector, so it may be reported
+without disclosing α — the exact opposite of the energy panel §3.1 forbids.
 
 Measured on the same fixture:
 
@@ -227,7 +282,15 @@ Nothing in the construction could make them sum.
 Measured: with `α`-weighted scales, `E_s^coh` above differs from
 `α_s·⟨H, coh_Ω⟩ = (0.235591844, 0.588979610, 0.353387766)` in every row. Per
 scale, `max |Σ_x G^coh_x − G^coh_Ω|` is `7.41`, `2.70` and `1.27` on a fixture
-where `max |G_Ω|` is order 1.
+whose global coherent component has `max |G^coh_Ω| = 1.21`. The failure is
+therefore several times the size of the quantity it is meant to reproduce, not
+a tolerance effect.
+
+*(Corrected 2026-08-20. This paragraph previously compared the coherent
+deviation to `max |G_Ω|` and called it "order 1"; measured, `max |G_Ω| = 8.62`
+on that fixture, so the comparison was both numerically wrong and against the
+wrong object. The comparator for a coherent deviation is the global coherent
+component.)*
 
 **Normative consequences.**
 
@@ -240,9 +303,12 @@ where `max |G_Ω|` is order 1.
    produce two incomparable denominators.
 3. A coherence fraction may be reported only where the components form a
    nonnegative partition. `crossform` already masks rather than clamps
-   (`R/result.R:859-863`): `coherence_fraction` is `NA` unless
-   `total > 0 && coherent >= 0 && configuration >= 0`, and the mask ships
-   alongside as `coherence_fraction_valid`.
+   (`.new_effect_contrast_view()`, `R/result.R:859-863`): `coherence_fraction`
+   is `NA` unless
+   `is.finite(total) && total > 0 && coherent >= 0 && configuration >= 0`, and
+   the mask ships alongside as `coherence_fraction_valid`. (The `is.finite`
+   conjunct was missing from this contract's first draft; it is part of the
+   guard.)
 
 ---
 
@@ -328,12 +394,58 @@ delocalized whenever `Q` is dense — a node's support is no longer its support.
 Measured per-node disagreement on the fixture above: `6.01e-01` against
 `max |native| = 4.46e+00`, i.e. ≈13.5% of the largest node value.
 
+#### 5.2.1 The root is part of the estimand — pin it
+
+**Claim 5.2.1 (added 2026-08-20).** The conservation argument above never uses
+symmetry of the root. For *any* `R` with \(RR^\top=Q\),
+
+\[
+\sum_x R\,D(w_x)\,R^\top=R\Big(\sum_x D(w_x)\Big)R^\top=RIR^\top=Q ,
+\]
+
+so conservation is root-invariant. **The per-node values are not.** Measured
+(`conservative-metric-composition.R` §O2.d′, the same 9-feature fixture as §5):
+the symmetric PSD root and the lower Cholesky factor both conserve —
+`1.53e-15` and `2.86e-16` relative — while their per-node forms differ by
+`6.33e-01` against `max |symmetric| = 4.03e+00`, i.e. **15.7% of the largest
+node value**, comparable to the native-versus-whitened gap of 13.5% the section
+opens with. An independent draw during review gave `28.6%`; as in §5, the
+invariant claim is the algebraic one, and the percentage is fixture-specific.
+
+Writing the law as \(Q^{1/2}D(w_x)Q^{1/2}\) with the same symbol on both sides
+silently selects the symmetric PSD root; the general form is
+\(R\,D(w_x)\,R^\top\), and "whitened" alone does not name an estimand.
+
+**Normative.** `composition = "whitened"` means the **symmetric positive
+semidefinite root** \(Q^{1/2}\) — the choice the oracle
+(`conservative-metric-composition.R` §O2.d) and the test
+(`test-conservative-geometry-contract.R` "the whitened composition conserves
+where the native one does not") both already take. The root identity must be
+recorded in the plan identity alongside the composition, so that a future
+Cholesky or ZCA variant is a distinguishable estimand rather than a silent
+substitution. A conservation certificate is **not** sufficient evidence that
+two whitened analyses computed the same thing.
+
+#### 5.2.2 Whitening is not a support-local operation
+
+A second consequence, for implementation rather than for semantics:
+\(Q^{1/2}D(w_x)Q^{1/2}\) is dense on the whole domain even though `D(w_x)` is
+supported on the node. It therefore cannot be produced through
+`.compose_frame_metric()`, whose contract requires
+`identical(metric$support, node_value$support)` (`R/metric.R:814-895`, HEAD) and
+which returns an operator on the node's own support. The feasible route is to
+whiten the relation once — \(\tilde B=BQ^{1/2}\) — and then run the ordinary
+identity-metric conservative pipeline on \(\tilde B\), which reproduces
+\(\tilde B D(w_x)\tilde B^\top=BQ^{1/2}D(w_x)Q^{1/2}B^\top\) exactly. D6 should
+budget for a relation-level transform, not a metric-schedule variant.
+
 **Normative:** a conservative crossnobis-style analysis must expose
 `composition = c("native", "whitened")`, defaulting to `"native"` (the current
-behaviour), carrying the choice into the scientific plan identity, and emitting
-a conservation certificate. The switch must never be applied silently to
-"repair" a failed conservation check. `crossform` has no `"whitened"` code path
-today; §10 records the oracle that defines what it must compute.
+behaviour), carrying the choice **and the root identity of §5.2.1** into the
+scientific plan identity, and emitting a conservation certificate. The switch
+must never be applied silently to "repair" a failed conservation check.
+`crossform` has no `"whitened"` code path today; §10 records the oracle that
+defines what it must compute.
 
 ### 5.3 The diagonal-metric fold, and what it must keep
 
@@ -502,6 +614,37 @@ group node's own geometry: no group frame defines a common mode there, and §4
 says node-local rank-one projections do not sum. Result labels and print
 methods must say so.
 
+**What does survive transport** (E2 must state this, because a blanket warning
+invites the wrong conclusion that transported components are unusable): `P` is
+linear and the decomposition `total = coherent + configuration` is an identity
+per native node, so it holds after transport as well —
+\(P^\top c_{\mathrm{coh}}+P^\top c_{\mathrm{cfg}}=P^\top c_{\mathrm{tot}}\)
+exactly. Transported components are a valid *additive decomposition of the
+transported budget*. What fails is only the reinterpretation of the coherent
+part as a group-node common mode, and — by §4 — any *fraction* taken against a
+summed coherent denominator.
+
+**Required labelling.** The transported coherent and configuration fields must
+not reuse the bare names `coherent` / `configuration`, which would let them be
+read as group-node geometry. E2 fixes explicit transported names (e.g.
+`transported_coherent`) and a print line naming the native frame family the
+ledger came from. This contract does not fix the spelling; it fixes that the
+names must differ and that the native provenance must be printed.
+
+### 7.6a Conservation is a point-estimate law — **normative**
+
+The conservation theorem (§2) is a statement about estimates. It carries **no**
+implication for their uncertainty: \(\sum_x\widehat\theta_x=\widehat\theta_\Omega\)
+does not give \(\sum_x\operatorname{SE}_x=\operatorname{SE}_\Omega\), because
+node estimates of an overlapping frame are strongly positively correlated and
+variances do not add. The variance of the conserved budget requires the full
+cross-node sampling covariance, not a per-node margin.
+
+A conserved ledger therefore buys no free error bars, and a population layer
+must not build one by summing per-node standard errors. This is exactly what
+D8 (`contrast_energy` sampling route) has to supply, and until it does, a
+conservative attribution map is a point ledger reported without inference.
+
 ### 7.7 What crossform must not be asked to supply
 
 Registration and functional-transport *learning* stay outside the package. WS-E
@@ -545,7 +688,9 @@ fixtures. They are the tolerances tests must assert, not aspirational figures.
 | `Σ_x G_x = G_Ω`, identity or diagonal metric | `1e-12` absolute (measured `≤ 1.8e-15`) |
 | per-scale `Σ_{x∈s} G_{s,x} = α_s G_Ω` | `1e-12` absolute (measured `8.9e-16`) |
 | total equals the frame contraction of the voxel ledger | `1e-12` (measured `2.2e-16`) |
-| `Σ_x K_x^wh = Q` (whitened composition) | `1e-12` relative (measured `1.5e-15`) |
+| `Σ_x K_x^wh = Q` (whitened composition, symmetric root) | `1e-12` relative (measured `1.5e-15`) |
+| `Σ_x R D(w_x) Rᵀ = Q` for any root `RRᵀ = Q` | `1e-12` relative (measured `1.5e-15` symmetric, `2.9e-16` Cholesky) |
+| root-dependence of *node* values under whitening | asserted as `> 1%` relative, **never** as an equality (measured `15.7%`, and `28.6%` on a second draw) |
 | `⟨svec A, svec B⟩ = ⟨A,B⟩_F` | `1e-12` relative (measured `1.8e-15`) |
 | subject-Gram spectrum vs `P×P` covariance spectrum | `1e-12` absolute (measured `2.7e-15`) |
 | dense-metric non-conservation | asserted as `> 1%` relative, **never** as an equality |
@@ -556,18 +701,20 @@ fixtures. They are the tolerances tests must assert, not aspirational figures.
 
 | claim | statement | evidence |
 |---|---|---|
-| 1 | local = detection (intensive, row-normalized); conservative = attribution (extensive, column-normalized); non-conservation of local frames | `tests/testthat/test-integrity-guards.R` — "conservative frames conserve total evidence; local frames do not" (`frame_conservation()` TRUE vs FALSE); `tests/testthat/test-frame.R` — "conservative frames partition global feature mass" |
+| 1 | local = detection (intensive, row-normalized); conservative = attribution (extensive, column-normalized); non-conservation of local frames | `tests/testthat/test-integrity-guards.R` — "conservative frames conserve total evidence; local frames do not" (`frame_conservation()` TRUE vs FALSE); `tests/testthat/test-frame.R` — "conservative frames partition global feature mass" (column margin) **and "local normalization produces unit measurement mass" (row margin — the intensive half of the claim, uncited in the first draft)** |
 | 2 | `Σ_x G_x = G_Ω` for a column-normalized frame | `tests/testthat/test-workflow.R` — "public frame laws preserve point decomposition and global total" (1e-13); `tests/testthat/test-integrity-guards.R` — "conservative frames conserve total evidence; local frames do not" (query level, 1e-10); `design/oracles/conservative-multiscale-ledger.R` §O1.a |
-| 3a | total is the frame contraction of a fixed per-voxel ledger | `tests/testthat/test-conservative-geometry-contract.R` — "a conservative total is the frame contraction of a voxel ledger"; `design/oracles/conservative-multiscale-ledger.R` §O1.b |
+| 3a | total is the frame contraction of a fixed per-voxel ledger, **for a feature-additive (identity or diagonal) metric only** | `tests/testthat/test-conservative-geometry-contract.R` — "a conservative total is the frame contraction of a voxel ledger" (identity metric); `design/oracles/conservative-multiscale-ledger.R` §O1.b. The dense-metric counterexample that bounds the claim is claim 5b's `B(S∘Q)Bᵀ` law — **no test asserts the ledger picture *fails* for a dense `Q`**; D6 should add one |
 | 3b | per-scale totals under an α-weighted family equal `α_s G_Ω` | `tests/testthat/test-conservative-geometry-contract.R` — "an alpha-weighted frame family conserves total scale by scale"; `design/oracles/conservative-multiscale-ledger.R` §O1.c |
 | 3c | the coherence spectrum, not the energy spectrum, is the informative object | `design/oracles/conservative-multiscale-ledger.R` §O1.d (share column varies; `E_s` column does not) |
 | 4a | coherent does not conserve | `tests/testthat/test-integrity-guards.R` — "conservative frames conserve total evidence; local frames do not" (`expect_gt(abs(Σ coherent − global coherent), 1e-8)`); `design/oracles/conservative-multiscale-ledger.R` §O1.d |
-| 4b | coherence fraction is masked, never clamped | `tests/testthat/test-views.R` — "contrast returns one exact decomposition and signed marginal"; `R/result.R:859-863` |
+| 4b | coherence fraction is masked, never clamped | **Primary:** `tests/testthat/test-conservative-geometry-contract.R` — "contribution shares are undefined on the signed estimation layer", which asserts `any(!coherence_fraction_valid)` *before* `all(is.na(...))` and so exercises the masked branch. **Secondary (formula only):** `tests/testthat/test-views.R` — "contrast returns one exact decomposition and signed marginal"; `R/result.R:859-863`. *Citation corrected 2026-08-20: in `view_geometry_fixture()` both nodes are valid (`total` 5, 3; `coherent` 0.25, 0.75; `configuration` 4.75, 2.25), so that file's `expect_true(all(is.na(fraction[!valid])))` reduces to `all(is.na(numeric(0)))` and passes vacuously. It verifies the fraction on valid nodes, not the mask.* |
 | 4c | singleton frames have zero configuration (why the point scale reads share 1) | `tests/testthat/test-effect-form-laws.R` — "a singleton positive-mass frame has exactly zero configuration" |
 | 5a | identity and diagonal metrics conserve; dense metrics do not | `tests/testthat/test-conservative-geometry-contract.R` — "conservation survives a diagonal metric and fails for a dense one"; `design/oracles/conservative-metric-composition.R` §O2.a–c |
 | 5b | the failure obeys `Σ_x G_x = B(S∘Q)Bᵀ` with `S_uu = 1` | `tests/testthat/test-conservative-geometry-contract.R` — "conservation survives a diagonal metric and fails for a dense one" (its `overlap` assertions); `design/oracles/conservative-metric-composition.R` §O2.c |
 | 5c | the assessment's `−6.6%` is fixture-specific; sign and size both vary | `design/oracles/conservative-metric-composition.R` §O2.c′ |
-| 5d | the whitened composition `Q^{1/2} D(w) Q^{1/2}` conserves and is a different estimand | `tests/testthat/test-conservative-geometry-contract.R` — "the whitened composition conserves where the native one does not"; `design/oracles/conservative-metric-composition.R` §O2.d |
+| 5d | the whitened composition `Q^{1/2} D(w) Q^{1/2}` conserves and is a different estimand | `tests/testthat/test-conservative-geometry-contract.R` — "the whitened composition conserves where the native one does not" (uses the symmetric eigen root, lines 181-184); `design/oracles/conservative-metric-composition.R` §O2.d |
+| 5g | conservation holds for **any** root `RRᵀ = Q`, but node values are root-dependent, so `"whitened"` alone does not name an estimand (§5.2.1) | `design/oracles/conservative-metric-composition.R` §O2.d′ (added by the 2026-08-20 review: both roots conserve to `1.5e-15` / `2.9e-16`, node values differ by `15.7%`). **No test yet** — D6 must add one asserting both roots conserve while their node values differ by `> 1%` |
+| 5h | whitening is not support-local, so it cannot go through `.compose_frame_metric()` (§5.2.2) | source-level: `.compose_frame_metric()` requires `identical(metric$support, node_value$support)` (`R/metric.R:814-895`, HEAD). No test; D6 deliverable |
 | 5e | the package refuses to certify a non-diagonal schedule | `tests/testthat/test-metric.R` — "conservative identity conservation is capability-gated"; `design/oracles/conservative-metric-composition.R` §O2.e |
 | 5f | the diagonal-metric fold declares `"none"` but keeps `declared_normalization` in `$metric_folded`, and `frame_conservation()` certifies against `reference_mass` | `design/oracles/conservative-metric-composition.R` §O2.f; `R/frame.R:396-423`, `R/metric.R:590-637`. Node labels still do not survive the fold — see §7.1 |
 | 6 | contributions are signed; shares and clipping are invalid on the estimation layer | `tests/testthat/test-conservative-geometry-contract.R` — "contribution shares are undefined on the signed estimation layer"; `design/oracles/conservative-transport-readiness.R` §O3.e; `design/effect-form-contract.md` §8 |
@@ -584,3 +731,170 @@ Rscript design/oracles/conservative-multiscale-ledger.R
 Rscript design/oracles/conservative-metric-composition.R
 Rscript design/oracles/conservative-transport-readiness.R
 ```
+
+**Reviewer note (2026-08-20): the oracles are not executed by anything.**
+`grep -rl design/oracles` over the repository matches only the three scripts
+themselves and this document — no test, no `Makefile`, and none of the four
+workflows in `.github/workflows/` runs them. All three do run clean today
+(exit 0, verified 2026-08-20) and every number quoted in this contract
+reproduces exactly. But claims **3c, 5c, 5g, 7b, 7c, 7d and 7e** have *no other
+evidence*, so their only protection against silent rot is a human remembering
+to run a script. That is below the standard the rest of this contract sets, and
+it will not survive the API churn WS-D is about to introduce.
+
+Recommended (D2, since it is the first ticket to touch this material): add a
+skipped-by-default `test-conservative-oracles.R` that shells out to the three
+scripts under `testthat::skip_on_cran()` and asserts exit status plus a few
+anchor numbers, or promote the six oracle-only claims into
+`test-conservative-geometry-contract.R`. The second is preferable — the oracles
+should stay readable derivations, not become the test suite.
+
+---
+
+## 11. Fresh-context review (2026-08-20)
+
+Independent review of `conservative-geometry-v1` at commit `7ec6e37`, against
+`HEAD` = `a27b246`. Scope: re-derivation of every numbered claim in §1–§7,
+citation fidelity, evidence audit of the §10 index, execution of the three
+oracles, and gap analysis for WS-D / WS-E.
+
+**Verdict: accept with amendments.** The mathematics is sound. Every claim in
+§1–§7 re-derives correctly, all three oracles run clean and reproduce every
+quoted figure exactly, and every file:line citation resolves at the contract's
+own commit. The amendments below are applied in place; none of them overturns a
+claim, but two of them (§3's missing metric precondition, §5.2.1's root
+ambiguity) change what an implementer must build, so this document should not
+be treated as frozen until D6 confirms §5.2.1.
+
+### 11.1 Claims verified
+
+Re-derived independently and confirmed: **§2** (exchange of summation; both
+preconditions are real and are the actual failure modes), **§3.1** (per-scale
+`α_s G_Ω` follows from block-wise column normalization), **§3.2** (the coherent
+share is the only data-dependent column), **§4** (node-local rank-one
+projections have no linear operator summing them to the global one), **§5.1**
+(`Σ_x K_x^native = S ∘ Q` with `S_uv = Σ_x √(w_xu w_xv)`; `S_uu = 1` by column
+normalization and `S_uv ∈ [0,1]` by Cauchy–Schwarz, consistent with the measured
+`[0, 0.8165]`), **§5.2** (whitened conservation, subject to §5.2.1), **§5.3**
+(the `"none"` declaration is correct, not lossy), **§6** (conservation is a
+signed-sum statement and does not make summands nonnegative; the arithmetic in
+the measured block is internally consistent), **§7.2–7.5** (Frobenius isometry,
+rank ≤ N−1 subject-Gram trick, row-stochastic budget preservation, budget vs
+density).
+
+**Oracles.** All three exit 0. Every number quoted in §2, §3.1, §3.2, §4, §5,
+§5.2, §5.3, §6, §7.1 and §7.2–§7.5 matches the printed output to the digits
+shown — including the twelve-draw sweep in §5, reproduced element for element.
+Oracle fidelity is the strongest part of this contract.
+
+**Evidence audit.** All fifteen cited test names exist. Fourteen of fifteen
+citations test the claim they are cited for, non-vacuously; the exception is
+claim 4b (§11.3). The three most load-bearing tests —
+"an alpha-weighted frame family conserves total scale by scale",
+"conservation survives a diagonal metric and fails for a dense one" (whose
+`overlap` block asserts the `B(S∘Q)Bᵀ` law exactly as claim 5b describes), and
+"the whitened composition conserves where the native one does not" — are precise
+and independent of the production contraction path.
+
+### 11.2 Corrections applied
+
+1. **§3 was stated without its metric precondition** (over-statement, now
+   fixed). "The total field at any scale … carries no cross-voxel information
+   whatsoever" is true only on the feature-additive branch. For a dense `Q` the
+   native composition gives `G_x = Σ_{u,v} √(w_xu w_xv) Q_uv b_u b_vᵀ`, which
+   pairs distinct voxels inside a node; there is no per-voxel ledger and §3.1
+   does not apply. Claim 3 is now scoped to
+   `metric_capabilities()$feature_additive`. This mattered: §3 is the basis of
+   the "multiscale energy panels are not findings" prohibition, and §5 is
+   precisely about the case where its premise fails.
+2. **§5.2 named an estimand that is not determined** (new §5.2.1). Conservation
+   holds for *any* root `RRᵀ = Q`, not only the symmetric one, but the per-node
+   values are root-dependent. `conservative-metric-composition.R` gained §O2.d′
+   this review: symmetric PSD root and lower Cholesky factor both conserve
+   (`1.5e-15`, `2.9e-16` relative) while their node forms differ by **15.7%** of
+   the largest node value — comparable to the native-vs-whitened gap of 13.5%
+   that §5.2 leads with, and `28.6%` on an independent draw. `composition =
+   "whitened"` is now normatively defined as the symmetric PSD root, with the
+   root identity required in plan identity. A conservation certificate cannot
+   distinguish two roots, so it is not sufficient evidence of a reproduced
+   analysis.
+3. **§4's fixture comparison was numerically wrong** (now corrected). The
+   coherent deviations `7.41 / 2.70 / 1.27` were compared to "`max |G_Ω|` … order
+   1"; measured, `max |G_Ω| = 8.62`. The correct comparator is the global
+   *coherent* component, `max |G^coh_Ω| = 1.21`, which supports the point better.
+4. **§4 normative 3 misstated the mask guard** (now corrected): the code
+   conjunct is `is.finite(total) & total > 0 & coherent >= 0 & configuration >= 0`;
+   `is.finite` was omitted.
+5. **§3.2 understated its own result** (strengthened, flagged as a reviewer
+   note). φ_s is not merely "not proportional to α" — it is *exactly invariant*
+   to α_s, because total and coherent are both homogeneous of degree one under a
+   row rescaling (`a = w_x/Σw_x` is α-invariant while `K_x⁻¹` scales as `1/α`).
+   This is what makes the coherence spectrum well-posed and reportable without
+   disclosing α, and D5 should be built on the stronger statement.
+6. **§3.1 gained two enforcement preconditions**: each family member must be
+   column-normalized *on its own* (the stack can conserve while no block does),
+   and the α-sum rule must be either enforced or refused by the constructor,
+   never assumed.
+7. **§7.6 gained what survives transport, and §7.6a is new.** The prohibition on
+   reading transported coherent as group-node geometry invited the wrong
+   inference that transported components are unusable; `total = coherent +
+   configuration` survives `P` exactly by linearity, and E2 should say so.
+   §7.6a records that conservation is a point-estimate law with no implication
+   for standard errors.
+
+### 11.3 Citation fixes
+
+- **Claim 4b's primary citation was vacuous.** `test-views.R` "contrast returns
+  one exact decomposition and signed marginal" asserts
+  `all(is.na(fraction[!valid]))`, but in `view_geometry_fixture()` both nodes are
+  valid (`total` 5, 3; `coherent` 0.25, 0.75; `configuration` 4.75, 2.25), so the
+  subset is empty and the assertion passes on `all(is.na(numeric(0)))`. It
+  verifies the fraction formula, not the mask. Repointed: the non-vacuous
+  evidence is `test-conservative-geometry-contract.R` "contribution shares are
+  undefined on the signed estimation layer", which asserts
+  `any(!coherence_fraction_valid)` first. `test-views.R` is retained as the
+  formula check.
+- **Claim 1's row-margin half was uncited.** Added `test-frame.R` "local
+  normalization produces unit measurement mass".
+- **All other line numbers verified at `7ec6e37`**, including the exact ones:
+  `R/result.R:859-863` is precisely the mask block; `R/scope.R:430-436` is
+  precisely the conservative column check; `R/kernel.R:354-377` is the
+  `weight_slice %*% atom_slice` contraction; `src/packed-form.cpp:144-222` is
+  `coherent_effect_form_atoms_cpp`, which does compute `(Bw)(Bw)ᵀ/Σw` from first
+  moments with `√2` off-diagonal packing; `R/frame.R:355-423`, `:396-423`,
+  `:425-440` and all four `R/metric.R` spans resolve. `design/effect-form-contract.md`
+  §8 (A3) exists and says what §5.1 attributes to it. No stale citation found —
+  only the working-tree drift noted in the preamble.
+- **Claim 5e is slightly under-cited**: the cited `test-metric.R` test asserts
+  the refusal and `feature_additive = FALSE` but not the
+  `global_metric_kind = "support_pair_operator"` string that §5 quotes; only the
+  oracle covers that. Left as-is, noted here.
+- **The oracles are wired to nothing** — see the note at the end of §10. Six
+  claims are oracle-only and unprotected against rot.
+
+### 11.4 Gaps for WS-D / WS-E
+
+Each with a one-line proposed resolution and owning ticket.
+
+| # | gap | proposed resolution | ticket |
+|---|---|---|---|
+| G1 | α-weight normalization across a family is assumed, never specified: renormalize, or refuse? May α be per-row rather than per-scale? | Constructor refuses `abs(sum(alpha) - 1) > tol` and records the applied α per row; per-row α permitted only as a within-scale reweighting that preserves the block column sum | D2 |
+| G2 | Each family member must individually cover the domain for §3.1's block identity; the stack conserving does not imply it | Validate column normalization per block at construction, not on the stack | D2 |
+| G3 | "Coherent share versus location" is underdetermined when a location sits in several scales — it is a function of (location, scale), not a number | Define the spectrum on `(center, scale)` and require any location-wise collapse to be a declared, named reduction (α-weighted mean, argmax-scale, …) | D5 |
+| G4 | `contribution(by = region)` granularity is unspecified: grouping rows *by center* preserves the budget exactly, splitting an overlapping node's mass across regions requires a second partition and can double-count | Default to grouping by row center (budget-exact); offer overlap-splitting only as a declared, separately certified reduction | D4 |
+| G5 | The whitened root is not part of the estimand as written (§5.2.1) | Pin the symmetric PSD root and record root identity in plan identity; oracle §O2.d′ added this review, the matching test is still owed | D6 |
+| G6 | Whitening is not support-local and cannot go through `.compose_frame_metric()` (§5.2.2) | Implement as a relation-level transform `B̃ = BQ^{1/2}` feeding the identity-metric path; budget accordingly | D6 |
+| G7 | "Nonnegativity projection" is underdetermined — a per-node total clamp and an eigenvalue truncation of the form are different operators moving different mass | Latent layer takes a named projection from a closed set, and the receipt records moved mass per projection kind | D7 |
+| G8 | Conservation gives no uncertainty; nothing currently supplies cross-node sampling covariance for `contrast_energy` (§7.6a) | Named `contrast_energy` sampling route returning the cross-node covariance, not per-node margins | D8 |
+| G9 | Between-subject budget heterogeneity is unaddressed: `⟨H, G_Ω⟩` differs per subject, so a group ledger sums incommensurable budgets | Population contract declares a per-subject budget normalization (none / unit-budget / precision-weighted) as a plan-identity field | E1 |
+| G10 | §7.6 fixes that transported components must be renamed but not to what | E2 fixes the names and the print line naming the native family | E2 |
+| G11 | Node labels still do not survive the diagonal-metric fold (§5.3) or the family route (§7.1) | Family constructor carries `$index`/`$specification` through both | D2 |
+| G12 | Oracle-only claims have no regression protection; nothing in the repo runs `design/oracles/` | Promote 3c, 5c, 5g, 7b–7e into `test-conservative-geometry-contract.R` | D2 |
+
+### 11.5 Over-statements found
+
+Two, both now corrected in place: §3's unscoped "no cross-voxel information
+whatsoever" (§11.2 item 1) and §5.2's under-determined "the whitened
+composition" (§11.2 item 2). §4's fixture comparison was a third, of a smaller
+kind (§11.2 item 3). Everything else in §1–§7 is stated at, not above, the
+strength its evidence supports — and §3.2 is stated *below* it.

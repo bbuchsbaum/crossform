@@ -167,6 +167,45 @@ say("  -> the two compositions are different estimands at the node level,")
 say("     and only the whitened one closes the global ledger.")
 
 # ---------------------------------------------------------------------------
+# O2.d'  The ROOT is part of the whitened estimand.
+#
+# The conservation argument never uses symmetry of the root:
+#     sum_x R D(w_x) R^T = R (sum_x D(w_x)) R^T = R I R^T = Q
+# holds for ANY R with R R^T = Q. So conservation is root invariant. The
+# per-node values are NOT. Writing the law as Q^(1/2) D(w) Q^(1/2) silently
+# selects the symmetric PSD root; "whitened" alone does not name an estimand,
+# and a conservation certificate cannot tell two roots apart.
+# Supports claim 5g of the contract (added by the 2026-08-20 review).
+# ---------------------------------------------------------------------------
+rule("O2.d'  the root is part of the estimand: symmetric vs Cholesky")
+Qchol <- t(chol(Q))                        # lower factor, Qchol %*% t(Qchol) = Q
+say("  |Qsym  Qsym^T  - Q| = ", sci(max(abs(Qhalf %*% t(Qhalf) - Q))),
+  "   (symmetric PSD root)")
+say("  |Qchol Qchol^T - Q| = ", sci(max(abs(Qchol %*% t(Qchol) - Q))),
+  "   (lower Cholesky factor)")
+
+whitened_chol <- t(vapply(seq_len(nrow(W)), function(x) {
+  geom_K(Qchol %*% diag(W[x, ]) %*% t(Qchol))
+}, numeric(q * (q + 1) / 2)))
+
+rel_sym <- max(abs(colSums(whitened) - G_omega_Q)) / max(abs(G_omega_Q))
+rel_chol <- max(abs(colSums(whitened_chol) - G_omega_Q)) / max(abs(G_omega_Q))
+say("  conservation, symmetric root : max rel |sum_x G_x - G_Omega| = ",
+  sci(rel_sym))
+say("  conservation, Cholesky root  : max rel |sum_x G_x - G_Omega| = ",
+  sci(rel_chol))
+node_gap <- max(abs(whitened - whitened_chol))
+say("  per-node disagreement between roots = ", sci(node_gap),
+  "   (relative to max|symmetric| = ", sci(max(abs(whitened))), ")")
+say(sprintf("  -> both roots conserve to machine precision, and their node"))
+say(sprintf("     values differ by %.1f%% of the largest node value.",
+  100 * node_gap / max(abs(whitened))))
+say("     `composition = \"whitened\"` must therefore name the ROOT.")
+say("     The contract pins the symmetric PSD root (section 5.2.1); the root")
+say("     identity has to enter plan identity, because the conservation")
+say("     certificate is blind to this choice.")
+
+# ---------------------------------------------------------------------------
 # O2.c'  The SIZE and SIGN of the dense-metric failure are fixture dependent.
 #
 # `.planning/2026-08-17-feedback-assessment.md` reports -6.6% for one draw of
