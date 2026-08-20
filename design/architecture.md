@@ -166,6 +166,25 @@ responsibilities live apart:
   `as.data.frame` — the `latent.R` lane rather than the `population-views.R`
   one — so that neither printing file has to refer back into it and the file
   call graph stays acyclic.
+- `R/population-prevalence.R` (layer 5) is the descriptive reader:
+  `population_prevalence()`, the fractions over participants that
+  `population-form-v1` §6.5 confines to the latent layer, and the
+  `effect_population_prevalence` record. Like `population-views.R` it executes
+  nothing — every number is a count over the `$values` array
+  `estimate_population()` already produced — and like
+  `population-heterogeneity.R` it answers to a discipline rather than to the
+  view algebra, which is why it is neither file. Its edges:
+  `population-driver.R` (layer 4) for the result validator, the group index
+  and the §8.1 ledger names; `check.R`, `conditions.R`, `message-helpers.R`
+  and `primitives.R` (layer 1) for the guards, the refusals and the packed
+  codec the query-bank Gram is measured in; and `print-methods.R` (layer 5,
+  sideways) for the printing primitives and for §8.1's required frame and
+  transport lines. It also reads `.latent_reading_line` from `latent.R`, the
+  one sentence both descriptive layers print; that is a constant rather than a
+  call, so it adds no edge to the file graph, and it is named here because the
+  coupling is real even where the call graph cannot see it. It defines its own
+  `print`, `format` and `as.data.frame` for the same reason
+  `population-heterogeneity.R` does.
 
 Three declaration files moved down to layer 2 at the same time, because that
 is what they always were: `R/compute-policy.R` (was `execution.R`),

@@ -39,7 +39,8 @@ crossform_public_api <- c(
   "observation_events", "observation_index", "observation_model",
   "observations", "pair_lm_query", "pair_query", "pairing",
   "partition_hierarchy", "plan_crossnobis", "plan_geometry",
-  "plan_population", "plan_relation", "population_uncertainty",
+  "plan_population", "plan_relation", "population_prevalence",
+  "population_uncertainty",
   "query_geometry", "raw_design_model",
   "raw_effect_map", "rdm", "rdm_sampling_covariance",
   "reconstruct_evidence", "reduce_partitions", "regions", "relation",
@@ -66,9 +67,10 @@ test_that("the exported surface is exactly the ledgered set", {
   # `frame_family()`, `contribution()`, `coherence_spectrum()` and
   # `latent_geometry()`, and WS-E the four population transport names,
   # `plan_population()` and `estimate_population()`, and E8
-  # `population_uncertainty()` and E7 `heterogeneity()`
+  # `population_uncertainty()`, E7 `heterogeneity()` and E9
+  # `population_prevalence()`
   # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 110L)
+  expect_identical(length(exports), 111L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

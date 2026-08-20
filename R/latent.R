@@ -55,6 +55,13 @@
 # object carries at `$projection`, which is a record of exactly this
 # operation and of nothing else.
 
+# The sentence every latent-layer record in the package prints, written once.
+# Two layers carry it -- this file's projection of a signed spectrum and
+# `population-prevalence.R`'s fractions over participants -- and they are
+# different operations that fail the same way, so a reader has to meet the
+# same words on both. A second copy would be a second chance to soften one.
+.latent_reading_line <- "latent descriptive layer; not for inference"
+
 # The closed set of section 11.4 G7, and the subset built today. A method is
 # in `.latent_projection_methods` because it is a projection the latent layer
 # admits; it is in `.latent_projection_implemented` because it exists.
@@ -730,7 +737,7 @@ print.effect_latent_geometry <- function(x, ...) {
       .latent_operator_phrase(x$method)),
     moved_mass = .pf_wrap(.latent_moved_items(x)),
     n_eff = .latent_n_eff_line(x$n_eff),
-    reading = "latent descriptive layer; not for inference"
+    reading = .latent_reading_line
   ), ...)
   cat(sprintf("  %-14s%s\n", "next:", "x$cumulative, x$projection"))
   invisible(x)

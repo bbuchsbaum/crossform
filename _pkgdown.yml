@@ -300,7 +300,13 @@ reference:
     within-subject sampling noise as between-participant heterogeneity and
     inflates the trace by a measured 62.7%; the plug-in route stays available
     for loading directions, named as such and carrying no effective mode
-    count. See
+    count. `population_prevalence()` is the descriptive counterpart: how many
+    participants stand behind a group value, at each group node and query and
+    across the bank as a whole. It lives on the latent layer section 6.5
+    confines fractions to, prints the same "not for inference" sentence
+    `latent_geometry()` does, and refuses to carry a field that looks like an
+    error bar — a cell at which nothing reproduces reports a fraction near
+    0.5, not near 0. See
     [`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
   contents:
   - location_transport
@@ -313,6 +319,7 @@ reference:
   - population_views
   - heterogeneity
   - population_uncertainty
+  - population_prevalence
 
 - title: Adapters
   desc: >
