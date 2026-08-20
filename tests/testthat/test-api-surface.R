@@ -27,7 +27,8 @@ crossform_public_api <- c(
   "frame_conservation", "frame_family",
   "gaussian_covariance_model",
   "geometry_alignment", "geometry_component", "geometry_spectrum",
-  "identity_metric", "latent_geometry", "lm_extractor", "lm_relation_fit",
+  "heterogeneity", "identity_metric", "latent_geometry", "lm_extractor",
+  "lm_relation_fit",
   "location_transport", "lower_effect_map", "match_control", "match_coupling",
   "materialize_geometry", "materialize_population",
   "measurement_components",
@@ -38,7 +39,8 @@ crossform_public_api <- c(
   "observation_events", "observation_index", "observation_model",
   "observations", "pair_lm_query", "pair_query", "pairing",
   "partition_hierarchy", "plan_crossnobis", "plan_geometry",
-  "plan_population", "plan_relation", "query_geometry", "raw_design_model",
+  "plan_population", "plan_relation", "population_uncertainty",
+  "query_geometry", "raw_design_model",
   "raw_effect_map", "rdm", "rdm_sampling_covariance",
   "reconstruct_evidence", "reduce_partitions", "regions", "relation",
   "relation_block", "relation_fit", "relation_fit_capabilities",
@@ -63,9 +65,10 @@ test_that("the exported surface is exactly the ledgered set", {
   # subtraction release took 105 exports to 97, and WS-D has since added
   # `frame_family()`, `contribution()`, `coherence_spectrum()` and
   # `latent_geometry()`, and WS-E the four population transport names,
-  # `plan_population()` and `estimate_population()`
+  # `plan_population()` and `estimate_population()`, and E8
+  # `population_uncertainty()` and E7 `heterogeneity()`
   # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 108L)
+  expect_identical(length(exports), 110L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

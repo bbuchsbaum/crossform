@@ -489,3 +489,102 @@ as.data.frame.effect_population_view <- function(x, row.names = NULL,
     check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
   )
 }
+
+# Population uncertainty -------------------------------------------------------
+#
+# One layer per call, never both. The between-subject block is indexed by group
+# node, query and model term; the within-subject block is indexed by group
+# node, query and *participant* and has no term axis at all. There is no join
+# key between them and no arithmetic that would produce one, so a single table
+# would have to invent a column to hold both --- and a reader who found them in
+# one frame would add them. `layer` is therefore an argument and not a
+# convenience.
+
+.population_uncertainty_between_frame <- function(x) {
+  shape <- dim(x$between$estimate)
+  labels <- dimnames(x$between$estimate)
+  nodes <- shape[[1L]]
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), , drop = FALSE
+    ],
+    layer = "between_subject",
+    ledger = x$ledger,
+    query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+    term = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    estimate = as.numeric(x$between$estimate),
+    se = as.numeric(x$between$se),
+    residual_df = x$between$residual_df,
+    t = as.numeric(x$between$t),
+    level = x$between$level,
+    lower = as.numeric(x$between$lower),
+    upper = as.numeric(x$between$upper),
+    calibration = x$between$calibration,
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+.population_uncertainty_within_frame <- function(x) {
+  within <- x$within
+  if (is.null(within) || is.null(within$admitted)) {
+    refusal <- if (is.null(within)) NULL else within$refusal
+    .capability_refusal(paste0(
+      "This result carries no within-subject layer. Either ",
+      "`estimate_population()` was not given `uncertainty`, or the layer was ",
+      "refused before any group column was examined; ",
+      "`population_uncertainty(x)$within$refusal$reasons` names which."
+    ),
+      capability = if (is.null(refusal)) {
+        "transported_sampling_covariance"
+      } else {
+        refusal$capability
+      },
+      namespace = "population_uncertainty",
+      reasons = if (is.null(refusal)) {
+        "within_layer_absent"
+      } else {
+        refusal$reasons
+      },
+      remedies = if (is.null(refusal)) {
+        paste0("Pass `uncertainty = ` to `estimate_population()`, one ",
+          "`rdm_sampling_covariance()` per participant.")
+      } else {
+        refusal$remedies
+      })
+  }
+  shape <- dim(within$variance)
+  labels <- dimnames(within$variance)
+  nodes <- shape[[1L]]
+  admitted <- within$admitted[, rep(seq_len(shape[[3L]]),
+    each = shape[[2L]]), drop = FALSE]
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), , drop = FALSE
+    ],
+    layer = "within_subject",
+    ledger = x$ledger,
+    query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+    subject = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    admitted = as.logical(admitted),
+    source_node = as.character(within$source_node[, rep(
+      seq_len(shape[[3L]]), each = shape[[2L]]), drop = FALSE]),
+    coefficient = as.numeric(within$coefficient[, rep(
+      seq_len(shape[[3L]]), each = shape[[2L]]), drop = FALSE]),
+    variance = as.numeric(within$variance),
+    se = sqrt(as.numeric(within$variance)),
+    calibration = "uncalibrated",
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+#' @export
+as.data.frame.effect_population_uncertainty <- function(
+    x, row.names = NULL, optional = FALSE, ...,
+    layer = c("between", "within")) {
+  .validate_population_uncertainty(x)
+  layer <- match.arg(layer)
+  if (identical(layer, "between")) {
+    return(.population_uncertainty_between_frame(x))
+  }
+  .population_uncertainty_within_frame(x)
+}

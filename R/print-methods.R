@@ -2488,12 +2488,48 @@ print.effect_population_plan <- function(x, ...) {
     else "")
 }
 
+# Section 7 requires the two layers to be reported apart, and so does the
+# printed block: they are two keys, never one line with a semicolon in it,
+# because a reader who sees them joined will read the second as a refinement of
+# the first. The between-subject layer is always available on a query-bank
+# result --- the participants are its replicates and it needs no error channel
+# --- which is why this line no longer disappears when `uncertainty =` was not
+# supplied. `uncalibrated` is on it unconditionally: a reader who sees a
+# standard error offered without that word will supply a p-value from memory.
 .pf_population_uncertainty <- function(x) {
   if (is.null(x$uncertainty)) {
     return(NULL)
   }
-  paste0(gsub("_", " ", x$uncertainty$scope), " blocks carried; transported ",
-    "covariance refused (", x$uncertainty$transported$capability, ")")
+  if (x$residual_df < 1L) {
+    return("between-subject SE not estimable (saturated group model)")
+  }
+  paste0("between-subject SE, df ", x$residual_df, " (uncalibrated)")
+}
+
+# The within-subject line, said as what it is rather than as a status word. A
+# refusal names the thing that is missing; an admission names how much of the
+# transport it covers, because "exact" over two of forty columns is a different
+# report from "exact" over all forty.
+.pf_population_within <- function(x) {
+  within <- x$uncertainty$within
+  if (is.null(within)) {
+    return(NULL)
+  }
+  if (is.null(within$admitted)) {
+    reason <- within$refusal$reasons[[1L]]
+    return(paste0("refused: ", if (grepl("^same_data_ratio", reason)) {
+      "unit_budget divisor has no standard error"
+    } else if (grepl("^native_node_labels_unaligned", reason)) {
+      "transport and covariance name nodes differently"
+    } else {
+      gsub("_", " ", reason)
+    }))
+  }
+  if (!within$admitted_columns) {
+    return("refused: no group column is fed by a single native row")
+  }
+  paste0("exact at ", within$admitted_columns, " of ", within$columns,
+    " node-participant columns")
 }
 
 # The readout axis, said the way each basis reads it: a query bank is `K`
@@ -2563,6 +2599,7 @@ print.effect_population_result <- function(x, ...) {
       gsub("_", " ", x$receipt$evaluation_order)),
     budget = .pf_population_budget(x),
     uncertainty = .pf_population_uncertainty(x),
+    within = .pf_population_within(x),
     unresolved = if (x$receipt$unresolved_columns) {
       paste0(x$receipt$unresolved_columns, " node-",
         if (form) "coordinate" else "query", " cells not estimated")
@@ -2587,8 +2624,97 @@ print.effect_population_result <- function(x, ...) {
   cat(sprintf("  %-15s%s\n", "next:", if (form) {
     "as.data.frame(x), x$coefficient_forms[node, term, ]"
   } else {
-    "as.data.frame(x), x$coefficients[, , term]"
+    "as.data.frame(x), x$coefficients[, , term], population_uncertainty(x)"
   }))
+  invisible(x)
+}
+
+# Population uncertainty -------------------------------------------------------
+#
+# The printed record's job is to make three things unmissable: that there are
+# two layers, that they are not added together, and that the `t` is
+# uncalibrated for real data whatever the recorded simulation measured. The
+# summary numbers are ranges rather than tables --- a printer never emits a
+# whole array -- and the closing note is the separation itself.
+
+.pf_uncertainty_range <- function(values) {
+  finite <- values[is.finite(values)]
+  if (!length(finite)) {
+    return("all NA")
+  }
+  paste0(.pf_num(min(finite)), " to ", .pf_num(max(finite)),
+    if (length(finite) < length(values)) {
+      paste0(" (", length(values) - length(finite), " NA)")
+    })
+}
+
+.pf_uncertainty_max <- function(values) {
+  finite <- values[is.finite(values)]
+  if (!length(finite)) {
+    return("all NA")
+  }
+  paste0(.pf_num(max(finite)),
+    if (length(finite) < length(values)) {
+      paste0(" (", length(values) - length(finite), " NA)")
+    })
+}
+
+.pf_uncertainty_within <- function(x) {
+  within <- x$within
+  if (is.null(within)) {
+    return(paste0("absent (estimate_population() was given no `uncertainty`)"))
+  }
+  if (is.null(within$admitted)) {
+    return(paste0("refused: ", .pf_set(within$refusal$reasons, max = 2L)))
+  }
+  paste0(within$admitted_columns, " of ", within$columns,
+    " node-participant columns exact, variance ",
+    .pf_uncertainty_range(within$variance[within$admitted[
+      , rep(seq_len(dim(within$variance)[[3L]]),
+        each = dim(within$variance)[[2L]]), drop = FALSE]]))
+}
+
+#' @export
+format.effect_population_uncertainty <- function(x, ...) {
+  .pf_inline("effect_population_uncertainty", x$ledger,
+    paste0(nrow(x$index) - 1L, " group nodes + sink"),
+    .msg_count(length(x$term), "term"), "uncalibrated")
+}
+
+#' @export
+print.effect_population_uncertainty <- function(x, ...) {
+  .validate_population_uncertainty(x)
+  .pf_emit("effect_population_uncertainty", list(
+    ledger = paste0(x$ledger, " (component \"", x$receipt$component, "\")"),
+    `group nodes` = paste0(nrow(x$index) - 1L, " + sink"),
+    queries = paste0(nrow(x$queries), " (",
+      .pf_set(rownames(x$queries), max = 3L), ")"),
+    terms = .pf_set(x$term, max = 4L),
+    `between-subject` = paste0("SE ",
+      .pf_uncertainty_range(x$between$se), ", df ",
+      x$between$residual_df, ", |t| up to ",
+      .pf_uncertainty_max(abs(x$between$t))),
+    interval = paste0(format(100 * x$between$level), "% nominal, ",
+      x$between$calibration),
+    `within-subject` = .pf_uncertainty_within(x),
+    normalization = x$normalization,
+    estimand = .pf_sig(x$scientific_plan_id)
+  ))
+  .pf_note(paste0(
+    "The two layers are reported separately and are never pooled: a ",
+    "within-subject sampling variance and a between-subject residual ",
+    "variance answer different questions, and their sum answers neither."
+  ))
+  .pf_note(paste0(
+    "The t is UNCALIBRATED for real data. Measured against t_df, the nominal ",
+    "95% interval covers 0.948 to 0.952 of the time under a correctly ",
+    "specified group model, and 0.885 to 0.923 when the participants' noise ",
+    "is linked to the group covariates -- a nominal 5% test rejecting a true ",
+    "null 11.5% of the time at N = 24. See ",
+    "benchmarks/POPULATION-NULL-COVERAGE.md."
+  ))
+  cat(sprintf("  %-15s%s\n", "next:",
+    "as.data.frame(x, layer = \"between\"), x$between$se[, , term]"))
   invisible(x)
 }
 

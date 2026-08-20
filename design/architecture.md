@@ -29,7 +29,7 @@ Six layers. **A file may call downward or sideways. It may never call upward.**
 | 2 | **values** | `domain.R`, `frame.R`, `pairing.R`, `relation.R`, `relation-session.R`, `effect-space.R`, `effect-map.R`, `metric.R`, `metric-learning.R`, `source.R`, `capabilities.R`, `study.R`, `study-facts.R`, `design-model.R`, `observation-model.R`, `extractor.R`, `scope.R`, `support-index.R`, `numerics.R`, `query-structured.R`, `pair-query.R`, `operations.R`, `receipt.R`, `reliability.R`, `validation-memo.R`, `measurement.R`, `measurement-storage.R`, `relation-fit.R`, `residual-statistics.R`, `bridge.R`, `transport.R`, `compute-policy.R`, `memory-plan.R`, `crossform-package.R` |
 | 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `population-plan.R`, `crossnobis.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
 | 4 | **compiler / execution, and the records execution produces** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R`, `crossnobis-driver.R`, `population-driver.R`, `result.R` |
-| 5 | **results / views** | `views.R`, `population-views.R`, `geometry-entry.R`, `latent.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
+| 5 | **results / views** | `views.R`, `population-views.R`, `population-heterogeneity.R`, `geometry-entry.R`, `latent.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
 | 6 | **adapters and facade** | `adapter-bids.R`, `adapter-fmridesign.R`, `adapter-fmrireg.R`, `neuroim2-adapter.R`, `bridge.R` consumers, `benchmark.R`, `example-data.R`, `evidence-api.R` |
 
 The package deliberately has **no `Collate:` field**. R sources are loaded in
@@ -148,6 +148,24 @@ responsibilities live apart:
   (layer 2) for the pair enumeration. It sits beside `views.R` rather than
   inside it because the two files answer to two different contracts, and a
   single file answering to both is a file nobody can change safely.
+- `R/population-heterogeneity.R` (layer 5) is the other reader over the same
+  estimand: `heterogeneity()`, the `N`-by-`N` subject Gram of
+  `population-form-v1` §§5-6, its spectrum, its subject loadings, and the
+  `effect_population_heterogeneity` record. Unlike `population-views.R` it
+  *does* execute — a Gram is not a linear combination of coefficients the
+  driver already computed, and the cross-fitted estimator has to read every
+  participant twice — so it streams through `population-driver.R`'s own tile
+  helper rather than opening a second path over the same source. Its edges:
+  `population-driver.R` (layer 4) for that helper, the group index, the packed
+  coordinate table and the standard receipt; `population-plan.R` and
+  `geometry-plan.R` (layer 3) for the restricted-pairing re-plan the two
+  cross-fit halves need; `pairing.R` and `transport.R` (layer 2); `latent.R`
+  (layer 5, sideways) for the PSD projection and its moved-mass accounting;
+  and `print-methods.R` / `format-results.R` (layer 5, sideways) for the
+  printing primitives. It defines its own `print`, `format` and
+  `as.data.frame` — the `latent.R` lane rather than the `population-views.R`
+  one — so that neither printing file has to refer back into it and the file
+  call graph stays acyclic.
 
 Three declaration files moved down to layer 2 at the same time, because that
 is what they always were: `R/compute-policy.R` (was `execution.R`),

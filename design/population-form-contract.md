@@ -1017,15 +1017,15 @@ exists. Every row's `test` column is an obligation on E2 (implementation) or E3
 | 3b | per-node weights break aggregation↔fit commutation | §P3.b | E2 |
 | 3c | per-coordinate weights break query↔fit commutation | §P3.c | E2 |
 | 4 | `none` / `unit_budget` / `precision_weighted` all conserve, give different estimands, and can differ in argmax; `unit_budget`'s two failure modes | §P4 | E2 |
-| 5a | the `√2` codec is Frobenius consistent; the naive packing is not and changes the spectrum | `population-geometry-split.R` §P5.a | E2 |
-| 5b | `rank(Σ) ≤ N−1`; the `N × N` Gram recovers the spectrum exactly | §P5.b | E2 |
-| 5c | modes recovered as `C^⊤u`; the `D × D` covariance is never formed | §P5.c | E2 |
-| 5d | the Gram is additive over group nodes (streaming) | §P5.d | E2 |
+| 5a | the `√2` codec is Frobenius consistent; the naive packing is not and changes the spectrum | `population-geometry-split.R` §P5.a | **E7, wired**: `test-population-heterogeneity.R`, "the sqrt(2) packing is load-bearing for the Gram" |
+| 5b | `rank(Σ) ≤ N−1`; the `N × N` Gram recovers the spectrum exactly | §P5.b | **E7, wired**: `test-population-heterogeneity.R`, "the streamed subject Gram is the geometry-space covariance" (spectra to `1e-10` against the dense `h × h` covariance; rank bound `N − rank(X)`) |
+| 5c | modes recovered as `C^⊤u`; the `D × D` covariance is never formed | §P5.c | **E7, wired**: `test-population-heterogeneity.R`, same test (principal angles between the leading planes) and "a mode form unpacks to the symmetric geometry it names" |
+| 5d | the Gram is additive over group nodes (streaming) | §P5.d | **E7, wired**: `test-population-heterogeneity.R`, "the global Gram is the sum of the per-node Grams" (`1e-12`) |
 | 6a | `V = Q^C + Q^H` is an exact identity | `population-geometry-split.R` §P6.a | E2 |
-| 6b | the plug-in split is biased by within-subject noise | §P6.b | E2 |
-| 6c | the cross-fitted split is unbiased for `Σ_B` and is routinely indefinite | §P6.c | E2 |
-| 6d | subject loadings are read off the Gram modes | §P6.d | E3 |
-| 6e | a PSD projection moves mass; the amount must be recorded | §P6.e | E2 |
+| 6b | the plug-in split is biased by within-subject noise | §P6.b | **E7, direction only**: `test-population-heterogeneity.R`, "the plug-in Gram is larger than the cross-fitted one" pins the sign and a `>10 %` gap on a planted fixture; the `+62.7 %` magnitude is a Monte Carlo number and stays in the oracle |
+| 6c | the cross-fitted split is unbiased for `Σ_B` and is routinely indefinite | §P6.c | **E7, partial**: `test-population-heterogeneity.R` pins the indefiniteness and the cross-partition construction against a two-half oracle built from public verbs; unbiasedness is a Monte Carlo claim and stays in the oracle |
+| 6d | subject loadings are read off the Gram modes | §P6.d | **E7, wired**: `test-population-heterogeneity.R`, loading agreement between the two estimators on a planted mode |
+| 6e | a PSD projection moves mass; the amount must be recorded | §P6.e | **E7, wired**: `test-population-heterogeneity.R`, "nonnegative functionals live only on the cross-fitted projection" |
 | 6f | the cross-fitted Gram is unbiased for the noiseless subject Gram, node-additive, indefinite by construction, and its diagonal/off-diagonal contrast is the `V^W`/`V^C` split | §P6.f | E2 |
 | 7a | the cross-fitted consensus share and `η_transport` | `population-transport-diagnostics.R` §P7.a | E3 |
 | 7b | a circular transport inflates `η` by `3.15×`; cross-fit provenance is required | §P7.b | E2 (refusal), E3 (number) |
@@ -1035,12 +1035,21 @@ exists. Every row's `test` column is an obligation on E2 (implementation) or E3
 | 8 | transported total = group-node own total exactly; transported coherent ≠ group-node coherent; the ledger identity survives | §P8 | E2 |
 | 9 | the eleven readiness items; `frame_family()` fails 2, the bare `rbind` route fails 7 | §P9 — **a stipulation, not a measurement** (§9.1) | E2 |
 
-**These oracles are wired to nothing.** `conservative-geometry-v1` §10 records
-the same defect for its three scripts and gap G12 assigns the fix to D2. The
-same fix applies here: **E2 must promote claims 2, 3a–3c, 4, 5a–5d, 6a–6f and 8
-into a `test-population-form-contract.R`**, rather than leaving them protected
+**Most of these oracles are wired to nothing.** `conservative-geometry-v1` §10
+records the same defect for its three scripts and gap G12 assigns the fix to
+D2. The same fix applies here: **E2 must promote claims 2, 3a–3c, 4, 6a, 6f and
+8 into a `test-population-form-contract.R`**, rather than leaving them protected
 only by a human remembering to run a script. The oracles should remain readable
 derivations.
+
+Claims 5a–5d and 6b–6e were promoted by E7 alongside `heterogeneity()`, and the
+`test owed` column above records which of them are pinned outright and which
+are pinned only in direction. The distinction matters and is not a formality:
+the plug-in inflation and the cross-fitted unbiasedness are *expectations* over
+replications, so a single-draw test can pin their sign and their construction
+but not their magnitude, and a test claiming otherwise would be reporting one
+Monte Carlo draw as an estimate — exactly what §6.4 says a single draw of the
+centred trace is not.
 
 ---
 

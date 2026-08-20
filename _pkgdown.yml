@@ -283,7 +283,24 @@ reference:
     `contrast_energy()`, `rdm()`, `rsa()` and `contribution()` again, reading
     the group coefficients that run already produced rather than executing a
     second one; a query the estimated basis cannot reach is refused with the
-    re-estimation remedy instead of being projected onto it. See
+    re-estimation remedy instead of being projected onto it.
+    `population_uncertainty()` reports the two error bars section 7 requires
+    to be kept apart: the between-subject scatter of the participants about
+    the group fit, and — only where a group column is fed by exactly one
+    native row, so the cross-node terms carry weight zero — the transported
+    within-subject sampling variance. They are separate blocks with no field
+    holding their sum, and the `t` is labelled uncalibrated whatever the
+    recorded null simulation measured, because a real fit adds
+    misspecification and transport heterogeneity that simulation did not
+    contain. `heterogeneity()` reads the other half of section 6's
+    decomposition: the N-by-N subject Gram of participants' deviations from
+    the group fit, its spectrum, the subject loadings on its modes and — at
+    nodes you name — the geometry of those modes. It defaults to the
+    cross-fitted estimator, because the plug-in one books every participant's
+    within-subject sampling noise as between-participant heterogeneity and
+    inflates the trace by a measured 62.7%; the plug-in route stays available
+    for loading directions, named as such and carrying no effective mode
+    count. See
     [`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
   contents:
   - location_transport
@@ -294,6 +311,8 @@ reference:
   - estimate_population
   - materialize_population
   - population_views
+  - heterogeneity
+  - population_uncertainty
 
 - title: Adapters
   desc: >

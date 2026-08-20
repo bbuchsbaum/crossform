@@ -68,6 +68,7 @@ idle Apple silicon laptop; treat them as order-of-magnitude.
 Rscript benchmarks/run-memory-benchmarks.R . benchmark-results              #  ~15 s
 Rscript benchmarks/run-sampling-covariance-scale.R                          #   ~6 s
 Rscript benchmarks/run-sampling-covariance-validation.R                     #  ~10 s
+Rscript benchmarks/run-population-null-coverage.R 2000 benchmark-results     #  ~32 s
 Rscript benchmarks/run-first-moment-vertical-slice.R . benchmark-results    #  ~18 s
 Rscript benchmarks/run-public-map-scale-gate.R . benchmark-results          #  ~68 s
 Rscript benchmarks/run-query-first-scale.R . benchmark-results              #  ~40 s
@@ -88,6 +89,12 @@ Notes that cost real time to rediscover:
 - The `500` for the learned-metric validation is pinned:
   `test-certification-artifacts.R` asserts
   `contract$replications == 500L`.
+- **Give `run-population-null-coverage.R` the `2000`.** The runner refuses
+  fewer than 500 replications, and the coverage bands
+  `test-population-uncertainty.R` ratchets were measured at 2,000 (Monte Carlo
+  standard error 0.005). At 500 the misspecification arm's floor is inside the
+  noise. Its second argument is the results directory; without one it writes to
+  `benchmark-results` anyway.
 - Each runner exits nonzero when its gate fails. **Do not lower a threshold to
   make a gate pass** — that is the one move that makes the whole apparatus
   worthless. Record the failure and fix the code.

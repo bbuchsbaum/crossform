@@ -141,6 +141,15 @@
       "run-learned-metric-policy-validation.R",
       "test-certification-artifacts.R",
       "500-rep statistical recovery; exceeds the 64 KiB shipped cap"
+    ),
+    .admission_row(
+      "local", "population_uncertainty",
+      "population-null-coverage.rds",
+      "run-population-null-coverage.R",
+      "test-population-uncertainty.R",
+      paste0("2,000-rep null coverage of the between-subject SE; the record ",
+        "is small but it certifies a reader verb rather than a map-scale ",
+        "one, so the committed receipt is the summary CSV")
     )
   )
 }

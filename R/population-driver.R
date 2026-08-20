@@ -274,12 +274,12 @@
 # D8 does supply, untransported and labelled as such.
 #
 # The one case where the cross terms vanish is a group column fed by exactly
-# one native row, where `Cov(b_j) = P_xj^2 Cov(z_x)`. It is not implemented
-# here: a real transport is a mixture of that case and the general one, so
-# shipping it means deciding what a result looks like when some nodes carry a
-# covariance and others carry an absence, and that adjudication belongs with
-# the uncertainty layer rather than to a passthrough. The condition is recorded
-# in the refusal so the successor ticket does not have to rediscover it.
+# one native row, where `Cov(b_j) = P_xj^2 Cov(z_x)`. E8 implements exactly
+# that case and nothing wider (`.population_within_uncertainty()` below): a
+# real transport is a mixture of the two, so the result marks which group
+# columns carry a covariance and which carry an absence, per participant,
+# rather than presenting one number for both. The general refusal is unchanged
+# and still travels with the result.
 .population_transport_covariance_refusal <- function() {
   list(
     capability = "transported_sampling_covariance",
@@ -311,8 +311,208 @@
   )
 }
 
-.population_uncertainty <- function(plan, bank, uncertainty) {
-  if (is.null(uncertainty)) return(NULL)
+# The between-subject layer's ingredients, recorded once at fit time.
+#
+# `population_uncertainty()` needs two things the result does not otherwise
+# carry: the unscaled covariance `(X'X)^-1` of the group design, and the names
+# of the columns it is indexed by. Everything else the between-subject layer
+# needs --- the residuals, the residual df, the coefficients --- is already on
+# the result, so the layer is computed when it is read rather than stored as
+# three more `node x query x term` arrays beside the coefficients.
+#
+# The design does not vary along the node or the query axis (that is why one
+# factorization serves the whole fit), so one `p`-by-`p` matrix serves every
+# group node and every query. It is stored unpivoted and named, because
+# `qr.coef()` returns coefficients in the design's original column order and a
+# standard error indexed differently from its estimate is a bug waiting to be
+# printed.
+.population_between_uncertainty <- function(model) {
+  rank <- as.integer(model$rank)
+  columns <- model$columns
+  unscaled <- matrix(NA_real_, length(columns), length(columns),
+    dimnames = list(columns, columns))
+  # `plan_population()` refuses a rank-deficient design, so the pivot is a
+  # permutation of every column and the inverse exists; the guard is here so
+  # that a future admission of aliasing degrades to `NA` rather than to a
+  # silently wrong block.
+  if (rank == length(columns)) {
+    pivot <- model$pivot[seq_len(rank)]
+    triangle <- qr.R(model$qr)[seq_len(rank), seq_len(rank), drop = FALSE]
+    unscaled[pivot, pivot] <- chol2inv(triangle)
+  }
+  list(
+    scope = "between_subject",
+    basis = "group_ols_residual",
+    estimator = "subject_residual_covariance_about_the_group_fit",
+    terms = columns,
+    unscaled_covariance = unscaled,
+    # Not a hedge and not conditional on anything: the ratio of a transported
+    # ledger to a between-subject standard error is a t *statistic*, and
+    # calling its tail probability a p-value would import a normal-errors,
+    # correctly-specified-model, homogeneous-transport assumption that no part
+    # of this package has checked on real data.
+    calibration = "uncalibrated",
+    calibration_evidence = paste0(
+      "benchmarks/run-population-null-coverage.R measures the coverage of ",
+      "the nominal 95% interval under a correctly specified group model; ",
+      "see benchmarks/POPULATION-NULL-COVERAGE.md."
+    )
+  )
+}
+
+# The within-subject layer, admitted only where it is exact.
+#
+# For participant `i` the transported value at group column `u` is a fixed
+# linear functional `w' z_i` of that participant's native query values, with
+# `w` the column of the transport operator (divided by the transported row
+# mass under `"density"`, which is data-free). Its variance is
+# `sum_x sum_x' w_x w_x' Cov(z_ix, z_ix')`, and D8 supplies only the diagonal
+# blocks `Cov(z_ix)`.
+#
+# Where the column has exactly one nonzero coefficient the cross terms carry
+# weight zero and `Var(w'z) = w_x^2 Var(z_ix)` is **exact**: no independence
+# is assumed, and none is claimed. Where it has two or more, dropping the
+# cross terms would assume the native nodes are uncorrelated --- false for
+# overlapping searchlight supports under spatially correlated noise, and
+# biased in a known direction (positive spatial correlation makes the diagonal
+# sum an *under*-estimate), which is a worse failure than an absence. So the
+# layer is admitted per participant and per group column, and refused
+# elsewhere with the reason recorded rather than defaulted.
+#
+# Two whole-layer gates come before the per-column one:
+#
+#   `same_data_ratio_normalization` --- under `"unit_budget"` the response is
+#     the ledger divided by a total estimated from the same data, so its
+#     variance needs the variance of that divisor and its covariance with the
+#     numerator. Section 4.3 records that the per-participant standard error
+#     does not exist; a delta-method ratio variance would be inventing one.
+#
+#   `native_node_labels_unaligned` --- the covariance batch is named by the
+#     nodes `rdm_sampling_covariance(at = )` read, and the transport is named
+#     by its own `native_index`. Binding two differently-named node sets by
+#     position would attach node `x`'s error bar to node `y`'s coefficient,
+#     which is the same error `aligned_subject_uncertainty` refuses one level
+#     up. This one is *recorded*, not raised: the untransported blocks are
+#     still honest and still shipped, and only the carve-out is unavailable.
+.population_within_uncertainty <- function(plan, bank, native, index) {
+  nodes <- as.character(index$node)
+  labels <- names(plan$subjects)
+  record <- function(status, reasons, remedies) {
+    list(
+      scope = "transported_single_source_column",
+      basis = "query_bank",
+      status = status,
+      exactness = "exact_where_admitted",
+      assumption = "none: the cross-node terms carry weight zero",
+      admitted = NULL,
+      refusal = list(
+        capability = "transported_sampling_covariance",
+        namespace = "population_execution",
+        reasons = reasons,
+        remedies = remedies
+      )
+    )
+  }
+  if (!identical(plan$normalization, "none")) {
+    return(record("refused", "same_data_ratio_normalization", paste0(
+      "Estimate the population under `normalization = \"none\"`. A ",
+      "`unit_budget` share is a ratio of two quantities read from the same ",
+      "data, and section 4.3 records that the standard error of its divisor ",
+      "does not exist yet."
+    )))
+  }
+  queries <- bank$labels
+  variance <- array(NA_real_, c(length(nodes), length(queries), length(labels)),
+    dimnames = stats::setNames(list(nodes, queries, labels),
+      c("node", "query", "subject")))
+  admitted <- matrix(FALSE, length(nodes), length(labels),
+    dimnames = list(nodes, labels))
+  coefficient <- matrix(NA_real_, length(nodes), length(labels),
+    dimnames = list(nodes, labels))
+  source_node <- matrix(NA_character_, length(nodes), length(labels),
+    dimnames = list(nodes, labels))
+  unaligned <- character()
+  for (label in labels) {
+    carrier <- plan$transport[[label]]
+    blocks <- native[[label]]
+    native_nodes <- as.character(carrier$native_index$node)
+    if (!setequal(names(blocks), native_nodes)) {
+      unaligned <- c(unaligned, label)
+      next
+    }
+    # Column support is read off the sparse structure rather than by
+    # densifying: the operator is `n_i` by `m + 1` and `n_i` is a whole native
+    # frame, so `as.matrix()` here would allocate the one array the population
+    # layer exists not to build. `drop0()` first, because a stored zero is not
+    # a source and would make a single-source column look like two.
+    operator <- Matrix::drop0(methods::as(carrier$matrix, "CsparseMatrix"))
+    # Under `"density"` the group rows are divided by transported mass, which
+    # is data-free, so the carried value is still a fixed linear functional of
+    # the native values and the carve-out is unchanged. The sink is left alone
+    # (section 1.3): a density of unmapped territory has no referent.
+    divisor <- rep(1, ncol(operator))
+    if (identical(carrier$semantics, "density")) {
+      mass <- as.numeric(Matrix::crossprod(carrier$matrix, carrier$row_mass))
+      group <- seq_len(ncol(operator) - 1L)
+      divisor[group] <- ifelse(mass[group] > 0, mass[group], NA_real_)
+    }
+    starts <- operator@p
+    for (column in seq_along(nodes)) {
+      if (starts[[column + 1L]] - starts[[column]] != 1L) next
+      position <- starts[[column]] + 1L
+      weight <- operator@x[[position]] / divisor[[column]]
+      if (!is.finite(weight) || weight == 0) next
+      source <- native_nodes[[operator@i[[position]] + 1L]]
+      diagonal <- sampling_covariance(blocks[[source]], "diagonal")
+      admitted[column, label] <- TRUE
+      coefficient[column, label] <- weight
+      source_node[column, label] <- source
+      variance[column, , label] <- weight^2 * as.numeric(diagonal[queries])
+    }
+  }
+  if (length(unaligned)) {
+    return(record("refused", paste0("native_node_labels_unaligned:",
+      paste(unaligned, collapse = ",")), paste0(
+      "Name the transport's `native_index` with the node identifiers ",
+      "`rdm_sampling_covariance(at = )` reported --- for a voxelwise frame ",
+      "those are the domain's feature identifiers --- so the two node sets ",
+      "bind by name rather than by position."
+    )))
+  }
+  value <- record(
+    if (any(admitted)) "partial" else "refused",
+    "transported_value_mixes_native_nodes",
+    paste0(
+      "A group column fed by two or more native rows needs the covariance ",
+      "*between* those rows, which D8 refuses (capability ",
+      "`cross_node_sampling_covariance`). Use a transport that assigns at ",
+      "most one native node to each group node if the transported variance ",
+      "is what you need."
+    )
+  )
+  value$admitted <- admitted
+  value$coefficient <- coefficient
+  value$source_node <- source_node
+  value$variance <- variance
+  value$admitted_columns <- as.integer(sum(admitted))
+  value$columns <- as.integer(length(admitted))
+  value
+}
+
+.population_uncertainty <- function(plan, bank, index, uncertainty) {
+  layers <- list(
+    between = .population_between_uncertainty(plan$model),
+    within = NULL,
+    # Section 7 keeps the two layers apart, and so does this record: a
+    # within-subject sampling variance and a between-subject residual variance
+    # answer different questions, and a sum of the two would answer neither
+    # without a variance-components model nobody here has fitted.
+    separation = paste0(
+      "between_subject and within_subject are reported separately and are ",
+      "never pooled"
+    )
+  )
+  if (is.null(uncertainty)) return(layers)
   labels <- names(plan$subjects)
   if (!is.list(uncertainty) || inherits(uncertainty, "effect_sampling_covariance") ||
       inherits(uncertainty, "effect_sampling_covariance_batch")) {
@@ -352,12 +552,13 @@
     sampling_covariance(value, queries = bank$matrix)
   })
   names(native) <- labels
-  list(
+  layers$within <- .population_within_uncertainty(plan, bank, native, index)
+  c(list(
     native = native,
     basis = "query_bank",
     scope = "native_node_marginal",
     transported = .population_transport_covariance_refusal()
-  )
+  ), layers)
 }
 
 # The readout axis -------------------------------------------------------------
@@ -472,6 +673,26 @@
 #' are computed against a total read from the same data as the ledger, which
 #' the receipt declares (`budget_estimate = "same_data_ratio"`).
 #'
+#' @section Uncertainty:
+#' `$uncertainty` always carries `$between`, the ingredients of the
+#' between-subject layer: the group design's unscaled covariance
+#' \eqn{(X'X)^{-1}}{(X'X)^-1} and the terms it is indexed by. That is what
+#' [population_uncertainty()] needs and the result does not otherwise hold;
+#' the standard errors themselves are computed when they are read rather than
+#' stored as three more `node`-by-`query`-by-`term` arrays.
+#'
+#' Supplying `uncertainty` adds two more blocks. `$native` is D8's own
+#' per-native-node covariance per participant, carried **untransported**, with
+#' `$transported` recording the refusal: a group node's value mixes native
+#' nodes, so its covariance needs the covariance *between* them, and no route
+#' produces one. `$within` is the part of that refusal E8 lifts --- a group
+#' column fed by exactly one native row, where the cross-node terms carry
+#' weight zero --- admitted per participant and per column and absent
+#' elsewhere. No independence assumption is made anywhere.
+#'
+#' The two layers are reported separately and are never pooled; there is no
+#' field holding their sum. See [population_uncertainty()].
+#'
 #' @section Refusals:
 #' Each is an `effect_capability_refusal` (see [catch_refusal()]).
 #'
@@ -496,8 +717,10 @@
 #'   object takes.
 #' @param uncertainty Optional named list of [rdm_sampling_covariance()]
 #'   results, one per participant, lowered onto the query bank and carried
-#'   **untransported**. The covariance of a transported value is refused, and
-#'   the refusal record travels with the result.
+#'   **untransported**. The covariance of a transported value is refused
+#'   except where a group column is fed by exactly one native row, and both
+#'   the refusal and the admitted carve-out travel with the result. The
+#'   between-subject layer needs none of this and is always available.
 #' @param budget_floor Nonnegative relative floor for the `"unit_budget"`
 #'   divisor: a participant contributes a share for query `k` only when
 #'   \eqn{|T_i| > \mathrm{floor} \cdot \sum_x |c_{ix}|}{|T_i| > floor * sum_x
@@ -506,14 +729,17 @@
 #'   `$coefficients` (a `node`-by-`query`-by-`term` array), `$values`,
 #'   `$fitted` and `$residuals` (`node`-by-`query`-by-`subject`), the
 #'   `$index` of group nodes plus the sink, `$queries`, `$ledger`,
-#'   `$uncertainty`, and a `$receipt` recording every participant's read, its
+#'   `$uncertainty` (see the section above; read it through
+#'   [population_uncertainty()]), and a `$receipt` recording every
+#'   participant's read, its
 #'   transport signature, the budget certificate, and the normalization.
 #'   `as.data.frame()` returns the coefficient table in long form.
 #' @references `design/population-form-contract.md` (`population-form-v1`),
 #'   sections 2, 3, 4 and 8.
 #' @family population transports
 #' @seealso [plan_population()] for the estimand this executes,
-#'   [transport_values()] for the carrying step, and [contrast_energy()] for
+#'   [transport_values()] for the carrying step, [population_uncertainty()]
+#'   for the error bars on what it produced, and [contrast_energy()] for
 #'   the single-participant reading of the same query.
 #' @examples
 #' # Four participants on different native frames, two shared group nodes.
@@ -645,7 +871,7 @@ estimate_population <- function(plan, queries,
     ledger = unname(.population_ledger_names[[component]]),
     semantics = plan$semantics,
     normalization = plan$normalization,
-    uncertainty = .population_uncertainty(plan, bank, uncertainty),
+    uncertainty = .population_uncertainty(plan, bank, index, uncertainty),
     receipt = .population_receipt(
       plan, readout, component, budget_floor, receipts, native_totals,
       sink_budget, admitted, deviations, fit$unresolved
@@ -782,6 +1008,78 @@ estimate_population <- function(plan, queries,
         "native total of that query and section 4.1 defines it."
       )
     ))
+}
+
+# One coordinate tile of the transported group stack ---------------------------
+#
+# The per-tile subject loop, extracted so that everything which streams the
+# complete form reads it through *one* path. `materialize_population()` fits
+# the tile; `heterogeneity()` (`R/population-heterogeneity.R`,
+# `population-form-v1` sections 5 and 6) residualizes it and accumulates an
+# `N`-by-`N` Gram from it. Two loops over the same source would be two chances
+# to disagree about what a transported coordinate is, and the Gram's entire
+# claim is that it is the second moment of the same numbers the coefficients
+# are fitted from.
+#
+# `state` is what survives a tile: one execution receipt per participant, the
+# native totals and sink budget per packed coordinate, the running worst budget
+# deviation, and the native row counts the streaming bound quotes. It is
+# returned rather than mutated, so the caller owns the accumulation and the
+# helper stays a function of its arguments.
+.population_tile_state <- function(plan, width, coordinate_labels) {
+  labels <- names(plan$subjects)
+  n_subject <- length(labels)
+  totals <- matrix(NA_real_, n_subject, width,
+    dimnames = list(labels, coordinate_labels))
+  list(
+    labels = labels,
+    receipts = stats::setNames(vector("list", n_subject), labels),
+    native_totals = totals,
+    sink_budget = totals,
+    deviations = numeric(n_subject),
+    native_rows = integer(n_subject),
+    # `TRUE` until the first tile has been streamed: one receipt per
+    # participant, taken from that tile. Later tiles read the same source under
+    # the same plan and would record the same provenance `ceiling(p / tile)`
+    # times over.
+    first = TRUE
+  )
+}
+
+.population_stream_tile <- function(plan, component, columns, width,
+                                    coordinate_labels, nodes, state) {
+  probe <- .population_coordinate_query(width, columns, coordinate_labels)
+  # `N` by `(m + 1) * length(columns)`, rebuilt per tile and dropped with it.
+  stack <- matrix(NA_real_, length(state$labels), nodes * length(columns),
+    dimnames = list(state$labels, NULL))
+  for (position in seq_along(state$labels)) {
+    label <- state$labels[[position]]
+    carrier <- plan$transport[[label]]
+    view <- .run_geometry_compiler(
+      plan$subjects[[label]], query = probe, component = component
+    )
+    native <- view$values
+    colnames(native) <- coordinate_labels[columns]
+    if (state$first) {
+      state$receipts[[label]] <- view$receipt
+      state$native_rows[[position]] <- nrow(native)
+    }
+    carried <- transport_values(carrier, native)
+    if (identical(plan$semantics, "budget")) {
+      state$deviations[[position]] <- max(state$deviations[[position]],
+        .population_budget_certificate(label, native, carried))
+    }
+    state$native_totals[position, columns] <- colSums(native)
+    # The sink row is already in budget units under either semantics:
+    # `transport_values()` divides the `m` group rows by transported mass and
+    # leaves the sink alone, because a density of unmapped territory has no
+    # referent (section 1.3).
+    state$sink_budget[position, columns] <- carried[nodes, ]
+    stack[position, ] <- as.numeric(carried)
+    rm(view, native, carried)
+  }
+  state$first <- FALSE
+  list(stack = stack, state = state)
 }
 
 #' Materialize a planned population form at every group node
@@ -947,52 +1245,16 @@ materialize_population <- function(plan,
       c("node", "term", "coordinate")
     ))
 
-  receipts <- vector("list", n_subject)
-  names(receipts) <- labels
-  native_totals <- matrix(NA_real_, n_subject, width,
-    dimnames = list(labels, coordinate_labels))
-  sink_budget <- native_totals
-  deviations <- numeric(n_subject)
-  native_rows <- integer(n_subject)
   unresolved <- 0L
   starts <- .tile_starts(width, tile)
+  state <- .population_tile_state(plan, width, coordinate_labels)
 
   for (start in starts) {
     columns <- start:min(start + tile - 1L, width)
-    probe <- .population_coordinate_query(width, columns, coordinate_labels)
-    # `N` by `(m + 1) * length(columns)`, rebuilt per tile and dropped with it.
-    stack <- matrix(NA_real_, n_subject, nodes * length(columns),
-      dimnames = list(labels, NULL))
-    for (position in seq_len(n_subject)) {
-      label <- labels[[position]]
-      carrier <- plan$transport[[label]]
-      view <- .run_geometry_compiler(
-        plan$subjects[[label]], query = probe, component = component
-      )
-      native <- view$values
-      colnames(native) <- coordinate_labels[columns]
-      if (start == starts[[1L]]) {
-        # One receipt per participant, from the first tile. Later tiles read
-        # the same source under the same plan and would record the same
-        # provenance `ceiling(p / tile)` times over.
-        receipts[[label]] <- view$receipt
-        native_rows[[position]] <- nrow(native)
-      }
-      carried <- transport_values(carrier, native)
-      if (identical(plan$semantics, "budget")) {
-        deviations[[position]] <- max(deviations[[position]],
-          .population_budget_certificate(label, native, carried))
-      }
-      native_totals[position, columns] <- colSums(native)
-      # The sink row is already in budget units under either semantics:
-      # `transport_values()` divides the `m` group rows by transported mass
-      # and leaves the sink alone, because a density of unmapped territory has
-      # no referent (section 1.3).
-      sink_budget[position, columns] <- carried[nodes, ]
-      stack[position, ] <- as.numeric(carried)
-      rm(view, native, carried)
-    }
-    fit <- .population_ols(plan$model, stack, coefficients_only = TRUE)
+    streamed <- .population_stream_tile(plan, component, columns, width,
+      coordinate_labels, nodes, state)
+    state <- streamed$state
+    fit <- .population_ols(plan$model, streamed$stack, coefficients_only = TRUE)
     unresolved <- unresolved + fit$unresolved
     # `as.numeric(carried)` stacked the tile column-major with the node index
     # fastest, so the fit's response columns unfold as `node` by `coordinate`;
@@ -1002,8 +1264,13 @@ materialize_population <- function(plan,
       array(t(fit$coefficients), c(nodes, length(columns), length(terms))),
       c(1L, 3L, 2L)
     )
-    rm(stack, fit, probe)
+    rm(streamed, fit)
   }
+  receipts <- state$receipts
+  native_totals <- state$native_totals
+  sink_budget <- state$sink_budget
+  deviations <- state$deviations
+  native_rows <- state$native_rows
 
   readout <- .population_readout("complete_form", coordinate_labels)
   value <- structure(list(

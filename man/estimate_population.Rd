@@ -28,8 +28,10 @@ object takes.}
 
 \item{uncertainty}{Optional named list of \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}
 results, one per participant, lowered onto the query bank and carried
-\strong{untransported}. The covariance of a transported value is refused, and
-the refusal record travels with the result.}
+\strong{untransported}. The covariance of a transported value is refused
+except where a group column is fed by exactly one native row, and both
+the refusal and the admitted carve-out travel with the result. The
+between-subject layer needs none of this and is always available.}
 
 \item{budget_floor}{Nonnegative relative floor for the \code{"unit_budget"}
 divisor: a participant contributes a share for query \code{k} only when
@@ -41,7 +43,9 @@ An \code{effect_population_result}: a sealed record carrying
 \verb{$coefficients} (a \code{node}-by-\code{query}-by-\code{term} array), \verb{$values},
 \verb{$fitted} and \verb{$residuals} (\code{node}-by-\code{query}-by-\code{subject}), the
 \verb{$index} of group nodes plus the sink, \verb{$queries}, \verb{$ledger},
-\verb{$uncertainty}, and a \verb{$receipt} recording every participant's read, its
+\verb{$uncertainty} (see the section above; read it through
+\code{\link[=population_uncertainty]{population_uncertainty()}}), and a \verb{$receipt} recording every
+participant's read, its
 transport signature, the budget certificate, and the normalization.
 \code{as.data.frame()} returns the coefficient table in long form.
 }
@@ -117,6 +121,28 @@ are computed against a total read from the same data as the ledger, which
 the receipt declares (\code{budget_estimate = "same_data_ratio"}).
 }
 
+\section{Uncertainty}{
+
+\verb{$uncertainty} always carries \verb{$between}, the ingredients of the
+between-subject layer: the group design's unscaled covariance
+\eqn{(X'X)^{-1}}{(X'X)^-1} and the terms it is indexed by. That is what
+\code{\link[=population_uncertainty]{population_uncertainty()}} needs and the result does not otherwise hold;
+the standard errors themselves are computed when they are read rather than
+stored as three more \code{node}-by-\code{query}-by-\code{term} arrays.
+
+Supplying \code{uncertainty} adds two more blocks. \verb{$native} is D8's own
+per-native-node covariance per participant, carried \strong{untransported}, with
+\verb{$transported} recording the refusal: a group node's value mixes native
+nodes, so its covariance needs the covariance \emph{between} them, and no route
+produces one. \verb{$within} is the part of that refusal E8 lifts --- a group
+column fed by exactly one native row, where the cross-node terms carry
+weight zero --- admitted per participant and per column and absent
+elsewhere. No independence assumption is made anywhere.
+
+The two layers are reported separately and are never pooled; there is no
+field holding their sum. See \code{\link[=population_uncertainty]{population_uncertainty()}}.
+}
+
 \section{Refusals}{
 
 Each is an \code{effect_capability_refusal} (see \code{\link[=catch_refusal]{catch_refusal()}}).
@@ -179,15 +205,18 @@ sections 2, 3, 4 and 8.
 }
 \seealso{
 \code{\link[=plan_population]{plan_population()}} for the estimand this executes,
-\code{\link[=transport_values]{transport_values()}} for the carrying step, and \code{\link[=contrast_energy]{contrast_energy()}} for
+\code{\link[=transport_values]{transport_values()}} for the carrying step, \code{\link[=population_uncertainty]{population_uncertainty()}}
+for the error bars on what it produced, and \code{\link[=contrast_energy]{contrast_energy()}} for
 the single-participant reading of the same query.
 
 Other population transports: 
 \code{\link{anatomical_transport}()},
 \code{\link{external_transport}()},
+\code{\link{heterogeneity}()},
 \code{\link{location_transport}()},
 \code{\link{materialize_population}()},
 \code{\link{plan_population}()},
+\code{\link{population_uncertainty}()},
 \code{\link{population_views}},
 \code{\link{transport_values}()}
 }
