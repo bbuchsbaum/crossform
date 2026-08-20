@@ -1,0 +1,11 @@
+"query","readout","constructor","eligible_cells","rank","design_columns","zero_row_marginals","zero_column_marginals","additive_baseline_invariant","claim"
+"level_match","mean match coupling","pair_query(match_coupling)",24,NA,NA,NA,NA,NA,NA
+"level_control_all","mean control coupling (all eligible)","pair_query(control_coupling)",1056,NA,NA,NA,NA,NA,NA
+"level_control_category","mean control coupling (category-matched)","pair_query(control_coupling, eligible)",336,NA,NA,NA,NA,NA,NA
+"level_baseline","mean coupling over every eligible pair","pair_query(control_coupling(include_matches))",1080,NA,NA,NA,NA,NA,NA
+"contrast_all","match - control, all eligible pairs","coupling_contrast",1080,NA,NA,FALSE,FALSE,FALSE,"observed_operator_balance_only"
+"contrast_category","match - control, category-matched pairs","coupling_contrast",360,NA,NA,FALSE,FALSE,FALSE,"observed_operator_balance_only"
+"match_control_all","match coefficient, item nuisance adjusted","match_control",1080,66,66,TRUE,TRUE,TRUE,"observed_operator_balance_not_downstream_invariance"
+"match_control_category","match coefficient, category-matched, encoding nuisance","match_control",360,37,37,TRUE,FALSE,FALSE,"observed_operator_balance_not_downstream_invariance"
+"lm_match","match coefficient adjusting for same_category","pair_lm_query",1080,68,68,TRUE,TRUE,TRUE,"balance_reported_after_final_weighting"
+"lm_match_depth","study-duration slope on matched pairs","pair_lm_query",1080,68,68,TRUE,TRUE,TRUE,"balance_reported_after_final_weighting"

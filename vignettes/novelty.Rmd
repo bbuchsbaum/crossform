@@ -31,7 +31,7 @@ claims territory only at the strength actually earned.
 | | Same neural measurement | Different neural measurements |
 |---|---|---|
 | **Same experimental space** | retained signed marginals; crossvalidated contrast energy — a cvMANOVA-class statistic under a fixed metric ([Allefeld and Haynes, 2014](https://doi.org/10.1016/j.neuroimage.2013.11.043)); ordinary representational geometry *(demonstrated)* | cross-node effect coupling *(implemented; small-node contract)*; normalized connectivity only when its sampling contract is met |
-| **Different experimental spaces** | rectangular ER-RSA or cross-task geometry *(implemented; real exemplar pending)* | rectangular cross-domain, cross-region forms *(prospective)* |
+| **Different experimental spaces** | rectangular ER-RSA or cross-task geometry *(demonstrated on a designed simulation)* | rectangular cross-domain, cross-region forms *(prospective)* |
 
 Signed activation is a retained first-moment marginal, not a bilinear statistic.
 Its reproducible energy, squared-distance geometry, and the other entries in
@@ -292,9 +292,15 @@ query-first, and `materialize_geometry()` materializes a rectangular form that
 satisfies the exact algebraic identity `total = coherent + configuration`. The
 public
 test verifies that identity numerically to `1e-12`. The engine, independent
-oracles, and public constructor exist. A real scientific analysis with missing
-or unequal items and pair-space covariates has not yet been shipped, so the
-stronger empirical claim remains gated.
+oracles, and public constructor exist, and one analysis with unequal axes,
+missing matches, match/control coupling, and a pair-space covariate has now
+run end to end in
+[`exemplars/er-rsa`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/er-rsa),
+recovering three planted regional structures against a closed-form ground
+truth. That analysis is a designed simulation, so what is demonstrated is
+that the machinery estimates what it claims to estimate on a design whose
+answer is known; the empirical claim awaits a public encoding-retrieval
+dataset with per-trial betas.
 
 ### 4. Spatial frames with a qualified conservation law
 
@@ -395,7 +401,7 @@ be audited rather than believed.
 | Error-bearing refit and linear uncertainty transport | **Demonstrated under an admitted model** | Refit reproduces the point RDM to `4.44e-16`; a fixed linear RSA coefficient consumes factorized analytic covariance: [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001), [`test-evidence-sampling-kernel.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-kernel.R), [`test-evidence-sampling-generative.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-generative.R). Boundary: the declared equal-partition, fixed-metric, separable plug-in model. |
 | Query-first execution at scale | **Demonstrated** | Recorded gate artifact at q = 100 over 1,080 searchlights: selected 100 pairs 0.13 s, full fused RDM 1.59 s vs 2.08 s materialize-then-project (ratio 0.76), oracle error `4.4e-16`, and a maximum fresh-worker incremental R heap of 277 MB (264 MiB): [`benchmarks/run-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-query-first-scale.R), [`inst/extdata/certification/query-first-scale-gate.rds`](https://github.com/bbuchsbaum/crossform/tree/main/inst/extdata/certification), [`test-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-query-first-scale.R). The materialized comparator remains in the timing court but outside the query-first memory claim; the heap receipt is not presented as OS RSS. |
 | Coherent/configuration family | **Demonstrated** | One plan yields the signed contrast, the three energies with exact recomposition, the RDM, the RSA coefficient, and the admitted analytic SE, with planted-effect recovery (signal carried by configuration; null regions centered on zero): the [introduction vignette](introduction.html) (`vignette("introduction", package = "crossform")` offline) with executable checks, plus [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R) and [`test-measurement-decomposition.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-measurement-decomposition.R). The real-data narrative has now run too: [`exemplars/haxby2001/06-coherent-configuration.R`](https://github.com/bbuchsbaum/crossform/blob/main/exemplars/haxby2001/06-coherent-configuration.R) decomposes face minus house and animate minus inanimate at 577 VT searchlights and at one whole-VT region, recomposing to `5.6e-17`, with a median coherent share of 0.53. Boundary: one subject, condition means rather than GLM betas, and no inference. |
-| Rectangular cross-domain analysis | **Implemented** | Public constructor, query-first pair queries, oracle parity, and materialized recomposition: [`test-rectangular-plan.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-rectangular-plan.R). A real match/control, pair-covariate analysis is Gate 3. |
+| Rectangular cross-domain analysis | **Demonstrated on a designed simulation** | Public constructor, query-first pair queries, oracle parity, and materialized recomposition: [`test-rectangular-plan.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-rectangular-plan.R). The match/control, pair-covariate analysis has now run: [`exemplars/er-rsa`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/er-rsa) compiles a 36-by-30 encoding-retrieval plan over two relations sharing one neural domain, with 12 studied items never retrieved, 6 probes never studied, run baseline/drift/motion as nuisance design columns in both fits, and six directed cross-cycle edges as the declared generalization. All five pair-query exports are load-bearing: `match_coupling()` carries the eligibility restriction that turns a spurious 1.03 into −0.01 in a category-only region, `control_coupling()` supplies both the control cells and the eligible-pair baseline, and `coupling_contrast()` (0.5272), `match_control()` (0.5166), and `pair_lm_query()` (0.5329, plus a study-duration slope of 0.2206 against a planted 0.2154) compile the same comparison under different adjustments. On this rectangular design the normalized coupling difference is *not* additive-baseline invariant while the regression forms are (`rank == columns`, 68 of 68), which is the recorded reason both constructors exist. Query-first and materialize-then-project agree to `6.66e-16` and the rectangular form recomposes to `2.22e-16`; 30 of 30 cross-run readouts contain their closed-form planted value in the 95% across-subject interval, largest bias `0.0093`. Ratcheted by [`test-er-rsa-exemplar.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-er-rsa-exemplar.R). Boundary: a designed simulation with recovered truth, 12 simulated subjects differing only in noise, no empirical dataset, and no fixed noise metric — rectangular plans refuse one, so there is no crossnobis-style normalization and no analytic sampling covariance for a rectangular readout. |
 | Adjoint coupling from the plan vocabulary | **Implemented** | `coupling(plan, between, by)` compiles the adjoint closure against the plan's own frame and pairing, small-node contract enforced: [`test-coupling-views.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-coupling-views.R). |
 | Generalization axis in estimand identity | **Implemented** | Typed `generalizes_over` bound into task and metric-pairing identity; cross-run vs cross-session distinct under identical generic labels: [`test-generalization-axis.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-generalization-axis.R). |
 | Route-stable view identity | **Implemented** | Fused query-first and materialize-then-project executions of one estimand carry one scientific id with distinct execution receipts: [`test-route-identity.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-route-identity.R), [`test-effect-form-certification.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-effect-form-certification.R). |
@@ -434,8 +440,33 @@ sections are promoted only as these gates land:
    full family from one plan with executable recomposition and planted-truth
    checks.
 3. **Real rectangular analysis:** distinct unequal axes, match/control coding,
-   pair-space covariates, missing items, and explicit operation order. *Open;
-   the public rectangular constructor and query path landed.*
+   pair-space covariates, missing items, and explicit operation order.
+   **Landed:**
+   [`exemplars/er-rsa`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/er-rsa)
+   runs one encoding-retrieval analysis over a 36-effect left axis and a
+   30-effect right axis, with 12 studied items never retrieved and 6 probes
+   never studied. `match_coupling()` declares the correspondence and its
+   eligible set, `control_coupling()` names the comparison cells,
+   `coupling_contrast()`, `match_control()`, and `pair_lm_query()` compile
+   the item-specific reinstatement three ways, and the covariate model
+   carries an encoding study-duration term alongside 64 item nuisance
+   columns. The estimand pairs runs across study-test cycles only, which is
+   what `pairing(directed = TRUE, generalizes_over = "run")` and the default
+   `self_pairs = "forbid"` express. Three planted regional structures are
+   recovered against a closed-form ground truth: item-specific
+   reinstatement 0.5272 against a planted 0.5277 in the item region, −0.0072
+   against −0.0024 in the category-only region, and 0.0062 against 0.0086
+   in the null region, with the planted value inside the 95% across-subject
+   interval for 30 of 30 cross-run readouts and a largest bias of 0.0093.
+   Two operation-order consequences are measured rather than asserted: an
+   unrestricted control set reports a reinstatement effect of 1.03 in a
+   region that has no item structure at all, and same-run pairing reports
+   0.256 in a region that has no structure at all. Ratcheted by
+   [`test-er-rsa-exemplar.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-er-rsa-exemplar.R).
+   Boundary: a designed simulation with recovered truth; no empirical
+   dataset yet, and rectangular plans still refuse a fixed noise metric.
+   The upgrade is a public encoding-retrieval dataset with per-trial betas,
+   analysed with the same scripts.
 4. **Operational spatial accounting:** overlapping searchlights, coverage
    correction, a mass-preserving global comparator, and an interpretive
    consequence. *Open.*

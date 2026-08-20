@@ -1,0 +1,61 @@
+"plan","query","region","readout","planted","estimate","se","bias","bias_t","bias_p","t_vs_zero","p_vs_zero","ci_low","ci_high"
+"cross","contrast_all","regionA","match - control, all eligible pairs",0.79311,0.793728,0.007924,0.000619,0.078054,0.939187,100.166179,0,0.776288,0.811169
+"cross","contrast_all","regionB","match - control, all eligible pairs",1.022795,1.028097,0.009852,0.005302,0.538214,0.60115,104.356769,0,1.006413,1.04978
+"cross","contrast_all","regionC","match - control, all eligible pairs",0.006965,0.005446,0.005093,-0.001519,-0.298226,0.771089,1.069427,0.307783,-0.005763,0.016655
+"cross","contrast_category","regionA","match - control, category-matched pairs",0.527733,0.527158,0.008491,-0.000575,-0.067673,0.947261,62.080871,0,0.508469,0.545848
+"cross","contrast_category","regionB","match - control, category-matched pairs",-0.002379,-0.007175,0.00669,-0.004797,-0.717031,0.488301,-1.072634,0.306404,-0.021899,0.007548
+"cross","contrast_category","regionC","match - control, category-matched pairs",0.008628,0.006201,0.004998,-0.002428,-0.485741,0.636682,1.240708,0.240524,-0.004799,0.0172
+"cross","level_baseline","regionA","mean coupling over every eligible pair",0.105309,0.106679,0.004411,0.00137,0.310553,0.761945,24.184845,0,0.09697,0.116387
+"cross","level_baseline","regionB","mean coupling over every eligible pair",0.436918,0.436254,0.008782,-0.000664,-0.075654,0.941053,49.67432,0,0.416924,0.455583
+"cross","level_baseline","regionC","mean coupling over every eligible pair",-0.000608,0.001165,0.003659,0.001774,0.484793,0.637333,0.318511,0.756063,-0.006888,0.009218
+"cross","level_control_all","regionA","mean control coupling (all eligible)",0.087684,0.089041,0.004389,0.001356,0.309,0.763095,20.288739,0,0.079381,0.0987
+"cross","level_control_all","regionB","mean control coupling (all eligible)",0.414189,0.413407,0.008847,-0.000782,-0.08842,0.931132,46.728922,0,0.393935,0.432879
+"cross","level_control_all","regionC","mean control coupling (all eligible)",-0.000763,0.001044,0.003664,0.001807,0.493341,0.631473,0.285041,0.780908,-0.00702,0.009108
+"cross","level_control_category","regionA","mean control coupling (category-matched)",0.353061,0.355611,0.004767,0.002549,0.534825,0.603414,74.605922,0,0.34512,0.366102
+"cross","level_control_category","regionB","mean control coupling (category-matched)",1.439363,1.44868,0.007796,0.009317,1.195088,0.257183,185.826851,0,1.431521,1.465838
+"cross","level_control_category","regionC","mean control coupling (category-matched)",-0.002426,0.00029,0.004077,0.002716,0.666156,0.519038,0.071146,0.944559,-0.008684,0.009265
+"cross","level_match","regionA","mean match coupling",0.880794,0.882769,0.00946,0.001975,0.208731,0.838473,93.315207,0,0.861948,0.90359
+"cross","level_match","regionB","mean match coupling",1.436984,1.441504,0.01104,0.00452,0.409423,0.690089,130.568764,0,1.417205,1.465803
+"cross","level_match","regionC","mean match coupling",0.006202,0.006491,0.006093,0.000289,0.047381,0.963059,1.065197,0.30961,-0.006921,0.019902
+"cross","lm_match","regionA","match coefficient adjusting for same_category",0.534134,0.532882,0.00775,-0.001253,-0.161633,0.874526,68.757802,0,0.515824,0.549939
+"cross","lm_match","regionB","match coefficient adjusting for same_category",-0.004193,-0.008047,0.005605,-0.003854,-0.687645,0.505917,-1.435725,0.178901,-0.020384,0.004289
+"cross","lm_match","regionC","match coefficient adjusting for same_category",0.008538,0.008323,0.004788,-0.000215,-0.044962,0.964943,1.738347,0.110023,-0.002215,0.018861
+"cross","lm_match_depth","regionA","study-duration slope on matched pairs",0.215401,0.220627,0.005923,0.005225,0.882294,0.396489,37.25225,0,0.207591,0.233662
+"cross","lm_match_depth","regionB","study-duration slope on matched pairs",0.060189,0.054435,0.01302,-0.005754,-0.441921,0.667108,4.180956,0.001534,0.025779,0.083091
+"cross","lm_match_depth","regionC","study-duration slope on matched pairs",-0.004389,7.5e-05,0.007446,0.004464,0.599491,0.56099,0.010007,0.992195,-0.016314,0.016463
+"cross","match_control_all","regionA","match coefficient, item nuisance adjusted",0.803817,0.80381,0.007337,-7e-06,-0.001019,0.999205,109.553929,0,0.787661,0.819959
+"cross","match_control_all","regionB","match coefficient, item nuisance adjusted",1.038842,1.045218,0.008881,0.006376,0.717929,0.487768,117.685746,0,1.02567,1.064766
+"cross","match_control_all","regionC","match coefficient, item nuisance adjusted",0.00685,0.007457,0.005037,0.000607,0.120484,0.906272,1.480378,0.166836,-0.00363,0.018545
+"cross","match_control_category","regionA","match coefficient, category-matched, encoding nuisance",0.518431,0.516626,0.008292,-0.001805,-0.217694,0.831653,62.306695,0,0.498376,0.534875
+"cross","match_control_category","regionB","match coefficient, category-matched, encoding nuisance",0.000682,-0.000297,0.005727,-0.000979,-0.171006,0.867324,-0.051858,0.959572,-0.012903,0.012309
+"cross","match_control_category","regionC","match coefficient, category-matched, encoding nuisance",0.008517,0.007827,0.005451,-0.00069,-0.126537,0.90159,1.435929,0.178845,-0.00417,0.019824
+"same","contrast_all","regionA","match - control, all eligible pairs",1.037212,1.041718,0.005484,0.004506,0.821534,0.428789,189.941744,0,1.029647,1.053789
+"same","contrast_all","regionB","match - control, all eligible pairs",1.279422,1.281078,0.008595,0.001656,0.192639,0.850752,149.044222,0,1.26216,1.299996
+"same","contrast_all","regionC","match - control, all eligible pairs",0.252443,0.257195,0.003623,0.004752,1.311665,0.216349,70.993936,0,0.249222,0.265169
+"same","contrast_category","regionA","match - control, category-matched pairs",0.770195,0.774644,0.005558,0.004449,0.80055,0.44034,139.376236,0,0.762412,0.786877
+"same","contrast_category","regionB","match - control, category-matched pairs",0.255481,0.250665,0.007328,-0.004815,-0.657088,0.524634,34.205577,0,0.234536,0.266795
+"same","contrast_category","regionC","match - control, category-matched pairs",0.251115,0.256033,0.003815,0.004918,1.289167,0.22379,67.115952,0,0.247636,0.264429
+"same","level_baseline","regionA","mean coupling over every eligible pair",0.110775,0.128289,0.00436,0.017514,4.017108,0.002026,29.425359,0,0.118693,0.137885
+"same","level_baseline","regionB","mean coupling over every eligible pair",0.442222,0.455628,0.007051,0.013406,1.901263,0.083771,64.618322,0,0.440109,0.471147
+"same","level_baseline","regionC","mean coupling over every eligible pair",0.006871,0.029178,0.00275,0.022307,8.112022,6e-06,10.610526,0,0.023126,0.035231
+"same","level_control_all","regionA","mean control coupling (all eligible)",0.087726,0.10514,0.004382,0.017414,3.974177,0.00218,23.995131,0,0.095496,0.114784
+"same","level_control_all","regionB","mean control coupling (all eligible)",0.413791,0.42716,0.007088,0.013369,1.886146,0.08594,60.264594,0,0.411559,0.442761
+"same","level_control_all","regionC","mean control coupling (all eligible)",0.001261,0.023463,0.002785,0.022202,7.970625,7e-06,8.423272,4e-06,0.017332,0.029593
+"same","level_control_category","regionA","mean control coupling (category-matched)",0.354743,0.372213,0.005103,0.01747,3.423469,0.005688,72.940066,0,0.360982,0.383445
+"same","level_control_category","regionB","mean control coupling (category-matched)",1.437732,1.457572,0.006315,0.01984,3.141735,0.009379,230.80948,0,1.443673,1.471472
+"same","level_control_category","regionC","mean control coupling (category-matched)",0.002589,0.024625,0.003179,0.022036,6.930767,2.5e-05,7.745211,9e-06,0.017627,0.031623
+"same","level_match","regionA","mean match coupling",1.124938,1.146858,0.006324,0.021919,3.46601,0.005277,181.347354,0,1.132939,1.160777
+"same","level_match","regionB","mean match coupling",1.693213,1.708238,0.009947,0.015025,1.510568,0.159079,171.741846,0,1.686345,1.73013
+"same","level_match","regionC","mean match coupling",0.253704,0.280658,0.003426,0.026954,7.866451,8e-06,81.910267,0,0.273116,0.288199
+"same","lm_match","regionA","match coefficient adjusting for same_category",0.775941,0.78224,0.0044,0.006298,1.431315,0.180132,177.763087,0,0.772554,0.791925
+"same","lm_match","regionB","match coefficient adjusting for same_category",0.254021,0.250483,0.007425,-0.003537,-0.476418,0.643099,33.735602,0,0.234141,0.266825
+"same","lm_match","regionC","match coefficient adjusting for same_category",0.251541,0.256488,0.003287,0.004948,1.505276,0.160416,78.036295,0,0.249254,0.263723
+"same","lm_match_depth","regionA","study-duration slope on matched pairs",0.201777,0.199672,0.007327,-0.002105,-0.28727,0.779245,27.253032,0,0.183546,0.215798
+"same","lm_match_depth","regionB","study-duration slope on matched pairs",0.047905,0.034768,0.008192,-0.013137,-1.603619,0.137101,4.244086,0.001379,0.016737,0.052799
+"same","lm_match_depth","regionC","study-duration slope on matched pairs",-0.02333,-0.018944,0.01165,0.004386,0.376482,0.713719,-1.626149,0.132198,-0.044585,0.006697
+"same","match_control_all","regionA","match coefficient, item nuisance adjusted",1.047323,1.053593,0.004604,0.00627,1.361913,0.200464,228.84709,0,1.04346,1.063726
+"same","match_control_all","regionB","match coefficient, item nuisance adjusted",1.295786,1.298773,0.008097,0.002987,0.368875,0.719222,160.399672,0,1.280951,1.316594
+"same","match_control_all","regionC","match coefficient, item nuisance adjusted",0.252873,0.25765,0.003487,0.004777,1.370105,0.197969,73.893453,0,0.249976,0.265324
+"same","match_control_category","regionA","match coefficient, category-matched, encoding nuisance",0.759783,0.763864,0.005282,0.00408,0.772529,0.45608,144.618869,0,0.752238,0.775489
+"same","match_control_category","regionB","match coefficient, category-matched, encoding nuisance",0.25776,0.254247,0.005876,-0.003513,-0.597891,0.56202,43.269051,0,0.241314,0.26718
+"same","match_control_category","regionC","match coefficient, category-matched, encoding nuisance",0.252153,0.257595,0.0037,0.005442,1.470941,0.169326,69.627433,0,0.249452,0.265738

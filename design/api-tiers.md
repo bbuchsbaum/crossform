@@ -76,7 +76,7 @@ because the count is used as a *cost of demotion* — and a `\seealso` link to a
 | **advanced** | A specialist reaching past the four view functions: explicit queries, frame algebra, metrics, crossnobis, error-channel readers, numerical evidence. | Reference page + runnable Rd examples. Vignette coverage desirable, not required. |
 | **advanced (experimental: connect)** | Measurement forms, coupling closures, tomography. The connect narrative. Scale-gated, and the package refuses brain-scale claims here. | Must carry the experimental label at the top of its reference section and in `_pkgdown.yml`. |
 | **adapters** | Labeled sub-tier of advanced: morphisms into the typed core from BIDS, fmridesign, fmrireg, neuroim2. | Each adapter's dependency is `Suggests:`; the core is not shaped by any of them. |
-| **developer** | Extension and adapter *packages*, not end users: the **extension-*only*** protocol for handing data, a design, and an error channel into the core. It is not the whole surface an extension package meets — an adapter *also* meets the core-ingestion tier (the four in-tree adapters use twelve exported crossform functions between them once ticket A3 applies decision 1 — fourteen before it — of which only two are developer-tier). | Target: **≤ 5 sanctioned entry points remain exported.** Everything else that was developer-tier becomes internal. |
+| **developer** | Extension and adapter *packages*, not end users: the **extension-*only*** protocol for handing data, a design, and an error channel into the core. It is not the whole surface an extension package meets — an adapter *also* meets the core-ingestion tier (the four in-tree adapters use thirteen exported crossform functions between them: fourteen before ticket A3 applied decision 1, twelve after it, and thirteen once ticket D3 gave `neuroim2_searchlights()` a multiscale route that delegates its refusals to `searchlights()` and stacks the result with `frame_family()` — of which only two are developer-tier). | Target: **≤ 5 sanctioned entry points remain exported.** Everything else that was developer-tier becomes internal. |
 
 **On the developer tier's boundary** (maintainer decision 7, 2026-08-17). Read
 literally — "extension and adapter *packages*, not end users" — the definition
@@ -730,6 +730,13 @@ tickets A4, A9 and F2 rather than on this ledger. Net: **105 exports − 7
 demote-internal − 1 merge = 97 exports** after subtraction, of which the
 developer tier is 5.
 
+
+**F2 discharge (2026-08-20).** The rectangular ER-RSA exemplar
+(`exemplars/er-rsa`) exercised all five pair-query exports as load-bearing
+steps — `match_coupling()`, `control_coupling()`, `coupling_contrast()`,
+`match_control()`, `pair_lm_query()` — so maintainer decision 3's condition is
+met and the conditional keep on the ER-RSA five resolves to **keep**.
+
 **Obligations this ledger now hands to other tickets.** A4: a coding-invariance
 chunk for `lower_effect_map()`, executed examples for `coupling()`,
 `covariance_coupling()` and `frame_conservation()`, and no presentation of the
@@ -975,10 +982,13 @@ Everything above audits the 105 exports the subtraction release inherited and
 the 97 it left. This section is the append-only register of exports added
 *after* that release, so the historical arithmetic above stays readable as the
 record of what it actually decided. The binding total is the sum of the two:
-**97 + 1 = 98**, which is what `tests/testthat/test-api-surface.R` pins.
+**97 + 2 = 99**, which is what `tests/testthat/test-api-surface.R` pins.
 
 | Name | Defining file | Tier | Program | Justification | Disposition |
 |---|---|---|---|---|---|
 | `frame_family()` | `R/frame.R` | advanced | ws-d (ticket D2) | the named constructor for α-weighted conservative frame families, closing gaps G1, G2 and G11 of `design/conservative-geometry-contract.md` §11.4. Before it, the only working route was `rbind()` of member weight matrices into `additive_frame(..., "conservative")`: numerically sound, undocumented, and provenance-blind — it dropped `$index` and `$specification`, so a result's `measurement` column degraded to row positions and no row could say which scale produced it. `frame_family()` is the same operator with the per-row `family` / `scale` / `center` / `alpha` metadata WS-E's transport layer requires (§7.1), and it enforces the two preconditions the per-block law needs rather than assuming them (α sums to one; every member column-normalized on its own). Users: T:1 (`test-frame-family.R`), plus `frame_conservation()`'s per-block certificate | keep |
 
-Tier arithmetic after this section: advanced 33 → **34**; total 97 → **98**.
+| `contribution()` | `R/views.R` | core | ws-d (ticket D4) | the aggregation half of the attribution instrument, closing gap G4 of `design/conservative-geometry-contract.md` §11.4. A conservative frame exists so that node values can be *added up over a territory* (§1.2); before this there was no verb that did it, so every user reinvented `tapply(view$total, region, sum)` — which silently accepts a locally normalized frame whose sum estimates nothing (§1.1), averages coherence fractions instead of recomputing them, and reports a coherent budget without saying it is frame-relative (§4). `contribution()` is that arithmetic with the three refusals attached: it groups by row (budget-exact, never splitting an overlapping node), labels coherent and configuration budgets `frame_relative`, and recomputes the group fraction under the same nonnegative-partition mask a node's fraction gets. Core rather than advanced because reading a ledger is the point of asking for a conservative frame at all, not a specialist follow-up. Users: T:1 (`test-contribution.R`) | keep |
+
+Tier arithmetic after this section: core 21 → **22**; advanced 33 → **34**;
+total 97 → **99**.

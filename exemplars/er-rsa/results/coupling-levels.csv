@@ -1,0 +1,4 @@
+"region","match_coupling","control_coupling_all","control_coupling_category","item_specific_contrast","item_specific_planted","item_specific_t","naive_contrast","naive_planted"
+"regionA",0.8828,0.089,0.3556,0.5272,0.5277,62.0809,0.7937,0.7931
+"regionB",1.4415,0.4134,1.4487,-0.0072,-0.0024,-1.0726,1.0281,1.0228
+"regionC",0.0065,0.001,3e-04,0.0062,0.0086,1.2407,0.0054,0.007
