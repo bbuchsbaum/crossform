@@ -164,6 +164,18 @@ reference:
   - frame_family
   - frame_conservation
 
+- title: "Advanced — the latent PSD layer"
+  desc: >
+    Crossvalidated contributions are signed, and effective counts, cumulative
+    curves and contribution fractions are invalid on them: the implied shares
+    can leave `[0, 1]`, and clipping reintroduces the bias the cross-partition
+    estimator removes. Those functionals are legal only on a declared
+    nonnegative projection, which this builds and labels — a named projection
+    from a closed set, with the mass it moved reported per measurement rather
+    than absorbed.
+  contents:
+  - latent_geometry
+
 - title: "Advanced — metrics and crossnobis"
   desc: >
     Fixed and learned neural metrics, the leakage guard on metric training,
@@ -249,7 +261,11 @@ reference:
     name the runs that built it. `plan_population()` assembles the group
     estimand from them: the transport, the budget normalization, and the fit's
     evaluation order all enter its scientific identity, because each of them
-    changes what the group number is rather than how it is computed. See
+    changes what the group number is rather than how it is computed.
+    `estimate_population()` executes one through a bank of contrasts, reading
+    the query before the transport so complete packed geometry is never
+    allocated, and asserting each participant's budget certificate at fit
+    time. See
     [`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
   contents:
   - location_transport
@@ -257,6 +273,7 @@ reference:
   - external_transport
   - transport_values
   - plan_population
+  - estimate_population
 
 - title: Adapters
   desc: >

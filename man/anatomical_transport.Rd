@@ -82,6 +82,7 @@ transport
 semantics.
 
 Other population transports: 
+\code{\link{estimate_population}()},
 \code{\link{external_transport}()},
 \code{\link{location_transport}()},
 \code{\link{plan_population}()},

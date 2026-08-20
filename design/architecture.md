@@ -28,8 +28,8 @@ Six layers. **A file may call downward or sideways. It may never call upward.**
 | 1 | **primitives** | `primitives.R`, `message-helpers.R`, `conditions.R`, `check.R`, `RcppExports.R` |
 | 2 | **values** | `domain.R`, `frame.R`, `pairing.R`, `relation.R`, `relation-session.R`, `effect-space.R`, `effect-map.R`, `metric.R`, `metric-learning.R`, `source.R`, `capabilities.R`, `study.R`, `study-facts.R`, `design-model.R`, `observation-model.R`, `extractor.R`, `scope.R`, `support-index.R`, `numerics.R`, `query-structured.R`, `pair-query.R`, `operations.R`, `receipt.R`, `reliability.R`, `validation-memo.R`, `measurement.R`, `measurement-storage.R`, `relation-fit.R`, `residual-statistics.R`, `bridge.R`, `transport.R`, `compute-policy.R`, `memory-plan.R`, `crossform-package.R` |
 | 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `population-plan.R`, `crossnobis.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
-| 4 | **compiler / execution, and the records execution produces** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R`, `crossnobis-driver.R`, `result.R` |
-| 5 | **results / views** | `views.R`, `geometry-entry.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
+| 4 | **compiler / execution, and the records execution produces** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R`, `crossnobis-driver.R`, `population-driver.R`, `result.R` |
+| 5 | **results / views** | `views.R`, `geometry-entry.R`, `latent.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
 | 6 | **adapters and facade** | `adapter-bids.R`, `adapter-fmridesign.R`, `adapter-fmrireg.R`, `neuroim2-adapter.R`, `bridge.R` consumers, `benchmark.R`, `example-data.R`, `evidence-api.R` |
 
 The package deliberately has **no `Collate:` field**. R sources are loaded in
@@ -125,6 +125,17 @@ responsibilities live apart:
   inline closures. `on.exit()` is registered in that one frame, so the source
   session still closes exactly once whether the run completes, errors, or is
   interrupted.
+- `R/population-driver.R` (layer 4) is the group-level runtime:
+  `estimate_population()` and the `effect_population_result` record. It sits
+  beside `crossnobis-driver.R` and for the same reason — a driver that reads a
+  plan through a fixed query calls `.run_geometry_compiler()` sideways rather
+  than reaching up to `evaluate_geometry()`, which is the layer-5 entry point
+  for the same call. Its other downward edges are to `transport.R` (layer 2)
+  for the contraction, `population-plan.R` (layer 3) for the plan validator,
+  and `evidence-sampling-product.R` (layer 3) for the query-bank parser and
+  the per-subject covariance passthrough. It builds no plan and defines no
+  view: `print`, `format` and `as.data.frame` for its record live in layer 5
+  with every other presentation of a result.
 
 Three declaration files moved down to layer 2 at the same time, because that
 is what they always were: `R/compute-policy.R` (was `execution.R`),

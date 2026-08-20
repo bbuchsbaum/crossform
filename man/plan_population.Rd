@@ -176,6 +176,7 @@ operator, \code{\link[=transport_values]{transport_values()}} for the contractio
 
 Other population transports: 
 \code{\link{anatomical_transport}()},
+\code{\link{estimate_population}()},
 \code{\link{external_transport}()},
 \code{\link{location_transport}()},
 \code{\link{transport_values}()}

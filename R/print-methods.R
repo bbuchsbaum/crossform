@@ -110,6 +110,16 @@
   if (is.null(x) || !length(x)) empty else as.character(x)[[1L]]
 }
 
+# A wrapped caveat under the key/value block. It lives here with the other
+# printing primitives rather than beside its first caller: `format-results.R`
+# and this file are both layer 5, so either may call the other, but only one
+# direction at a time --- a helper defined there and used here closes the
+# cycle `benchmarks/call-graph-scc.R` ratchets at one component per file.
+.pf_note <- function(text) {
+  cat(strwrap(text, width = .pf_line_width, prefix = "    ", initial = "  "),
+    sep = "\n")
+}
+
 # Number of stored (structurally nonzero) entries in a sparse or dense matrix.
 .pf_stored <- function(x) {
   if (methods::is(x, "sparseMatrix")) {
@@ -2419,5 +2429,113 @@ print.effect_population_plan <- function(x, ...) {
     estimand = .pf_sig(x$scientific_plan_id),
     signature = .pf_sig(x$signature)
   ))
+  invisible(x)
+}
+
+# Population results -----------------------------------------------------------
+#
+# `population-form-v1` section 8.1 makes one line of this print method
+# normative: a transported component view must state the native frame family
+# it is a ledger of and the transport identity that carried it, so a reader
+# never has to infer which frame a "coherent" number belongs to. The closing
+# note is the other half of the same obligation --- the additive identity does
+# survive transport, and the failure is only in reading the coherent ledger as
+# a group-node common mode.
+
+.pf_population_ledger <- function(x) {
+  paste0(x$ledger, " (component \"", x$component, "\")")
+}
+
+.pf_population_frame <- function(x) {
+  frame <- x$receipt$frame
+  family <- if (all(is.na(frame$family))) "undeclared" else
+    .pf_set(frame$family, max = 3L)
+  scale <- if (all(is.na(frame$scale))) NULL else
+    paste0(", scale ", .pf_num(frame$scale))
+  paste0(family, scale, ", ", .pf_set(frame$normalization, max = 2L))
+}
+
+.pf_population_carrier <- function(x) {
+  audit <- x$receipt$subjects
+  cross_fit <- audit$cross_fit[!is.na(audit$cross_fit)]
+  paste0(x$semantics, ", ", .pf_set(unique(audit$provenance), max = 3L),
+    ", cross-fit ", if (length(cross_fit)) {
+      .pf_set(unique(cross_fit), max = 2L)
+    } else {
+      "not declared"
+    })
+}
+
+.pf_population_budget <- function(x) {
+  budget <- x$receipt$budget
+  if (!isTRUE(budget$asserted)) {
+    return("not asserted (density conserves no total)")
+  }
+  paste0("preserved, worst relative deviation ",
+    format(signif(budget$max_relative_deviation, 3L)), " against ",
+    format(budget$tolerance))
+}
+
+.pf_population_normalization <- function(x) {
+  record <- x$receipt$normalization
+  if (identical(record$mode, "none")) {
+    return("none (mean subject ledger, native evidence units)")
+  }
+  excluded <- sum(!record$admitted)
+  paste0(record$mode, " (", gsub("_", " ", record$budget_estimate),
+    ", floor ", format(record$budget_floor), ")",
+    if (excluded) paste0(", ", excluded, " subject-query cells refused")
+    else "")
+}
+
+.pf_population_uncertainty <- function(x) {
+  if (is.null(x$uncertainty)) {
+    return(NULL)
+  }
+  paste0(gsub("_", " ", x$uncertainty$scope), " blocks carried; transported ",
+    "covariance refused (", x$uncertainty$transported$capability, ")")
+}
+
+#' @export
+format.effect_population_result <- function(x, ...) {
+  .pf_inline("effect_population_result", x$ledger,
+    .msg_count(dim(x$values)[[3L]], "subject"),
+    paste0(nrow(x$index) - 1L, " group nodes + sink"),
+    .msg_count(nrow(x$queries), "query", "queries"))
+}
+
+#' @export
+print.effect_population_result <- function(x, ...) {
+  .validate_population_result(x)
+  audit <- x$receipt$subjects
+  .pf_emit("effect_population_result", list(
+    ledger = .pf_population_ledger(x),
+    subjects = paste0(nrow(audit), " (", .pf_set(audit$subject, max = 4L),
+      "), residual df ", x$residual_df),
+    `group nodes` = paste0(nrow(x$index) - 1L, " + sink"),
+    queries = paste0(nrow(x$queries), " (",
+      .pf_set(rownames(x$queries), max = 3L), ")"),
+    frame = .pf_population_frame(x),
+    transport = .pf_population_carrier(x),
+    normalization = .pf_population_normalization(x),
+    fit = paste0(toupper(x$receipt$fit$kind), " (",
+      gsub("_", "-", x$receipt$fit$weights), " weights), ",
+      gsub("_", " ", x$receipt$evaluation_order)),
+    budget = .pf_population_budget(x),
+    uncertainty = .pf_population_uncertainty(x),
+    unresolved = if (x$receipt$unresolved_columns) {
+      paste0(x$receipt$unresolved_columns, " node-query cells not estimated")
+    },
+    estimand = .pf_sig(x$scientific_plan_id)
+  ))
+  if (!identical(x$component, "total")) {
+    .pf_note(paste0(
+      "native_coherent_ledger + native_configuration_ledger = ",
+      "transported_total holds exactly; this is native-node ", x$component,
+      " evidence carried to a group location, not a group-node common mode."
+    ))
+  }
+  cat(sprintf("  %-15s%s\n", "next:",
+    "as.data.frame(x), x$coefficients[, , term]"))
   invisible(x)
 }

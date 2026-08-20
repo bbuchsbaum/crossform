@@ -269,11 +269,6 @@ print.effect_view <- function(x, ...) {
   invisible(NULL)
 }
 
-.pf_note <- function(text) {
-  cat(strwrap(text, width = .pf_line_width, prefix = "    ", initial = "  "),
-    sep = "\n")
-}
-
 #' @export
 as.data.frame.effect_crossnobis_view <- function(x, row.names = NULL,
                                                  optional = FALSE, ...) {
@@ -406,4 +401,32 @@ as.data.frame.effect_spectrum_view <- function(x, row.names = NULL,
 #' @export
 print.effect_spectrum_view <- function(x, ...) {
   .format_result_preview(x, "effect_spectrum_view", ...)
+}
+
+# Population results -----------------------------------------------------------
+#
+# The coefficient table in long form: one row per group node, query and term,
+# with the group node index --- the sink included, marked, and carrying the
+# units its column is reported in --- leading it exactly as a measurement index
+# leads every other result table. Long rather than wide because the result has
+# three axes and a wide table has to fold two of them into column names, which
+# stops being readable at the second query.
+
+#' @export
+as.data.frame.effect_population_result <- function(x, row.names = NULL,
+                                                   optional = FALSE, ...) {
+  .validate_population_result(x)
+  shape <- dim(x$coefficients)
+  labels <- dimnames(x$coefficients)
+  nodes <- shape[[1L]]
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), ,
+      drop = FALSE
+    ],
+    query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+    term = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    estimate = as.numeric(x$coefficients),
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
 }

@@ -156,6 +156,7 @@ convenience constructors, and \code{\link[=transport_values]{transport_values()}
 
 Other population transports: 
 \code{\link{anatomical_transport}()},
+\code{\link{estimate_population}()},
 \code{\link{external_transport}()},
 \code{\link{plan_population}()},
 \code{\link{transport_values}()}

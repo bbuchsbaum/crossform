@@ -20,13 +20,14 @@ crossform_public_api <- c(
   "coupling_contrast", "covariance_coupling", "cross_partitions",
   "crossnobis", "design_model", "diagonal_precision", "edge_frame",
   "effect_coupling", "effect_extractor", "effect_map",
-  "effect_space", "estimate_relation", "evaluate_geometry",
+  "effect_space", "estimate_population", "estimate_relation",
+  "evaluate_geometry",
   "example_fmri_effects", "external_transport", "file_matrix_source",
   "fmridesign_design_model", "fmrireg_relation",
   "frame_conservation", "frame_family",
   "gaussian_covariance_model",
   "geometry_alignment", "geometry_component", "geometry_spectrum",
-  "identity_metric", "lm_extractor", "lm_relation_fit",
+  "identity_metric", "latent_geometry", "lm_extractor", "lm_relation_fit",
   "location_transport", "lower_effect_map", "match_control", "match_coupling",
   "materialize_geometry", "measurement_components",
   "measurement_form", "measurement_frame", "metric_capabilities",
@@ -59,10 +60,11 @@ test_that("the exported surface is exactly the ledgered set", {
 
   # The count is stated separately because the ledger quotes it: the
   # subtraction release took 105 exports to 97, and WS-D has since added
-  # `frame_family()`, `contribution()` and `coherence_spectrum()`, and WS-E
-  # the four population transport names plus `plan_population()`
+  # `frame_family()`, `contribution()`, `coherence_spectrum()` and
+  # `latent_geometry()`, and WS-E the four population transport names,
+  # `plan_population()` and `estimate_population()`
   # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 105L)
+  expect_identical(length(exports), 107L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {
