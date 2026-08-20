@@ -226,9 +226,10 @@ print.effect_view <- function(x, ...) {
 # An aggregated view prints as one row per territory, and nothing in that table
 # says the rows are group sums rather than measurements -- or that a coherent
 # budget belongs to one frame and cannot be compared across frames
-# (`design/conservative-geometry-contract.md` section 4). `contribution()` is
-# the only thing that sets `$metadata$aggregation`, so the note appears exactly
-# on the objects it describes and no other print changes at all.
+# (`design/conservative-geometry-contract.md` section 4). `contribution()` and
+# `coherence_spectrum()` are the only things that set `$metadata$aggregation`,
+# so the note appears exactly on the objects it describes and no other print
+# changes at all.
 .pf_aggregation_note <- function(x) {
   record <- x$metadata$aggregation
   if (!is.list(record)) return(invisible(NULL))
@@ -237,6 +238,20 @@ print.effect_view <- function(x, ...) {
     record$aggregated_by, .msg_count(record$groups, "group"),
     .msg_count(record$measurements, "measurement")
   ))
+  # A spectrum's two numeric columns are read in opposite directions, and the
+  # table alone does not say which is which: `total` per group is alpha times
+  # the whole-domain total by construction (section 3.1), so it reports the
+  # family weighting, while the share cancels alpha exactly (section 3.2) and
+  # is the scale-resolved finding. Printing the table without saying so is how
+  # the panel the contract forbids gets read off it.
+  if (identical(record$reduction, "coherence_spectrum")) {
+    .pf_note(paste0(
+      "coherence_spectrum: `total` per group is alpha times the whole-domain ",
+      "total by construction, so that column is the family weighting and not ",
+      "a finding; `coherence_fraction` is exactly invariant to alpha and is ",
+      "the scale-resolved quantity to read"
+    ))
+  }
   if (isTRUE(record$frame_relative)) {
     .pf_note(sprintf(paste0(
       "frame_relative: TRUE -- %s %s a share of this frame's own mass, not of ",

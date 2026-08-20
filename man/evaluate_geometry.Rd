@@ -63,6 +63,7 @@ conditionMessage(attr(missing_query, "condition"))
 Other geometry plans and views: 
 \code{\link{aggregate_first}()},
 \code{\link{bilinear_query}()},
+\code{\link{coherence_spectrum}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
 \code{\link{contribution}()},

@@ -27,7 +27,7 @@ Six layers. **A file may call downward or sideways. It may never call upward.**
 |---|-------|-------|
 | 1 | **primitives** | `primitives.R`, `message-helpers.R`, `conditions.R`, `check.R`, `RcppExports.R` |
 | 2 | **values** | `domain.R`, `frame.R`, `pairing.R`, `relation.R`, `relation-session.R`, `effect-space.R`, `effect-map.R`, `metric.R`, `metric-learning.R`, `source.R`, `capabilities.R`, `study.R`, `study-facts.R`, `design-model.R`, `observation-model.R`, `extractor.R`, `scope.R`, `support-index.R`, `numerics.R`, `query-structured.R`, `pair-query.R`, `operations.R`, `receipt.R`, `reliability.R`, `validation-memo.R`, `measurement.R`, `measurement-storage.R`, `relation-fit.R`, `residual-statistics.R`, `bridge.R`, `transport.R`, `compute-policy.R`, `memory-plan.R`, `crossform-package.R` |
-| 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `crossnobis.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
+| 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `population-plan.R`, `crossnobis.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
 | 4 | **compiler / execution, and the records execution produces** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R`, `crossnobis-driver.R`, `result.R` |
 | 5 | **results / views** | `views.R`, `geometry-entry.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
 | 6 | **adapters and facade** | `adapter-bids.R`, `adapter-fmridesign.R`, `adapter-fmrireg.R`, `neuroim2-adapter.R`, `bridge.R` consumers, `benchmark.R`, `example-data.R`, `evidence-api.R` |
@@ -101,6 +101,13 @@ responsibilities live apart:
 - `R/geometry-plan.R` (layer 3) is pure data: the metric schedule, the plan's
   estimand identity, `plan_geometry()`, and the plan validator. It calls
   nothing in layer 4.
+- `R/population-plan.R` (layer 3) is the group-level estimand: `plan_population()`,
+  its scientific identity, and its validator. It sits beside `geometry-plan.R`
+  rather than above it — a population plan *quotes* per-participant plan
+  identities and transport signatures, and reads a frame's conservation
+  report, but constructs no geometry plan and executes nothing. Its only
+  sideways edge is to `geometry-plan.R` for the subject-plan validator; the
+  transports it consumes are layer-2 values (`transport.R`).
 - `R/evidence-task.R` (layer 3) owns effect-task construction and identity —
   `.compile_effect_evidence_task()`, `.effect_task_semantic()`,
   `.effect_task_id()`, `.effect_task_base_id()`, `.validate_compiled_effect_task()`.

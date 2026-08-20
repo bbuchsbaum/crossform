@@ -92,11 +92,13 @@ reference:
     The plan is an identity, not a matrix. These read it: signed and
     decomposed contrast energy, squared crossvalidated distances, fixed
     linear RSA, the ledger reading that adds a conservative map up over a
-    territory, the analytic sampling law, and the refusal a view returns
-    when the evidence for it was never earned.
+    territory, the coherent share of a multiscale family against scale, the
+    analytic sampling law, and the refusal a view returns when the evidence
+    for it was never earned.
   contents:
   - contrast_energy
   - contribution
+  - coherence_spectrum
   - rdm
   - rsa
   - plot_views
@@ -244,13 +246,17 @@ reference:
     coverage is a number you can read rather than budget that quietly went
     missing, and `semantics` has no default because budget and density are
     two different estimands. A transport built from the response data must
-    name the runs that built it. See
+    name the runs that built it. `plan_population()` assembles the group
+    estimand from them: the transport, the budget normalization, and the fit's
+    evaluation order all enter its scientific identity, because each of them
+    changes what the group number is rather than how it is computed. See
     [`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
   contents:
   - location_transport
   - anatomical_transport
   - external_transport
   - transport_values
+  - plan_population
 
 - title: Adapters
   desc: >

@@ -42,7 +42,8 @@ layer_of <- c(
   "transport.R" = 2L, "crossform-package.R" = 2L,
 
   ## 3. plans — scientific estimands and their identities
-  "geometry-plan.R" = 3L, "relation-plan.R" = 3L, "crossnobis.R" = 3L,
+  "geometry-plan.R" = 3L, "relation-plan.R" = 3L, "population-plan.R" = 3L,
+  "crossnobis.R" = 3L,
   "evidence-task.R" = 3L, "evidence-sampling.R" = 3L,
   "evidence-sampling-kernel.R" = 3L, "evidence-sampling-product.R" = 3L,
   "compiler-conformance.R" = 3L,

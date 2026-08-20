@@ -1062,6 +1062,10 @@ format.effect_sampling_covariance <- function(x, ...) {
     return(.pf_inline("effect_sampling_covariance",
       paste0(x$dimension, " distances"), x$plan$target$policy, "factorized"))
   }
+  if (identical(x$basis, "query_bank")) {
+    return(.pf_inline("effect_sampling_covariance",
+      paste0(x$dimension, " queries"), x$plan$target$policy, "factorized"))
+  }
   .pf_inline("effect_sampling_covariance",
     paste0(x$dimension, " coordinates"), x$plan$target$policy)
 }
@@ -1072,7 +1076,7 @@ print.effect_sampling_covariance <- function(x, ...) {
   if (identical(x$basis, "rdm")) {
     return(.print_rdm_sampling_covariance(x))
   }
-  .pf_emit("effect_sampling_covariance", list(
+  fields <- list(
     basis = x$basis,
     coordinates = x$dimension,
     labels = .pf_set(x$labels, max = 3L),
@@ -1084,7 +1088,19 @@ print.effect_sampling_covariance <- function(x, ...) {
     "residual noise" = .pf_residual_noise(x$source),
     storage = "exact factorized covariance",
     signature = .pf_sig(x$signature)
-  ))
+  )
+  if (identical(x$basis, "query_bank")) {
+    # A bank of contrast energies is read at one measurement, and the block is
+    # a marginal. Both facts are printed, because a K-by-K matrix invites the
+    # reader to treat it as a joint covariance over everything in sight.
+    fields <- append(fields, list(
+      queries = paste0(x$dimension, " contrast energies, lowered onto ",
+        length(x$source$distance_labels), " distances"),
+      measurement = .pf_or(as.character(x$source$node)),
+      "spatial law" = "local marginal only; no cross-measurement covariance"
+    ), after = 3L)
+  }
+  .pf_emit("effect_sampling_covariance", fields)
   invisible(x)
 }
 
@@ -2338,6 +2354,69 @@ print.effect_location_transport <- function(x, ...) {
       " rows, ", sprintf("%.1f%%", 100 * sink$share), " of territory"),
     provenance = .pf_transport_provenance(x$provenance),
     built = .pf_or(x$provenance$details, "undeclared"),
+    signature = .pf_sig(x$signature)
+  ))
+  invisible(x)
+}
+
+# Population plans -------------------------------------------------------------
+#
+# The plan's one-screen summary has to carry every choice that decides what a
+# group number means, because each of them is a plan-identity field: the
+# transport semantics, the budget normalization, the fit and its evaluation
+# order. Coverage joins them -- a transport can raise a consensus share simply
+# by sinking the nodes that disagree, so unmapped territory is printed beside
+# the shape rather than left to a diagnostic call the reader may not make.
+
+.pf_population_subjects <- function(x) {
+  paste0(length(x$subjects), " (", .pf_set(names(x$subjects), max = 4L), ")")
+}
+
+.pf_population_sink <- function(x) {
+  share <- x$subject_index$sink_territory
+  reached <- sum(share > 0)
+  if (!reached) {
+    return("empty in every subject (full native coverage)")
+  }
+  paste0("present in ", reached, " of ", nrow(x$subject_index),
+    " subjects, worst ", sprintf("%.1f%%", 100 * max(share)),
+    " of territory")
+}
+
+.pf_population_model <- function(x) {
+  paste0(x$model$formula_text, " -> ",
+    .msg_count(length(x$model$columns), "column"), ", rank ", x$model$rank)
+}
+
+.pf_population_fit <- function(x) {
+  paste0(toupper(x$fit$kind), " (", gsub("_", "-", x$fit$weights),
+    " weights), ", gsub("_", " ", x$fit$evaluation_order))
+}
+
+#' @export
+format.effect_population_plan <- function(x, ...) {
+  .pf_inline("effect_population_plan",
+    .msg_count(length(x$subjects), "subject"),
+    paste0(nrow(x$group_index), " group nodes"),
+    x$model$formula_text, x$normalization)
+}
+
+#' @export
+print.effect_population_plan <- function(x, ...) {
+  .validate_population_plan(x, deep = FALSE)
+  .pf_emit("effect_population_plan", list(
+    subjects = .pf_population_subjects(x),
+    `group nodes` = paste0(nrow(x$group_index), " + sink"),
+    sink = .pf_population_sink(x),
+    transport = paste0(x$semantics, ", ",
+      .pf_set(unique(x$subject_index$provenance), max = 3L)),
+    model = .pf_population_model(x),
+    normalization = x$normalization,
+    fit = .pf_population_fit(x),
+    frames = if (isTRUE(x$allow_nonconservative)) {
+      "non-conservative admitted (declared)"
+    },
+    estimand = .pf_sig(x$scientific_plan_id),
     signature = .pf_sig(x$signature)
   ))
   invisible(x)

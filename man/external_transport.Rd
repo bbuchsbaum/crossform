@@ -71,6 +71,7 @@ transport_values(transport, c(1, 1, 1))
 Other population transports: 
 \code{\link{anatomical_transport}()},
 \code{\link{location_transport}()},
+\code{\link{plan_population}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

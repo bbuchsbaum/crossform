@@ -54,6 +54,7 @@ transport_values(transport, forms)
 Other population transports: 
 \code{\link{anatomical_transport}()},
 \code{\link{external_transport}()},
-\code{\link{location_transport}()}
+\code{\link{location_transport}()},
+\code{\link{plan_population}()}
 }
 \concept{population transports}

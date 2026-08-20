@@ -84,6 +84,7 @@ semantics.
 Other population transports: 
 \code{\link{external_transport}()},
 \code{\link{location_transport}()},
+\code{\link{plan_population}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

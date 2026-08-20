@@ -399,9 +399,72 @@ implementation detail.
 
 `π_i = 1/\operatorname{Var}(\widehat T_i)` requires the variance of a *conserved
 budget*, which by `conservative-geometry-v1` §7.6a needs the full cross-node
-sampling covariance and not a sum of per-node margins — the object D8 / gap G8
-owes. Until D8 lands, `precision_weighted` accepts `π` only as an **externally
+sampling covariance and not a sum of per-node margins.
+
+**D8 has since landed, and the gate holds** (verified 2026-08-20). What D8
+supplies is a per-measurement query bank —
+`sampling_covariance(u, queries = bank)` over `K` zero-sum contrast rows, whose
+coordinates are exactly `contrast_energy(plan, c_k)$total`, with
+`sampling_covariance(batch, "materialize", queries = bank)` returning `K × K`
+blocks named by measurement. That is a *marginal* covariance at one node. The
+object `precision_weighted` needs is the joint one, and it is explicitly
+refused: `scope = "cross_measurement"` raises capability
+**`cross_node_sampling_covariance`** (namespace `evidence_sampling`), reasons
+`spatial_covariance_model_unavailable` and `conservation_gives_no_uncertainty`
+— the second being §7.6a's point restated at the sampling layer. The refusal
+fires on the distance basis too, so no route hands a caller margins when they
+asked for a joint covariance.
+
+`precision_weighted` therefore still accepts `π` only as an **externally
 supplied, provenance-bearing vector**, and the plan refuses to synthesize one.
+The arrival of the query bank is **not** a reason to admit the mode: assembling
+a precision from per-node margins on an overlapping conservative frame would
+reweight subjects by the wrong quantity, and §4.2 measures the three
+normalizations disagreeing by up to 93.83 % and moving the argmax.
+
+**"Externally supplied" is not a free pass, and the marginal D8 does supply
+shows why.** Even that block is conditional on a declared error model: it is
+the covariance of `contrast_energy(plan, c_k)$total` under the fixed-metric
+equal-partition law, with the residual second moment a plug-in carrying a
+Wishart correction. Sufficiency is enforced *upstream of the bank*, at form
+construction — `.require_sufficient_residual_df()` has a single call site,
+inside the kernel that builds the distance-basis form, and the query-bank route
+reuses that already-built form without re-checking. So a measurement failing
+the check never produces a form for a bank to attach to; the refusal
+(capability `sufficient_residual_df`) is the **sampling route's**, not the
+bank's.
+
+A `π` vector arriving from outside `crossform` is held to the same standard,
+and the standard is a **field list, not a sentiment**. `crossform`'s own block
+declares `$source$residual_df`, `$source$residual_effective_dimension`,
+`$source$noise_trace_estimator` (`"wishart_unbiased_quadratic"` on this path),
+`$source$metric`, `$plan$partition$count`, and `$plan$target$target` /
+`$plan$target$policy`. An external `π` must declare the analogous set — the
+error model, its residual degrees of freedom, and the data it was estimated
+from — and the plan records that declaration in scientific plan identity
+alongside `normalization`.
+
+**The target is part of that declaration, not a footnote.** Documented on the
+`target` parameter of `rdm_sampling_covariance()`: because `"plugin"`
+substitutes the partition mean of the *estimates* for the unknown signal, its
+signal term is biased upward by `4Ξ_rs² tr(Σ_wΣ_w)/M²`, while `"null"` is
+exact. Two blocks agreeing on every other field but differing in target are
+therefore **not** interchangeable inputs to a precision: a `π` built from one
+and weighed against a `π` built from the other reweights subjects by an
+artifact of the target choice.
+
+**The rate bounds the worry, and is why it must be declared rather than
+forbidden.** The inflation shrinks like `1/M²` in the partition count and is
+largest when noise dominates the true distances. So a target mismatch cannot
+produce an unbounded distortion — but the regime where it bites, few partitions
+and low SNR, is exactly the regime a population study of a handful of runs per
+subject occupies, and §4.2 shows this mode moving the argmax. Declared, the
+mismatch is visible in plan identity; undeclared, it is a reweighting wearing
+the word `precision_weighted`.
+
+A `π` with no stated error model is not a precision, it is a weighting, and the
+mode it selects is then a declared reweighting of subjects rather than an
+inverse-variance one — a distinction the printed result must preserve.
 
 ---
 
@@ -485,7 +548,8 @@ mean square equals squared mean plus variance, with the `1/N` divisor that
 makes the identity exact.
 
 **Relation to the archived sketch — a substitution, not a specialization.**
-`design/archive/searchlight-conversation-ledger.md:982-1053` decomposes
+`design/archive/searchlight-conversation-ledger.md` ("Population geometry
+becomes a first-class operator", `:982-1053`) decomposes
 `Q_A^W = E[B_i^⊤AB_i] = \bar B^⊤A\bar B + E[U_i^⊤AU_i]`, which is quadratic in
 the subject *patterns* `B_i` and lives in `q × q`. The identity above is
 quadratic in the subject *forms* and lives in `D × D`. It is the **same
@@ -894,7 +958,7 @@ exists.** `location_transport`, `plan_population`, `population_form` and
 | transported component names | do not exist; gap G10 open | `transported_total`, `native_coherent_ledger`, `native_configuration_ledger`, `sink_budget`; bare `coherent`/`configuration` forbidden (§8) |
 | per-row frame metadata | **delivered (D2)** on the `frame_family()` route: `family`, `node`, `scale`, `center`, `alpha` per row; a single compiled frame's `$index` is still `measurement` only, and the metric fold still drops it (`conservative-geometry-v1` §5.3) | required input; plan refuses without it (§9.1) |
 | `measurement_bridge()` | exists but is **internal** (not in `NAMESPACE`; its own examples call it as `crossform:::measurement_bridge()`) — a **feature-space** bridge | unchanged; it is *not* node transport and must not be confused with it |
-| per-subject `SE` for `T_i` | does not exist (gap G8) | needed by `precision_weighted` and by the `unit_budget` refusal rule; both gated (§4.3, §4.5) |
+| per-subject `SE` for `T_i` | **still does not exist.** D8 landed a per-measurement query bank (`sampling_covariance(u, queries = bank)`, `K × K` blocks named by measurement); the joint cross-node covariance a conserved-budget variance needs is refused under capability `cross_node_sampling_covariance` | needed by `precision_weighted` and by the `unit_budget` refusal rule; both remain gated (§4.3, §4.5) |
 
 ---
 
@@ -1015,10 +1079,18 @@ and the contract now names the exact point where `conservative-geometry-v1` §6'
 Flagged, not decided, because each needs either a missing estimator or a
 scientific judgement outside this contract's scope.
 
-1. **§4.5 — `precision_weighted` is gated on D8.** Until a cross-node
-   `contrast_energy` sampling route exists (gap G8), `π_i` can only be supplied
-   externally. Alternative: ship `precision_weighted` with a
-   `precision_source = "external"` requirement and no internal path.
+1. **§4.5 — `precision_weighted` is gated, and D8 landing did not lift the
+   gate.** D8 shipped a per-measurement query bank; the joint object `π_i`
+   needs is refused under capability `cross_node_sampling_covariance`
+   (`scope = "cross_measurement"`), which is the durable name to reference.
+   Lifting the gate needs two things *together*: a per-subject cross-node
+   covariance resting on an explicit spatial model, and a `precision =`
+   argument carrying the external vector §4.5 permits in the interim. Until
+   both exist, ship `precision_weighted` with a `precision_source = "external"`
+   requirement and no internal path. The external vector carries its own
+   obligation (§4.5): a declared error model, or it is a weighting and must be
+   labelled as one. Whether the plan *refuses* an undeclared `π` or accepts it
+   under a demoted label is the open half of this decision.
 2. **§4.3 — the `unit_budget` refusal threshold.** "`T_i` bounded away from
    zero" needs a per-subject standard error, which does not exist. Interim
    options: refuse `unit_budget` entirely until D8; accept it with a declared

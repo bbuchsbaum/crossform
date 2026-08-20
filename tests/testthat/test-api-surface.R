@@ -13,7 +13,7 @@ crossform_public_api <- c(
   "abstract_domain", "additive_frame", "aggregate_first",
   "anatomical_transport", "as_neurovol", "bids_study", "bilinear_query",
   "canonical_coupling", "catch_refusal",
-  "coefficient_parameterization", "compile_frame",
+  "coefficient_parameterization", "coherence_spectrum", "compile_frame",
   "compiler_conformance", "compute_policy", "condition_space",
   "connectivity", "contrast_energy", "contribution",
   "control_coupling", "coupling",
@@ -36,7 +36,7 @@ crossform_public_api <- c(
   "observation_events", "observation_index", "observation_model",
   "observations", "pair_lm_query", "pair_query", "pairing",
   "partition_hierarchy", "plan_crossnobis", "plan_geometry",
-  "plan_relation", "query_geometry", "raw_design_model",
+  "plan_population", "plan_relation", "query_geometry", "raw_design_model",
   "raw_effect_map", "rdm", "rdm_sampling_covariance",
   "reconstruct_evidence", "reduce_partitions", "regions", "relation",
   "relation_block", "relation_fit", "relation_fit_capabilities",
@@ -59,10 +59,10 @@ test_that("the exported surface is exactly the ledgered set", {
 
   # The count is stated separately because the ledger quotes it: the
   # subtraction release took 105 exports to 97, and WS-D has since added
-  # `frame_family()` and `contribution()`, and WS-E the four population
-  # transport names (`design/api-tiers.md`, "Additions after the subtraction
-  # release").
-  expect_identical(length(exports), 103L)
+  # `frame_family()`, `contribution()` and `coherence_spectrum()`, and WS-E
+  # the four population transport names plus `plan_population()`
+  # (`design/api-tiers.md`, "Additions after the subtraction release").
+  expect_identical(length(exports), 105L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {
