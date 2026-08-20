@@ -58,6 +58,18 @@ articles:
   contents:
   - conservative-frames
 
+- title: Population (experimental)
+  desc: >
+    Experimental. Carrying each participant's conservative ledger onto a
+    shared group node set: the typed transport you supply and the package
+    refuses to learn, the sink column that makes partial coverage a number
+    you read rather than budget that went missing, the commutation that makes
+    modelling-then-querying the same answer as querying-then-modelling, the
+    cross-fitted subject Gram that separates consensus from disagreement, and
+    the two error bars the layer keeps apart and labels uncalibrated.
+  contents:
+  - population-form
+
 - title: Claims and policies
   desc: What the package claims, what it refuses, and where the boundaries are drawn.
   contents:
