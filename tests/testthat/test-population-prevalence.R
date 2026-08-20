@@ -481,8 +481,15 @@ test_that("the ledger name and the transport identity are on the printed page", 
 
 test_that("the printed record is stable", {
   prevalence <- population_prevalence(pv_fit())
-  expect_snapshot(print(prevalence))
-  expect_snapshot(format(prevalence))
+  # The estimand line shows a digest over BLAS-computed content, which the
+  # package's own numerical contract does not promise bitwise across
+  # platforms (`numerical_contract()$bitwise_across_platforms`); scrub it the
+  # way every other snapshot in the suite scrubs digests.
+  scrub <- function(lines) {
+    sub("(population-sha256:)[0-9a-f]+", "\\1<digest>", lines)
+  }
+  expect_snapshot(print(prevalence), transform = scrub)
+  expect_snapshot(format(prevalence), transform = scrub)
 })
 
 test_that("one measure at a time, because they are not one table", {
