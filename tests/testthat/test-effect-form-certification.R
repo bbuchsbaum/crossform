@@ -175,9 +175,21 @@ test_that("the installed namespace exposes the universal public vocabulary", {
   expected <- c(
     "pair_query", "match_coupling", "control_coupling",
     "coupling_contrast",
-    "pair_lm_query", "match_control", "measurement_space",
-    "measurement_bridge", "reverse_bridge", "inner_product",
+    "pair_lm_query", "match_control",
     "reduce_partitions", "aggregate_first"
   )
   expect_true(all(expected %in% getNamespaceExports("crossform")))
+
+  # `measurement_space()`, `measurement_bridge()`, `reverse_bridge()` and
+  # `inner_product()` were in this list until the subtraction release demoted
+  # them: none has an exported consumer, and `inner_product()`'s three
+  # siblings were already private. They remain reachable as internals, and
+  # the whole exported set is pinned by `test-api-surface.R`.
+  # See design/api-tiers.md, "Tests-only exports".
+  demoted <- c("measurement_space", "measurement_bridge", "reverse_bridge",
+    "inner_product")
+  expect_false(any(demoted %in% getNamespaceExports("crossform")))
+  for (name in demoted) {
+    expect_true(is.function(get(name, envir = asNamespace("crossform"))))
+  }
 })

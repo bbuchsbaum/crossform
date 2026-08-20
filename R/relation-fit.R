@@ -779,7 +779,6 @@ residual_block <- function(x, partition, features) {
 #' @return A symmetric effect-by-effect matrix, with rows and columns named by
 #'   the relation's effect coordinates, excluding the neural residual
 #'   covariance factor.
-#' @family neural metrics
 #' @seealso [residual_df()] and [residual_block()] for the other two pieces of
 #'   the error channel, and [rdm_sampling_covariance()], which combines them.
 #' @examples
@@ -787,14 +786,14 @@ residual_block <- function(x, partition, features) {
 #'
 #' # Four condition means estimated from eight trials each: the design factor
 #' # is diagonal with entries 1/8, because the conditions are orthogonal.
-#' covariance <- effect_covariance(example$fit, "run1")
+#' covariance <- crossform:::effect_covariance(example$fit, "run1")
 #' round(covariance, 4)
 #'
 #' # Scaling it by a residual variance gives an effect standard error.
 #' residuals <- residual_block(example$fit, "run1", 1L)
 #' variance <- sum(residuals^2) / residual_df(example$fit, "run1")
 #' round(sqrt(diag(covariance) * variance), 3)
-#' @export
+#' @keywords internal
 effect_covariance <- function(x, partition) {
   if (inherits(x, "effect_relation")) {
     .require_relation_fit_capability(x, "effect_covariance")

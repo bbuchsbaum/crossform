@@ -76,7 +76,7 @@ because the count is used as a *cost of demotion* — and a `\seealso` link to a
 | **advanced** | A specialist reaching past the four view functions: explicit queries, frame algebra, metrics, crossnobis, error-channel readers, numerical evidence. | Reference page + runnable Rd examples. Vignette coverage desirable, not required. |
 | **advanced (experimental: connect)** | Measurement forms, coupling closures, tomography. The connect narrative. Scale-gated, and the package refuses brain-scale claims here. | Must carry the experimental label at the top of its reference section and in `_pkgdown.yml`. |
 | **adapters** | Labeled sub-tier of advanced: morphisms into the typed core from BIDS, fmridesign, fmrireg, neuroim2. | Each adapter's dependency is `Suggests:`; the core is not shaped by any of them. |
-| **developer** | Extension and adapter *packages*, not end users: the **extension-*only*** protocol for handing data, a design, and an error channel into the core. It is not the whole surface an extension package meets — an adapter *also* meets the core-ingestion tier (the four in-tree adapters use about fourteen crossform functions between them, of which only two are developer-tier). | Target: **≤ 5 sanctioned entry points remain exported.** Everything else that was developer-tier becomes internal. |
+| **developer** | Extension and adapter *packages*, not end users: the **extension-*only*** protocol for handing data, a design, and an error channel into the core. It is not the whole surface an extension package meets — an adapter *also* meets the core-ingestion tier (the four in-tree adapters use twelve exported crossform functions between them once ticket A3 applies decision 1 — fourteen before it — of which only two are developer-tier). | Target: **≤ 5 sanctioned entry points remain exported.** Everything else that was developer-tier becomes internal. |
 
 **On the developer tier's boundary** (maintainer decision 7, 2026-08-17). Read
 literally — "extension and adapter *packages*, not end users" — the definition
@@ -738,6 +738,22 @@ ER-RSA five as settled API. A9: the experimental label on the connect tier in
 ER-RSA exemplar, plus the demotion of whichever of the five it does not
 exercise. WS-D: the conservation certificate that gives `frame_conservation()`
 its users.
+
+**Discharge record (2026-08-17, A4/A11).** Decision 4 is paid off: the
+`coding-invariance` chunk in `vignettes/from-observations.Rmd` lowers one
+`effect_map()` under a cell-means and a treatment parameterization, shows the
+effect-map identity surviving while the lowering identity does not, and checks
+that both extract the same amplitudes from their own design's coefficients
+(0.07 s). Decision 6 is paid off by executed `\examples{}` blocks:
+`man/coupling.Rd` (1.57 s), `man/coupling_views.Rd`, which is the topic
+`covariance_coupling()` is documented under (1.99 s), and
+`man/frame_conservation.Rd` (0.04 s) — none under `\dontrun{}`. Both
+obligations are pinned by tests rather than by this paragraph:
+`tests/testthat/test-from-observations-vignette.R` fails if the chunk is
+removed, and `tests/testthat/test-api-surface.R` (ticket A11) holds the exported
+set to the 97 names ledgered here, the 5 sanctioned developer entry points, and
+the 8 demotions. Editing the export list without editing this document now
+breaks the suite, which is the ratchet the subtraction release needed.
 
 ## Cross-check
 

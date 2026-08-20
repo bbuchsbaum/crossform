@@ -85,9 +85,11 @@ unsanctioned_internal_calls <- c(
 # records them in its "Verdict on the developer set". Kept here so the ledger's
 # published count stays true of the tree.
 adapter_exported_calls <- list(
+  # `bids_confounds()` and `bids_events()` left this list when the subtraction
+  # release demoted them (ledger decision 1); `adapter-bids.R` still calls
+  # both, but they are now its own internals rather than exports.
   "adapter-bids.R" = c(
-    "bids_confounds", "bids_events", "observation_confounds",
-    "observation_events", "study"
+    "observation_confounds", "observation_events", "study"
   ),
   "adapter-fmridesign.R" = c(
     "coefficient_parameterization", "condition_space", "design_model"
@@ -248,8 +250,8 @@ test_that("adapters use only layer-1 internals plus the exported surface", {
 
 test_that("the ledger's record of what an adapter calls is still true", {
   # design/api-tiers.md publishes "about fourteen crossform functions between
-  # them, of which [five] are developer-tier". That number is a claim about
-  # this tree, so it is checked against this tree.
+  # them (twelve after decision 1), of which [five] are developer-tier". That
+  # number is a claim about this tree, so it is checked against this tree.
   dir <- protocol_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   parsed <- protocol_parsed_sources(dir)
@@ -263,7 +265,7 @@ test_that("the ledger's record of what an adapter calls is still true", {
   names(observed) <- adapter_files
 
   expect_identical(observed, adapter_exported_calls)
-  expect_identical(length(unique(unlist(observed, use.names = FALSE))), 14L)
+  expect_identical(length(unique(unlist(observed, use.names = FALSE))), 12L)
 
   # Of those, exactly two are developer-tier: the design-in and
   # error-channel-in seams. The other three sanctioned entry points are

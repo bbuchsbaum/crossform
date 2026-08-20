@@ -30,16 +30,15 @@
 #' @seealso [reduce_partitions()] and [aggregate_first()] for the partition
 #'   stage that follows normalization; [connectivity()] for the normalized
 #'   views that are gated behind explicit capabilities.
-#' @family geometry plans and views
 #' @examples
 #' # The normalizer only names the stage; nothing is computed here.
-#' normalizer <- inner_product()
+#' normalizer <- crossform:::inner_product()
 #' normalizer$kind
 #'
 #' # Because no denominator is involved, there is no zero-norm case to
 #' # resolve at execution time.
 #' normalizer$zero_policy
-#' @export
+#' @keywords internal
 inner_product <- function() .new_edge_normalizer("inner_product")
 
 # These constructors remain private vocabulary for validating stored research

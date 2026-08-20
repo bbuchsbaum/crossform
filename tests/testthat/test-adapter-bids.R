@@ -36,12 +36,12 @@ test_that("BIDS adapters preserve facts without assigning model roles", {
     )
   }
 
-  event_record <- bids_events(event_files, bound$fixture$partitions)
+  event_record <- crossform:::bids_events(event_files, bound$fixture$partitions)
   expect_true(all(c("trial_type", "item") %in% names(event_record$data)))
   expect_false(any(c("role", "nuisance", "target") %in%
     names(event_record$data)))
 
-  confound_record <- bids_confounds(
+  confound_record <- crossform:::bids_confounds(
     confound_files,
     bound$fixture$partitions,
     lapply(bound$fixture$indexes, `[[`, "observation_id"),
@@ -72,7 +72,7 @@ test_that("BIDS event timing and censoring ambiguities refuse by capability", {
     data.frame(onset = "n/a", duration = 1, trial_type = "face"),
     file.path(directory, "events.tsv")
   )
-  timing <- catch_refusal(bids_events(invalid_events, "run-1"))
+  timing <- catch_refusal(crossform:::bids_events(invalid_events, "run-1"))
   expect_s3_class(timing, "effect_capability_refusal")
   expect_identical(timing$capability, "timing_resolved")
 
@@ -80,7 +80,7 @@ test_that("BIDS event timing and censoring ambiguities refuse by capability", {
     data.frame(trans_x = c(0.1, 0.2), keep = c(1L, 0L)),
     file.path(directory, "confounds.tsv")
   )
-  censoring <- catch_refusal(bids_confounds(
+  censoring <- catch_refusal(crossform:::bids_confounds(
     confounds, "run-1", list(`run-1` = 1:2), censor = "keep"
   ))
   expect_s3_class(censoring, "effect_capability_refusal")

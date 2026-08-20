@@ -117,7 +117,7 @@ metric_learning_setup <- function(workspace = c("wide", "narrow")) {
   workspace <- match.arg(workspace)
   fixture <- residual_statistics_fixture()
   budgets <- residual_statistics_budgets(fixture)
-  statistics <- residual_pair_statistics(
+  statistics <- crossform:::residual_pair_statistics(
     fixture$fit, fixture$frame,
     workspace_bytes = budgets[[if (workspace == "wide") "wider" else
       "minimum"]]

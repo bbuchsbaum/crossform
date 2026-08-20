@@ -38,4 +38,11 @@ test_that("the first-moment guide preserves the public identity ladder", {
   expect_match(text, 'generalizes_over = "run"', fixed = TRUE)
   expect_match(text, "raw_design_model\\(\\)", fixed = FALSE)
   expect_match(text, "BIDS-shaped", fixed = TRUE)
+
+  # Maintainer decision 4 in `design/api-tiers.md` keeps `lower_effect_map()`
+  # exported on the condition that this guide *executes* the coding-invariance
+  # observable. If the chunk goes, so does the export, so pin it here.
+  expect_match(text, "lower_effect_map\\(", fixed = FALSE)
+  expect_match(text, "coding_invariant", fixed = TRUE)
+  expect_match(text, "treatment_parameterization", fixed = TRUE)
 })

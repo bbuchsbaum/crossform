@@ -231,6 +231,67 @@ external compiler may instead build hemodynamic response functions and event
 grammars, but it must provide the same named condition map, row lineage, ranks,
 aliasing information, and solver diagnostics.
 
+Nothing declared so far names a coefficient, and that is what makes the request
+portable. A compiler that reports treatment coding — an intercept and two
+differences from `face` — describes the same three amplitudes on a different
+axis. `lower_effect_map()` is the step that moves the request onto whichever
+axis the compiler chose; `plan_relation()` runs it for every partition, and
+calling it directly is how you inspect what it produced.
+
+```{r coding-invariance}
+# A second compiler's coefficients. `recode` is both the change of basis on
+# the design and, in its condition rows, the declaration that the intercept
+# and the two differences still name `face`, `body`, and `tool`.
+recode <- cbind(
+  intercept = c(1, 1, 1, 0, 0),
+  body_minus_face = c(0, 1, 0, 0, 0),
+  tool_minus_face = c(0, 0, 1, 0, 0),
+  drift = c(0, 0, 0, 1, 0),
+  motion = c(0, 0, 0, 0, 1)
+)
+rownames(recode) <- colnames(design)
+treatment_design <- design %*% recode
+treatment_parameterization <- coefficient_parameterization(
+  recode[conditions, , drop = FALSE],
+  condition_coordinates,
+  coding_id = "treatment-plus-nuisance"
+)
+
+lowered_cell <- lower_effect_map(named_effects, parameterization)
+lowered_treatment <- lower_effect_map(
+  named_effects, treatment_parameterization
+)
+
+# The effect request keeps its identity; the lowering does not, because the
+# two codings put the same request on different coefficient axes.
+c(
+  same_effect_request = identical(
+    lowered_cell$effect_map_id, lowered_treatment$effect_map_id
+  ),
+  same_lowering = identical(
+    lowered_cell$lowering_id, lowered_treatment$lowering_id
+  ),
+  coding_invariant = lowered_cell$capabilities$coding_invariant
+)
+
+lowered_cell$target
+lowered_treatment$target
+
+# Fit one run under each coding and read the amplitudes back out.
+run <- response_runs[["run-1"]]
+all.equal(
+  lowered_cell$target %*% qr.solve(design, run),
+  lowered_treatment$target %*% qr.solve(treatment_design, run)
+)
+```
+
+The two lowered targets are different matrices over different columns, yet
+they extract the same amplitudes from their own design's coefficients. That
+agreement is the coding-invariance claim in the only form that can be checked,
+and `$coding_invariant` is the capability flag that reports it. The escape
+hatch below, `raw_effect_map()`, sets that flag to `FALSE` precisely because a
+supplied target matrix has no condition space to be invariant over.
+
 ## Declare the fit and its assumptions
 
 The observation model states assumptions that the data tables cannot prove.

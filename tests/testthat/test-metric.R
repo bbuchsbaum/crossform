@@ -45,9 +45,9 @@ test_that("same-space metric capabilities gate exact lowering classes", {
 
 test_that("metric and bridge roles cannot be confused", {
   domain <- abstract_domain(2, id = "metric-vs-bridge")
-  bridge <- measurement_bridge(
+  bridge <- crossform:::measurement_bridge(
     diag(2), diag(2), domain, domain,
-    measurement_space(2, "shared:metric-vs-bridge")
+    crossform:::measurement_space(2, "shared:metric-vs-bridge")
   )
 
   expect_error(metric_capabilities(bridge), "bridge.*not.*metric",

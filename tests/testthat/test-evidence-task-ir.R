@@ -93,7 +93,7 @@ test_that("legacy scientific identity is byte-for-byte the certified semantic", 
     effects,
     task$ordered_partition_products,
     task$neural_boundary$bridge,
-    inner_product(),
+    crossform:::inner_product(),
     crossform:::.identity_edge_transform(),
     crossform:::.partition_reducer(),
     list(kind = "complete_form", query = NULL)

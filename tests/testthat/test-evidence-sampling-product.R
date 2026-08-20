@@ -105,7 +105,7 @@ test_that("relation-fit product agrees with an independent direct oracle", {
     ))
     residual <- Reduce(`+`, residual_products) / total_df
     residual_whitened <- effective_root %*% residual %*% t(effective_root)
-    sigma_k <- effect_covariance(fixture$fit, 1L)
+    sigma_k <- crossform:::effect_covariance(fixture$fit, 1L)
     components <- sampling_oracle_components(
       whitened_signal, sigma_k, residual_whitened
     )

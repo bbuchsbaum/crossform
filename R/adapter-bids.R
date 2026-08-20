@@ -44,7 +44,6 @@
 #'   original BIDS column plus the private `.bids_partition` and
 #'   `.bids_event_id` key columns, and whose `$provenance` records each file's
 #'   basename and content revision.
-#' @family typed observation facts
 #' @seealso [observation_events()] for the generic contract,
 #'   [bids_confounds()] for the confound side, and [bids_study()] to bind both
 #'   into a study.
@@ -60,12 +59,12 @@
 #'
 #' # Partition identity is declared by the caller, never parsed from the
 #' # filename, and every original column survives the import.
-#' record <- bids_events(c(`run-1` = path))
+#' record <- crossform:::bids_events(c(`run-1` = path))
 #' record$timing
 #' names(record$data)
 #' record$data$.bids_event_id
 #' unlink(path)
-#' @export
+#' @keywords internal
 bids_events <- function(files, partitions = names(files), units = "seconds") {
   files <- .bids_partition_files(files, partitions, "files")
   tables <- lapply(names(files), function(partition) {
@@ -121,7 +120,6 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
 #'   original confound column plus the private `.bids_partition` and
 #'   `.bids_observation_id` key columns, with `$censor_column` set only when
 #'   `censor` was supplied.
-#' @family typed observation facts
 #' @seealso [observation_confounds()] for the generic contract,
 #'   [bids_events()] for the event side, and [bids_study()] to bind both.
 #' @examples
@@ -137,16 +135,18 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
 #'
 #' # Naming the retain column is required: no censor policy is inferred from
 #' # the motion columns, however large they are.
-#' record <- bids_confounds(c(`run-1` = path), censor = "retained")
+#' record <- crossform:::bids_confounds(c(`run-1` = path), censor = "retained")
 #' record$censor_column
 #' sum(record$data$retained)
 #'
 #' # Naming a column that is absent or not logical refuses explicitly.
 #' catch_refusal(
-#'   bids_confounds(c(`run-1` = path), censor = "framewise_displacement")
+#'   crossform:::bids_confounds(
+#'     c(`run-1` = path), censor = "framewise_displacement"
+#'   )
 #' )$capability
 #' unlink(path)
-#' @export
+#' @keywords internal
 bids_confounds <- function(files, partitions = names(files),
                            observation_ids = NULL, censor = NULL) {
   files <- .bids_partition_files(files, partitions, "files")

@@ -86,8 +86,6 @@ reference:
   - relation_plan_receipts
   - compiler_conformance
   - estimate_relation
-  - bids_events
-  - bids_confounds
   - bids_study
   - fmridesign_design_model
   - fmrireg_relation
@@ -151,14 +149,12 @@ reference:
   - variation_query
   - control_coupling
   - pairing
-  - inner_product
   - reduce_partitions
   - aggregate_first
 
 - title: Measurement forms and coupling
   desc: Prespecified small-node measurements, ordered edges, and interpretation-gated coupling views.
   contents:
-  - measurement_space
   - measurement_frame
   - edge_frame
   - measurement_form
@@ -168,8 +164,6 @@ reference:
   - coupling_views
   - gaussian_covariance_model
   - reconstruct_evidence
-  - measurement_bridge
-  - reverse_bridge
 
 - title: Sources, extractors, residuals, and execution
   desc: Infrastructure for lazy sources, fitted error channels, and bounded execution.
@@ -179,8 +173,6 @@ reference:
   - relation_fit
   - relation_block
   - residual_block
-  - residual_pair_statistics
-  - effect_covariance
   - residual_df
   - file_matrix_source
   - source_capabilities

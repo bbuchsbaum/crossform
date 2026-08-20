@@ -81,7 +81,7 @@ test_that("effect covariance has the declared separable scale convention", {
   expected <- target %*% solve(crossprod(transformed)) %*% t(target)
   model <- fit$error_models$run
 
-  expect_equal(effect_covariance(fit, "run"), expected, tolerance = 2e-13)
+  expect_equal(crossform:::effect_covariance(fit, "run"), expected, tolerance = 2e-13)
   expect_identical(model$scale_convention,
     "neural_covariance_factor_excluded")
   expect_identical(model$kind, "separable_glm")
@@ -165,7 +165,7 @@ test_that("pure relations advertise no recoverable error capability", {
   expect_match(conditionMessage(bare_block),
     "beta matrices alone.*lm_relation_fit")
 
-  covariance <- catch_refusal(effect_covariance(relation_value, "run"))
+  covariance <- catch_refusal(crossform:::effect_covariance(relation_value, "run"))
   expect_s3_class(covariance, "effect_capability_refusal")
   expect_identical(covariance$capability, "effect_covariance")
   expect_identical(covariance$namespace, "relation_fit")
@@ -182,7 +182,7 @@ test_that("pure relations advertise no recoverable error capability", {
     "beta matrices alone.*lm_relation_fit")
 
   pair_statistics <- catch_refusal(
-    residual_pair_statistics(
+    crossform:::residual_pair_statistics(
       relation_value,
       compile_frame(searchlights(1), abstract_domain(4))
     )
