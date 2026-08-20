@@ -26,20 +26,10 @@ repo <- if (length(arguments) >= 2L) {
 destination <- file.path(repo, "inst", "extdata", "certification")
 dir.create(destination, recursive = TRUE, showWarnings = FALSE)
 
-# Artifact name -> runner that re-certifies it. Every shipped gate is listed
-# here; anything absent from this table is never promoted.
-promotable <- c(
-  "public-map-scale-gate.rds" = "run-public-map-scale-gate.R",
-  "query-first-scale-gate.rds" = "run-query-first-scale.R",
-  "sampling-covariance-scale.rds" = "run-sampling-covariance-scale.R",
-  "first-moment-vertical-slice.rds" = "run-first-moment-vertical-slice.R",
-  "crossnobis-scale-gate.rds" = "run-crossnobis-scale-gate.R",
-  "shard-admission.rds" = "run-shard-admission.R",
-  "small-dense-memory-cold.rds" = "run-memory-benchmarks.R",
-  "medium-sparse-memory-cold.rds" = "run-memory-benchmarks.R",
-  "medium-sparse-block-cold.rds" = "run-memory-benchmarks.R",
-  "medium-sparse-memory-warm.rds" = "run-memory-benchmarks.R"
-)
+# Artifact name -> runner that re-certifies it. Derived from the admission
+# coverage list; anything absent from that list is never promoted.
+source(file.path(repo, "benchmarks", "admission-coverage.R"), local = TRUE)
+promotable <- .crossform_promotable_artifacts()
 
 # Compact tables promoted alongside their artifact. These are human-readable
 # receipts, not test evidence.

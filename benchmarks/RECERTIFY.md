@@ -10,7 +10,11 @@ certification tests into loud `CERTIFICATION STALE` skips until the runners are
 re-run and the artifacts re-promoted.
 
 This file is the exact sequence that clears those skips. See
-`benchmarks/README.md` for what each gate actually asserts.
+`benchmarks/README.md` § "Map-scale admission coverage" for which public
+verbs the gates certify, and the later sections there for what each gate
+asserts. The machine-readable coverage list is
+`benchmarks/admission-coverage.R`. Recertify is re-running that table on a
+frozen `R/` digest, not inventing new gates.
 
 ## Before you start: freeze `R/`
 
@@ -91,8 +95,10 @@ Notes that cost real time to rediscover:
   `shard` at a pinned version in an isolated library, and its recorded
   artifact carries no provenance at all, so its test always skips
   `CERTIFICATION UNBOUND`. That is the designed state, not a defect.
-- `run-measurement-benchmarks.R` and `run-support-index-benchmark.R` persist
-  nothing and certify nothing; they only print.
+- `run-measurement-benchmarks.R`, `run-measurement-profile.R`, and
+  `run-support-index-benchmark.R` persist nothing and certify nothing; they
+  only print. `measurement_form()` is a documented coverage gap until it has
+  a compact promoted gate.
 
 ## 3. Promote the small gate artifacts
 

@@ -3,8 +3,8 @@
 **Re-certifying after a source edit:** `benchmarks/RECERTIFY.md` is the exact
 command sequence — temp library install, runners in order, promotion, and the
 verifying test run — with the traps that cost time to rediscover. This file
-explains what each gate asserts; that one explains how to make the recorded
-evidence bind again.
+names the map-scale verbs those gates certify and explains what each gate
+asserts; that one explains how to make the recorded evidence bind again.
 
 ## Provenance binding
 
@@ -68,6 +68,45 @@ and skip with a message when it has not.
 Tests resolve an artifact in this order: a fresh unpromoted run in
 `benchmark-results/`, then `system.file("extdata", "certification", ...)`,
 then the checkout's `inst/extdata/certification/`.
+
+## Map-scale admission coverage
+
+A recorded gate is evidence for a **map-scale compute verb**: an export that,
+given a compiled plan and neural values, produces a scientific result at many
+spatial measurements. Constructors, printers, inspectors, and adapters do not
+count. A verb is certified only when its row's artifact is in the promote
+table, is under the 64 KiB shipped cap, and still binds.
+
+The machine-readable coverage list is `benchmarks/admission-coverage.R`.
+`promote-artifacts.R` derives the shipped set from it.
+`tests/testthat/test-admission-coverage.R` fails if a certified row is missing
+from the promote table, or if a shipped `.rds` has no listed role.
+
+| Verb | Artifact | Role |
+|---|---|---|
+| `rdm()`, `contrast_energy()` | `public-map-scale-gate.rds` | certified |
+| query-first `rdm()`, `rsa()`, `contrast_energy()` | `query-first-scale-gate.rds` | certified |
+| `evaluate_geometry()` | query-first gate | covered |
+| `materialize_geometry()` | public-map and query-first late/comparator paths | covered |
+| `crossnobis()` | `crossnobis-scale-gate.rds` | certified |
+| `rdm_sampling_covariance()` | `sampling-covariance-scale.rds` | certified |
+| `plan_relation()`, `estimate_relation()`, `fmrireg_relation()` | `first-moment-vertical-slice.rds` | certified |
+| sequential memory contraction | `small-dense-memory-cold.rds`, `medium-sparse-memory-cold.rds`, `medium-sparse-block-cold.rds`, `medium-sparse-memory-warm.rds` | certified |
+| `measurement_form()` | none yet (`run-measurement-profile.R` is print-only) | **gap** |
+| shard executor | `shard-admission.rds` | refused (unbound) |
+
+Local-only records stay in `benchmark-results/` and are never promoted:
+
+| Record | Why it stays local |
+|---|---|
+| `sampling-covariance-validation.rds` (1.0 MB) | 10,000-rep Monte Carlo; exceeds the shipped cap |
+| `learned-metric-policy-validation.rds` (239 KB) | 500-rep statistical recovery; exceeds the shipped cap |
+
+Out of scope: `compile_frame()`, `plan_geometry()`, `relation()`, `pairing()`,
+print and plot methods, `sampling_capabilities()`, neuroim2 adapters, and
+every other constructor or inspector. They do not need a 576-node gate.
+
+The sections below say what each retained gate asserts.
 
 ## Public geometry map gate
 
