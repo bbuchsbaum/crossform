@@ -360,23 +360,42 @@
   )
 }
 
+# The readout axis -------------------------------------------------------------
+#
+# Both population executors fit the same model on the same group nodes; what
+# separates them is the axis they read the transported geometry along. A
+# `"query_bank"` readout is `K` declared contrasts; a `"complete_form"` readout
+# is the `p = q(q+1)/2` packed `svec` coordinates of the whole form. One record
+# describes either, so the receipt, the identity and the validator branch on a
+# field rather than on which verb was called.
+.population_result_bases <- c("query_bank", "complete_form")
+
+.population_readout <- function(basis, labels, queries = NULL) {
+  list(basis = basis, labels = labels, queries = queries)
+}
+
 # Identity ---------------------------------------------------------------------
 #
-# The result's own scientific identity: its parent estimand, the bank it was
-# read through, the component it names, and the normalization criterion that
+# The result's own scientific identity: its parent estimand, the axis it was
+# read along, the component it names, and the normalization criterion that
 # decided which participants contributed a share. `budget_floor` is in it
 # because it decides which subjects are marked NA, and a different set of
 # contributing participants is a different population.
-.population_result_id <- function(plan, bank, component, budget_floor) {
+#
+# `basis` is in the digest because the two readouts name two estimands, not two
+# renderings of one: a query bank fixes `K` declared contrasts and a complete
+# form fixes none, and the second is not recoverable from the first.
+.population_result_id <- function(plan, readout, component, budget_floor) {
   .sha256_signature(list(
     schema_version = 1L,
     contract_version = "population-form-v1",
     role = "population_result",
+    basis = readout$basis,
     parent = plan$scientific_plan_id,
     component = component,
     ledger = unname(.population_ledger_names[[component]]),
-    queries = unname(bank$matrix),
-    query_labels = bank$labels,
+    queries = unname(readout$queries),
+    query_labels = readout$labels,
     normalization = plan$normalization,
     budget_floor = if (identical(plan$normalization, "unit_budget")) {
       as.numeric(budget_floor)
@@ -612,7 +631,9 @@ estimate_population <- function(plan, queries,
       ))
   }
 
+  readout <- .population_readout("query_bank", bank$labels, bank$matrix)
   value <- structure(list(
+    basis = "query_bank",
     coefficients = shape(fit$coefficients, plan$model$columns, "term"),
     values = shape(stack, labels, "subject"),
     fitted = shape(fit$fitted, labels, "subject"),
@@ -626,12 +647,393 @@ estimate_population <- function(plan, queries,
     normalization = plan$normalization,
     uncertainty = .population_uncertainty(plan, bank, uncertainty),
     receipt = .population_receipt(
-      plan, bank, component, budget_floor, receipts, native_totals,
+      plan, readout, component, budget_floor, receipts, native_totals,
       sink_budget, admitted, deviations, fit$unresolved
     ),
     scientific_plan_id = .population_result_id(
-      plan, bank, component, budget_floor
+      plan, readout, component, budget_floor
     )
+  ), class = "effect_population_result")
+  .validate_population_result(value)
+  value
+}
+
+# The complete form ------------------------------------------------------------
+#
+# `estimate_population()` reads `K` declared contrasts; this route reads the
+# whole `q`-by-`q` form at every group node. The two share the fit, the
+# transport, the budget certificate and the receipt, and differ in exactly one
+# thing: the axis the transported geometry is read along.
+#
+# Why the identity is the right query. Reading a complete packed form *is*
+# reading it through the `p`-by-`p` identity, and a coordinate tile is a column
+# block of that identity. So this route runs the same fused kernel
+# `estimate_population()` runs a contrast bank through, handed a different
+# matrix -- the two executors cannot drift, because there is only one execution
+# path underneath them. It also means the native `n_i`-by-`p` packed block is
+# never allocated: the kernel contracts against the tile it was given.
+#
+# What that costs, stated plainly: `ceiling(p / tile)` passes over each
+# participant's source instead of one. The alternative -- materialize each
+# participant to a block store once and read coordinate tiles back off disk --
+# buys the passes back and pays `n_i * p` doubles of durable storage per
+# participant plus a temporary-file lifetime. This route pays passes and keeps
+# the peak; `design/population-form-contract.md` section 5's whole point is
+# that the population layer must stream, and streaming is the thing that has to
+# hold when `q` is large.
+
+# The packed `svec` coordinate index, as a table rather than as bare labels.
+# `symmetric_packed` is the Frobenius-consistent codec of `effect-form-v1`
+# section 3 -- lower triangle by column, off-diagonal entries carrying `sqrt(2)`
+# -- and section 5 of the population contract records that the `sqrt(2)` is
+# load-bearing rather than cosmetic: a naive `upper.tri` packing gets the inner
+# product wrong by an `O(1)` amount, not by a tolerance. Carrying the scale
+# beside every coordinate is what lets a reader of the result confirm which
+# codec produced it without reverse-engineering the widths.
+.population_packed_index <- function(effects) {
+  q <- length(effects)
+  rows <- unlist(lapply(seq_len(q), function(column) column:q),
+    use.names = FALSE)
+  columns <- rep(seq_len(q), times = q:1)
+  data.frame(
+    coordinate = paste0(effects[rows], ":", effects[columns]),
+    row = as.integer(rows),
+    column = as.integer(columns),
+    scale = ifelse(rows == columns, 1, sqrt(2)),
+    stringsAsFactors = FALSE
+  )
+}
+
+# One column block of the `p`-by-`p` identity: the physical query whose fused
+# execution returns exactly those packed coordinates.
+.population_coordinate_query <- function(width, columns, labels) {
+  probe <- matrix(0, width, length(columns),
+    dimnames = list(NULL, labels[columns]))
+  probe[cbind(columns, seq_along(columns))] <- 1
+  probe
+}
+
+# The tile, from the population plan's own compute policy unless the caller
+# names one.
+#
+# With no declared workspace the default is the compiler's own
+# (`.select_compiler_memory_plan()`: `min(64, output_width)`), so a population
+# run tiles the coordinate axis the same way a single-participant one does.
+# With a declared workspace the tile is the largest that keeps the two arrays
+# linear in it -- the `N`-by-`(m + 1) * tile` group stack and the widest
+# `n_i`-by-`tile` native block -- inside the budget.
+#
+# It clamps at one rather than at zero. A budget too small for a single
+# coordinate is a real refusal, but it is not this function's to raise: each
+# participant's own plan carries its own `compute_policy()`, and the geometry
+# compiler already refuses when the conservative memory plan exceeds it. The
+# population policy governs the group side, so the honest thing here is to hand
+# back the smallest tile that does any work and let the subject-level budget
+# speak for the subject-level arrays.
+.population_coordinate_tile <- function(plan, width, coordinate_tile) {
+  if (!is.null(coordinate_tile)) {
+    return(min(.validate_tile_size(coordinate_tile, "coordinate_tile"), width))
+  }
+  budget <- plan$compute$workspace_bytes
+  if (is.null(budget)) return(min(64L, width))
+  nodes <- nrow(plan$group_index) + 1L
+  native <- max(vapply(plan$subjects, function(subject)
+    as.double(subject$measurements), numeric(1)))
+  per_coordinate <- 8 * (length(plan$subjects) * nodes + native)
+  as.integer(max(1L, min(width, floor(budget / per_coordinate))))
+}
+
+# Section 4.1's normalizations are group functionals of a *queried* ledger:
+# `T_i = sum_x c_ix` is the native total of one contrast, and section 4.1 is
+# explicit that the scalar is per participant and per query. A complete form has
+# no query, so the only per-coordinate divisor available is the coordinate's own
+# native total -- and that is a weight varying along the coordinate axis, which
+# section 3.2 measures breaking query-fit commutation by 25.5 % of the largest
+# coefficient. The assembled form would then not be queryable: reading it with a
+# contrast would disagree with `estimate_population()` on the same contrast, and
+# the object's one advertised property would be false.
+.population_admit_complete_form <- function(plan) {
+  if (identical(plan$normalization, "none")) return(invisible(NULL))
+  .capability_refusal(sprintf(paste0(
+    "`normalization = \"%s\"` divides each participant's ledger by the native ",
+    "total *of the query being read*, and a complete form is not read through ",
+    "a query. The only divisor a form could use is per packed coordinate, ",
+    "which is a weight varying along the coordinate axis -- exactly the case ",
+    "`population-form-v1` section 3.2 measures breaking the query-fit ",
+    "commutation. The assembled form would no longer answer a contrast the ",
+    "way `estimate_population()` answers it, so crossform refuses rather than ",
+    "shipping a form whose defining property does not hold."
+  ), plan$normalization),
+    capability = "complete_form_normalization",
+    namespace = "population_execution",
+    reasons = c(
+      "normalization_varies_along_the_coordinate_axis",
+      paste0("declared_normalization:", plan$normalization)
+    ),
+    remedies = c(
+      paste0(
+        "Plan the population with `normalization = \"none\"`, the mean ",
+        "participant ledger in native evidence units, which is a per-",
+        "participant scalar of one and commutes with every query."
+      ),
+      paste0(
+        "Keep the normalization and read the contrasts you care about with ",
+        "`estimate_population(plan, queries)`, where the divisor is the ",
+        "native total of that query and section 4.1 defines it."
+      )
+    ))
+}
+
+#' Materialize a planned population form at every group node
+#'
+#' `materialize_population()` is the complete-geometry counterpart of
+#' [estimate_population()]. Where that verb reads each participant's geometry
+#' through a declared bank of `K` contrasts, this one carries the **whole**
+#' \eqn{q \times q}{q x q} form to the group nodes and fits the group model at
+#' every packed coordinate, so the result is a coefficient *form* per group node
+#' and model term rather than a coefficient per query.
+#'
+#' It stands to [estimate_population()] exactly as [materialize_geometry()]
+#' stands to [evaluate_geometry()]: two verbs, because complete materialization
+#' is a different memory regime and a different estimand, and because a caller
+#' who forgets a query bank should get [estimate_population()]'s refusal rather
+#' than a silently enormous complete form.
+#'
+#' @section How it streams, and what that bounds:
+#' Reading a complete packed form is reading it through the identity, and a
+#' coordinate tile is a column block of the identity. For each tile the route
+#' opens each participant in turn, contracts that participant's native nodes
+#' against the tile (never allocating the full \eqn{n_i \times p}{n_i x p}
+#' packed block), transports the tile's rows with that participant's operator,
+#' stacks the transported tile across participants, and solves the plan's
+#' prefactored QR once for the tile. Coefficient tiles come out and are written
+#' into the packed coefficient forms.
+#'
+#' Nothing of size \eqn{N \times (m+1) \times p}{N x (m+1) x p} is ever
+#' allocated. The arrays in flight are the group stack,
+#' \eqn{N \times (m+1) \times \mathrm{tile}}{N x (m+1) x tile}, and one native
+#' block, \eqn{\max_i n_i \times \mathrm{tile}}{max_i n_i x tile}; the durable
+#' output is \eqn{(m+1) \times k \times p}{(m+1) x k x p} for `k` model terms,
+#' which is smaller than the refused array whenever the design is not saturated.
+#' The receipt records all four numbers under `$streaming`. The cost is
+#' \eqn{\lceil p/\mathrm{tile}\rceil}{ceiling(p/tile)} passes over each
+#' participant's source instead of one.
+#'
+#' @section What the result does not carry:
+#' There are no `$values`, `$fitted` or `$residuals` arrays. Those are indexed
+#' by participant, group node and packed coordinate --- they *are* the
+#' \eqn{N \times (m+1) \times p}{N x (m+1) x p} object this route exists in
+#' order not to build. Read the participant-level transported values through
+#' [estimate_population()] with the contrasts you care about, where the
+#' subject axis costs `K` and not `p`.
+#'
+#' @section Normalization:
+#' Only `normalization = "none"` is admitted; see the refusal below. Budget and
+#' density semantics are both admitted, and the budget certificate of
+#' `population-form-v1` section 2 is asserted per participant and per packed
+#' coordinate, exactly as [estimate_population()] asserts it per query.
+#'
+#' @section Refusals:
+#' Each is an `effect_capability_refusal` (see [catch_refusal()]).
+#'
+#' * `complete_form_normalization` --- a plan declaring `"unit_budget"` or
+#'   `"precision_weighted"`. Their divisor is the native total of a query, and
+#'   a form is not read through one; a per-coordinate divisor would break the
+#'   query-fit commutation the form's queryability rests on.
+#' * `reserved_group_index_columns` --- a group index already carrying `sink`
+#'   or `units`, as in [estimate_population()].
+#'
+#' @param plan An `effect_population_plan` from [plan_population()].
+#' @param component Which component of each participant's conservative geometry
+#'   to carry: `"total"` (the default), `"coherent"`, or `"configuration"`. The
+#'   transported object takes the `population-form-v1` section 8.1 name for it,
+#'   as in [estimate_population()].
+#' @param coordinate_tile Optional positive number of packed coordinates held
+#'   in flight at once. `NULL` takes the tile from the plan's
+#'   [compute_policy()]. The tile bounds memory and is not part of the
+#'   estimand: it does not enter `$scientific_plan_id`, and two tile sizes
+#'   agree to [numerical_contract()]`$atol`. Not bit-identically --- the tile
+#'   is a blocking choice, and the contract's `bitwise_across_blocking` is
+#'   `FALSE` because it changes the column count of one fused contraction.
+#' @return An `effect_population_result` with `$basis` `"complete_form"`,
+#'   carrying `$coefficient_forms` (a `node`-by-`term`-by-`coordinate` array
+#'   whose last axis is the packed `svec` form, so every `[node, term, ]` slice
+#'   is one packed \eqn{q \times q}{q x q} coefficient form), `$effects`,
+#'   the `$coordinates` table describing the packed codec, the `$index` of
+#'   group nodes plus the sink, `$ledger`, and a `$receipt` recording every
+#'   participant's read, its transport signature, the budget certificate and
+#'   the streaming bound. `as.data.frame()` returns the coefficient table in
+#'   long form.
+#' @references `design/population-form-contract.md` (`population-form-v1`),
+#'   sections 2, 3, 4, 5 and 8.
+#' @family population transports
+#' @seealso [estimate_population()] for the query-first path over the same
+#'   plan, [plan_population()] for the estimand both execute, and
+#'   [materialize_geometry()] for the single-participant analogue.
+#' @examples
+#' # Four participants on different native frames, two shared group nodes.
+#' effects <- effect_space(c("face", "house"), basis_id = "population:v1")
+#' subject <- function(id, n, gain) {
+#'   domain <- abstract_domain(n, coordinates = cbind(x = seq_len(n) - 1),
+#'     feature_ids = paste0("f", seq_len(n)), id = id)
+#'   values <- function(divisor) matrix(
+#'     gain * seq_len(2 * n) / (n * divisor), 2, n,
+#'     dimnames = list(c("face", "house"), NULL)
+#'   )
+#'   rel <- relation(list(run1 = values(1), run2 = values(2)),
+#'     effects = effects, domain = domain)
+#'   plan_geometry(rel, compile_frame(voxelwise(), domain),
+#'     cross_partitions(rel))
+#' }
+#' carrier <- function(n) anatomical_transport(
+#'   native_coords = cbind(seq_len(n) - 1), group_coords = cbind(c(0, 3)),
+#'   semantics = "budget"
+#' )
+#' sizes <- c(s01 = 5L, s02 = 6L, s03 = 7L, s04 = 8L)
+#' gains <- c(s01 = 1, s02 = 1.4, s03 = 0.7, s04 = 1.1)
+#' subjects <- stats::setNames(lapply(names(sizes), function(id)
+#'   subject(id, sizes[[id]], gains[[id]])), names(sizes))
+#' plan <- plan_population(subjects, lapply(sizes, carrier))
+#'
+#' form <- materialize_population(plan)
+#' form
+#'
+#' # The group-mean coefficient form at the first group node: three packed
+#' # coordinates, the off-diagonal one carrying the codec's root two.
+#' form$coordinates
+#' form$coefficient_forms["group1", "(Intercept)", ]
+#'
+#' # Querying the assembled form with a contrast is the same number the
+#' # query-first executor returns for that contrast.
+#' contrast <- c(1, -1)
+#' packed <- crossform:::.svec_symmetric(tcrossprod(contrast))
+#' assembled <- form$coefficient_forms[, "(Intercept)", ] %*% packed
+#' queried <- estimate_population(plan, rbind(`face-house` = contrast))
+#' max(abs(assembled - queried$coefficients[, "face-house", "(Intercept)"]))
+#'
+#' # The tile bounds memory and nothing else: one coordinate at a time gives
+#' # the same forms, and the same estimand identity.
+#' tiled <- materialize_population(plan, coordinate_tile = 1L)
+#' max(abs(tiled$coefficient_forms - form$coefficient_forms))
+#' identical(tiled$scientific_plan_id, form$scientific_plan_id)
+#' tiled$receipt$streaming
+#' @export
+materialize_population <- function(plan,
+                                   component = c("total", "coherent",
+                                     "configuration"),
+                                   coordinate_tile = NULL) {
+  .validate_population_plan(plan, deep = FALSE)
+  component <- match.arg(component)
+  .population_admit_complete_form(plan)
+
+  effects <- plan$subjects[[1L]]$task$left_relation$effect_space$coordinates
+  coordinates <- .population_packed_index(effects)
+  width <- nrow(coordinates)
+  coordinate_labels <- coordinates$coordinate
+  tile <- .population_coordinate_tile(plan, width, coordinate_tile)
+
+  labels <- names(plan$subjects)
+  n_subject <- length(labels)
+  index <- .population_result_index(plan)
+  nodes <- nrow(index)
+  terms <- plan$model$columns
+
+  # The one durable array. It is `(m + 1) * k * p` doubles against the
+  # `N * (m + 1) * p` the naive route would hold, and `k <= N` because
+  # `plan_population()` refuses a rank-deficient design.
+  forms <- array(NA_real_, c(nodes, length(terms), width),
+    dimnames = stats::setNames(
+      list(as.character(index$node), terms, coordinate_labels),
+      c("node", "term", "coordinate")
+    ))
+
+  receipts <- vector("list", n_subject)
+  names(receipts) <- labels
+  native_totals <- matrix(NA_real_, n_subject, width,
+    dimnames = list(labels, coordinate_labels))
+  sink_budget <- native_totals
+  deviations <- numeric(n_subject)
+  native_rows <- integer(n_subject)
+  unresolved <- 0L
+  starts <- .tile_starts(width, tile)
+
+  for (start in starts) {
+    columns <- start:min(start + tile - 1L, width)
+    probe <- .population_coordinate_query(width, columns, coordinate_labels)
+    # `N` by `(m + 1) * length(columns)`, rebuilt per tile and dropped with it.
+    stack <- matrix(NA_real_, n_subject, nodes * length(columns),
+      dimnames = list(labels, NULL))
+    for (position in seq_len(n_subject)) {
+      label <- labels[[position]]
+      carrier <- plan$transport[[label]]
+      view <- .run_geometry_compiler(
+        plan$subjects[[label]], query = probe, component = component
+      )
+      native <- view$values
+      colnames(native) <- coordinate_labels[columns]
+      if (start == starts[[1L]]) {
+        # One receipt per participant, from the first tile. Later tiles read
+        # the same source under the same plan and would record the same
+        # provenance `ceiling(p / tile)` times over.
+        receipts[[label]] <- view$receipt
+        native_rows[[position]] <- nrow(native)
+      }
+      carried <- transport_values(carrier, native)
+      if (identical(plan$semantics, "budget")) {
+        deviations[[position]] <- max(deviations[[position]],
+          .population_budget_certificate(label, native, carried))
+      }
+      native_totals[position, columns] <- colSums(native)
+      # The sink row is already in budget units under either semantics:
+      # `transport_values()` divides the `m` group rows by transported mass
+      # and leaves the sink alone, because a density of unmapped territory has
+      # no referent (section 1.3).
+      sink_budget[position, columns] <- carried[nodes, ]
+      stack[position, ] <- as.numeric(carried)
+      rm(view, native, carried)
+    }
+    fit <- .population_ols(plan$model, stack, coefficients_only = TRUE)
+    unresolved <- unresolved + fit$unresolved
+    # `as.numeric(carried)` stacked the tile column-major with the node index
+    # fastest, so the fit's response columns unfold as `node` by `coordinate`;
+    # the permutation puts the packed axis last, where every slice along it is
+    # one form.
+    forms[, , columns] <- aperm(
+      array(t(fit$coefficients), c(nodes, length(columns), length(terms))),
+      c(1L, 3L, 2L)
+    )
+    rm(stack, fit, probe)
+  }
+
+  readout <- .population_readout("complete_form", coordinate_labels)
+  value <- structure(list(
+    basis = "complete_form",
+    coefficient_forms = forms,
+    residual_df = as.integer(n_subject - plan$model$rank),
+    index = index,
+    effects = effects,
+    coordinates = coordinates,
+    component = component,
+    ledger = unname(.population_ledger_names[[component]]),
+    semantics = plan$semantics,
+    normalization = plan$normalization,
+    uncertainty = NULL,
+    receipt = .population_receipt(
+      plan, readout, component, 0, receipts, native_totals, sink_budget,
+      matrix(TRUE, n_subject, width,
+        dimnames = list(labels, coordinate_labels)),
+      deviations, unresolved,
+      streaming = list(
+        coordinate_tile = as.integer(tile),
+        packed_width = as.integer(width),
+        passes_per_subject = length(starts),
+        group_stack_doubles = as.double(n_subject) * nodes * tile,
+        native_block_doubles = as.double(max(native_rows)) * tile,
+        output_doubles = as.double(nodes) * length(terms) * width,
+        refused_dense_doubles = as.double(n_subject) * nodes * width
+      )
+    ),
+    scientific_plan_id = .population_result_id(plan, readout, component, 0)
   ), class = "effect_population_result")
   .validate_population_result(value)
   value
@@ -652,17 +1054,29 @@ estimate_population <- function(plan, queries,
 # measurement and absence is not), and `unit_budget` marks a participant whose
 # signed native total is not bounded away from zero. Dropping the participant
 # instead would silently change which population the estimate is about.
-.population_ols <- function(model, stack) {
+#
+# `coefficients_only` exists for the streamed complete-form route and for
+# nothing else. There the fitted values and residuals are `N` by
+# `(m + 1) * tile` each, and retaining them would triple the one array whose
+# size the tile is there to bound; the route documents their absence from the
+# result rather than paying for them and dropping them.
+.population_ols <- function(model, stack, coefficients_only = FALSE) {
   finite <- apply(is.finite(stack), 2L, all)
   coefficients <- matrix(NA_real_, ncol(model$matrix), ncol(stack),
     dimnames = list(model$columns, NULL))
-  fitted <- matrix(NA_real_, nrow(stack), ncol(stack))
-  residuals <- fitted
+  fitted <- NULL
+  residuals <- NULL
+  if (!coefficients_only) {
+    fitted <- matrix(NA_real_, nrow(stack), ncol(stack))
+    residuals <- fitted
+  }
   if (any(finite)) {
     responses <- stack[, finite, drop = FALSE]
     coefficients[, finite] <- qr.coef(model$qr, responses)
-    fitted[, finite] <- qr.fitted(model$qr, responses)
-    residuals[, finite] <- qr.resid(model$qr, responses)
+    if (!coefficients_only) {
+      fitted[, finite] <- qr.fitted(model$qr, responses)
+      residuals[, finite] <- qr.resid(model$qr, responses)
+    }
   }
   list(coefficients = coefficients, fitted = fitted, residuals = residuals,
     unresolved = as.integer(sum(!finite)))
@@ -676,9 +1090,10 @@ estimate_population <- function(plan, queries,
 # whether the budget closed, which normalization made incommensurable native
 # totals commensurable and on what criterion, and --- section 8.1's required
 # print line --- which native frame family the ledger belongs to.
-.population_receipt <- function(plan, bank, component, budget_floor,
+.population_receipt <- function(plan, readout, component, budget_floor,
                                 receipts, native_totals, sink_budget,
-                                admitted, deviations, unresolved) {
+                                admitted, deviations, unresolved,
+                                streaming = NULL) {
   # The per-query numbers stay as `subject`-by-`query` matrices rather than
   # becoming list columns of the audit table: a list column is not portable,
   # `location_transport()` refuses one in an index for exactly that reason, and
@@ -704,7 +1119,19 @@ estimate_population <- function(plan, queries,
     semantics = plan$semantics,
     evaluation_order = plan$fit$evaluation_order,
     fit = plan$fit,
-    queries = bank$labels,
+    basis = readout$basis,
+    # The axis the transported geometry was read along, named the same way for
+    # either executor. `queries` stays beside it and stays a *bank* of declared
+    # contrasts: a complete form declares none, and reusing the word for the
+    # packed coordinates would let a reader believe a contrast was chosen.
+    readout = list(basis = readout$basis, labels = readout$labels,
+      width = length(readout$labels)),
+    queries = if (identical(readout$basis, "query_bank")) readout$labels,
+    # Present only on the streamed complete-form route: the coordinate tile the
+    # run was bounded by, and the arrays that bound implies. This is the
+    # auditable form of the acceptance claim -- the dense stack the route
+    # refuses to build is quoted beside the one it did build.
+    streaming = streaming,
     normalization = list(
       mode = plan$normalization,
       # Section 4.3(a): the divisor is read from the same data as the ledger,
@@ -774,30 +1201,89 @@ estimate_population <- function(plan, queries,
 }
 
 # The record -------------------------------------------------------------------
+#
+# FIELD CONTRACT --- `effect_population_result`
+#
+# `$basis` is the discriminator and must be read before any other field. It is
+# one of `.population_result_bases`, and the two bases carry different arrays
+# because they read the transported geometry along different axes. Everything
+# below is stable; a view built on these names will not have to branch on which
+# verb produced the result beyond branching on `$basis`.
+#
+#   basis = "query_bank"   --- `estimate_population(plan, queries)`
+#     $coefficients            node x query x term
+#     $values                  node x query x subject  (transported, scaled)
+#     $fitted, $residuals      node x query x subject
+#     $queries                 K x q contrast matrix, rows named by query
+#
+#   basis = "complete_form" --- `materialize_population(plan)`
+#     $coefficient_forms       node x term x coordinate; the PACKED AXIS IS
+#                              LAST, so `[node, term, ]` is one `svec` form
+#                              ready for `.unsvec_symmetric(., q)`
+#     $effects                 the q effect coordinate names
+#     $coordinates             data frame: coordinate, row, column, scale
+#                              (`scale` is 1 on the diagonal and sqrt(2) off it,
+#                              the Frobenius-consistent codec of
+#                              `effect-form-v1` section 3)
+#     -- deliberately absent: $values, $fitted, $residuals. Indexed by
+#     participant, node and packed coordinate they *are* the N x (m+1) x p
+#     array the streamed route exists in order not to build.
+#
+#   both bases
+#     $residual_df             N - rank(X)
+#     $index                   group nodes plus the sink row, with `sink` and
+#                              `units` columns; row order matches the node axis
+#     $component, $ledger      section 8.1 component and its transported name
+#     $semantics               "budget" or "density"
+#     $normalization           the plan's section 4.1 mode
+#     $uncertainty             D8 passthrough or NULL
+#     $receipt                 $basis, $readout, $subjects, $native_total,
+#                              $sink_budget, $budget, $normalization, $frame,
+#                              $fit, $streaming (complete_form only)
+#     $scientific_plan_id      "population-sha256:..."
 
-.population_result_fields <- c(
-  "coefficients", "values", "fitted", "residuals", "residual_df", "index",
-  "queries", "component", "ledger", "semantics", "normalization",
-  "uncertainty", "receipt", "scientific_plan_id"
-)
+.population_result_fields <- function(basis) {
+  switch(basis,
+    query_bank = c("basis", "coefficients", "values", "fitted", "residuals",
+      "residual_df", "index", "queries", "component", "ledger", "semantics",
+      "normalization", "uncertainty", "receipt", "scientific_plan_id"),
+    complete_form = c("basis", "coefficient_forms", "residual_df", "index",
+      "effects", "coordinates", "component", "ledger", "semantics",
+      "normalization", "uncertainty", "receipt", "scientific_plan_id"),
+    character()
+  )
+}
 
-.validate_population_result <- function(x) {
-  if (!inherits(x, "effect_population_result")) {
-    .input_error(sprintf(paste0(
-      "Expected an `effect_population_result` from `estimate_population()`; ",
-      "received %s."
-    ), .msg_value(x)), arg = "x", received = .msg_value(x),
-      expected = "an `effect_population_result` from `estimate_population()`")
+# The axis-shape check, one branch per basis. Both end at the same question:
+# do the arrays agree with the group node index, the readout axis and the
+# participant list the receipt names.
+.validate_population_result_shape <- function(x) {
+  if (identical(x$basis, "complete_form")) {
+    if (!is.array(x$coefficient_forms) ||
+        length(dim(x$coefficient_forms)) != 3L ||
+        !is.data.frame(x$coordinates) || !.is_strings(x$effects) ||
+        !identical(names(dimnames(x$coefficient_forms)),
+          c("node", "term", "coordinate"))) {
+      .input_error("Population-result fields are missing or noncanonical.")
+    }
+    q <- length(x$effects)
+    shape <- dim(x$coefficient_forms)
+    if (shape[[1L]] != nrow(x$index) ||
+        shape[[2L]] > nrow(x$receipt$subjects) ||
+        shape[[3L]] != nrow(x$coordinates) ||
+        nrow(x$coordinates) != q * (q + 1L) / 2L ||
+        !identical(names(x$coordinates),
+          c("coordinate", "row", "column", "scale"))) {
+      .contract_error(paste0(
+        "Population-result coefficient forms do not agree with their group ",
+        "node index, packed coordinate table and participant list."
+      ))
+    }
+    return(invisible(x))
   }
-  if (!.sealed_fields(x, "effect_population_result",
-      .population_result_fields) ||
-      !is.array(x$coefficients) || length(dim(x$coefficients)) != 3L ||
+  if (!is.array(x$coefficients) || length(dim(x$coefficients)) != 3L ||
       !is.array(x$values) || length(dim(x$values)) != 3L ||
-      !is.data.frame(x$index) || !is.matrix(x$queries) ||
-      !.is_string(x$component) || !.is_string(x$ledger) ||
-      !.is_string(x$semantics) || !.is_string(x$normalization) ||
-      !is.integer(x$residual_df) || !is.list(x$receipt) ||
-      !.strong_sha256(sub("^population-", "", x$scientific_plan_id))) {
+      !is.matrix(x$queries)) {
     .input_error("Population-result fields are missing or noncanonical.")
   }
   shape <- dim(x$coefficients)
@@ -812,6 +1298,31 @@ estimate_population <- function(plan, queries,
       "query bank and participant list."
     ))
   }
+  invisible(x)
+}
+
+.validate_population_result <- function(x) {
+  if (!inherits(x, "effect_population_result")) {
+    .input_error(sprintf(paste0(
+      "Expected an `effect_population_result` from `estimate_population()` ",
+      "or `materialize_population()`; received %s."
+    ), .msg_value(x)), arg = "x", received = .msg_value(x),
+      expected = paste0("an `effect_population_result` from ",
+        "`estimate_population()` or `materialize_population()`"))
+  }
+  if (!is.list(x) || !.is_string(x$basis) ||
+      !x$basis %in% .population_result_bases ||
+      !.sealed_fields(x, "effect_population_result",
+        .population_result_fields(x$basis)) ||
+      !is.data.frame(x$index) ||
+      !.is_string(x$component) || !.is_string(x$ledger) ||
+      !.is_string(x$semantics) || !.is_string(x$normalization) ||
+      !is.integer(x$residual_df) || !is.list(x$receipt) ||
+      !identical(x$receipt$basis, x$basis) ||
+      !.strong_sha256(sub("^population-", "", x$scientific_plan_id))) {
+    .input_error("Population-result fields are missing or noncanonical.")
+  }
+  .validate_population_result_shape(x)
   if (!identical(unname(.population_ledger_names[[x$component]]), x$ledger)) {
     .contract_error(paste0(
       "A transported component must carry the ledger name ",
