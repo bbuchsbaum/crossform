@@ -123,16 +123,6 @@ format.effect_geometry_plan <- function(x, detail = FALSE, ...) {
 }
 
 #' @export
-format.effect_crossnobis_plan <- function(x, ...) {
-  .validate_crossnobis_plan(x, deep = FALSE)
-  .format_counted_result(
-    "effect_crossnobis_plan", nrow(x$frame$weights),
-    paste0(x$metric_schedule$recipe$kind, ", ",
-      x$metric_schedule$training_policy$kind)
-  )
-}
-
-#' @export
 format.effect_geometry <- function(x, ...) {
   .validate_effect_geometry(x, probe = FALSE)
   .format_counted_result(

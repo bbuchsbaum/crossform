@@ -5,8 +5,8 @@
 # the geometry compiler rather than by a second plan class and a second
 # driver -- that the plan is an `effect_geometry_plan`, that
 # `compile()` lowers it, that the refusals are capabilities rather than class
-# checks, and that the numbers are bit-for-bit the ones the retired driver
-# produced.
+# checks, and that the numbers are the ones the retired driver produced,
+# pinned as recorded golden values now that the driver itself is deleted.
 
 learned_geometry_plan <- function(setup, ...) {
   plan_geometry(
@@ -237,7 +237,17 @@ test_that("the sampling layer detects the learned metric by capability", {
   expect_identical(refusal$reasons, "learned_metric_law_not_admitted")
 })
 
-test_that("the new lowering reproduces the retired driver exactly", {
+# The numerical equality with the driver retired in B3, pinned.
+#
+# Before `.execute_learned_crossnobis()` and `.plan_learned_crossnobis()` were
+# deleted, the retired driver was run once on this fixture under exactly the
+# arguments below and its outputs recorded in
+# `fixtures/learned-crossnobis-golden.rds` (`$values`, `$contrast`,
+# `$estimand`, `$metric`, `$pairing`, `$index`, `$kernel_version`,
+# `$lowering`, `$source_read_count`). The equality guarantee B2 established is
+# not weakened by the deletion: it is now asserted against those recorded
+# values rather than against a live second engine.
+test_that("the new lowering reproduces the retired driver's recorded values", {
   setup <- metric_learning_setup()
   recipe <- shrinkage_precision(
     shrinkage = 0.2, relative_variance_floor = 1e-7,
@@ -251,24 +261,32 @@ test_that("the new lowering reproduces the retired driver exactly", {
     residual_workspace_bytes = setup$budgets$wider
   )
   weights <- c(condition = 1, drift = 0)
+  golden <- readRDS(test_path("fixtures/learned-crossnobis-golden.rds"))
 
   compiled <- crossnobis(do.call(plan_crossnobis, arguments), weights)
-  retired <- crossform:::.execute_learned_crossnobis(
-    do.call(crossform:::.plan_learned_crossnobis, arguments), weights
-  )
 
-  expect_equal(compiled$values, retired$values, tolerance = 1e-12)
-  expect_identical(compiled$values, retired$values)
-  expect_identical(compiled$contrast, retired$contrast)
-  expect_identical(compiled$estimand, retired$estimand)
-  expect_identical(compiled$metric, retired$metric)
-  expect_identical(compiled$pairing, retired$pairing)
-  expect_identical(compiled$index, retired$index)
-  expect_identical(compiled$receipt$kernel_version,
-    retired$receipt$kernel_version)
+  expect_equal(compiled$values, golden$values, tolerance = 1e-12)
+  expect_identical(compiled$contrast, golden$contrast)
+  expect_identical(compiled$estimand, golden$estimand)
+  # The metric identity is the frozen schedule signature: a content digest, so
+  # any drift in the recipe, statistics, support graph or training record
+  # would move it even where the values agreed to tolerance.
+  expect_identical(compiled$metric, golden$metric)
+  expect_identical(compiled$pairing, golden$pairing)
+  expect_identical(compiled$index, golden$index)
+  expect_identical(compiled$receipt$kernel_version, golden$kernel_version)
   expect_identical(
-    compiled$metadata$execution_plan$lowering,
-    retired$metadata$execution_plan$lowering
+    compiled$metadata$execution_plan$lowering, golden$lowering
+  )
+  expect_identical(
+    compiled$metadata$source_session$read_count, golden$source_read_count
+  )
+  # Bit-for-bit within one session, where BLAS is fixed: the recorded pin is
+  # held to a tolerance because it crosses machines, not because the route is
+  # allowed to wander between two runs of itself.
+  expect_identical(
+    compiled$values, crossnobis(do.call(plan_crossnobis, arguments),
+      weights)$values
   )
   # The retired driver's private `support_tasks` stage label becomes the
   # geometry executor's `feature_tasks`.
@@ -282,10 +300,6 @@ test_that("the new lowering reproduces the retired driver exactly", {
     sprintf("ascending-features-%d", max(
       compiled$receipt$observed$tiles$feature_block
     )))
-  expect_identical(
-    compiled$metadata$source_session$read_count,
-    retired$metadata$source_session$read_count
-  )
 })
 
 test_that("training policy moves the estimand and tiles move only execution", {

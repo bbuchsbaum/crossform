@@ -933,11 +933,16 @@ unverified adapters.
 
 ## 16. Learned local metric as a compiler lowering
 
-Added 2026-08-17; implemented (B2) 2026-08-20 — the lowering, both identity
-hashes, the capability refusals, and the sugar route below are in the tree,
-exercised by `tests/testthat/test-geometry-learned-metric.R`, and the retired
-driver is reproduced bit-for-bit; `effect_crossnobis_plan` and the private
-driver themselves are deleted by B3. The IR is not the fork: `effect_evidence_task` is already
+Added 2026-08-17; implemented (B2) 2026-08-20 and completed (B3) 2026-08-20 —
+the lowering, both identity hashes, the capability refusals, and the sugar
+route below are in the tree, exercised by
+`tests/testthat/test-geometry-learned-metric.R`. `effect_crossnobis_plan`,
+`.plan_learned_crossnobis()`, `.execute_learned_crossnobis()` and their
+identity, memory and receipt helpers are **retired (B3, 2026-08-20)**; the
+numerical equality with that driver is pinned as recorded golden values in
+`tests/testthat/fixtures/learned-crossnobis-golden.rds`. The paragraph below
+describes the fork as it stood before B2/B3 and is kept as the record of what
+was collapsed. The IR is not the fork: `effect_evidence_task` is already
 sole, built by `plan_geometry()` (`R/geometry-plan.R:324`) and by
 `plan_crossnobis()` (`R/crossnobis.R:344`) alike. The fork is at the
 **executor**. Fixed-metric crossnobis routes `R/crossnobis-driver.R:248` into
@@ -1102,8 +1107,9 @@ signatures, source revisions, residual revisions), and the capability block.
 Nothing in `.crossnobis_scientific_plan_id()` is lost. Its `relation_fit` field
 re-enters through `statistics$signature`, which carries the fit signature; its
 `pairing = .metric_pairing_identity(over)` re-enters through (4) — which matters,
-because `.effect_task_semantic()` (`R/evidence-task.R:814`) digests
-`ordered_edges` but **not** the pairing's declared `independence`, `estimate`,
+because the evidence-task semantic (`.evidence_task_general_semantic()`,
+`R/evidence-task.R`) digests the ordered partition products but **not** the
+pairing's declared `independence`, `estimate`,
 `self_pairs`, `directed` or `generalizes_over`. Those declarations stay
 estimand-bearing for a learned plan; the pre-existing asymmetry on fixed-metric
 geometry plans is out of scope here.
@@ -1211,11 +1217,11 @@ what proves the executor reads evaluation endpoints only.
 |---|---|
 | `plan_crossnobis()`, `crossnobis()` (exported) | **Kept**: sugar over `plan_geometry()`; validating view over `effect_geometry_plan` only |
 | `noise_precision()`, `shrinkage_precision()`, `diagonal_precision()`, `identity_metric()`, `metric_training_policy()`, `metric_capabilities()`, `residual_pair_statistics()` | **Unchanged** |
-| `effect_crossnobis_plan` (class) | **Retired**; `plan_crossnobis()` returns `effect_geometry_plan` |
-| `print.`/`format.effect_crossnobis_plan` (`R/format-results.R:126`) | **Retired**; `print.effect_geometry_plan` gains recipe-kind and training-policy lines |
-| `.validate_crossnobis_plan`, `.crossnobis_scientific_plan_id`, `.crossnobis_plan_signature`, `.learned_crossnobis_memory_plan` | **Retired**; geometry equivalents plus a learned branch in `.support_metric_memory_plan()` |
-| `.planned_crossnobis_receipt`, `.execute_learned_crossnobis` | **Retired**; `.planned_execution_receipt()` and `.execute_geometry_plan()` cover both |
-| `R/crossnobis.R`, `R/crossnobis-driver.R` | `crossnobis.R` keeps `noise_precision()` + sugar; `crossnobis-driver.R` keeps `crossnobis()` and may fold into `R/views.R`. Update `design/architecture.md:30-31,130-137,181` and `test-architecture.R:37,50` |
+| `effect_crossnobis_plan` (class) | **Retired** — done (B3, 2026-08-20); `plan_crossnobis()` returns `effect_geometry_plan` |
+| `print.`/`format.effect_crossnobis_plan` (`R/format-results.R:126`) | **Retired** — done (B3, 2026-08-20), both `S3method()` lines dropped from `NAMESPACE`; `print.effect_geometry_plan` carries the recipe-kind and training-policy lines |
+| `.validate_crossnobis_plan`, `.crossnobis_scientific_plan_id`, `.crossnobis_plan_signature`, `.learned_crossnobis_memory_plan` | **Retired** — done (B3, 2026-08-20); geometry equivalents plus the learned branch in `.support_metric_memory_plan()` |
+| `.planned_crossnobis_receipt`, `.execute_learned_crossnobis` | **Retired** — done (B3, 2026-08-20); `.planned_execution_receipt()` and `.execute_geometry_plan()` cover both |
+| `R/crossnobis.R`, `R/crossnobis-driver.R` | Done (B3, 2026-08-20): `crossnobis.R` (251 lines) keeps `noise_precision()`, the metric- and pairing-role checks, and the sugar; `crossnobis-driver.R` (136 lines, 71 of them roxygen) keeps `crossnobis()` and may still fold into `R/views.R`. `design/architecture.md` updated; both files keep their layer-3 / layer-4 entries in `test-architecture.R`, so the layer map is unchanged |
 | `.support_streamed_scheduled_crossnobis()` (`R/kernel.R:666`) | **Kept unchanged**; call site moves to `.execute_node_block()` |
 | `compile_metric_schedule()`, `.metric_schedule_provider()`, `materialize_metric()`, `effect_frozen_metric_schedule` | **Unchanged**; reached through the schedule kind |
 | receipt `$kernel_version = "support-streamed-scheduled-metric-v1"` | **Kept** |
@@ -1223,7 +1229,7 @@ what proves the executor reads evaluation endpoints only.
 | receipt `$task_partition_id = "ascending-supports-one-live-node"` | **Renamed** to the geometry form (`R/execution-driver.R:42`) |
 | execution stage `"support_tasks"` | **Renamed** `"feature_tasks"` |
 | `metadata$execution_plan$materialization = "direct_crossnobis_contrast"` | **Renamed** `"direct_total"` |
-| `.sampling_evidence_descriptor()` crossnobis branch; `crossnobis_plan_not_routed` refusal | **Retired**; the capability predicate replaces both |
+| `.sampling_evidence_descriptor()` crossnobis branch; `crossnobis_plan_not_routed` refusal | **Retired** — done (B3, 2026-08-20); `.metric_schedule_requires_metric_uncertainty()` replaces both, and the surviving `learned_metric_law_not_admitted` refusal is covered by `test-geometry-learned-metric.R` |
 
 Must pass **unchanged**: all of `test-crossnobis-known.R` (the fixed route is
 untouched); all of `test-metric-learning.R` (recipes, policies, schedule
@@ -1236,11 +1242,16 @@ ordering (`:142-191`), recipe hyperparameters (`:193-200`), the
 scientific-vs-execution identity split (`:202-226`), and the
 no-revalidation-per-node bound (`:228-257`).
 
-Needs **rewriting**: `test-crossnobis-learned.R:54` (class assertion →
+Needs **rewriting** (all done, B2 and B3, 2026-08-20):
+`test-crossnobis-learned.R:54` (class assertion →
 `"effect_geometry_plan"`), `:62-68` (diagnostics path moves under
 `$diagnostics$total`), `:107-109` (same assertions, read off the geometry plan);
 `test-print-methods.R:677` (printed-class inventory loses
-`effect_crossnobis_plan`); `test-architecture.R:37,50` (layer map). New tests
+`effect_crossnobis_plan`); `test-architecture.R:37,50` (layer map — no change
+was needed in the end, both files survive in their existing layers). The B2
+old-versus-new equality test is now a golden-value pin against
+`fixtures/learned-crossnobis-golden.rds`, recorded from the retired driver's
+last run before deletion. New tests
 are owed for the component refusals of §16.2, the sampling refusal reached by
 capability on a learned geometry plan, and
 `identical(plan_crossnobis(...)$scientific_plan_id, plan_geometry(..., metric =
@@ -1279,6 +1290,86 @@ recipe)$scientific_plan_id)`.
    refuses. *Resolution:* state it in `plan_geometry()`'s `@section Structure`,
    print it on the plan, and record the accumulation in `$execution_hints` so it
    is visible in the plan signature, not only in the receipt.
+
+## 17. Identity schema consolidation (B6)
+
+Two identity schemas used to coexist in `R/evidence-task.R`. Every evidence
+task carried an `$identity_schema` field naming which of them had produced its
+`$task_id`:
+
+- `evidence-pairing-v1` — the boundary-typed semantic built by
+  `.evidence_task_general_semantic()`: four identified spaces, the ordered
+  partition products and their expansion, **both** boundary signatures, the
+  stage plan signature, the materialization signature.
+- `effect-form-v1` — a flatter legacy semantic (`.effect_task_semantic()`) used
+  only by the bridged effect-form route: relation ids, the two effect spaces,
+  the ordered edges, the bridge signature, the three operations, the query
+  identity. It could not mention either boundary signature, because it predated
+  the boundary-typed IR. It existed so that ids recorded before that IR stayed
+  byte-stable, and it borrowed its name from the scientific contract
+  `design/effect-form-contract.md`, which is a different object and is
+  untouched by this change.
+
+The compatibility window is now closed. `evidence-pairing-v1` is the only
+identity schema; `.effect_task_semantic()` is deleted; `.new_evidence_task()`
+no longer takes a schema or a legacy compatibility semantic and stamps the one
+schema unconditionally, so a forged `$identity_schema` fails the rebuild in
+`.validate_evidence_task()`. Two gates that were phrased as schema checks are
+now phrased structurally: `.as_compiled_effect_task()` admits an effect-form
+task with an open experimental boundary and a **bridge**-closed neural boundary
+(the closure kind matters — a query-closed effect form has no `$bridge` to
+project), and `.validate_compiled_effect_task()` recomputes the recorded id
+from the same boundary-typed parts its evidence task was named from, via the
+shared `.effect_form_evidence_parts()`.
+
+### The id migration
+
+Consolidation renames every task on the bridged effect-form route, and
+everything derived from those names. It renames nothing else.
+`tests/testthat/test-identity-schema.R` and
+`tests/testthat/fixtures/identity-schema.rds` record both sides: eleven
+representative identities, taken under the two-schema tree (`$before`) and the
+consolidated tree (`$after`).
+
+| identity | moved? |
+| --- | --- |
+| `effect_form_complete`, `effect_form_complete_adapter` | yes |
+| `effect_form_pair_query`, `effect_form_pair_query_base` | yes |
+| `effect_form_physical_query`, `effect_form_reversed` | yes |
+| `effect_task_plan_id` | yes |
+| `geometry_plan_fixed_metric`, `geometry_plan_learned_metric` | yes |
+| `measurement_form` | **no** |
+| `effect_form_neural_query` | **no** |
+
+The two that do not move are the routes that were already native to
+`evidence-pairing-v1`: a measurement form (closed experimental boundary, open
+neural boundary) and an effect form whose neural boundary closes with a fixed
+query rather than a bridge. Retiring the duplicate naming rule did not rename
+the tasks that never used it.
+
+Because `scientific_plan_id` digests `task$task_id`, every `geometry-sha256:`
+and `crossnobis-sha256:` id recorded in `inst/extdata/certification/` is stale
+after this change, as it already was after the rest of this program's `R/`
+edits. Re-recording those artifacts is ticket B8. No test compares a
+certification artifact's recorded id to a freshly computed one — the artifact
+tests match the id *format* and re-derive verdicts from recorded measurements —
+so the staleness is a provenance debt, not a failing gate.
+
+### Materialization kinds
+
+The materialization enum lost its third arm in the same pass. `scalar_field`
+was legislated for the `closed/closed` boundary pair — both boundaries closed
+by a fixed query, so the task materializes one scalar per frame node — and was
+never constructed anywhere: the query-fused geometry route reaches those
+numbers by keeping the experimental boundary open and carrying the query in the
+materialization projection, which is why every such task is spelled as a
+`query_only` `effect_form`. Two kinds remain, `effect_form` (`open/closed`) and
+`measurement_form` (`closed/open`), and `.validate_evidence_boundary_combination()`
+now refuses `closed/closed` for both. The comment at the removal site in
+`R/evidence-task.R` lists what a future scalar-field materialization must
+re-introduce: the enum value, the necessarily-`query_only` invariant, the
+`closed/closed` arm, a reversal rule for a task whose experimental *and* neural
+queries both transpose, and an executor that admits the kind.
 
 ## Final recommendation
 

@@ -585,21 +585,6 @@ rdm_sampling_covariance <- function(
       )
     )
   }
-  if (inherits(x, "effect_crossnobis_plan")) {
-    .capability_refusal(paste0(
-      "Analytic RDM sampling covariance is not routed for crossnobis plans; ",
-      "compile the same fixed metric into `plan_geometry(metric = )` to use ",
-      "the admitted fixed-metric law."
-    ),
-      capability = "fixed_metric_sampling_law",
-      namespace = "evidence_sampling",
-      reasons = "crossnobis_plan_not_routed",
-      remedies = paste0(
-        "Build a geometry plan with `plan_geometry(metric = )` carrying the ",
-        "same fixed metric."
-      )
-    )
-  }
   target <- match.arg(target, c("plugin", "null"))
   explicit_strategy <- !missing(residual_strategy) &&
     length(residual_strategy) == 1L

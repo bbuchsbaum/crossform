@@ -117,26 +117,12 @@
     plan_id <- x$scientific_plan_id
     frame_signature <- .additive_frame_signature(x$frame)
     pairing <- x$pairing
-  } else if (inherits(x, "effect_crossnobis_plan")) {
-    .validate_crossnobis_plan(x, deep = FALSE)
-    relation <- x$task$left_relation
-    metric_schedule <- x$metric_schedule
-    metric_status <- if (isTRUE(metric_schedule$capabilities$learned) ||
-        isTRUE(metric_schedule$capabilities$
-          calibration_requires_metric_uncertainty)) {
-      "learned"
-    } else {
-      "fixed"
-    }
-    metric_identity <- metric_schedule$signature
-    evidence_kind <- "crossnobis_plan"
-    plan_id <- x$scientific_plan_id
-    frame_signature <- .additive_frame_signature(x$frame)
-    pairing <- x$pairing
   } else {
     .input_error(paste0(
-      "Evidence sampling currently binds a compiled geometry or crossnobis ",
-      "plan, not an uncompiled matrix or relation."
+      "Evidence sampling binds a compiled geometry plan, not an uncompiled ",
+      "matrix or relation. A learned metric schedule compiles into a geometry ",
+      "plan like any other; the calibration layer refuses it by capability, ",
+      "not by class."
     ))
   }
   record <- .sampling_record("evidence", list(

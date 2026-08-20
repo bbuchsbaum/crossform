@@ -131,11 +131,14 @@ Two files joined layer 4 in the pass that emptied the register:
   `R/crossnobis.R` on exactly the precedent above. `crossnobis.R` was a plan
   file that also ran its own plan, reaching up into `.run_geometry_compiler()`
   and `.support_streamed_scheduled_crossnobis()`. What is left in
-  `crossnobis.R` is the plan — `noise_precision()`, `plan_crossnobis()`, the
-  validator, the print method — and what moved is everything that executes:
-  the planned receipt, the learned-metric runtime, and the exported
-  `crossnobis()` entry that dispatches between the learned route and the
-  ordinary geometry compiler.
+  `crossnobis.R` is the plan — `noise_precision()`, `plan_crossnobis()`, and
+  the metric- and pairing-role checks — and what moved is everything that
+  executes: the exported `crossnobis()` entry that reads a contrast off a
+  compiled plan. The second runtime this file also carried at the time of the
+  split — a planned receipt, a private learned-metric driver, and a dispatch
+  on an `effect_crossnobis_plan` class — was retired (B3, 2026-08-20) once the
+  learned local metric became an ordinary compiler lowering (B2); there is now
+  one runtime, `.run_geometry_compiler()`, on both routes.
 - `R/result.R` holds the sealed result records — `effect_form`,
   `effect_geometry`, `effect_view`, `effect_contrast_view` — and their
   validators. It was classified as a view, which made the executor's
