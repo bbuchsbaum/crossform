@@ -1,7 +1,12 @@
 # Query-first geometry plans -----------------------------------------------
 
-.geometry_metric_schedule <- function(frame, metric = NULL) {
+.geometry_metric_schedule <- function(frame, metric = NULL,
+                                      composition = c("native", "whitened")) {
+  composition <- match.arg(composition)
   .validate_frame_for_compile(frame)
+  if (identical(composition, "whitened")) {
+    return(.geometry_whitened_metric_schedule(frame, metric))
+  }
   if (!is.null(metric)) {
     metric <- .validate_neural_metric(metric)
     if (!.same_domain_reference(metric$domain, frame$domain)) {
@@ -60,6 +65,191 @@
     metric = NULL,
     signature = .sha256_signature(semantic)
   )), class = "effect_metric_schedule")
+}
+
+# The fourth schedule kind, and the only one whose metric the kernel never
+# sees. `composition = "whitened"` names the estimand
+#
+#     K_x = Q^(1/2) D(w_x) Q^(1/2),
+#
+# which is dense on the whole domain even though `D(w_x)` is supported on one
+# node, so it cannot be produced by `.compose_frame_metric()` -- that function
+# returns an operator on the node's own support and requires the metric to
+# match it (section 5.2.2 of `design/conservative-geometry-contract.md`).
+# The feasible route, and the one this schedule declares, is to whiten the
+# effect coordinates once, `B~ = B Q^(1/2)`, and then run the ordinary
+# implicit-identity conservative pipeline on `B~`:
+#
+#     B~ D(w_x) B~^T = B Q^(1/2) D(w_x) Q^(1/2) B^T,
+#
+# exactly. So the schedule is feature additive, support sparse, and lowers to
+# `additive_contraction` -- the identity path -- while carrying the metric, the
+# composition, and the pinned root convention for identity and for the
+# conservation certificate. `plan_geometry()` performs the transform; nothing
+# downstream of it needs to know.
+.geometry_whitened_metric_schedule <- function(frame, metric) {
+  if (is.null(metric)) {
+    .input_error(paste0(
+      "`composition = \"whitened\"` measures the frame in the coordinates a ",
+      "metric defines, so it needs one: pass a fixed `neural_metric()` or ",
+      "`noise_precision()`, or keep the default `composition = \"native\"`."
+    ),
+      arg = "metric", received = "no argument",
+      expected = "a domain-wide fixed `neural_metric()`")
+  }
+  metric <- .validate_neural_metric(metric)
+  if (!.same_domain_reference(metric$domain, frame$domain)) {
+    .contract_error(
+      "The neural metric and spatial frame must share one exact domain."
+    )
+  }
+  if (!identical(metric$support, frame$domain$feature_ids)) {
+    .input_error(paste0(
+      "The whitened composition transforms every effect coordinate on the ",
+      "domain at once, so it admits a domain-wide metric only; a ",
+      "support-local metric whitens nothing outside its own support. Compile ",
+      "a domain-wide `neural_metric()`, or use ",
+      "`composition = \"native\"`, which restricts a metric to each node."
+    ),
+      arg = "metric", received = "a support-local metric",
+      expected = "a domain-wide metric")
+  }
+  if (!isTRUE(metric$capabilities$positive_definite)) {
+    # Refuse by naming the offending eigenvalue rather than repeating the
+    # capability flag. The eigendecomposition is only paid on the failing path;
+    # the successful one takes it once in `plan_geometry()`.
+    .metric_symmetric_psd_root(metric)
+  }
+  semantic <- list(
+    schema_version = 1L,
+    role = "same_space_metric_schedule",
+    kind = "whitened_metric_before_frame",
+    composition = "whitened",
+    root = "symmetric_psd_root",
+    frame_composition = "sqrt_weight_congruence",
+    feature_additive = TRUE,
+    support_dense = FALSE,
+    materialization = "whitened_effect_coordinates",
+    scope = "domain_operator",
+    lowering = "additive_contraction",
+    metric_signature = metric$signature
+  )
+  structure(c(semantic[-1L], list(
+    metric = metric,
+    signature = .sha256_signature(semantic)
+  )), class = "effect_metric_schedule")
+}
+
+# `B~ = B Q^(1/2)`, once, at plan time.
+#
+# The transform is global: every whitened coordinate reads every feature, so
+# there is no blockwise output. What *is* bounded is the input -- the relation
+# is read one feature block at a time and accumulated,
+# `B~ = sum_blk B[, blk] Q^(1/2)[blk, ]`, so the source is never fully resident
+# even though the result is. The resident cost is one whitened
+# effect-by-feature matrix per partition, which is dominated by the domain-wide
+# dense `Q` the composition already requires whenever the effect count times
+# the partition count is below the feature count.
+.whitened_effect_relation <- function(x, metric, root, compute) {
+  features <- x$n_features
+  effects <- length(x$effect_space$coordinates)
+  block <- .whitening_feature_block(compute, features, effects)
+  starts <- seq.int(1L, features, by = block)
+  whitened <- lapply(x$partitions, function(partition) {
+    if (length(starts) == 1L) {
+      # One block: multiply against the root itself rather than a full copy of
+      # it, which at this size is the second largest allocation in the call.
+      return(.whitened_effect_block(
+        x, partition, relation_block(x, partition, seq_len(features)) %*% root
+      ))
+    }
+    value <- matrix(0, effects, features)
+    for (start in starts) {
+      index <- seq.int(start, min(start + block - 1L, features))
+      value <- value +
+        relation_block(x, partition, index) %*% root[index, , drop = FALSE]
+    }
+    .whitened_effect_block(x, partition, value)
+  })
+  names(whitened) <- x$partitions
+  relation(
+    whitened,
+    effects = x$effect_space,
+    domain = x$domain,
+    provenance = list(
+      construction = "whitened_effect_coordinates",
+      composition = "whitened",
+      root = "symmetric_psd_root",
+      law = "B Q^(1/2)",
+      metric = metric$signature,
+      source_relation = .relation_family_identity(x)
+    )
+  )
+}
+
+# One whitened partition, checked and labelled. The finiteness check is the
+# same one `relation_block()` makes of an extraction: finite inputs can still
+# overflow against a badly scaled root, and a non-finite relation must be
+# refused where it was produced rather than surfacing as a kernel failure.
+.whitened_effect_block <- function(x, partition, value) {
+  if (any(!is.finite(value))) {
+    .input_error(sprintf(paste0(
+      "Whitening the effect coordinates of partition `%s` produced non-finite ",
+      "values. Finite inputs overflowed double precision against the metric ",
+      "root; rescale the responses or the metric before compiling the plan."
+    ), partition))
+  }
+  dimnames(value) <- list(x$effect_space$coordinates, NULL)
+  value
+}
+
+# What whitening costs, stated before it is paid.
+#
+# Two resident terms: the whitened effect coordinates, which the plan keeps for
+# every view compiled from it, and the symmetric root, which lives only for the
+# duration of the transform but has to fit alongside the metric it came from.
+# They enter `$execution_hints`, so they reach `$signature` and the receipt
+# without touching `$scientific_plan_id` -- a cost is not an estimand. A
+# declared workspace budget is enforced against their sum, because a plan that
+# cannot hold its own whitened relation will fail in the middle of a pass over
+# the source rather than at compile time.
+.whitening_execution_hints <- function(x, compute) {
+  features <- as.double(x$n_features)
+  effects <- as.double(length(x$effect_space$coordinates))
+  effect_bytes <- 8 * length(x$partitions) * effects * features
+  root_bytes <- 8 * features * features
+  budget <- compute$workspace_bytes
+  if (!is.null(budget) && effect_bytes + root_bytes > budget) {
+    .input_error(sprintf(paste0(
+      "The whitened composition needs %.0f resident bytes -- %.0f for the ",
+      "whitened effect coordinates it keeps and %.0f for the symmetric root ",
+      "`Q^(1/2)` it forms them with -- exceeding the %.0f-byte workspace ",
+      "budget. Whitening is a global congruence, so neither term can be ",
+      "streamed away: raise `compute_policy(workspace_bytes = )`, or use ",
+      "`composition = \"native\"`, which restricts the metric to each node."
+    ), effect_bytes + root_bytes, effect_bytes, root_bytes, budget),
+      arg = "compute",
+      received = sprintf("a %.0f-byte workspace budget", budget),
+      expected = sprintf("at least %.0f bytes", effect_bytes + root_bytes))
+  }
+  list(
+    whitened_effect_bytes = effect_bytes,
+    metric_root_bytes = root_bytes,
+    plan_time_effect_whitening = TRUE
+  )
+}
+
+# How many features to read at once while whitening. The transform's output is
+# unavoidably `effects x features` per partition; the budget therefore bounds
+# only the transient -- the input block and the slice of the root it is
+# multiplied by. With no declared budget the whole axis is read at once, which
+# is what every other in-memory route already does.
+.whitening_feature_block <- function(compute, features, effects) {
+  budget <- compute$workspace_bytes
+  if (is.null(budget)) return(features)
+  per_feature <- 8 * (effects + features)
+  block <- floor(budget / per_feature)
+  if (!is.finite(block) || block < 1) 1L else as.integer(min(block, features))
 }
 
 # The third schedule kind. A metric recipe is not a metric: nothing is
@@ -261,6 +451,22 @@
 #'   and each support derives its own local operator from frozen residual
 #'   sufficient statistics. Fixed metrics and recipes are not yet admitted on
 #'   rectangular plans.
+#' @param composition How the metric composes with the frame, and therefore
+#'   which estimand the plan names. `"native"` (the default, and the only
+#'   behaviour before this argument existed) weights features and then measures
+#'   them in the metric geometry, \eqn{K_x = D(\sqrt{w_x})\,Q\,D(\sqrt{w_x})}.
+#'   `"whitened"` measures the frame in whitened coordinates instead,
+#'   \eqn{K_x = Q^{1/2}D(w_x)Q^{1/2}}, which conserves exactly under a
+#'   conservative frame for any positive-definite `Q` where the native
+#'   composition of a dense `Q` does not. The two are **different estimands,
+#'   not two implementations of one**: under whitening a node weights whitened
+#'   coordinates, which are spatially delocalized whenever `Q` is dense, so a
+#'   node's support is no longer its support. Never switch to `"whitened"` to
+#'   repair a failed conservation check. It is admitted for a fixed
+#'   positive-definite domain-wide metric only, uses the symmetric
+#'   positive-definite root \eqn{Q^{1/2}}, and carries both the composition and
+#'   that root convention into `$scientific_plan_id`. See
+#'   `design/conservative-geometry-contract.md` section 5.
 #' @param right Optional second `effect_relation` supplying a distinct right
 #'   experimental axis. Supplying it compiles a rectangular cross-axis plan:
 #'   the resulting form has one row axis per left effect and one column axis
@@ -301,10 +507,22 @@
 #' listed here are the lowered form the executor consumes: internal, and
 #' free to change.
 #' @section Reads at plan time:
-#' With a fixed metric or the implicit identity metric, compilation reads no
-#' relation block: everything it checks is a declaration.
+#' With a fixed metric or the implicit identity metric under the native
+#' composition, compilation reads no relation block: everything it checks is a
+#' declaration.
 #'
-#' A learned metric recipe is the one exception, and it is deliberate. The
+#' There are two deliberate exceptions. `composition = "whitened"` is the
+#' second: whitening is a global congruence, so the transform
+#' \eqn{\tilde B = BQ^{1/2}} is performed once here and every view of the plan
+#' reads the whitened coordinates it produced. Deferring it would repeat one
+#' domain-wide congruence per contrast. The relation is read one feature block
+#' at a time and accumulated, so the source is never fully resident, but the
+#' result is: `$execution_hints` records the resident bytes, and a declared
+#' `compute_policy(workspace_bytes = )` is enforced against them before the
+#' first read. Every refusal that does not need the data --- the metric's
+#' domain, its support, its definiteness, the budget --- fires first.
+#'
+#' A learned metric recipe is the other, and it is deliberate too. The
 #' schedule freezes canonical residual sufficient statistics, so
 #' `plan_geometry()` accumulates them in one streamed pass over the fit's
 #' residual channel before it returns. Deferring that pass to execution would
@@ -344,11 +562,14 @@
 #' contrast_energy(plan, c(a = 1, b = -1))$total
 #' @export
 plan_geometry <- function(x, at, over, compute = compute_policy(),
-                          metric = NULL, right = NULL,
+                          metric = NULL,
+                          composition = c("native", "whitened"),
+                          right = NULL,
                           training = metric_training_policy(
                             "exclude_evaluation"
                           ),
                           residual_workspace_bytes = NULL) {
+  composition <- match.arg(composition)
   if (missing(at)) {
     .input_error(paste0(
       "`at` is required: pass a compiled frame from `compile_frame()`, for ",
@@ -369,6 +590,24 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       expected = "a pairing from `cross_partitions()` or `pairing()`")
   }
   learned <- inherits(metric, "effect_metric_recipe")
+  if (learned && identical(composition, "whitened")) {
+    .capability_refusal(paste0(
+      "`composition = \"whitened\"` needs one global root `Q^(1/2)` of a ",
+      "fixed metric, and a learned local metric has none: its operator is ",
+      "derived per support and per evaluation edge from frozen residual ",
+      "statistics, so there is no single domain-wide operator to take a root ",
+      "of, and no one set of whitened coordinates every node could share."
+    ),
+      capability = "whitened_metric_composition",
+      namespace = "geometry_plans",
+      reasons = "learned_local_metric_has_no_global_root",
+      remedies = paste0(
+        "Compile the recipe with `composition = \"native\"`, which is what a ",
+        "scheduled local metric means, or supply a fixed `neural_metric()` / ",
+        "`noise_precision()` if you want the whitened conserving reading."
+      )
+    )
+  }
   if (!learned && !is.null(residual_workspace_bytes)) {
     .input_error(paste0(
       "`residual_workspace_bytes` budgets residual accumulation and is ",
@@ -448,6 +687,23 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   if (!is.null(right)) {
     right$capabilities <- .relation_source_capabilities(right)
   }
+  # The whitened composition is the second route that reads at plan time, and
+  # for the same reason as the first: what it freezes -- here the whitened
+  # effect coordinates rather than residual sufficient statistics -- is shared
+  # by every view of the plan, so deferring it would redo one global congruence
+  # per contrast. Every refusal that does not need the data still fires before
+  # the first read: the metric's domain, its support, its definiteness, and the
+  # resident budget are all diagnosed above or in the schedule constructor.
+  whitened_schedule <- NULL
+  if (identical(composition, "whitened")) {
+    whitened_schedule <- .geometry_metric_schedule(at, metric, "whitened")
+    execution_hints <- .whitening_execution_hints(x, compute)
+    x <- .whitened_effect_relation(
+      x, whitened_schedule$metric,
+      .metric_symmetric_psd_root(whitened_schedule$metric), compute
+    )
+    x$capabilities <- .relation_source_capabilities(x)
+  }
   task <- .compile_effect_evidence_task(x, over, right = right)
   metric_schedule <- if (learned) {
     support_index <- .residual_statistics_support_index(at, x$domain)
@@ -464,6 +720,8 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     .geometry_learned_metric_schedule(
       compile_metric_schedule(metric, statistics, at, over, training)
     )
+  } else if (!is.null(whitened_schedule)) {
+    whitened_schedule
   } else {
     .geometry_metric_schedule(at, metric)
   }
@@ -633,10 +891,34 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
         "A learned geometry plan must record its residual accumulation."
       )
     }
+  } else if (identical(metric_schedule$kind, "whitened_metric_before_frame")) {
+    # A whitened plan carries whitened effect coordinates, so the transform it
+    # performed has to be visible in the plan rather than only in the numbers.
+    if (!is.list(x$execution_hints) ||
+        !identical(x$execution_hints$plan_time_effect_whitening, TRUE) ||
+        !.is_number(x$execution_hints$whitened_effect_bytes) ||
+        !.is_number(x$execution_hints$metric_root_bytes) ||
+        x$execution_hints$whitened_effect_bytes <= 0 ||
+        x$execution_hints$metric_root_bytes <= 0) {
+      .contract_error(
+        "A whitened geometry plan must record its effect-coordinate transform."
+      )
+    }
+    if (!identical(relation$provenance$construction,
+        "whitened_effect_coordinates") ||
+        !identical(relation$provenance$root, "symmetric_psd_root") ||
+        !identical(relation$provenance$metric,
+          metric_schedule$metric$signature)) {
+      .contract_error(paste0(
+        "A whitened geometry plan must carry the whitened effect coordinates ",
+        "its schedule names."
+      ))
+    }
   } else if (!is.null(x$execution_hints)) {
-    .contract_error(
-      "Execution hints are recorded only for a learned metric schedule."
-    )
+    .contract_error(paste0(
+      "Execution hints are recorded only for a learned metric schedule or a ",
+      "whitened composition."
+    ))
   }
   if (isTRUE(deep)) {
     expected_id <- .geometry_plan_scientific_id(

@@ -10,6 +10,7 @@ plan_geometry(
   over,
   compute = compute_policy(),
   metric = NULL,
+  composition = c("native", "whitened"),
   right = NULL,
   training = metric_training_policy("exclude_evaluation"),
   residual_workspace_bytes = NULL
@@ -36,6 +37,23 @@ learned local schedule instead: nothing is materialized before the frame,
 and each support derives its own local operator from frozen residual
 sufficient statistics. Fixed metrics and recipes are not yet admitted on
 rectangular plans.}
+
+\item{composition}{How the metric composes with the frame, and therefore
+which estimand the plan names. \code{"native"} (the default, and the only
+behaviour before this argument existed) weights features and then measures
+them in the metric geometry, \eqn{K_x = D(\sqrt{w_x})\,Q\,D(\sqrt{w_x})}.
+\code{"whitened"} measures the frame in whitened coordinates instead,
+\eqn{K_x = Q^{1/2}D(w_x)Q^{1/2}}, which conserves exactly under a
+conservative frame for any positive-definite \code{Q} where the native
+composition of a dense \code{Q} does not. The two are \strong{different estimands,
+not two implementations of one}: under whitening a node weights whitened
+coordinates, which are spatially delocalized whenever \code{Q} is dense, so a
+node's support is no longer its support. Never switch to \code{"whitened"} to
+repair a failed conservation check. It is admitted for a fixed
+positive-definite domain-wide metric only, uses the symmetric
+positive-definite root \eqn{Q^{1/2}}, and carries both the composition and
+that root convention into \verb{$scientific_plan_id}. See
+\code{design/conservative-geometry-contract.md} section 5.}
 
 \item{right}{Optional second \code{effect_relation} supplying a distinct right
 experimental axis. Supplying it compiles a rectangular cross-axis plan:
@@ -94,10 +112,22 @@ free to change.
 
 \section{Reads at plan time}{
 
-With a fixed metric or the implicit identity metric, compilation reads no
-relation block: everything it checks is a declaration.
+With a fixed metric or the implicit identity metric under the native
+composition, compilation reads no relation block: everything it checks is a
+declaration.
 
-A learned metric recipe is the one exception, and it is deliberate. The
+There are two deliberate exceptions. \code{composition = "whitened"} is the
+second: whitening is a global congruence, so the transform
+\eqn{\tilde B = BQ^{1/2}} is performed once here and every view of the plan
+reads the whitened coordinates it produced. Deferring it would repeat one
+domain-wide congruence per contrast. The relation is read one feature block
+at a time and accumulated, so the source is never fully resident, but the
+result is: \verb{$execution_hints} records the resident bytes, and a declared
+\code{compute_policy(workspace_bytes = )} is enforced against them before the
+first read. Every refusal that does not need the data --- the metric's
+domain, its support, its definiteness, the budget --- fires first.
+
+A learned metric recipe is the other, and it is deliberate too. The
 schedule freezes canonical residual sufficient statistics, so
 \code{plan_geometry()} accumulates them in one streamed pass over the fit's
 residual channel before it returns. Deferring that pass to execution would
@@ -144,6 +174,7 @@ Other geometry plans and views:
 \code{\link{bilinear_query}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
+\code{\link{contribution}()},
 \code{\link{crossnobis}()},
 \code{\link{evaluate_geometry}()},
 \code{\link{example_fmri_effects}()},

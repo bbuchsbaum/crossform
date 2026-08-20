@@ -16,8 +16,9 @@
 #   O2.d  The alternative *whitened* composition Q^(1/2) D(w) Q^(1/2)
 #         conserves exactly, because sum_x Q^(1/2) D(w_x) Q^(1/2)
 #         = Q^(1/2) D(1) Q^(1/2) = Q.  It is a different estimand: the
-#         per-node values differ from the native composition.  crossform has
-#         no code path for it today, so it is computed from first principles.
+#         per-node values differ from the native composition.  It is computed
+#         from first principles here and, since D6, also checked against the
+#         executed package path `plan_geometry(..., composition = "whitened")`.
 #   O2.e  `.metric_frame_conservation()` refuses a non-diagonal schedule.
 #   O2.f  The diagonal-metric route rebuilds the frame with
 #         `normalization = "none"`, discarding the declared normalization from
@@ -71,8 +72,9 @@ svec <- function(M) {
 # The cross-partition estimator with two runs: sym(B1 K B2^T).
 geom_K <- function(K) svec(0.5 * (B1 %*% K %*% t(B2) + B2 %*% K %*% t(B1)))
 
-run_total <- function(frame, metric = NULL) {
-  plan <- plan_geometry(rel, frame, over, metric = metric)
+run_total <- function(frame, metric = NULL, composition = "native") {
+  plan <- plan_geometry(rel, frame, over, metric = metric,
+    composition = composition)
   geometry_component(materialize_geometry(plan), "total")
 }
 
@@ -159,7 +161,14 @@ native <- t(vapply(seq_len(nrow(W)), function(x) {
 
 say("  first-principles native reproduces package: ",
   sci(max(abs(native - local_Q))))
+# Since D6 the package has a whitened code path, so the first-principles values
+# above are no longer the only evidence: they are now a check on it.
+local_whitened <- run_total(conservative, metric_Q, composition = "whitened")
+say("  first-principles whitened reproduces package: ",
+  sci(max(abs(whitened - local_whitened))))
 res_whitened <- report("dense metric, whitened", whitened, G_omega_Q)
+res_whitened_pkg <- report("dense metric, whitened (package)",
+  local_whitened, G_omega_Q)
 say("  per-node disagreement max|whitened - native| = ",
   sci(max(abs(whitened - native))),
   "   (relative to max|native| = ", sci(max(abs(native))), ")")

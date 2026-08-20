@@ -463,10 +463,18 @@
       "execution plan claims another component."
     ))
   }
-  if (!identical(learned, !is.null(x$execution_hints))) {
-    .contract_error(
-      "Execution hints are carried only by a learned metric schedule."
-    )
+  # Two schedules do work at plan time and record it: a learned recipe freezes
+  # residual sufficient statistics, and a whitened composition forms the
+  # whitened effect coordinates. Both carry hints through to the execution
+  # plan; every other schedule carries none.
+  whitened <- identical(
+    x$metric_schedule$kind, "whitened_metric_before_frame"
+  )
+  if (!identical(learned || whitened, !is.null(x$execution_hints))) {
+    .contract_error(paste0(
+      "Execution hints are carried only by a learned metric schedule or a ",
+      "whitened composition."
+    ))
   }
   explicit_metric <- identical(
     x$metric_schedule$kind, "fixed_metric_before_frame"

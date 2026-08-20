@@ -444,8 +444,41 @@ budget for a relation-level transform, not a metric-schedule variant.
 behaviour), carrying the choice **and the root identity of §5.2.1** into the
 scientific plan identity, and emitting a conservation certificate. The switch
 must never be applied silently to "repair" a failed conservation check.
-`crossform` has no `"whitened"` code path today; §10 records the oracle that
-defines what it must compute.
+~~`crossform` has no `"whitened"` code path today; §10 records the oracle that
+defines what it must compute.~~ *(True until D6; see immediately below.)*
+
+**Delivered (D6, 2026-08-20).** `plan_geometry(..., metric = , composition =
+c("native", "whitened"))` implements this section. `"native"` is the default
+and no existing plan identity moved. `"whitened"` is admitted for a fixed
+positive-definite domain-wide metric only — a learned recipe gets a
+`whitened_metric_composition` capability refusal, because a per-support
+operator has no single global root — and it takes the seam §5.2.2 prescribed: a
+relation-level transform. `plan_geometry()` forms `B̃ = BQ^{1/2}` once at plan
+time with the symmetric root of §5.2.1, compiles the task on `B̃`, and attaches
+a `whitened_metric_before_frame` schedule that lowers to the ordinary
+implicit-identity `additive_contraction`, so nothing in the compiler, executor,
+or kernel branches on the composition. `composition` and the root convention
+string `"symmetric_psd_root"` enter the schedule's semantic digest and so
+`$scientific_plan_id`, alongside the metric signature; they are absent from the
+other schedule kinds rather than carried as `"native"`, which is what keeps
+every pre-D6 identity byte-identical. `.metric_frame_conservation(frame,
+composition = "whitened", metric = )` certifies the law by its exact algebraic
+residual `Σ_x K_x − Q = Q^{1/2}D(m−1)Q^{1/2}` (`m` the column mass), and the
+native refusal now names the alternative without implying it is a repair.
+Evidence: `tests/testthat/test-composition.R`; design note
+`design/crossform-execution-design.md` §16.8.
+
+**One consequence left open by D6.** Because the plan's relation *is* the
+whitened one, the residual-channel sampling routes
+(`rdm_sampling_covariance(plan, fit, …)`) refuse a whitened plan: the fit the
+caller holds is not identity-bound to the plan's relation. That is a refusal,
+not a wrong answer, and it is the correct conservative behaviour — the sampling
+covariance of a whitened estimand needs the residual second moment transformed
+too, `Σ̃ = Q^{1/2}ΣQ^{1/2}`, and which estimand that names is a decision this
+contract has not made. The refusal message is generic rather than explaining
+the whitened case. **Owed:** either a targeted capability refusal naming the
+composition, or the whitened calibration law itself (a D8 question, since §7.6a
+and gap G8 already own "conservation gives no uncertainty").
 
 ### 5.3 The diagonal-metric fold, and what it must keep
 
@@ -665,10 +698,10 @@ the §6 error at the population level.
 | frame **families** (multi-scale, α-weighted) | **delivered (D2):** `frame_family(..., alpha, normalization = "conservative")` (`R/frame.R`). Refuses `abs(sum(α) − 1) > tol` rather than renormalizing (G1) and validates column normalization **per member** rather than on the stack (G2). The undocumented `rbind(...)` + `additive_frame(..., "conservative")` route still works and is still provenance-blind (`test-frame-family.R`, "the bare rbind route is still provenance blind") | met |
 | per-row metadata | **delivered (D2)** for the family route: `$index` carries `measurement` (`"<family>::<node>"`), `family`, `node`, `scale`, `center`, `alpha`, one row per measurement, and reaches the result's `$index` (`test-frame-family.R`, "family metadata survives a geometry evaluation"). A single compiled frame's `$index` is unchanged: still `measurement` only, radius still frame-wide on `$specification` | met for families; a single frame's own `$index` is unchanged |
 | `additive_frame()` | still drops `$index` and `$specification` — deliberately, since a declared frame has no generator. `frame_family()` carries both instead, so the gap is closed on the family route only; the **metric fold** route of §5.3 still drops them | met for families; the metric fold still owes it (§5.3) |
-| `contribution(by = region/network)` | does not exist | aggregation over a declared grouping of rows, budget semantics |
+| `contribution(by = region/network)` | **delivered (D4):** `contribution(x, by, using = NULL)` (`R/views.R`) aggregates an `effect_contrast_view` or a query-only `effect_view` **by row** over a grouping — a column of a per-measurement metadata table such as a family's `$index`, or a label vector the analyst supplies. Refusals: a locally normalized frame (§1.1), a view that does not record its frame normalization, and the non-additive readouts (`effect_spectrum_view`, `effect_rdm_view`, `effect_rsa_view`, `effect_crossnobis_view`, packed geometry, an unevaluated plan). `total` is budget-exact; `coherent` / `configuration` are labelled `frame_relative` (§4); `signed` is **masked**, because it is the local weighted *mean* and a density does not add over a territory; the group coherence fraction is recomputed from the aggregated components under the §4 mask, never averaged. Provenance in `$metadata$aggregation` (`aggregated_by`, `frame_relative`, `budget_exact`, `masked`, `overlap_split = FALSE`); the receipt carries a derived `scientific_plan_id` (`test-contribution.R`) | met |
 | coherence spectrum | derivable from `contrast_energy()` per frame; no named object | a named per-scale / per-location coherent-share object |
-| metric composition | native `D(√w) Q D(√w)` only | explicit `composition = c("native", "whitened")` in plan identity, with a conservation certificate |
-| metric conservation certificate | `.metric_frame_conservation()` / `.require_metric_conservation()`, internal | surfaced wherever a conservative claim is printed |
+| metric composition | **delivered (D6):** `plan_geometry(..., metric = , composition = c("native", "whitened"))`. Default `"native"`, unchanged and identity-stable. `"whitened"` is a `whitened_metric_before_frame` schedule carrying `composition` and `root = "symmetric_psd_root"` in `$scientific_plan_id`; the transform is relation-level (`B̃ = BQ^{1/2}` at plan time), per §5.2.2, so the compiler, executor, and kernel are untouched. Fixed positive-definite domain-wide metrics only; learned recipes refused (`whitened_metric_composition`) | met |
+| metric conservation certificate | `.metric_frame_conservation()` / `.require_metric_conservation()`, internal; **D6** added `composition`, `root`, and `max_deviation` to the certificate, a `"whitened"` branch certifying `Σ_x Q^{1/2}D(w_x)Q^{1/2} = Q` by its exact residual, and a separate `.require_metric_conservation()` message for a certificate that conserves without being feature additive | met for the composition law; still not surfaced wherever a conservative claim is *printed* |
 | diagonal-metric frame fold | folds to `normalization = "none"` and records `$metric_folded` provenance (`R/metric.R:590-637`); the assessment's "discards provenance" finding is **fixed** | also carry `$index` / `$specification` through the fold |
 | latent PSD layer | does not exist; `coherence_fraction` masking is the only instance of the discipline | a named layer object; no silent clipping anywhere |
 | packed codec | `symmetric_packed`, √2 off-diagonals, Frobenius consistent | unchanged; it is the population storage format |
@@ -712,9 +745,9 @@ fixtures. They are the tolerances tests must assert, not aspirational figures.
 | 5a | identity and diagonal metrics conserve; dense metrics do not | `tests/testthat/test-conservative-geometry-contract.R` — "conservation survives a diagonal metric and fails for a dense one"; `design/oracles/conservative-metric-composition.R` §O2.a–c |
 | 5b | the failure obeys `Σ_x G_x = B(S∘Q)Bᵀ` with `S_uu = 1` | `tests/testthat/test-conservative-geometry-contract.R` — "conservation survives a diagonal metric and fails for a dense one" (its `overlap` assertions); `design/oracles/conservative-metric-composition.R` §O2.c |
 | 5c | the assessment's `−6.6%` is fixture-specific; sign and size both vary | `design/oracles/conservative-metric-composition.R` §O2.c′ |
-| 5d | the whitened composition `Q^{1/2} D(w) Q^{1/2}` conserves and is a different estimand | `tests/testthat/test-conservative-geometry-contract.R` — "the whitened composition conserves where the native one does not" (uses the symmetric eigen root, lines 181-184); `design/oracles/conservative-metric-composition.R` §O2.d |
-| 5g | conservation holds for **any** root `RRᵀ = Q`, but node values are root-dependent, so `"whitened"` alone does not name an estimand (§5.2.1) | `design/oracles/conservative-metric-composition.R` §O2.d′ (added by the 2026-08-20 review: both roots conserve to `1.5e-15` / `2.9e-16`, node values differ by `15.7%`). **No test yet** — D6 must add one asserting both roots conserve while their node values differ by `> 1%` |
-| 5h | whitening is not support-local, so it cannot go through `.compose_frame_metric()` (§5.2.2) | source-level: `.compose_frame_metric()` requires `identical(metric$support, node_value$support)` (`R/metric.R:814-895`, HEAD). No test; D6 deliverable |
+| 5d | the whitened composition `Q^{1/2} D(w) Q^{1/2}` conserves and is a different estimand | `tests/testthat/test-conservative-geometry-contract.R` — "the whitened composition conserves where the native one does not" (uses the symmetric eigen root, lines 181-184); **`tests/testthat/test-composition.R` (D6)** — "both compositions equal their hand-computed dense algebra" (both compositions against hand-computed dense algebra at `1e-12`, and the estimand gap asserted `> 1%`) and "a dense metric conserves under whitening and not natively" (whitened `< 1e-12`, native `> 1%`), now against the executed package path rather than first principles; `design/oracles/conservative-metric-composition.R` §O2.d |
+| 5g | conservation holds for **any** root `RRᵀ = Q`, but node values are root-dependent, so `"whitened"` alone does not name an estimand (§5.2.1) | `design/oracles/conservative-metric-composition.R` §O2.d′ (added by the 2026-08-20 review: both roots conserve to `1.5e-15` / `2.9e-16`, node values differ by `15.7%`). **Test added (D6, gap G5 closed):** `tests/testthat/test-composition.R` — "whitening means the symmetric root, not any root that conserves" asserts both roots conserve at `1e-12`, that their node values differ by `> 1%`, and that the executed package values equal the *symmetric*-root values at `1e-12` while differing from the Cholesky ones by `> 1%`. A Cholesky implementation passes every conservation assertion in that test and fails this one |
+| 5h | whitening is not support-local, so it cannot go through `.compose_frame_metric()` (§5.2.2) | source-level: `.compose_frame_metric()` requires `identical(metric$support, node_value$support)` (`R/metric.R`, HEAD). **Discharged by construction (D6, gap G6 closed):** the whitened route never reaches `.compose_frame_metric()` — it is a relation-level transform feeding the identity path — and `tests/testthat/test-composition.R` — "a whitened plan declares the transform it performed" pins that, asserting the plan lowers to `additive_contraction` and that `.metric_additive_frame()` refuses the whitened schedule outright |
 | 5e | the package refuses to certify a non-diagonal schedule | `tests/testthat/test-metric.R` — "conservative identity conservation is capability-gated"; `design/oracles/conservative-metric-composition.R` §O2.e |
 | 5f | the diagonal-metric fold declares `"none"` but keeps `declared_normalization` in `$metric_folded`, and `frame_conservation()` certifies against `reference_mass` | `design/oracles/conservative-metric-composition.R` §O2.f; `R/frame.R:396-423`, `R/metric.R:590-637`. Node labels still do not survive the fold — see §7.1 |
 | 6 | contributions are signed; shares and clipping are invalid on the estimation layer | `tests/testthat/test-conservative-geometry-contract.R` — "contribution shares are undefined on the signed estimation layer"; `design/oracles/conservative-transport-readiness.R` §O3.e; `design/effect-form-contract.md` §8 |
@@ -881,9 +914,9 @@ Each with a one-line proposed resolution and owning ticket.
 | G1 | α-weight normalization across a family is assumed, never specified: renormalize, or refuse? May α be per-row rather than per-scale? | Constructor refuses `abs(sum(alpha) - 1) > tol` and records the applied α per row; per-row α permitted only as a within-scale reweighting that preserves the block column sum | D2 |
 | G2 | Each family member must individually cover the domain for §3.1's block identity; the stack conserving does not imply it | Validate column normalization per block at construction, not on the stack | D2 |
 | G3 | "Coherent share versus location" is underdetermined when a location sits in several scales — it is a function of (location, scale), not a number | Define the spectrum on `(center, scale)` and require any location-wise collapse to be a declared, named reduction (α-weighted mean, argmax-scale, …) | D5 |
-| G4 | `contribution(by = region)` granularity is unspecified: grouping rows *by center* preserves the budget exactly, splitting an overlapping node's mass across regions requires a second partition and can double-count | Default to grouping by row center (budget-exact); offer overlap-splitting only as a declared, separately certified reduction | D4 |
-| G5 | The whitened root is not part of the estimand as written (§5.2.1) | Pin the symmetric PSD root and record root identity in plan identity; oracle §O2.d′ added this review, the matching test is still owed | D6 |
-| G6 | Whitening is not support-local and cannot go through `.compose_frame_metric()` (§5.2.2) | Implement as a relation-level transform `B̃ = BQ^{1/2}` feeding the identity-metric path; budget accordingly | D6 |
+| G4 | ~~`contribution(by = region)` granularity is unspecified: grouping rows *by center* preserves the budget exactly, splitting an overlapping node's mass across regions requires a second partition and can double-count~~ **CLOSED (D4).** Grouping is by row: every row belongs to exactly one group, so the group sums partition the budget exactly, and `$metadata$aggregation$overlap_split` records `FALSE` rather than leaving it implied. Overlap-splitting is not offered; if it is ever wanted it arrives as its own declared, separately certified reduction. Two things the gap did not anticipate: `signed` had to be **masked** rather than summed (it is the local weighted mean, already divided by the node's own frame mass, so it is a density), and the guard needs the frame's *declared* normalization, since a diagonal-metric fold leaves `normalization = "none"` on a conservative frame (§5.3) — `.execution_metadata()` now records `declared_normalization` alongside it | Default to grouping by row center (budget-exact); offer overlap-splitting only as a declared, separately certified reduction | D4 |
+| G5 | The whitened root is not part of the estimand as written (§5.2.1) | Pin the symmetric PSD root and record root identity in plan identity; oracle §O2.d′ added this review, the matching test is still owed. **Closed (D6):** the schedule carries `root = "symmetric_psd_root"` in its semantic digest, and `test-composition.R` — "whitening means the symmetric root, not any root that conserves" is the owed test | D6 ✔ |
+| G6 | Whitening is not support-local and cannot go through `.compose_frame_metric()` (§5.2.2) | Implement as a relation-level transform `B̃ = BQ^{1/2}` feeding the identity-metric path; budget accordingly. **Closed (D6):** implemented exactly so, at the `plan_geometry()` seam; the resident bytes are recorded in `$execution_hints` and enforced against a declared workspace budget before the first read | D6 ✔ |
 | G7 | "Nonnegativity projection" is underdetermined — a per-node total clamp and an eigenvalue truncation of the form are different operators moving different mass | Latent layer takes a named projection from a closed set, and the receipt records moved mass per projection kind | D7 |
 | G8 | Conservation gives no uncertainty; nothing currently supplies cross-node sampling covariance for `contrast_energy` (§7.6a) | Named `contrast_energy` sampling route returning the cross-node covariance, not per-node margins | D8 |
 | G9 | Between-subject budget heterogeneity is unaddressed: `⟨H, G_Ω⟩` differs per subject, so a group ledger sums incommensurable budgets | Population contract declares a per-subject budget normalization (none / unit-budget / precision-weighted) as a plan-identity field | E1 |

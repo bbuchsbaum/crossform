@@ -1291,6 +1291,60 @@ recipe)$scientific_plan_id)`.
    print it on the plan, and record the accumulation in `$execution_hints` so it
    is visible in the plan signature, not only in the receipt.
 
+### 16.8 Metric schedule kind `whitened_metric_before_frame` (D6)
+
+`.geometry_metric_schedule()` emits a fourth kind when
+`plan_geometry(metric = <fixed metric>, composition = "whitened")` is compiled.
+It is the mirror image of §16.1: where the learned kind is the *least* additive
+schedule, this one is the identity lowering wearing a metric's name.
+
+```
+kind = "whitened_metric_before_frame"; composition = "whitened"
+root = "symmetric_psd_root"; frame_composition = "sqrt_weight_congruence"
+feature_additive = TRUE; support_dense = FALSE   # additive in whitened coordinates
+materialization = "whitened_effect_coordinates"; scope = "domain_operator"
+lowering = "additive_contraction"; metric_signature = <metric>
+```
+
+The estimand is `K_x = Q^(1/2) D(w_x) Q^(1/2)`, which is dense on the whole
+domain even though `D(w_x)` is supported on one node. It therefore cannot go
+through `.compose_frame_metric()`, whose contract requires the metric's support
+to equal the node's — the reason
+`design/conservative-geometry-contract.md` §5.2.2 budgeted D6 for a
+relation-level transform rather than a metric-schedule variant. The seam is
+`plan_geometry()`: it whitens the effect coordinates once, `B~ = B Q^(1/2)`,
+compiles the task on `B~`, and lets the ordinary implicit-identity pipeline run,
+because `B~ D(w_x) B~ᵀ = B Q^(1/2) D(w_x) Q^(1/2) Bᵀ` exactly. Nothing in
+`R/compiler.R`, `R/execution-driver.R`, or `R/kernel.R` learns a new branch;
+`.metric_additive_frame()` refuses the kind outright, since folding `diag(Q)`
+into the frame would compose the metric a second time.
+
+Three consequences, stated rather than discovered:
+
+- **`composition` is estimand-bearing and the root is part of it.**
+  `Σ_x R D(w_x) Rᵀ = Q` holds for any `R` with `RRᵀ = Q`, so a conservation
+  certificate cannot tell two roots apart while the node values differ by
+  double-digit percentages (contract §5.2.1). Both `composition` and `root`
+  enter the schedule's semantic digest and so the `$scientific_plan_id`. They
+  are **absent** from the other three kinds' field lists rather than present
+  with a `"native"` value, because the digest is the whole field list and a new
+  field would have moved every geometry plan identity in existence.
+- **It is the second conditional plan-time read** (§16.7 risk 5, now two
+  instances). The source is read one feature block at a time and accumulated,
+  so the input stays bounded, but the output cannot: a global congruence has no
+  blockwise output. The resident cost — one whitened effect-by-feature matrix
+  per partition, plus the symmetric root — is recorded in `$execution_hints`,
+  enforced against a declared `compute_policy(workspace_bytes = )` before the
+  first read, and reaches `$signature` without touching
+  `$scientific_plan_id`, because a cost is not an estimand.
+- **Admitted for fixed positive-definite domain-wide metrics only.** A learned
+  recipe gets a capability refusal (`whitened_metric_composition`): a
+  per-support operator has no single global root, so there is no one set of
+  whitened coordinates every node could share. A support-local fixed metric is
+  refused for the same reason at smaller scale, and a positive-semidefinite but
+  singular metric is refused by naming the offending eigenvalue rather than
+  truncated.
+
 ## 17. Identity schema consolidation (B6)
 
 Two identity schemas used to coexist in `R/evidence-task.R`. Every evidence

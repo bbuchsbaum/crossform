@@ -15,7 +15,9 @@ frame_conservation(x, tolerance = 1e-10)
 An \code{effect_frame_conservation} list reporting \code{conserved}, the
 covered \code{component} (\code{"total"}), the frame \code{normalization}, its
 \code{declared_normalization} together with \code{metric_folded} (whether a
-diagonal metric has been folded into the weights), the maximum
+diagonal metric has been folded into the weights) and the \code{composition}
+law in force (\code{"none"} for a declared frame, \code{"diagonal_metric_fold"} for
+a folded one), the maximum
 per-feature deviation from the conserving \code{reference_mass}, and the
 per-feature mass vector. \code{reference_mass} is one for a declared frame and
 the folded metric diagonal for a metric-folded one, because that frame's

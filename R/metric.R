@@ -510,6 +510,58 @@ metric_capabilities <- function(x) {
   ), class = "effect_metric_handle")
 }
 
+# The root that `composition = "whitened"` means.
+#
+# The whitened composition is `K_x = R D(w_x) R^T` for a root `R` of the metric.
+# Conservation cannot name that root: `sum_x R D(w_x) R^T = R (sum_x D(w_x))
+# R^T = R I R^T = Q` holds for *any* `R` with `R R^T = Q`, so a conservation
+# certificate is blind to the choice, while the per-node values are not --
+# measured 15.7% of the largest node value between the symmetric root and the
+# lower Cholesky factor on the contract's 9-feature fixture
+# (`design/conservative-geometry-contract.md` section 5.2.1,
+# `design/oracles/conservative-metric-composition.R` O2.d'). crossform
+# therefore pins one root, the symmetric positive-definite one
+# `Q^(1/2) = U D(sqrt(lambda)) U^T`, and carries the convention string
+# `"symmetric_psd_root"` in plan identity. A Cholesky or ZCA variant is a
+# different estimand and must arrive as a different root string, never as a
+# silent substitution here.
+#
+# Positive *semi*definiteness is not enough. A singular metric has a null
+# direction the whitened frame cannot see, and the plan would silently name an
+# estimand on a lower-dimensional space, so a non-positive-definite metric is
+# refused by naming the offending eigenvalue rather than truncated.
+.metric_symmetric_psd_root <- function(metric, argument = "metric") {
+  metric <- .validate_neural_metric(metric, deep = FALSE)
+  value <- metric$value
+  decomposition <- eigen(value, symmetric = TRUE)
+  eigenvalues <- decomposition$values
+  scale <- max(1, max(abs(eigenvalues)), max(abs(diag(value))))
+  floor <- metric$tolerance * scale
+  if (min(eigenvalues) <= floor) {
+    position <- which.min(eigenvalues)
+    .input_error(sprintf(paste0(
+      "`composition = \"whitened\"` measures the frame in `Q^(1/2)` ",
+      "coordinates, so it needs a positive-definite metric. Eigenvalue %s of ",
+      "%s is %s, at or below the positive-definiteness floor %s, so the ",
+      "metric has a null direction the whitened frame cannot represent. Use ",
+      "`composition = \"native\"`, or regularize the metric until every ",
+      "eigenvalue is strictly positive."
+    ),
+      format(position), format(length(eigenvalues)),
+      format(eigenvalues[[position]], digits = 6), format(floor, digits = 3)),
+      arg = argument,
+      received = sprintf("smallest eigenvalue %s",
+        format(eigenvalues[[position]], digits = 6)),
+      expected = "a positive-definite same-space neural metric")
+  }
+  root <- decomposition$vectors %*%
+    (sqrt(eigenvalues) * t(decomposition$vectors))
+  # The root is symmetric by construction; the explicit symmetrization removes
+  # the last-bit asymmetry the two products leave, so `B Q^(1/2)` and
+  # `Q^(1/2) B^T` agree exactly rather than to rounding.
+  unname((root + t(root)) / 2)
+}
+
 .metric_lowering <- function(metric) {
   capabilities <- metric_capabilities(metric)
   if (capabilities$learned_recipe) {
@@ -532,9 +584,15 @@ metric_capabilities <- function(x) {
 }
 
 # The field layout of a geometry metric schedule depends on its kind: the
-# learned kind carries a frozen `$schedule` where the other two carry a
+# learned kind carries a frozen `$schedule` where the other three carry a
 # materialized `$metric`. Stated once so the constructors in the plan layer
 # and the validator below cannot disagree about the seal.
+#
+# The whitened kind is the only one that carries `composition` and `root`, and
+# that is deliberate rather than tidy: the semantic digest below is the whole
+# field list, so giving the native kinds a `composition = "native"` field would
+# move every geometry plan identity that exists today. Absence means native,
+# exactly as absence of `$execution_hints` means no plan-time accumulation.
 .geometry_metric_schedule_fields <- function(kind) {
   base <- c("role", "kind", "frame_composition", "feature_additive",
     "support_dense", "materialization", "scope", "lowering",
@@ -542,7 +600,18 @@ metric_capabilities <- function(x) {
   if (identical(kind, "learned_local_before_frame")) {
     return(c(base, "schedule", "signature"))
   }
+  if (identical(kind, "whitened_metric_before_frame")) {
+    return(c("role", "kind", "composition", "root", "frame_composition",
+      "feature_additive", "support_dense", "materialization", "scope",
+      "lowering", "metric_signature", "metric", "signature"))
+  }
   c(base, "signature")
+}
+
+# The composition a schedule declares, as a plain string readers can print.
+# Absence is native, so this is the one place that decision is spelled out.
+.geometry_metric_schedule_composition <- function(x) {
+  if (is.null(x$composition)) "native" else x$composition
 }
 
 # The semantic digest of a schedule. The frozen schedule enters by its own
@@ -568,12 +637,13 @@ metric_capabilities <- function(x) {
   if (!.sealed_fields(x, "effect_metric_schedule", expected) ||
       !identical(x$role, "same_space_metric_schedule") ||
       !x$kind %in% c("implicit_identity_before_frame",
-        "fixed_metric_before_frame", "learned_local_before_frame") ||
+        "fixed_metric_before_frame", "learned_local_before_frame",
+        "whitened_metric_before_frame") ||
       !identical(x$frame_composition, "sqrt_weight_congruence") ||
       !.is_flag(x$feature_additive) || !.is_flag(x$support_dense) ||
       identical(x$feature_additive, x$support_dense) ||
       !x$materialization %in% c("implicit", "fixed_metric",
-        "on_demand_local") ||
+        "on_demand_local", "whitened_effect_coordinates") ||
       !x$scope %in% c("domain_operator", "single_node", "support_local") ||
       !x$lowering %in% c("additive_contraction",
         "support_streamed_pair_contraction",
@@ -634,6 +704,32 @@ metric_capabilities <- function(x) {
         "Learned metric training records must be one per evaluation edge."
       )
     }
+  } else if (identical(x$kind, "whitened_metric_before_frame")) {
+    # The whitened schedule is the one kind whose metric is *not* applied by
+    # the kernel. `B~ = B Q^(1/2)` has already been formed at plan time, so
+    # what executes is the implicit-identity lowering on whitened effect
+    # coordinates: `additive_contraction`, feature additive, support sparse.
+    # The metric is retained for provenance and for the conservation
+    # certificate, and its identity is bound into the schedule signature
+    # together with the composition and the root convention, so two plans that
+    # whiten by different roots -- which conserve identically -- are still
+    # distinguishable estimands (section 5.2.1 of the conservative geometry
+    # contract).
+    metric <- .validate_neural_metric(x$metric, deep = deep)
+    if (!identical(x$composition, "whitened") ||
+        !identical(x$root, "symmetric_psd_root") ||
+        !identical(x$materialization, "whitened_effect_coordinates") ||
+        !identical(x$scope, "domain_operator") ||
+        !identical(x$feature_additive, TRUE) ||
+        !identical(x$support_dense, FALSE) ||
+        !identical(x$lowering, "additive_contraction") ||
+        !identical(x$metric_signature, metric$signature) ||
+        !isTRUE(metric$capabilities$fixed) ||
+        !isTRUE(metric$capabilities$materialized) ||
+        !isTRUE(metric$capabilities$positive_definite) ||
+        !identical(metric$support, metric$domain$feature_ids)) {
+      .contract_error("The whitened neural metric schedule is inconsistent.")
+    }
   } else {
     # The `metric_signature` comparison below binds the metric to the schedule
     # identity at either depth; only the metric-internal rebuild is gated. That
@@ -669,6 +765,16 @@ metric_capabilities <- function(x) {
   }
   if (identical(schedule$kind, "implicit_identity_before_frame")) {
     return(frame)
+  }
+  if (identical(schedule$kind, "whitened_metric_before_frame")) {
+    # A whitened schedule is feature additive *in whitened coordinates*, and
+    # the transform that produced them happened at plan time. There is nothing
+    # left to fold into the frame, and folding `diag(Q)` here would compose the
+    # metric a second time.
+    .contract_error(paste0(
+      "The whitened composition transforms the effect coordinates, not the ",
+      "frame weights; there is no diagonal to fold."
+    ))
   }
   metric <- .validate_neural_metric(schedule$metric, deep = FALSE)
   diagonal <- numeric(frame$domain$n_features)
@@ -1067,10 +1173,42 @@ metric_components <- function(metric, coherent = NULL) {
   ), class = "effect_metric_components")
 }
 
+# The certificate that a frame plus a metric composition conserves.
+#
+# `composition = "native"` certifies the composition the kernel applies today,
+# `K_x = D(sqrt(w_x)) Q D(sqrt(w_x))`, node by node: it conserves exactly when
+# every composed node metric is diagonal, and the certificate refuses the dense
+# case rather than reporting a small number.
+#
+# `composition = "whitened"` certifies the other estimand,
+# `K_x = Q^(1/2) D(w_x) Q^(1/2)`, and is checked by its exact algebraic
+# residual rather than node by node:
+#
+#     sum_x K_x - Q = Q^(1/2) D(m - 1) Q^(1/2),   m_v = sum_x w_xv,
+#
+# so it conserves for *any* positive-definite `Q`, dense or diagonal, exactly
+# when the frame's column mass is one -- which is what `"conservative"` means.
+# The whitened composition is not support local (section 5.2.2 of the
+# conservative geometry contract), so it takes the one domain-wide `metric`
+# rather than the per-node `metrics` list the native route composes.
 .metric_frame_conservation <- function(frame, metrics = NULL,
-                                       tolerance = 1e-10) {
+                                       tolerance = 1e-10,
+                                       composition = c("native", "whitened"),
+                                       metric = NULL) {
+  composition <- match.arg(composition)
   .validate_frame_for_compile(frame)
   nodes <- nrow(frame$weights)
+  if (identical(composition, "whitened")) {
+    return(.whitened_frame_conservation(frame, metric, tolerance))
+  }
+  if (!is.null(metric)) {
+    .input_error(paste0(
+      "The native composition reads one base metric per frame node; pass ",
+      "`metrics`, or `composition = \"whitened\"` with a domain-wide `metric`."
+    ),
+      arg = "metric", received = "a domain-wide metric",
+      expected = "no argument under the native composition")
+  }
   if (is.null(metrics)) metrics <- rep(list(NULL), nodes)
   if (!is.list(metrics) || length(metrics) != nodes) {
     .input_error(
@@ -1106,6 +1244,7 @@ metric_components <- function(metric, coherent = NULL) {
     metrics = vapply(composed, function(value) {
       value$base_metric$signature
     }, character(1)),
+    composition = "native",
     feature_additive = additive,
     global_diagonal = global_diagonal,
     reference_mass = reference,
@@ -1119,6 +1258,8 @@ metric_components <- function(metric, coherent = NULL) {
     tolerance = tolerance
   )
   structure(list(
+    composition = "native",
+    root = NULL,
     feature_additive = additive,
     global_metric_kind = if (additive) "native_diagonal" else
       "support_pair_operator",
@@ -1131,10 +1272,19 @@ metric_components <- function(metric, coherent = NULL) {
       fold$declared_normalization
     },
     identity_conservation = identity_conservation,
+    max_deviation = if (is.null(global_diagonal)) {
+      NA_real_
+    } else {
+      max(abs(global_diagonal - reference))
+    },
+    tolerance = tolerance,
     reason = if (!additive) {
       paste0(
         "Conservative frame weights alone do not conserve a non-diagonal ",
-        "metric schedule."
+        "metric schedule. Compile with `composition = \"whitened\"` for a ",
+        "conserving reading under a dense metric -- a different estimand, ",
+        "which measures the frame in `Q^(1/2)` coordinates instead of ",
+        "weighting features and then measuring them in the `Q` geometry."
       )
     } else if (!identity_conservation) {
       if (is.null(fold)) {
@@ -1154,6 +1304,106 @@ metric_components <- function(metric, coherent = NULL) {
   ), class = "effect_metric_conservation")
 }
 
+.whitened_frame_conservation <- function(frame, metric, tolerance) {
+  if (is.null(metric)) {
+    .input_error(paste0(
+      "The whitened composition is not support local, so it certifies one ",
+      "domain-wide metric rather than one base metric per node: pass ",
+      "`metric = `, the fixed `neural_metric()` the plan whitens by."
+    ),
+      arg = "metric", received = "no argument",
+      expected = "one domain-wide fixed `neural_metric()`")
+  }
+  metric <- .validate_neural_metric(metric, deep = FALSE)
+  if (!.same_domain_reference(metric$domain, frame$domain)) {
+    .contract_error(
+      "The neural metric and spatial frame must share one exact domain."
+    )
+  }
+  if (!identical(metric$support, frame$domain$feature_ids)) {
+    .input_error(paste0(
+      "The whitened composition transforms every effect coordinate on the ",
+      "domain, so it certifies a domain-wide metric only; a support-local ",
+      "metric whitens nothing outside its own support."
+    ))
+  }
+  if (!is.null(frame$metric_folded)) {
+    .input_error(paste0(
+      "A diagonal metric has already been folded into these frame weights, so ",
+      "they no longer carry unit column mass and there is no second metric to ",
+      "whiten by. Certify the declared frame the fold was built from."
+    ))
+  }
+  root <- .metric_symmetric_psd_root(metric)
+  mass <- as.numeric(Matrix::colSums(frame$weights))
+  # `sum_x Q^(1/2) D(w_x) Q^(1/2) = Q^(1/2) D(m) Q^(1/2)` with `m` the column
+  # mass, so the residual against the conserving target `Q` is exactly
+  # `Q^(1/2) D(m - 1) Q^(1/2)`. That is the whole law: no node-by-node
+  # composition is formed, and none would be legible if it were, because a
+  # whitened node operator is dense on the domain rather than on its support.
+  residual <- max(abs(root %*% ((mass - 1) * root)))
+  global_diagonal <- as.numeric((root * root) %*% mass)
+  reference <- diag(metric$value)
+  identity_conservation <- residual <= tolerance
+  # "Feature additive" keeps its one meaning: the composed node operator is
+  # diagonal in the domain's own feature coordinates. Whitening by a dense
+  # metric conserves without being feature additive, and that pair of facts is
+  # the whole point of offering the composition as a choice.
+  additive <- isTRUE(metric$capabilities$native_diagonal)
+  semantic <- list(
+    schema_version = 1L,
+    frame = .additive_frame_signature(frame),
+    metrics = metric$signature,
+    composition = "whitened",
+    root = "symmetric_psd_root",
+    feature_additive = additive,
+    global_diagonal = global_diagonal,
+    reference_mass = reference,
+    metric_folded = FALSE,
+    declared_normalization = frame$normalization,
+    identity_conservation = identity_conservation,
+    tolerance = tolerance
+  )
+  structure(list(
+    composition = "whitened",
+    root = "symmetric_psd_root",
+    feature_additive = additive,
+    global_metric_kind = if (additive) {
+      "native_diagonal"
+    } else {
+      "whitened_domain_operator"
+    },
+    global_diagonal = global_diagonal,
+    reference_mass = reference,
+    metric_folded = FALSE,
+    declared_normalization = frame$normalization,
+    identity_conservation = identity_conservation,
+    max_deviation = residual,
+    tolerance = tolerance,
+    reason = if (!identity_conservation) {
+      sprintf(paste0(
+        "The whitened composition conserves exactly when the frame's column ",
+        "mass is one; this `%s` frame departs from it, so ",
+        "`sum_x Q^(1/2) D(w_x) Q^(1/2)` is not `Q`."
+      ), frame$normalization)
+    } else if (additive) {
+      paste0(
+        "The whitened composition of a diagonal metric coincides with the ",
+        "native one and resolves the metric exactly."
+      )
+    } else {
+      paste0(
+        "The whitened composition resolves the metric exactly: ",
+        "`sum_x Q^(1/2) D(w_x) Q^(1/2) = Q`. The composed node operators are ",
+        "dense on the whole domain, so a node's support is no longer its ",
+        "support -- this is a different estimand from the native composition, ",
+        "not a repair of it."
+      )
+    },
+    signature = .sha256_signature(semantic)
+  ), class = "effect_metric_conservation")
+}
+
 .require_metric_conservation <- function(x,
                                          target = c("feature_additive",
                                                     "identity")) {
@@ -1167,6 +1417,16 @@ metric_components <- function(metric, coherent = NULL) {
     x$identity_conservation
   }
   if (!isTRUE(admitted)) {
+    # A whitened certificate can conserve without being feature additive, so
+    # the two targets need two messages: reporting "conservation is not
+    # certified" for a certificate that conserves would be false.
+    if (identical(target, "feature_additive") &&
+        isTRUE(x$identity_conservation)) {
+      .input_error(sprintf(
+        "Feature additivity is not certified, though conservation is: %s",
+        x$reason
+      ))
+    }
     .input_error(sprintf("Metric conservation is not certified: %s", x$reason))
   }
   invisible(TRUE)
