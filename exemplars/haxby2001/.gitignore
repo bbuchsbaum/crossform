@@ -1,0 +1,4 @@
+# Debugging output from a narrowed run (SUBJECTS=... on 09-six-subject-
+# conservative.R). The committed evidence is the unsuffixed six-subject set,
+# written only by a run that asked for all six.
+results/*-partial.*
