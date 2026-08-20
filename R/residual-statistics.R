@@ -352,13 +352,14 @@
 #' @seealso [plan_crossnobis()], which compiles these statistics into a
 #'   learned metric schedule, and [rdm_sampling_covariance()], which can reuse
 #'   them through `residual_strategy = "shared_pair_statistics"`.
-#' @family sampling uncertainty
 #' @examples
 #' # Residual cross-products are accumulated only for feature pairs that
 #' # coexist in some searchlight, so the cost tracks support topology rather
 #' # than the square of the feature count.
 #' example <- example_fmri_effects()
-#' statistics <- residual_pair_statistics(example$fit, example$frame)
+#' statistics <- crossform:::residual_pair_statistics(
+#'   example$fit, example$frame
+#' )
 #' length(statistics$pair_i)
 #' statistics$partitions
 #'
@@ -367,11 +368,11 @@
 #'
 #' # The workspace budget is a cache size, not part of the numerical shape,
 #' # so shrinking it cannot change the accumulated values.
-#' frugal <- residual_pair_statistics(
+#' frugal <- crossform:::residual_pair_statistics(
 #'   example$fit, example$frame, workspace_bytes = 4 * 1024^2
 #' )
 #' identical(frugal$signature, statistics$signature)
-#' @export
+#' @keywords internal
 residual_pair_statistics <- function(
     x, at, partitions = NULL, workspace_bytes = 512 * 1024^2) {
   if (inherits(x, "effect_relation")) {

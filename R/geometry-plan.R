@@ -62,6 +62,35 @@
   )), class = "effect_metric_schedule")
 }
 
+# The third schedule kind. A metric recipe is not a metric: nothing is
+# materialized before the frame, and the local operator a support sees is
+# derived on demand from frozen residual sufficient statistics and the
+# training partitions its evaluation edge was assigned. The schedule is
+# therefore neither feature additive nor support sparse, whatever the recipe
+# itself is, because the only lowering that executes it streams one support at
+# a time and derives one local solve handle per declared edge.
+.geometry_learned_metric_schedule <- function(schedule) {
+  schedule <- .validate_frozen_metric_schedule(schedule, deep = FALSE)
+  value <- structure(list(
+    role = "same_space_metric_schedule",
+    kind = "learned_local_before_frame",
+    frame_composition = "sqrt_weight_congruence",
+    feature_additive = FALSE,
+    support_dense = TRUE,
+    materialization = "on_demand_local",
+    scope = "support_local",
+    lowering = "derive_then_support_streamed_pair_contraction",
+    metric_signature = NULL,
+    metric = NULL,
+    schedule = schedule,
+    signature = NA_character_
+  ), class = "effect_metric_schedule")
+  value$signature <- .sha256_signature(
+    .geometry_metric_schedule_semantic(value)
+  )
+  value
+}
+
 .geometry_plan_scientific_id <- function(task, frame, metric_schedule,
                                          component = "full",
                                          signed_query = NULL,
@@ -130,14 +159,26 @@
   as.double(bytes)
 }
 
+# `execution_hints` records the knobs that change how a plan is produced
+# without changing what it names: today, the residual-accumulation cache
+# budget of a learned schedule, and the fact that the accumulation happened at
+# plan time at all. It is absent from the digest when there are none, so a
+# fixed-metric or implicit-identity plan keeps the signature it has always
+# had; folding the same knob into `compute_policy()` would have moved every
+# one of them.
 .geometry_plan_signature <- function(scientific_plan_id, compute,
-                                     dense_payload_bytes) {
-  .sha256_signature(list(
+                                     dense_payload_bytes,
+                                     execution_hints = NULL) {
+  fields <- list(
     schema_version = 1L,
     scientific_plan_id = scientific_plan_id,
     compute = unclass(compute),
     dense_payload_bytes = dense_payload_bytes
-  ))
+  )
+  if (!is.null(execution_hints)) {
+    fields$execution_hints <- unclass(execution_hints)
+  }
+  .sha256_signature(fields)
 }
 
 # Shared entry validation for the plan constructors: a relation, the frame
@@ -199,29 +240,41 @@
 #' Compile a reusable query-first geometry plan
 #'
 #' `plan_geometry()` validates the relation, spatial frame, pairing, source
-#' capabilities, and compute policy without reading relation blocks. The plan
-#' can answer fixed queries with [evaluate_geometry()] or be explicitly
-#' materialized with [materialize_geometry()]. Complete packed geometry is
-#' therefore an optional materialization, not the object that every analysis
-#' must allocate.
+#' capabilities, and compute policy. The plan can answer fixed queries with
+#' [evaluate_geometry()] or be explicitly materialized with
+#' [materialize_geometry()]. Complete packed geometry is therefore an optional
+#' materialization, not the object that every analysis must allocate.
 #'
-#' @param x An `effect_relation` supplying the left experimental axis.
+#' @param x An `effect_relation` supplying the left experimental axis, or an
+#'   `effect_relation_fit` when `metric` is a learned recipe, which needs the
+#'   fit's residual channel.
 #' @param at A compiled additive `effect_frame`.
 #' @param over An `effect_pairing`. Rectangular plans require directed
 #'   pairings whose left endpoints identify partitions of `x` and right
 #'   endpoints identify partitions of `right`.
 #' @param compute A sequential `compute_policy()`.
-#' @param metric Optional fixed `neural_metric()`. A domain-wide metric is
-#'   restricted to each frame support on demand; a support-local metric is
-#'   accepted only for a matching one-node frame. Learned metric recipes are
-#'   added by the statistical fitting layer rather than stored per node.
-#'   Fixed metrics are not yet admitted on rectangular plans.
+#' @param metric Optional fixed `neural_metric()`, or an on-demand metric
+#'   recipe such as [shrinkage_precision()]. A domain-wide fixed metric is
+#'   restricted to each frame support on demand; a support-local fixed metric
+#'   is accepted only for a matching one-node frame. A recipe compiles a
+#'   learned local schedule instead: nothing is materialized before the frame,
+#'   and each support derives its own local operator from frozen residual
+#'   sufficient statistics. Fixed metrics and recipes are not yet admitted on
+#'   rectangular plans.
 #' @param right Optional second `effect_relation` supplying a distinct right
 #'   experimental axis. Supplying it compiles a rectangular cross-axis plan:
 #'   the resulting form has one row axis per left effect and one column axis
 #'   per right effect, is read with axis-bound [pair_query()]s through
 #'   [evaluate_geometry()], and materializes to a rectangular effect form.
 #'   Encoding-retrieval similarity is the canonical use.
+#' @param training A [metric_training_policy()] declaring which residual
+#'   partitions may train a learned `metric`. Ignored for fixed metrics.
+#' @param residual_workspace_bytes Positive cache budget used while
+#'   accumulating canonical residual pair sufficient statistics for a learned
+#'   `metric`. It changes cache capacity, never the canonical numerical tile
+#'   shape, and so enters `$signature` but not `$scientific_plan_id`. Defaults
+#'   to `compute$workspace_bytes`, or 512 MiB when the policy declares none.
+#'   Admitted only with a recipe.
 #' @return An `effect_geometry_plan` recording the compiled `$task`,
 #'   `$frame`, `$pairing`, `$metric_schedule`, and `$compute` policy, the
 #'   `$logical_shape` and `$measurements` it will produce, and a
@@ -247,6 +300,20 @@
 #' The rest of `$task`, the `$metric_schedule`, and every other element not
 #' listed here are the lowered form the executor consumes: internal, and
 #' free to change.
+#' @section Reads at plan time:
+#' With a fixed metric or the implicit identity metric, compilation reads no
+#' relation block: everything it checks is a declaration.
+#'
+#' A learned metric recipe is the one exception, and it is deliberate. The
+#' schedule freezes canonical residual sufficient statistics, so
+#' `plan_geometry()` accumulates them in one streamed pass over the fit's
+#' residual channel before it returns. Deferring that pass to execution would
+#' re-accumulate the same statistics for every contrast and lose the plan
+#' reuse the frozen schedule exists to provide. The refusals that do not need
+#' the data still fire first: a training-partition shortage and a workspace
+#' budget overflow are both diagnosed before the first residual read. The
+#' accumulation is recorded in `$execution_hints`, so it is visible in the
+#' plan signature rather than only in the execution receipt.
 #' @seealso [contrast_energy()], [rdm()], [rsa()], and [crossnobis()] for the
 #'   named views of a plan; [evaluate_geometry()] for an arbitrary fixed
 #'   query and [materialize_geometry()] for complete packed geometry;
@@ -277,7 +344,11 @@
 #' contrast_energy(plan, c(a = 1, b = -1))$total
 #' @export
 plan_geometry <- function(x, at, over, compute = compute_policy(),
-                          metric = NULL, right = NULL) {
+                          metric = NULL, right = NULL,
+                          training = metric_training_policy(
+                            "exclude_evaluation"
+                          ),
+                          residual_workspace_bytes = NULL) {
   if (missing(at)) {
     .input_error(paste0(
       "`at` is required: pass a compiled frame from `compile_frame()`, for ",
@@ -297,6 +368,42 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       arg = "over", received = "no argument",
       expected = "a pairing from `cross_partitions()` or `pairing()`")
   }
+  learned <- inherits(metric, "effect_metric_recipe")
+  if (!learned && !is.null(residual_workspace_bytes)) {
+    .input_error(paste0(
+      "`residual_workspace_bytes` budgets residual accumulation and is ",
+      "admitted only with a learned `metric` recipe."
+    ),
+      arg = "residual_workspace_bytes",
+      received = .msg_value(residual_workspace_bytes),
+      expected = "no argument without a metric recipe")
+  }
+  fit <- NULL
+  if (learned) {
+    if (!is.null(right)) {
+      .capability_refusal(paste0(
+        "Learned metric recipes are not yet admitted on rectangular ",
+        "cross-axis plans; a scheduled local metric is compiled for ",
+        "self-form geometry only."
+      ),
+        capability = "rectangular_fixed_metric",
+        namespace = "geometry_plans",
+        reasons = "rectangular_metric_law_not_compiled",
+        remedies = paste0(
+          "Omit `metric` for the rectangular plan, or use a self-form plan ",
+          "for learned-metric geometry."
+        )
+      )
+    }
+    # Diagnose a missing residual channel before shape validation or any
+    # metric-training preflight: a bare relation or a channel-free fit must
+    # get the capability refusal, not a field-shape error or a
+    # training-partition shortage that misstates the real problem.
+    .require_relation_fit_capability(x, "learned_metric_input")
+    .validate_relation_fit(x, deep = FALSE)
+    fit <- x
+    x <- fit$relation
+  }
   compute <- .validate_compute_policy(compute)
   .validate_geometry_plan_inputs(x, at, over, right = right)
   if (!is.null(right) && !is.null(metric)) {
@@ -314,6 +421,26 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       )
     )
   }
+  execution_hints <- NULL
+  if (learned) {
+    metric <- .validate_metric_recipe(metric)
+    training <- .validate_metric_training_policy(training)
+    if (is.null(residual_workspace_bytes)) {
+      residual_workspace_bytes <- if (is.null(compute$workspace_bytes)) {
+        512 * 1024^2
+      } else {
+        compute$workspace_bytes
+      }
+    }
+    .check_number(
+      residual_workspace_bytes, "residual_workspace_bytes", positive = TRUE
+    )
+    # Both refusals that can be reached without touching a residual block
+    # fire here, before the accumulating pass below: a pairing that leaves an
+    # evaluation edge with no training partition, and a workspace budget the
+    # resident statistics cannot fit in.
+    .preflight_metric_training(metric, x$partitions, over, training)
+  }
   capabilities <- .execution_preflight(compute, function() {
     .relation_source_capabilities(x)
   })$source_capabilities
@@ -322,7 +449,24 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     right$capabilities <- .relation_source_capabilities(right)
   }
   task <- .compile_effect_evidence_task(x, over, right = right)
-  metric_schedule <- .geometry_metric_schedule(at, metric)
+  metric_schedule <- if (learned) {
+    support_index <- .residual_statistics_support_index(at, x$domain)
+    .learned_support_metric_memory_plan(
+      x, at, support_index, over, compute
+    )
+    statistics <- residual_pair_statistics(
+      fit, at, workspace_bytes = residual_workspace_bytes
+    )
+    execution_hints <- list(
+      residual_workspace_bytes = as.double(residual_workspace_bytes),
+      plan_time_residual_accumulation = TRUE
+    )
+    .geometry_learned_metric_schedule(
+      compile_metric_schedule(metric, statistics, at, over, training)
+    )
+  } else {
+    .geometry_metric_schedule(at, metric)
+  }
   q_left <- length(x$effect_space$coordinates)
   q_right <- if (is.null(right)) {
     q_left
@@ -346,7 +490,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     task, at, metric_schedule, "full", validate = FALSE
   )
   signature <- .geometry_plan_signature(
-    scientific_plan_id, compute, dense_payload_bytes
+    scientific_plan_id, compute, dense_payload_bytes, execution_hints
   )
   value <- structure(list(
     task = task,
@@ -359,6 +503,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     packed_width = as.integer(packed_width),
     measurements = as.integer(measurements),
     dense_payload_bytes = dense_payload_bytes,
+    execution_hints = execution_hints,
     lowering = metric_schedule$lowering,
     scientific_plan_id = scientific_plan_id,
     signature = signature
@@ -378,10 +523,12 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   if (.validated_before(x, "geometry_plan", deep)) return(invisible(x))
   expected <- c("task", "frame", "pairing", "metric_schedule", "compute",
     "codec", "logical_shape", "packed_width", "measurements",
-    "dense_payload_bytes", "lowering", "scientific_plan_id", "signature")
+    "dense_payload_bytes", "execution_hints", "lowering",
+    "scientific_plan_id", "signature")
   valid_lowering <- c(
     "additive_contraction",
-    "support_streamed_pair_contraction"
+    "support_streamed_pair_contraction",
+    "derive_then_support_streamed_pair_contraction"
   )
   if (!.sealed_fields(x, "effect_geometry_plan", expected) ||
       !.is_string(x$lowering, allow_empty = TRUE) ||
@@ -404,6 +551,14 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   metric_schedule <- .validate_geometry_metric_schedule(
     x$metric_schedule, deep = deep
   )
+  # The schedule validator checks the frozen record structurally only (its
+  # deep validator lives above metric.R in the value order), so the plan
+  # boundary re-runs the frozen validation itself: this file may call
+  # metric-learning.R downward, and a forged or tampered frozen record is
+  # refused here before any compile or kernel sees it.
+  if (identical(metric_schedule$kind, "learned_local_before_frame")) {
+    .validate_frozen_metric_schedule(metric_schedule$schedule, deep = deep)
+  }
   compute <- .validate_compute_policy(x$compute)
   relation <- x$task$left_relation
   right_relation <- x$task$right_relation
@@ -418,7 +573,8 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   measurements <- nrow(x$frame$weights)
   if (!identical(x$codec,
         if (same) "symmetric_packed" else "rectangular") ||
-      (!same && !is.null(metric_schedule$metric)) ||
+      (!same && !identical(metric_schedule$kind,
+        "implicit_identity_before_frame")) ||
       x$task$materialization$kind != "effect_form" ||
       x$task$materialization$completeness != "complete_form" ||
       x$task$experimental_boundary$state != "open" ||
@@ -451,12 +607,43 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
       )
     }
   }
+  # A frozen schedule names its own pairing, its own support index and its own
+  # neural domain. All three have to be the plan's, or the executor would
+  # contract edges the schedule never trained a metric for, over supports the
+  # residual statistics were never accumulated on.
+  if (identical(metric_schedule$kind, "learned_local_before_frame")) {
+    schedule <- metric_schedule$schedule
+    if (!identical(schedule$pairing, x$pairing) ||
+        is.null(x$frame$support_index) ||
+        !identical(schedule$support_index$signature,
+          x$frame$support_index$signature) ||
+        !.same_domain_reference(schedule$recipe$domain, relation$domain) ||
+        !.same_domain_reference(schedule$statistics$domain,
+          relation$domain)) {
+      .contract_error(paste0(
+        "Geometry-plan pairing, support index, or recipe domain is ",
+        "inconsistent with its learned metric schedule."
+      ))
+    }
+    if (!is.list(x$execution_hints) ||
+        !identical(x$execution_hints$plan_time_residual_accumulation, TRUE) ||
+        !.is_number(x$execution_hints$residual_workspace_bytes) ||
+        x$execution_hints$residual_workspace_bytes <= 0) {
+      .contract_error(
+        "A learned geometry plan must record its residual accumulation."
+      )
+    }
+  } else if (!is.null(x$execution_hints)) {
+    .contract_error(
+      "Execution hints are recorded only for a learned metric schedule."
+    )
+  }
   if (isTRUE(deep)) {
     expected_id <- .geometry_plan_scientific_id(
       x$task, x$frame, x$metric_schedule, "full", validate = FALSE
     )
     expected_signature <- .geometry_plan_signature(
-      expected_id, compute, x$dense_payload_bytes
+      expected_id, compute, x$dense_payload_bytes, x$execution_hints
     )
     if (!identical(x$scientific_plan_id, expected_id) ||
         !identical(x$signature, expected_signature)) {

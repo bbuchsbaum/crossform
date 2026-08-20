@@ -308,10 +308,40 @@
   grepl("^support_streamed_metric_", plan$lowering)
 }
 
+.execution_scheduled_metric <- function(plan) {
+  identical(
+    plan$lowering, "support_streamed_scheduled_metric_query_contraction"
+  )
+}
+
 .execute_node_block <- function(plan, task, readers, accumulate_tile,
                                 task_observer) {
   at <- plan$frame
   requirements <- plan$requirements
+  # A scheduled local metric streams one support at a time and derives one
+  # local solve handle per declared edge, so it returns one signed scalar per
+  # measurement rather than a component matrix. The wrapper below is what
+  # makes it look like every other node-block result to the stages that
+  # follow: a single-column total, its diagnostics, and the metric receipts
+  # that prove derivation read no residual source.
+  if (.execution_scheduled_metric(plan)) {
+    evaluated <- .support_streamed_scheduled_crossnobis(
+      frame = at,
+      metric_schedule = plan$metric_schedule$schedule,
+      read_relation = readers$left,
+      partitions = task$left_relation$partitions,
+      effects = task$left_space$coordinates,
+      ordered_edges = task$ordered_edges,
+      contrast = plan$signed_query,
+      task_observer = task_observer
+    )
+    return(list(
+      value = matrix(evaluated$values, ncol = 1L),
+      diagnostics = evaluated$diagnostics,
+      metric_receipts = evaluated$metric_receipts,
+      endpoints_read = evaluated$endpoints_read
+    ))
+  }
   if (.execution_support_streamed(plan)) {
     return(.support_streamed_metric_contraction(
       frame = at,
@@ -423,13 +453,40 @@
   diagnostics
 }
 
+# What a learned schedule adds to the metadata a fixed one already reports:
+# the recipe and training declarations, and one record per evaluation edge
+# naming the partitions its local metric was trained on. This is the block
+# that makes a learned reading auditable without re-reading the plan.
+.execution_learned_metric_metadata <- function(schedule) {
+  frozen <- schedule$schedule
+  list(
+    schedule_signature = frozen$signature,
+    recipe = frozen$recipe$signature,
+    recipe_kind = frozen$recipe$kind,
+    training_policy = frozen$training_policy,
+    records = lapply(frozen$records, function(record) {
+      list(
+        evaluation_left = record$evaluation_left,
+        evaluation_right = record$evaluation_right,
+        training_partitions = record$training_partitions,
+        training_signature = record$training_signature
+      )
+    }),
+    local_metric_storage = "none_derived_on_demand",
+    retained_factor_table = FALSE,
+    calibration_requires_metric_uncertainty =
+      frozen$capabilities$calibration_requires_metric_uncertainty
+  )
+}
+
 .execution_metadata <- function(plan, task, streamed, coherent) {
   at <- plan$frame
   requirements <- plan$requirements
-  list(
+  learned <- .execution_scheduled_metric(plan)
+  value <- list(
     frame = list(representation = at$representation,
       normalization = at$normalization, domain = at$domain),
-    metric_schedule = list(
+    metric_schedule = c(list(
       kind = plan$metric_schedule$kind,
       signature = plan$metric_schedule$signature,
       feature_additive = plan$metric_schedule$feature_additive,
@@ -437,7 +494,9 @@
       scope = plan$metric_schedule$scope,
       frame_composition = plan$metric_schedule$frame_composition,
       materialization = plan$metric_schedule$materialization
-    ),
+    ), if (learned) {
+      .execution_learned_metric_metadata(plan$metric_schedule)
+    }),
     pairing_estimate = attr(task$ordered_edges, "source_estimate"),
     edge_operation = list(
       normalizer = task$normalizer,
@@ -476,6 +535,11 @@
     ),
     scientific_plan_id = plan$scientific_plan_id
   )
+  # One receipt per declared evaluation edge, recording that the local metric
+  # was derived from frozen statistics and read no residual source. Present
+  # only where a metric was derived at all.
+  if (learned) value$metric_receipts <- streamed$metric_receipts
+  value
 }
 
 .execution_geometry_result <- function(plan, task, values, marginals, metadata,

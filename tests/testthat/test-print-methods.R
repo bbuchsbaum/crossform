@@ -354,7 +354,7 @@ test_that("results, receipts, and sampling records print compactly", {
     list(fixture$covariance$plan, "effect_evidence_sampling_plan"),
     list(fixture$covariance$plan$evidence, "effect_sampling_record"),
     list(fixture$geometry$receipt$memory, "effect_memory_plan"),
-    list(residual_pair_statistics(fixture$example$fit, fixture$example$frame),
+    list(crossform:::residual_pair_statistics(fixture$example$fit, fixture$example$frame),
       "effect_residual_pair_statistics")
   )
   for (case in cases) {
@@ -472,7 +472,7 @@ test_that("measurement forms and coupling results print compactly", {
     list(fixture$form$receipt, "effect_measurement_receipt"),
     list(fixture$form$diagnostics, "effect_measurement_diagnostics"),
     list(fixture$coupling, "effect_coupling_result"),
-    list(measurement_space(3L, id = "print:measurements:v1"),
+    list(crossform:::measurement_space(3L, id = "print:measurements:v1"),
       "effect_measurement_space")
   )
   for (case in cases) {
@@ -505,12 +505,14 @@ test_that("a measurement form states its claims and its next call", {
 
 test_that("crossnobis and raw-design objects print compactly", {
   fixture <- print_fixture()
-  frozen <- plan_crossnobis(fixture$example$fit, at = fixture$example$frame,
-    over = fixture$pairing)$metric_schedule
+  learned_schedule <- plan_crossnobis(fixture$example$fit,
+    at = fixture$example$frame, over = fixture$pairing)$metric_schedule
+  frozen <- learned_schedule$schedule
   design <- matrix(stats::rnorm(12L), 6L, 2L,
     dimnames = list(NULL, c("c1", "c2")))
   raw <- raw_design_model(list(a = design), list(a = seq_len(6L)), "qr")
   cases <- list(
+    list(learned_schedule, "effect_metric_schedule"),
     list(frozen, "effect_frozen_metric_schedule"),
     list(raw, "effect_raw_design_model")
   )
@@ -523,6 +525,13 @@ test_that("crossnobis and raw-design objects print compactly", {
     paste(utils::capture.output(print(frozen)), collapse = "\n"),
     "frozen"
   )
+  # The geometry-level schedule names the frozen record it derives from,
+  # never an implicit identity metric.
+  learned_lines <- paste(
+    utils::capture.output(print(learned_schedule)), collapse = "\n"
+  )
+  expect_match(learned_lines, "derived on demand")
+  expect_no_match(learned_lines, "implicit identity")
   expect_match(
     paste(utils::capture.output(print(raw)), collapse = "\n"),
     "not claimed"

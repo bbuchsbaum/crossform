@@ -424,9 +424,112 @@ memory_plan <- function(frame_bytes = 0,
   smallest
 }
 
+# A learned local metric charges what a fixed one does not: the retained
+# residual pair statistics are the dominant resident term, and they do not
+# appear anywhere in `object.size(schedule$metric$value)` because a learned
+# schedule has no materialized metric at all. The payload formulas below are
+# the ones the learned crossnobis planner has always used; they are stated
+# here so that the geometry compiler and the plan-time budget refusal size the
+# same run.
+#
+# Preflight never allocates the buffers it sizes. Statistics retain pair
+# coordinates and one cross-product vector per partition; the support index
+# retains CSR membership plus the canonical symmetric pair-pattern CSC slots,
+# charged separately instead of disappearing into an unmeasured object header.
+.learned_support_metric_memory_plan <- function(relation, at, support_index,
+                                                over, compute,
+                                                output_width = 1L) {
+  support_index <- .support_index_materialize_pair_pattern(
+    .validate_support_index(support_index)
+  )
+  .validate_pairing(over)
+  support_sizes <- support_index$cost$support_size
+  k <- as.double(support_sizes[["max"]])
+  q <- length(relation$effects)
+  endpoints <- unique(c(over$left, over$right))
+  maximum_observations <- max(vapply(
+    relation$sources, function(source) source$dim[[1L]], integer(1)
+  ))
+  pair_count <- length(support_index$pair_pattern@i)
+  partitions <- length(relation$partitions)
+  support_entries <- length(support_index$members)
+  measurements <- length(support_index$node_ids)
+  resident_statistics <- pair_count * (8 * partitions + 8) +
+    support_entries * 4 + (measurements + 1) * 8 +
+    length(support_index$pair_pattern@i) * 4 +
+    length(support_index$pair_pattern@p) * 4
+  canonical_weights <- .canonical_additive_weights(at$weights)
+  frame_payload <- if (inherits(canonical_weights, "sparseMatrix")) {
+    length(canonical_weights@x) * 8 + length(canonical_weights@i) * 4 +
+      length(canonical_weights@p) * 4
+  } else {
+    prod(as.double(dim(canonical_weights))) * 8
+  }
+  source_shared <- sum(vapply(relation$sources, function(source) {
+    if (identical(source$kind, "matrix")) {
+      prod(as.double(source$dim)) * 8
+    } else {
+      0
+    }
+  }, numeric(1)))
+  distinct_handles <- unique(vapply(relation$sources, function(source) {
+    descriptor <- source$descriptor
+    if (is.null(descriptor) || identical(descriptor$access, "coordinator")) {
+      return(NA_character_)
+    }
+    .source_descriptor_key(descriptor)
+  }, character(1)))
+  distinct_handles <- sum(!is.na(distinct_handles))
+  plan <- memory_plan(
+    frame_bytes = frame_payload,
+    resident_source_bytes = source_shared + resident_statistics,
+    source_handle_bytes = distinct_handles * 4096,
+    source_block_bytes = 8 * maximum_observations * k,
+    relation_block_bytes = 8 * length(endpoints) * q * k,
+    atom_block_bytes = 0,
+    local_state_bytes = 0,
+    output_bytes = 8 * measurements,
+    # At most two local covariance matrices are live while atomics are reduced;
+    # regularization then reuses that storage before factorization. Weighted
+    # endpoint patterns and one relation block complete the active task.
+    contraction_bytes = 8 * (2 * k * k + 2 * length(endpoints) * k + q * k),
+    replacement_copy_bytes = 8 * max(k * k, measurements),
+    workers = 1L,
+    n_active = 1L,
+    budget_bytes = compute$workspace_bytes
+  )
+  if (identical(plan$fits_budget, FALSE)) {
+    .input_error(sprintf(
+      paste0("Learned crossnobis requires %.0f bytes, exceeding the ",
+        "%.0f-byte workspace budget."),
+      plan$planned_workspace_bytes, compute$workspace_bytes
+    ))
+  }
+  list(
+    feature_block = as.integer(k),
+    row_tile = 1L,
+    coordinate_tile = as.integer(min(output_width, 64L)),
+    memory = plan
+  )
+}
+
 .support_metric_memory_plan <- function(x, at, metric_schedule, compute,
                                         output_width, storage, requirements) {
-  schedule <- .validate_geometry_metric_schedule(metric_schedule)
+  # The schedule arrives from the geometry compiler, which has already
+  # validated it at the plan boundary; sizing needs only its kind and its
+  # payload fields. Re-validating here would call up into metric.R from a
+  # file the value order places below it, and that edge is what once closed
+  # the memory-plan / metric / metric-learning / residual-statistics cycle.
+  if (!inherits(metric_schedule, "effect_metric_schedule")) {
+    .input_error("Support-metric planning requires a geometry metric schedule.")
+  }
+  schedule <- metric_schedule
+  if (identical(schedule$kind, "learned_local_before_frame")) {
+    return(.learned_support_metric_memory_plan(
+      x, at, schedule$schedule$support_index, schedule$schedule$pairing,
+      compute, output_width
+    ))
+  }
   if (!identical(schedule$materialization, "fixed_metric")) {
     .input_error("Support-metric planning requires a fixed metric schedule.")
   }

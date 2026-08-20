@@ -933,7 +933,11 @@ unverified adapters.
 
 ## 16. Learned local metric as a compiler lowering
 
-Added 2026-08-17. The IR is not the fork: `effect_evidence_task` is already
+Added 2026-08-17; implemented (B2) 2026-08-20 — the lowering, both identity
+hashes, the capability refusals, and the sugar route below are in the tree,
+exercised by `tests/testthat/test-geometry-learned-metric.R`, and the retired
+driver is reproduced bit-for-bit; `effect_crossnobis_plan` and the private
+driver themselves are deleted by B3. The IR is not the fork: `effect_evidence_task` is already
 sole, built by `plan_geometry()` (`R/geometry-plan.R:324`) and by
 `plan_crossnobis()` (`R/crossnobis.R:344`) alike. The fork is at the
 **executor**. Fixed-metric crossnobis routes `R/crossnobis-driver.R:248` into

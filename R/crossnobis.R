@@ -105,6 +105,31 @@ noise_precision <- function(value, domain, support = NULL,
   metric
 }
 
+# The learned counterpart of `.crossnobis_plan_metric()`. A recipe earns the
+# Mahalanobis reading by being a residual-derived precision; the identity
+# recipe is a legitimate schedule but declares nothing about the noise, so it
+# gets the same refusal a plan with the implicit identity metric gets.
+.crossnobis_learned_metric <- function(x) {
+  schedule <- x$metric_schedule$schedule
+  if (identical(schedule$recipe$kind, "identity")) {
+    .capability_refusal(paste0(
+      "Crossnobis is a Mahalanobis reading, so it requires a residual-",
+      "derived precision; this plan's recipe is `identity_metric()`, which ",
+      "is Euclidean and declares nothing about the noise."
+    ),
+      capability = "declared_noise_metric",
+      namespace = "geometry_views",
+      reasons = "identity_recipe_is_not_a_noise_model",
+      remedies = paste0(
+        "Compile the plan with `shrinkage_precision()` or ",
+        "`diagonal_precision()`, or read the same estimand without a noise ",
+        "claim through `contrast_energy()`."
+      )
+    )
+  }
+  schedule
+}
+
 .require_crossnobis_pairing <- function(over) {
   .validate_pairing(over)
   if (!identical(attr(over, "independence", exact = TRUE), "independent") ||
@@ -240,6 +265,14 @@ noise_precision <- function(value, domain, support = NULL,
 #' for this plan; doing so requires propagation of metric-estimation
 #' uncertainty (for example, an admitted LD-t specialization).
 #'
+#' `plan_crossnobis()` is sugar: it names the intent, and compiles exactly
+#' `plan_geometry(x, at, over, metric = <recipe>, training = )`. The plan it
+#' returns is an ordinary `effect_geometry_plan` whose metric schedule has
+#' kind `learned_local_before_frame`, lowered by the geometry compiler like
+#' any other. The pairing contract crossnobis requires -- independent,
+#' cross-partition, self-product-free -- is enforced by [crossnobis()] when
+#' the plan is read, which is where the fixed-metric route enforces it.
+#'
 #' @param x An `effect_relation_fit` with residual-block capability.
 #' @param at A support-index-backed compiled spatial frame.
 #' @param over Independent cross-partition evaluation edges.
@@ -248,12 +281,15 @@ noise_precision <- function(value, domain, support = NULL,
 #' @param compute A sequential `compute_policy()`.
 #' @param residual_workspace_bytes Positive budget used while accumulating
 #'   canonical residual pair sufficient statistics. It changes cache capacity,
-#'   never the canonical numerical tile shape.
-#' @return An `effect_crossnobis_plan` reusable across fixed contrasts. It
-#'   carries the frozen `$metric_schedule`, the `$frame`, `$pairing`, and
-#'   `$memory` plan, and a `$scientific_plan_id` that identifies the estimand
-#'   independently of execution choices.
-#' @seealso [crossnobis()] to read a contrast from this plan,
+#'   never the canonical numerical tile shape. Defaults to
+#'   `compute$workspace_bytes`, or 512 MiB when the policy declares none.
+#' @return An `effect_geometry_plan` reusable across fixed contrasts. It
+#'   carries the learned `$metric_schedule` wrapping the frozen schedule, the
+#'   `$frame`, `$pairing`, and `$execution_hints`, and a
+#'   `$scientific_plan_id` that identifies the estimand independently of
+#'   execution choices.
+#' @seealso [plan_geometry()], which this wraps; [crossnobis()] to read a
+#'   contrast from this plan,
 #'   [shrinkage_precision()] and [metric_training_policy()] for the metric
 #'   declarations it freezes, and [residual_pair_statistics()] for the
 #'   sufficient statistics it compiles.
@@ -289,11 +325,7 @@ plan_crossnobis <- function(
     x, at, over, metric = shrinkage_precision(),
     training = metric_training_policy("exclude_evaluation"),
     compute = compute_policy(),
-    residual_workspace_bytes = if (is.null(compute$workspace_bytes)) {
-      512 * 1024^2
-    } else {
-      compute$workspace_bytes
-    }) {
+    residual_workspace_bytes = NULL) {
   if (missing(at)) {
     .input_error(paste0(
       "`at` is required: pass a compiled frame from `compile_frame()`, for ",
@@ -306,6 +338,34 @@ plan_crossnobis <- function(
       "`pairing()` declaring which partition products may be formed."
     ))
   }
+  if (inherits(metric, "effect_metric_recipe") &&
+      identical(.validate_metric_recipe(metric)$kind, "identity")) {
+    .input_error(paste0(
+      "A learned crossnobis plan requires a residual-derived precision ",
+      "recipe; use `noise_precision(diag(...))` for a fixed identity metric."
+    ))
+  }
+  plan_geometry(
+    x, at, over, compute = compute, metric = metric, training = training,
+    residual_workspace_bytes = residual_workspace_bytes
+  )
+}
+
+# The retired learned-crossnobis plan constructor. Nothing public reaches it:
+# `plan_crossnobis()` above compiles an ordinary geometry plan, and the
+# geometry compiler lowers it. It is kept for one ticket so that the
+# old-versus-new numerical equality can be asserted against the route it
+# replaces, and is deleted in B3 together with `effect_crossnobis_plan`,
+# `.execute_learned_crossnobis()`, and their identity and receipt helpers.
+.plan_learned_crossnobis <- function(
+    x, at, over, metric = shrinkage_precision(),
+    training = metric_training_policy("exclude_evaluation"),
+    compute = compute_policy(),
+    residual_workspace_bytes = if (is.null(compute$workspace_bytes)) {
+      512 * 1024^2
+    } else {
+      compute$workspace_bytes
+    }) {
   # Diagnose a missing residual channel before shape validation or any
   # metric-training preflight: a bare relation or a channel-free fit must get
   # the capability refusal, not a field-shape error or a training-partition

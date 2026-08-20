@@ -424,6 +424,26 @@ metric_training_policy <- function(
   )
 }
 
+# Whether calibration over this geometry metric schedule would have to
+# propagate metric-estimation uncertainty. The sampling layer must be able to
+# ask this of any plan without testing for a plan class, so the question is
+# answered from the schedule alone: a learned local schedule reports its
+# frozen recipe's capability, a fixed metric reports whether it was itself
+# materialized from a learned handle, and the implicit identity reports
+# nothing to propagate.
+#
+# The flag is derived rather than stored. `effect_metric_schedule` digests
+# `unclass(x[!names(x) %in% c("metric", "schedule", "signature")])`, so a new
+# stored field would move every existing geometry `scientific_plan_id`.
+.metric_schedule_requires_metric_uncertainty <- function(schedule) {
+  if (identical(schedule$kind, "learned_local_before_frame")) {
+    return(isTRUE(
+      schedule$schedule$capabilities$calibration_requires_metric_uncertainty
+    ))
+  }
+  isTRUE(schedule$metric$capabilities$learned_frozen)
+}
+
 .metric_schedule_signature <- function(x) {
   .sha256_signature(list(
     schema_version = 1L,

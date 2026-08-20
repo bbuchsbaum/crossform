@@ -115,7 +115,7 @@
 #' Construct a support-local same-space neural metric
 #'
 #' A neural metric is the PSD same-space role of the evidence-pairing operator
-#' `K`. It is distinct from a cross-space `measurement_bridge()`. The stored
+#' `K`. It is distinct from a cross-space measurement bridge. The stored
 #' matrix has width equal to its local support, never the full neural domain
 #' unless the metric is genuinely global. Supplying `inverse` retains a
 #' mathematically equivalent inverse action, such as the covariance from which
@@ -393,8 +393,8 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
 #' positive definite, already materialized, and whether inverse quadratic
 #' forms are available.
 #'
-#' @param x A `neural_metric()` or an on-demand metric recipe. A
-#'   `measurement_bridge()` is refused because cross-space bridges are not
+#' @param x A `neural_metric()` or an on-demand metric recipe. A cross-space
+#'   measurement bridge is refused because cross-space bridges are not
 #'   same-space metrics.
 #' @return An `effect_metric_capabilities` record of logical flags, including
 #'   `$identity`, `$native_diagonal`, `$feature_additive`, `$support_dense`,
@@ -415,12 +415,9 @@ neural_metric <- function(value, domain, support = NULL, inverse = NULL,
 #' recipe <- metric_capabilities(shrinkage_precision(0.2))
 #' recipe[c("learned_recipe", "materialized", "support_dense")]
 #'
-#' # A cross-space bridge is not a same-space metric and is refused.
-#' bridge <- measurement_bridge(
-#'   rbind(c(1, 0, 0)), rbind(c(1, 0, 0)), domain, domain,
-#'   measurement_space(1, id = "capability-example:common")
-#' )
-#' refused <- try(metric_capabilities(bridge), silent = TRUE)
+#' # Anything that is not a metric or a recipe is refused rather than
+#' # coerced, so a bare matrix or a cross-space object cannot pass as one.
+#' refused <- try(metric_capabilities(diag(c(1, 2, 3))), silent = TRUE)
 #' conditionMessage(attr(refused, "condition"))
 #' @export
 metric_capabilities <- function(x) {
@@ -534,22 +531,53 @@ metric_capabilities <- function(x) {
   }
 }
 
+# The field layout of a geometry metric schedule depends on its kind: the
+# learned kind carries a frozen `$schedule` where the other two carry a
+# materialized `$metric`. Stated once so the constructors in the plan layer
+# and the validator below cannot disagree about the seal.
+.geometry_metric_schedule_fields <- function(kind) {
+  base <- c("role", "kind", "frame_composition", "feature_additive",
+    "support_dense", "materialization", "scope", "lowering",
+    "metric_signature", "metric")
+  if (identical(kind, "learned_local_before_frame")) {
+    return(c(base, "schedule", "signature"))
+  }
+  c(base, "signature")
+}
+
+# The semantic digest of a schedule. The frozen schedule enters by its own
+# signature rather than by value: the payload is the whole residual
+# sufficient-statistics block, and its signature already digests the recipe,
+# the statistics, the support index, the pairing, the training policy, and
+# every per-edge training record.
+.geometry_metric_schedule_semantic <- function(x) {
+  semantic <- c(list(schema_version = 1L), unclass(x[
+    !names(x) %in% c("metric", "signature")
+  ]))
+  if (identical(x$kind, "learned_local_before_frame")) {
+    semantic$schedule <- x$schedule$signature
+  }
+  semantic
+}
+
 # The geometry metric schedule is built in the plan layer, but it is a
 # statement about a metric, so its validator lives beside the metric it
 # constrains and the plan calls down into it.
 .validate_geometry_metric_schedule <- function(x, deep = TRUE) {
-  expected <- c("role", "kind", "frame_composition", "feature_additive",
-    "support_dense", "materialization", "scope", "lowering",
-    "metric_signature", "metric", "signature")
+  expected <- .geometry_metric_schedule_fields(x$kind)
   if (!.sealed_fields(x, "effect_metric_schedule", expected) ||
       !identical(x$role, "same_space_metric_schedule") ||
-      !x$kind %in% c("implicit_identity_before_frame", "fixed_metric_before_frame") ||
+      !x$kind %in% c("implicit_identity_before_frame",
+        "fixed_metric_before_frame", "learned_local_before_frame") ||
       !identical(x$frame_composition, "sqrt_weight_congruence") ||
       !.is_flag(x$feature_additive) || !.is_flag(x$support_dense) ||
       identical(x$feature_additive, x$support_dense) ||
-      !x$materialization %in% c("implicit", "fixed_metric") ||
-      !x$scope %in% c("domain_operator", "single_node") ||
-      !x$lowering %in% c("additive_contraction", "support_streamed_pair_contraction") ||
+      !x$materialization %in% c("implicit", "fixed_metric",
+        "on_demand_local") ||
+      !x$scope %in% c("domain_operator", "single_node", "support_local") ||
+      !x$lowering %in% c("additive_contraction",
+        "support_streamed_pair_contraction",
+        "derive_then_support_streamed_pair_contraction") ||
       !.strong_sha256(x$signature)) {
     .input_error("Geometry metric-schedule fields are missing or noncanonical.")
   }
@@ -560,6 +588,51 @@ metric_capabilities <- function(x) {
         !identical(x$lowering, "additive_contraction") ||
         !is.null(x$metric_signature) || !is.null(x$metric)) {
       .input_error("The implicit identity metric schedule is inconsistent.")
+    }
+  } else if (identical(x$kind, "learned_local_before_frame")) {
+    # A learned local metric is derived per support and per evaluation edge,
+    # so the schedule is not feature additive and needs the dense local
+    # support even when the recipe itself is diagonal: the declaration is
+    # about the schedule's admitted lowering, not about the recipe's shape.
+    #
+    # The frozen schedule is checked structurally here, not by calling
+    # `.validate_frozen_metric_schedule()`: that validator lives in
+    # metric-learning.R, which sits above this file in the value order
+    # (metric-learning consumes recipes this file defines), and calling it
+    # from here closed a four-file cycle. Deep validation of the frozen
+    # record happens where the record is made and where it is spent -- at
+    # construction (`.geometry_learned_metric_schedule()`,
+    # `compile_metric_schedule()`), at plan validation
+    # (`.validate_geometry_plan()`), and again in the kernel before any
+    # contraction -- and the signature check below binds
+    # `x$schedule$signature` into this schedule's own sealed identity.
+    schedule <- x$schedule
+    if (!inherits(schedule, "effect_frozen_metric_schedule") ||
+        !.strong_sha256(schedule$signature)) {
+      .contract_error(
+        "A learned metric schedule must carry a frozen metric schedule."
+      )
+    }
+    if (!identical(x$materialization, "on_demand_local") ||
+        !identical(x$scope, "support_local") ||
+        !identical(x$feature_additive, FALSE) ||
+        !identical(x$support_dense, TRUE) ||
+        !identical(x$lowering,
+          "derive_then_support_streamed_pair_contraction") ||
+        !is.null(x$metric_signature) || !is.null(x$metric) ||
+        !isTRUE(schedule$capabilities$provenance_frozen) ||
+        !identical(schedule$capabilities$materialized, FALSE)) {
+      .contract_error("The learned local metric schedule is inconsistent.")
+    }
+    # Risk 1 of design section 16.7: a training assignment that varied with
+    # the spatial support would be a different estimator per node, because
+    # the compiler makes one tile one support. The records are frozen per
+    # evaluation edge before any tiling exists; assert the shape that makes
+    # that true rather than trusting the construction order.
+    if (length(schedule$records) != nrow(schedule$pairing)) {
+      .contract_error(
+        "Learned metric training records must be one per evaluation edge."
+      )
     }
   } else {
     # The `metric_signature` comparison below binds the metric to the schedule
@@ -576,10 +649,9 @@ metric_capabilities <- function(x) {
       .contract_error("The fixed neural metric schedule is inconsistent.")
     }
   }
-  semantic <- c(list(schema_version = 1L), unclass(x[
-    !names(x) %in% c("metric", "signature")
-  ]))
-  expected_signature <- .sha256_signature(semantic)
+  expected_signature <- .sha256_signature(
+    .geometry_metric_schedule_semantic(x)
+  )
   .check_signature(
     x$signature, expected_signature,
     "Geometry metric-schedule identity is inconsistent."

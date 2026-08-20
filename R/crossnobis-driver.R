@@ -159,9 +159,10 @@
 #' compiler; it does not introduce a second numerical engine. Negative finite
 #' estimates are retained.
 #'
-#' @param x Either an `effect_geometry_plan` carrying an explicit fixed
-#'   `noise_precision()` metric, or an `effect_crossnobis_plan` carrying a
-#'   provenance-frozen on-demand metric schedule.
+#' @param x An `effect_geometry_plan` carrying either an explicit fixed
+#'   `noise_precision()` metric, or a provenance-frozen learned metric
+#'   schedule compiled from a recipe by [plan_crossnobis()] or
+#'   `plan_geometry(metric = )`.
 #' @param weights One finite contrast weight per experimental effect.
 #' @return An `effect_crossnobis_view` whose `$values` holds one signed
 #'   crossvalidated squared Mahalanobis value per spatial measurement, with
@@ -222,36 +223,55 @@
 #' as.data.frame(result)
 #' @export
 crossnobis <- function(x, weights) {
-  if (inherits(x, "effect_crossnobis_plan")) {
-    return(.execute_learned_crossnobis(x, weights))
-  }
-  if (!inherits(x, "effect_geometry_plan")) {
-    .input_error(sprintf(paste0(
-      "`x` must be an `effect_geometry_plan` from `plan_geometry()` or an ",
-      "`effect_crossnobis_plan` from `plan_crossnobis()`; received %s."
-    ), .msg_value(x)))
-  }
   if (missing(weights)) {
     .input_error(paste0(
       "`weights` is required: pass one finite weight per experimental ",
       "effect, for example `crossnobis(plan, c(face = 1, house = -1))`."
     ))
   }
-  metric <- .crossnobis_plan_metric(x)
+  # Retired route, deleted in B3 with the plan class it dispatches on. No
+  # public constructor returns an `effect_crossnobis_plan` any more.
+  if (inherits(x, "effect_crossnobis_plan")) {
+    return(.execute_learned_crossnobis(x, weights))
+  }
+  if (!inherits(x, "effect_geometry_plan")) {
+    .input_error(sprintf(paste0(
+      "`x` must be an `effect_geometry_plan` from `plan_geometry()` or ",
+      "`plan_crossnobis()`; received %s."
+    ), .msg_value(x)))
+  }
+  # One argument type, validated rather than dispatched on. Both admitted
+  # schedules make the same claim -- that the operator between the two
+  # endpoints is a noise precision -- and the fixed and learned routes differ
+  # only in where that claim is recorded.
+  learned <- identical(
+    x$metric_schedule$kind, "learned_local_before_frame"
+  )
+  metric_identity <- if (learned) {
+    .crossnobis_learned_metric(x)$signature
+  } else {
+    .crossnobis_plan_metric(x)$signature
+  }
   .require_crossnobis_pairing(x$pairing)
   weights <- .align_contrast(
     weights, x$task$left_relation$effect_space$coordinates
   )
   query <- bilinear_query(tcrossprod(weights))
   # The internal runner rather than `evaluate_geometry()`: this is the plan
-  # layer, and the public entry point sits above the views it feeds.
-  evaluated <- .run_geometry_compiler(x, query = query, component = "total")
+  # layer, and the public entry point sits above the views it feeds. The
+  # signed weights are an executor hint on the learned route, where the
+  # scheduled kernel contracts `c B_a` against `c B_b` instead of applying
+  # the packed operator; they do not move the estimand identity.
+  evaluated <- .run_geometry_compiler(
+    x, query = query, component = "total",
+    signed_query = if (learned) weights else NULL
+  )
   values <- drop(evaluated$values)
   structure(list(
     values = values,
     contrast = weights,
     estimand = "crossvalidated_squared_mahalanobis_contrast",
-    metric = metric$signature,
+    metric = metric_identity,
     pairing = .metric_pairing_identity(x$pairing),
     index = evaluated$index,
     receipt = evaluated$receipt,

@@ -749,7 +749,10 @@ print.effect_metric_schedule <- function(x, ...) {
     materialization = x$materialization,
     properties = paste0("feature additive ", .pf_yn(x$feature_additive),
       ", dense support ", .pf_yn(x$support_dense)),
-    metric = if (is.null(x$metric)) {
+    metric = if (identical(x$kind, "learned_local_before_frame")) {
+      paste0("derived on demand from ", x$schedule$recipe$kind, " (frozen ",
+        .pf_sig(x$schedule$signature), ")")
+    } else if (is.null(x$metric)) {
       "implicit identity"
     } else {
       .pf_sig(x$metric_signature)
@@ -1607,7 +1610,14 @@ print.effect_form <- function(x, ...) {
 # is shown only on request.
 .geometry_plan_lines <- function(x, detail = FALSE) {
   metric <- x$metric_schedule$metric
-  metric_status <- if (is.null(metric)) {
+  learned <- identical(
+    x$metric_schedule$kind, "learned_local_before_frame"
+  )
+  metric_status <- if (learned) {
+    sprintf("learned %s, trained %s (derived per support)",
+      x$metric_schedule$schedule$recipe$kind,
+      x$metric_schedule$schedule$training_policy$kind)
+  } else if (is.null(metric)) {
     "implicit identity"
   } else if (isTRUE(metric$capabilities$learned_frozen)) {
     "fixed (learned, frozen before evaluation)"
@@ -1638,6 +1648,13 @@ print.effect_form <- function(x, ...) {
       sprintf("  plan id:      %s", .pf_sig(x$scientific_plan_id)),
       sprintf("  signature:    %s", .pf_sig(x$signature))
     )
+  }
+  if (learned) {
+    # The one plan kind that reads before it returns. Say so on the object
+    # rather than only in the receipt.
+    return(c(lines,
+      "  state:        residual statistics accumulated; no effect read",
+      "  next:         crossnobis(plan, weights)"))
   }
   c(lines,
     "  state:        nothing computed yet",
