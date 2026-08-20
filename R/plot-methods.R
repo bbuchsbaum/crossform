@@ -385,6 +385,46 @@
   list(values = as.numeric(signed), label = "signed")
 }
 
+# The one contrast view whose profile panel is forbidden. A coherence spectrum
+# aggregates a conservative frame family by scale, and each scale's `total` is
+# exactly its family weight times the whole-domain total
+# (`design/conservative-geometry-contract.md` section 3.1): walking that column
+# along the index draws the analyst's own `weights` vector, and the contract
+# makes it normative that no such panel may be presented as evidence about
+# spatial scale. The decomposition panel is unaffected -- it plots the two
+# components against each other, and the coherent share it shows is the
+# alpha-invariant quantity (section 3.2) -- so an unqualified `plot()` on a
+# spectrum draws that one instead of refusing, and only an explicit request
+# for the energy profile is refused, with the reason.
+.contrast_panel_choice <- function(x, which, requested) {
+  record <- x$metadata$aggregation
+  if (!is.list(record) ||
+      !identical(record$reduction, "coherence_spectrum")) {
+    return(which)
+  }
+  if (!requested) return("decomposition")
+  if (identical(which, "decomposition")) return(which)
+  .capability_refusal(sprintf(paste0(
+    "`plot(which = \"%s\")` walks `total` along the group index, and a ",
+    "coherence spectrum's total is fixed by the family weights: each scale ",
+    "carries exactly alpha_s times the whole-domain total whatever the data ",
+    "say, so the profile is a picture of `weights` and not of spatial scale ",
+    "(`design/conservative-geometry-contract.md` section 3.1). What varies ",
+    "with the data is the split of each scale's fixed budget, which is what ",
+    "`which = \"decomposition\"` draws."
+  ), which),
+    capability = "scale_energy_panel",
+    namespace = "geometry_views",
+    reasons = "per_scale_energy_is_fixed_by_the_family_weights",
+    remedies = paste0(
+      "Draw `plot(x, which = \"decomposition\")`, which is what an ",
+      "unqualified `plot()` on a spectrum already gives, or plot ",
+      "`x$coherence_fraction` against `as.data.frame(x)$scale` -- the share ",
+      "is exactly invariant to the weights (section 3.2)."
+    )
+  )
+}
+
 #' Plot geometry views
 #'
 #' Base-graphics pictures of the objects returned by [contrast_energy()],
@@ -429,7 +469,12 @@
 #'   `effect_sampling_covariance`.
 #' @param which Which contrast panels to draw: `"both"` (the default
 #'   two-panel figure), `"decomposition"` for the coherent/configuration
-#'   plane alone, or `"profile"` for the total-energy index plot alone.
+#'   plane alone, or `"profile"` for the total-energy index plot alone. On a
+#'   [coherence_spectrum()] the default is `"decomposition"` instead, and
+#'   `"profile"` and `"both"` are refused: a spectrum's per-scale total is
+#'   exactly its family weight times the whole-domain total, so that panel
+#'   draws the analyst's own weights rather than anything about spatial scale
+#'   (`design/conservative-geometry-contract.md` section 3.1).
 #' @param highlight Optional measurements to mark: positions, a logical mask
 #'   with one value per measurement, or measurement identifiers. Measurements
 #'   outside the view are an error rather than a silent drop.
@@ -522,7 +567,9 @@ plot.effect_contrast_view <- function(x,
                                       highlight = NULL,
                                       highlight_label = "highlighted",
                                       main = NULL, top = 200L, ...) {
+  requested <- !missing(which)
   which <- match.arg(which)
+  which <- .contrast_panel_choice(x, which, requested)
   dots <- list(...)
   total <- as.numeric(x$total)
   coherent <- as.numeric(x$coherent)

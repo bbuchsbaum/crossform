@@ -49,7 +49,12 @@
 
 \item{which}{Which contrast panels to draw: \code{"both"} (the default
 two-panel figure), \code{"decomposition"} for the coherent/configuration
-plane alone, or \code{"profile"} for the total-energy index plot alone.}
+plane alone, or \code{"profile"} for the total-energy index plot alone. On a
+\code{\link[=coherence_spectrum]{coherence_spectrum()}} the default is \code{"decomposition"} instead, and
+\code{"profile"} and \code{"both"} are refused: a spectrum's per-scale total is
+exactly its family weight times the whole-domain total, so that panel
+draws the analyst's own weights rather than anything about spatial scale
+(\code{design/conservative-geometry-contract.md} section 3.1).}
 
 \item{highlight}{Optional measurements to mark: positions, a logical mask
 with one value per measurement, or measurement identifiers. Measurements
@@ -188,6 +193,7 @@ plot(uncertainty, estimate = distances)
 Other geometry plans and views: 
 \code{\link{aggregate_first}()},
 \code{\link{bilinear_query}()},
+\code{\link{coherence_spectrum}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
 \code{\link{contribution}()},

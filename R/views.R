@@ -1386,3 +1386,550 @@ contribution <- function(x, by, using = NULL) {
     right_space = x$right_space
   )
 }
+
+# `coherence_spectrum()` -- coherent share versus scale (and location) --------
+#
+# The reduction `design/conservative-geometry-contract.md` section 3.2 calls
+# the scientific product of a conservative frame family. Its whole reason to
+# exist is one asymmetry between the two columns it reports:
+#
+#   * Per-scale ENERGY is fixed by the family weighting. Section 3.1: every
+#     member is column normalized on its own and the weights sum to one, so
+#     the rows of scale `s` sum to `alpha_s * G_Omega` whatever the data say.
+#     A panel of energy against scale is a plot of the analyst's own `alpha`
+#     vector, and the contract makes it normative that no such panel may be
+#     presented as evidence about spatial scale.
+#   * The coherent SHARE is exactly invariant to it. Both components are
+#     homogeneous of degree one under a row rescaling `w_x -> alpha * w_x`:
+#     the total is linear in `w`, and the coherent part is
+#     `K_coh = a a^T / (a^T K_x^-1 a)` with `a = w_x / sum(w_x)` invariant to
+#     alpha while `K_x^-1` scales as `1/alpha`, so `K_coh` scales as alpha.
+#     The ratio cancels it exactly (identity-metric form `(Bw)(Bw)^T/sum(w)`:
+#     manifestly degree one). So the spectrum is a property of the family's
+#     geometry rather than of the weights, and may be reported without
+#     disclosing them -- the exact opposite of the energy panel.
+#
+# Three implementation decisions follow, and none of them is free:
+#
+#  1. The reduction is `contribution()` under a different grouping, so it is
+#     built out of the same machinery: the conservative-frame refusal, the
+#     metadata join, the row sums, the masked signed marginal, and above all
+#     `.coherence_fraction()`. The share a scale reports is masked by exactly
+#     the rule a node's fraction is masked by. What is new is the grouping --
+#     `contribution()` takes one column, and the spectrum lives on the PAIR
+#     (center, scale) whenever it is read location-wise (section 11.4, gap
+#     G3) -- and the provenance saying which column is the finding.
+#  2. `total` is summed and `configuration` is taken as `total - coherent`,
+#     rather than summing `configuration` and adding. That keeps the
+#     budget-exact column exact: `sum` of the scale's totals is `alpha_s`
+#     times the whole-domain total to the tolerance section 9 states, and the
+#     share is identically `sum_coh / (sum_coh + sum_cfg)` either way.
+#  3. There is no location-wise collapse. Gap G3 says the coherent share is a
+#     function of (location, scale) and not a number, so `by_location = TRUE`
+#     returns that table and stops. A scale profile at one location is a
+#     filter on it, which needs no named reduction; an alpha-weighted mean or
+#     an argmax-scale over it would be one, and would have to arrive as its
+#     own declared operation with its own certificate.
+
+# Group keys as printable strings, one value at a time: a scale of 4 has to
+# print as "4" and not "4.000000", and formatting the vector as a whole would
+# pad every entry to the width of the longest.
+.coherence_spectrum_key_strings <- function(values) {
+  if (is.character(values)) return(values)
+  if (is.factor(values)) return(as.character(values))
+  if (is.numeric(values)) {
+    return(vapply(values, function(value) {
+      format(value, trim = TRUE, digits = 15)
+    }, character(1), USE.NAMES = FALSE))
+  }
+  as.character(values)
+}
+
+# `by` and `by_location` are two spellings of one choice, so supplying both is
+# an error rather than a precedence rule nobody can remember.
+.coherence_spectrum_keys <- function(by, by_location) {
+  if (!is.null(by)) {
+    if (!isFALSE(by_location)) {
+      .input_error(paste0(
+        "`by` and `by_location` name the same choice twice. `by_location = ",
+        "TRUE` is the shorthand for `by = c(\"scale\", \"center\")`; pass ",
+        "one of them."
+      ),
+        arg = "by_location", received = "both `by` and `by_location`",
+        expected = "`by`, or `by_location`, but not both")
+    }
+    if (!is.character(by) || !length(by) || anyNA(by) || !all(nzchar(by))) {
+      .input_error(sprintf(paste0(
+        "`by` must name one or more columns of the per-measurement metadata, ",
+        "for example `by = \"scale\"` or `by = c(\"scale\", \"center\")`; ",
+        "received %s."
+      ), .msg_value(by)),
+        arg = "by", received = .msg_value(by),
+        expected = "one or more metadata column names")
+    }
+    if (anyDuplicated(by)) {
+      .input_error(sprintf(paste0(
+        "`by` repeats %s. Each grouping column may appear once."
+      ), .msg_names(unique(by[duplicated(by)]))),
+        arg = "by", received = sprintf("repeated %s",
+          .msg_names(unique(by[duplicated(by)]))),
+        expected = "distinct column names")
+    }
+    return(as.character(by))
+  }
+  if (!is.logical(by_location) || length(by_location) != 1L ||
+      is.na(by_location)) {
+    .input_error(sprintf(paste0(
+      "`by_location` must be `TRUE` or `FALSE`; received %s. `TRUE` returns ",
+      "the (scale, center) table, `FALSE` the per-scale spectrum."
+    ), .msg_value(by_location)),
+      arg = "by_location", received = .msg_value(by_location),
+      expected = "TRUE or FALSE")
+  }
+  if (by_location) c("scale", "center") else "scale"
+}
+
+# What `coherence_spectrum()` reads, and the reasoned refusal for everything
+# else. The share needs both components of one measurement at once, which is
+# what rules out every readout that carries a single number per row.
+.coherence_spectrum_needs <- function() {
+  paste0(
+    "`coherence_spectrum()` reads the coherent/configuration split of one ",
+    "contrast over a frame family: pass a compiled `effect_geometry_plan` ",
+    "with `weights`, or the `effect_contrast_view` that `contrast_energy()` ",
+    "already returned for it."
+  )
+}
+
+.coherence_spectrum_unsupported <- function(x) {
+  needs <- .coherence_spectrum_needs()
+  if (inherits(x, "effect_view") && !inherits(x, "effect_form")) {
+    .capability_refusal(sprintf(paste0(
+      "`coherence_spectrum()` cannot read a query-only `effect_view`. It ",
+      "holds one component -- this one is `%s` -- and a coherent share is a ",
+      "ratio of two, so there is nothing here to take the share of. %s"
+    ), if (.is_string(x$component)) x$component else "one", needs),
+      capability = "coherence_decomposition",
+      namespace = "geometry_views",
+      reasons = "single_component_view_has_no_share",
+      remedies = paste0(
+        "Read the same plan with `contrast_energy(plan, weights)`, which ",
+        "returns `coherent`, `configuration` and `total` together, and pass ",
+        "that view."
+      )
+    )
+  }
+  comparative <- c("effect_spectrum_view", "effect_rdm_view",
+    "effect_rsa_view", "effect_crossnobis_view")
+  if (any(comparative %in% class(x))) {
+    kind <- comparative[[which(comparative %in% class(x))[[1L]]]]
+    .capability_refusal(sprintf(paste0(
+      "`coherence_spectrum()` does not read an `%s`. Its rows are ",
+      "eigenvalues, dissimilarities or regression coefficients -- none of ",
+      "them carries the coherent/configuration split a share is taken of. %s"
+    ), kind, needs),
+      capability = "coherence_decomposition",
+      namespace = "geometry_views",
+      reasons = "readout_carries_no_coherence_decomposition",
+      remedies = paste0(
+        "Run the same contrast through `contrast_energy(plan, weights)` and ",
+        "pass that view, or pass the plan itself with `weights`."
+      )
+    )
+  }
+  if (inherits(x, "effect_form") || inherits(x, "effect_geometry")) {
+    .capability_refusal(paste0(
+      "`coherence_spectrum()` reads a contrast, not packed geometry: a ",
+      "stored form holds every effect pair at once and names no single ",
+      "contrast to take the share of. ", needs
+    ),
+      capability = "coherence_decomposition",
+      namespace = "geometry_views",
+      reasons = "packed_geometry_names_no_contrast",
+      remedies = paste0(
+        "Read one contrast first with `contrast_energy(x, weights)`, then ",
+        "pass that view."
+      )
+    )
+  }
+  .input_error(sprintf("%s Received %s.", needs, .msg_value(x)),
+    arg = "x", received = .msg_value(x),
+    expected = "an `effect_geometry_plan` or an `effect_contrast_view`")
+}
+
+# A plan is evaluated here rather than by the caller, so that the frame's own
+# `$index` is available as the grouping metadata: a family's per-row `family`
+# / `scale` / `center` / `alpha` reaches a compiled frame but not a result,
+# whose `$index` is the measurement identifier vector alone.
+.coherence_spectrum_source <- function(x, weights, using) {
+  if (inherits(x, "effect_geometry_plan")) {
+    if (is.null(weights)) {
+      .input_error(paste0(
+        "`weights` is required with a plan: a coherence spectrum is the ",
+        "share of one contrast, so name it, for example ",
+        "`coherence_spectrum(plan, c(face = 1, house = -1))`. Unnamed ",
+        "weights are taken in the relation's declared effect order."
+      ),
+        arg = "weights", received = "no argument",
+        expected = "one finite weight per experimental effect")
+    }
+    .validate_geometry_plan(x)
+    return(list(
+      view = contrast_energy(x, weights),
+      metadata = if (is.null(using)) x$frame$index else using,
+      source = "plan"
+    ))
+  }
+  if (inherits(x, "effect_contrast_view")) {
+    if (!is.null(weights)) {
+      .input_error(paste0(
+        "`weights` applies only to a plan. This view was already read at one ",
+        "contrast -- `x$weights` is it -- and a second contrast cannot be ",
+        "applied to numbers that have been reduced. Pass the plan with the ",
+        "weights you mean, or drop `weights`."
+      ),
+        arg = "weights", received = "weights alongside an evaluated view",
+        expected = "`weights` with a plan, or no `weights` with a view")
+    }
+    metadata <- if (!is.null(using)) {
+      using
+    } else if (is.data.frame(x$index)) {
+      x$index
+    } else {
+      NULL
+    }
+    return(list(view = x, metadata = metadata, source = "view"))
+  }
+  .coherence_spectrum_unsupported(x)
+}
+
+# The grouping columns, with the message a missing one has to carry: a view's
+# `$index` is a bare identifier vector, so the family's `$index` almost always
+# has to arrive as `using =`.
+.coherence_spectrum_require_keys <- function(metadata, keys, source) {
+  available <- if (is.data.frame(metadata)) names(metadata) else character()
+  absent <- setdiff(keys, available)
+  if (!length(absent)) return(invisible(NULL))
+  .input_error(sprintf(paste0(
+    "%s of the grouping metadata. Available columns: %s. A frame family's ",
+    "`$index` is the intended table -- it carries `measurement`, `family`, ",
+    "`node`, `scale`, `center` and `alpha` -- so build the frame with ",
+    "`searchlights(c(...), \"conservative\")` or `frame_family()`, and %s"
+  ), if (length(absent) == 1L) {
+    sprintf("`by = \"%s\"` names no column", absent)
+  } else {
+    sprintf("%s name no column", .msg_names(absent))
+  }, if (length(available)) {
+    .msg_names(available)
+  } else {
+    "none, because no per-measurement metadata table was available"
+  }, if (identical(source, "plan")) {
+    "compile the plan on it, or pass the table as `using =`."
+  } else {
+    "pass its `$index` as `using =`."
+  }),
+    arg = if (length(available)) "by" else "using",
+    received = if (length(available)) {
+      .msg_names(absent)
+    } else {
+      "no per-measurement metadata"
+    },
+    expected = if (length(available)) {
+      .msg_names(available)
+    } else {
+      "a frame family's `$index` as `using =`"
+    })
+}
+
+# One group per distinct key tuple, ordered by the key columns in the order
+# they were named. An `NA` key is refused rather than dropped, for the reason
+# `contribution()` refuses one: a row outside every group takes part of the
+# budget with it.
+.coherence_spectrum_groups <- function(metadata, keys) {
+  columns <- lapply(keys, function(key) metadata[[key]])
+  for (position in seq_along(keys)) {
+    values <- columns[[position]]
+    if (!anyNA(values)) next
+    .input_error(sprintf(paste0(
+      "The grouping `%s` is missing for %s. Every measurement must belong to ",
+      "exactly one group, or the spectrum would drop part of the budget it ",
+      "splits. A frame family's `scale` is `NA` for a member that has no ",
+      "scale, and its `center` is `NA` for a member whose rows are not ",
+      "anchored at a feature -- a region or whole-brain member is both -- so ",
+      "group by `family` instead, or build the family from members that all ",
+      "carry the column you asked for."
+    ), keys[[position]], .msg_count(sum(is.na(values)), "measurement")),
+      arg = "by",
+      received = sprintf("%s missing of %s",
+        .msg_count(sum(is.na(values)), "label"),
+        .msg_count(length(values), "measurement")),
+      expected = "one group label for every measurement")
+  }
+  labels <- do.call(paste, c(
+    lapply(columns, .coherence_spectrum_key_strings), list(sep = "::")
+  ))
+  ordering <- do.call(order, unname(columns))
+  levels <- unique(labels[ordering])
+  list(groups = factor(labels, levels = levels), keys = levels)
+}
+
+# One row per group: the composite key under `measurement` (which is what
+# every reader of a crossform index looks for), the grouping columns
+# themselves with their own types kept, and the row count.
+#
+# Any other metadata column that takes ONE value inside every group is carried
+# through as well, which is how `family` and `alpha` reach the table without
+# being named: the family weight belongs next to the energy it fixes. Row
+# identities are excluded by name, because a group of one row would otherwise
+# carry a second `measurement`-like column that means something else.
+.coherence_spectrum_index <- function(metadata, keys, rows, group_keys) {
+  first <- vapply(rows, function(subset) subset[[1L]], integer(1),
+    USE.NAMES = FALSE)
+  index <- data.frame(measurement = as.character(group_keys),
+    stringsAsFactors = FALSE, check.names = FALSE)
+  for (key in keys) index[[key]] <- metadata[[key]][first]
+  carried <- setdiff(names(metadata), c(keys, "measurement", "node"))
+  for (column in carried) {
+    values <- metadata[[column]]
+    constant <- all(vapply(rows, function(subset) {
+      length(unique(values[subset])) == 1L
+    }, logical(1), USE.NAMES = FALSE))
+    if (constant) index[[column]] <- values[first]
+  }
+  index[["n_rows"]] <- as.integer(lengths(rows, use.names = FALSE))
+  index
+}
+
+.coherence_spectrum_scientific_id <- function(parent, keys, group_keys) {
+  .sha256_signature(list(
+    schema_version = 1L,
+    role = "geometry_coherence_spectrum",
+    parent = parent,
+    resolved_by = as.character(keys),
+    groups = as.character(group_keys)
+  ), "geometry-sha256:")
+}
+
+# `contribution()`'s provenance record, plus the three facts that are specific
+# to this reduction: which grouping produced it, that the share and not the
+# energy is the finding, and the family weights the energy column is fixed by.
+.coherence_spectrum_provenance <- function(keys, group_keys, rows,
+                                           normalization, index) {
+  record <- .contribution_provenance(
+    paste(keys, collapse = " x "), group_keys, rows, normalization,
+    budget_exact = "total",
+    frame_relative_components = c("coherent", "configuration"),
+    masked = "signed"
+  )
+  record$reduction <- "coherence_spectrum"
+  record$resolved_by <- as.character(keys)
+  record$by_location <- identical(as.character(keys), c("scale", "center"))
+  record$alpha_invariant <- "coherence_fraction"
+  record$alpha_fixed <- "total"
+  record$location_collapse <- "none"
+  if ("alpha" %in% names(index)) {
+    record$alpha <- stats::setNames(as.numeric(index$alpha),
+      as.character(index$measurement))
+  }
+  if ("family" %in% names(index)) {
+    record$family <- stats::setNames(as.character(index$family),
+      as.character(index$measurement))
+  }
+  record
+}
+
+#' Read the coherent share of a conservative frame family against scale
+#'
+#' A multiscale conservative frame family divides one fixed global budget
+#' between its scales, and it divides it by the weights the analyst chose:
+#' the `total` component summed over the rows of scale \eqn{s} is exactly
+#' \eqn{\alpha_s G_\Omega}{alpha_s * G_Omega} whatever the data say
+#' (`design/conservative-geometry-contract.md` section 3.1). What the data do
+#' decide is how each scale's fixed budget splits into a coherent and a
+#' configuration part. `coherence_spectrum()` reports that split, per scale
+#' and -- with `by_location = TRUE` -- per (scale, location).
+#'
+#' The reported share is
+#' \deqn{\phi_s = \frac{\sum_{x \in s} \langle H, G^{\mathrm{coh}}_x\rangle}
+#'                     {\sum_{x \in s} \langle H, G_x\rangle},}{phi_s = sum_coherent / sum_total,}
+#' computed from the **aggregated** components. A fraction of sums is not a
+#' sum of fractions, so averaging per-node fractions would answer a different
+#' question.
+#'
+#' @param x A compiled `effect_geometry_plan` over a frame family, or the
+#'   `effect_contrast_view` that [contrast_energy()] already returned for one.
+#'   Every other result kind is refused with the reason; see *Refusals*.
+#' @param weights One finite contrast weight per experimental effect, as in
+#'   [contrast_energy()]. Required with a plan, and refused with an evaluated
+#'   view, which was already read at one contrast.
+#' @param by_location `FALSE` (the default) returns one row per scale;
+#'   `TRUE` returns one row per (scale, center), the object gap G3 of
+#'   `design/conservative-geometry-contract.md` section 11.4 requires. It is
+#'   the shorthand for `by = c("scale", "center")`.
+#' @param by The grouping columns, when they are not the two above: one or
+#'   more column names of the per-measurement metadata, for example
+#'   `by = "family"` for a family whose members have no numeric scale. Pass
+#'   `by` or `by_location`, not both.
+#' @param using Optional per-measurement metadata table, joined on its
+#'   `measurement` column so row order does not matter. A [frame_family()]'s
+#'   `$index` is the intended one, and it is required on the view route: a
+#'   result's `$index` is the measurement identifier vector alone, so an
+#'   evaluated view does not carry the scales it was read at. With a plan the
+#'   frame's own `$index` is used unless `using` overrides it.
+#' @return An `effect_contrast_view` with one row per group instead of one per
+#'   measurement -- the same record `contribution()` returns, because the
+#'   spectrum is that aggregation under a scale-resolved grouping.
+#'
+#'   `$coherent` is \eqn{E^{\mathrm{coh}}_s}, `$configuration` is
+#'   \eqn{E^{\mathrm{cfg}}_s}, `$total` is their sum, and
+#'   `$coherence_fraction` is \eqn{\phi_s}, masked by
+#'   `$coherence_fraction_valid`. `$signed` is `NA`: a signed marginal is a
+#'   local weighted mean, and means do not add over a territory.
+#'
+#'   `$index` has one row per group: `measurement` holds the composite key
+#'   (`"1.01::v8"` for a (scale, center) row), the grouping columns keep their
+#'   own types, `n_rows` counts the measurements behind the row, and any other
+#'   metadata column that takes one value inside every group is carried
+#'   through -- which is how `family` and `alpha` arrive next to the energy
+#'   they fix. `$metadata$aggregation` records `reduction =
+#'   "coherence_spectrum"`, `resolved_by`, `frame_relative = TRUE`,
+#'   `alpha_invariant = "coherence_fraction"`, `alpha_fixed = "total"`,
+#'   `location_collapse = "none"`, and the applied `alpha` per group.
+#'   `$receipt` is the parent receipt under a derived `scientific_plan_id`.
+#' @section Read the share, not the energy:
+#' Every member of a conservative family is column normalized on its own and
+#' the family weights sum to one, so each scale's rows carry exactly their
+#' weight of the whole-domain total. **The `total` column is therefore the
+#' `weights` vector times a constant, and a plot of energy against scale is a
+#' plot of that vector.** The contract makes this normative: no such panel may
+#' be presented as evidence about spatial scale.
+#'
+#' The share is the opposite. Both components are homogeneous of degree one
+#' under a rescaling \eqn{w_x \mapsto \alpha w_x} of a row -- the total is
+#' linear in \eqn{w}, and the coherent part
+#' \eqn{K_{\mathrm{coh}} = a a^\top / (a^\top K_x^{-1} a)} has
+#' \eqn{a = w_x / \sum w_x} invariant to \eqn{\alpha} while \eqn{K_x^{-1}}
+#' scales as \eqn{1/\alpha} -- so the ratio cancels \eqn{\alpha} exactly. Two
+#' families differing only in their weights give identical shares to machine
+#' precision and different energies. The spectrum is a property of the
+#' family's geometry, not of the weighting, and may be reported without
+#' disclosing it (contract sections 3.1 and 3.2).
+#' @section What is frame-relative, and what is masked:
+#' `total` is budget-exact: the group totals add back to the whole-domain
+#' total (contract section 2). `coherent` and `configuration` add up as
+#' arithmetic, but \eqn{\sum_x G^{\mathrm{coh}}_x} is not a global quantity
+#' (section 4, claim 4), so a coherent energy is a share of *this family's*
+#' coherent mass and two families give two incomparable denominators. The
+#' result carries `frame_relative = TRUE` and the print says so.
+#'
+#' `coherence_fraction` is masked, never clamped: it is reported only where
+#' the aggregated total is finite and positive and both aggregated components
+#' are nonnegative, and is `NA` elsewhere. Cross-generalized components are
+#' signed, so a scale whose nodes' common modes anticorrelate across
+#' partitions can carry a negative coherent energy; that scale reports `NA`
+#' rather than a number outside \eqn{[0,1]}.
+#'
+#' One consequence is worth expecting. A singleton scale -- a point member, or
+#' a radius covering one feature -- has exactly zero configuration
+#' (`effect-form-v1` section 7), so its aggregated configuration sits within
+#' one unit in the last place of zero and can land on either side of it. Where
+#' it lands below, the mask fires and the share reads `NA` instead of `1`.
+#' That is the mask working on an exactly-degenerate partition, and it is the
+#' same behaviour a singleton node's own `coherence_fraction` already has.
+#' @section No location-wise collapse:
+#' The coherent share is a function of (location, scale) and not a number
+#' (gap G3). `by_location = TRUE` returns that table and stops: the scale
+#' profile at one location is a filter on it, which needs no named operation,
+#' while an alpha-weighted mean over scales or an argmax-scale map is a
+#' declared reduction that would need its own certificate.
+#' `$metadata$aggregation$location_collapse` records `"none"`.
+#' @section Refusals:
+#' A locally normalized frame signals an `effect_capability_refusal` with
+#' capability `"conservative_frame"` in namespace `"geometry_views"`; so does
+#' a view that does not record its frame normalization. A query-only
+#' `effect_view`, a comparative readout (`effect_spectrum_view`,
+#' `effect_rdm_view`, `effect_rsa_view`, `effect_crossnobis_view`), and
+#' packed geometry each signal capability `"coherence_decomposition"`, because
+#' none of them carries the two components a share is taken of. Branch on them
+#' with [catch_refusal()].
+#' @seealso [searchlights()] and [frame_family()] for the families this reads,
+#'   [contrast_energy()] for the view it aggregates, [contribution()] for the
+#'   same arithmetic over a spatial territory, and [frame_conservation()] for
+#'   the per-block certificate that each scale carries its own weight.
+#' @family geometry plans and views
+#' @examples
+#' # A point effect on a line: one voxel carries the whole contrast.
+#' n <- 15L
+#' domain <- abstract_domain(
+#'   n, coordinates = cbind(seq_len(n) - 1, 0),
+#'   feature_ids = paste0("v", seq_len(n)), id = "spectrum-example"
+#' )
+#' pattern <- function(signal) {
+#'   rbind(face = signal, house = rep(0, n))
+#' }
+#' signal <- replace(rep(0, n), 8L, 1)
+#' relation <- relation(
+#'   list(run1 = pattern(signal), run2 = pattern(signal)), domain = domain
+#' )
+#' family <- compile_frame(
+#'   searchlights(c(0.5, 1.01, 2.01), "conservative"), domain
+#' )
+#' plan <- plan_geometry(
+#'   relation, family,
+#'   cross_partitions(relation, independence = "independent")
+#' )
+#'
+#' # The share falls as the neighborhood grows past the signal: one voxel of
+#' # evidence looks entirely coherent at a scale that sees only it.
+#' spectrum <- coherence_spectrum(plan, c(face = 1, house = -1))
+#' as.data.frame(spectrum)[, c("scale", "alpha", "total", "coherence_fraction")]
+#'
+#' # The energy column is the family weighting and nothing else, so it is the
+#' # same at every scale here; the share is what varies.
+#' spectrum$total
+#'
+#' # One row per (scale, center) instead. A location's scale profile is a
+#' # filter on that table, not a separate reduction.
+#' located <- coherence_spectrum(plan, c(face = 1, house = -1),
+#'   by_location = TRUE)
+#' profile <- as.data.frame(located)
+#' profile[profile$center == "v8", c("scale", "center", "coherence_fraction")]
+#' @export
+coherence_spectrum <- function(x, weights = NULL, by_location = FALSE,
+                               by = NULL, using = NULL) {
+  keys <- .coherence_spectrum_keys(by, by_location)
+  source <- .coherence_spectrum_source(x, weights, using)
+  view <- source$view
+  normalization <- .contribution_require_conservative(view)
+  ids <- .contribution_measurement_ids(view$index)
+  # A frame that is not a family carries an `$index` of measurement labels and
+  # nothing else, and a declared frame may carry none at all. Neither is a
+  # `using` mistake, so both fall through to the message that names the family
+  # constructors rather than to the join's.
+  supplied <- if (is.data.frame(source$metadata)) source$metadata else NULL
+  metadata <- .contribution_using_table(supplied, ids)
+  .coherence_spectrum_require_keys(metadata, keys, source$source)
+
+  grouped <- .coherence_spectrum_groups(metadata, keys)
+  rows <- split(seq_along(view$total), grouped$groups)
+  index <- .coherence_spectrum_index(metadata, keys, rows, grouped$keys)
+
+  coherent <- .contribution_group_sums(view$coherent, rows)
+  total <- .contribution_group_sums(view$total, rows)
+  signed <- .contribution_masked_signed(view$signed, length(rows))
+
+  record <- if (is.list(view$metadata)) view$metadata else list()
+  record$scientific_plan_id <- NULL
+  record$aggregated_from <- view$receipt$scientific_plan_id
+  record$aggregation <- .coherence_spectrum_provenance(
+    keys, grouped$keys, rows, normalization, index
+  )
+  receipt <- .projection_receipt(
+    view$receipt,
+    .coherence_spectrum_scientific_id(
+      view$receipt$scientific_plan_id, keys, grouped$keys
+    )
+  )
+  .effect_contrast_view_record(signed, coherent, total - coherent, total,
+    view$weights, index, receipt, record)
+}
