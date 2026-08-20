@@ -229,8 +229,8 @@ uncertainty in the estimated metric.
 
 `inst/extdata/certification/crossnobis-scale-gate.rds` (and its shipped
 `crossnobis-scale-gate-summary.csv`) records one exact brain-scale execution.
-The values below are the re-record described under "Certification provenance
-binding" below, `provenance$recorded_at = 2026-08-17 05:02:07 UTC`, fixture
+The values below are the 2026-08-20 re-record described under "Re-certification
+after WS-B" below, `provenance$recorded_at = 2026-08-20 19:51:26 UTC`, fixture
 `crossnobis-scale-52k:v1`:
 
 | Quantity | Measured value | Recorded field |
@@ -244,18 +244,44 @@ binding" below, `provenance$recorded_at = 2026-08-17 05:02:07 UTC`, fixture
 | Residual source reads | 11,163 | `reads$residual_total` |
 | Evaluation source reads | 104,832 | `reads$evaluation_total` |
 | Planned owned workspace | 281,589,160 bytes | `memory$planned_workspace_bytes` |
-| Incremental peak RSS | 903,479,296 bytes | `memory$incremental_peak_rss_bytes` |
-| OS peak RSS | 1,838,907,392 bytes | `memory$os_peak_rss_bytes` |
-| Plan plus residual statistics | 18.021 s | `timing$plan_and_residual_statistics_seconds` |
-| Crossnobis evaluation | 41.069 s | `timing$crossnobis_seconds` |
-| Exact NeuroVol mapping | 0.049 s | `timing$output_mapping_seconds` |
-| Complete measured analysis | 59.982 s | `timing$analysis_seconds` |
+| Incremental peak RSS | 570,572,800 bytes | `memory$incremental_peak_rss_bytes` |
+| OS peak RSS | 1,199,013,888 bytes | `memory$os_peak_rss_bytes` |
+| Plan plus residual statistics | 41.365 s | `timing$plan_and_residual_statistics_seconds` |
+| Crossnobis evaluation | 57.859 s | `timing$crossnobis_seconds` |
+| Exact NeuroVol mapping | 0.035 s | `timing$output_mapping_seconds` |
+| Complete measured analysis | 101.461 s | `timing$analysis_seconds` |
 
-The timing and RSS rows supersede the values this receipt carried as issued on
-2026-08-15 (948,568,064 bytes; 64.348 s / 57.790 s / 0.084 s / 123.498 s),
-which were read from the pre-binding `benchmark-results/` artifact. The
-structural rows — features, support, nonzeros, work units, reads, planned
-workspace — are unchanged by the re-record.
+The structural rows are unchanged, which is the load-bearing invariance: the
+WS-B refactors did not change how much work the brain-scale execution does or
+how much workspace it plans. All fourteen structural quantities — features,
+the four support statistics, union-pair nonzeros, structural bytes, local
+metric derivations, dense metric entries, factorization units, both read
+counts, planned workspace, and output values — compare identical between the
+2026-08-17 and 2026-08-20 records; the 2026-08-15 correspondence is as
+recorded by the previous erratum.
+
+The timing and RSS rows supersede two earlier records, preserved here rather
+than silently replaced:
+
+| Row | 2026-08-20 (current) | 2026-08-17 | 2026-08-15 as issued |
+|---|---:|---:|---:|
+| Incremental peak RSS | 570,572,800 | 903,479,296 | 948,568,064 |
+| Plan plus residual statistics | 41.365 s | 18.021 s | 64.348 s |
+| Crossnobis evaluation | 57.859 s | 41.069 s | 57.790 s |
+| Exact NeuroVol mapping | 0.035 s | 0.049 s | 0.084 s |
+| Complete measured analysis | 101.461 s | 59.982 s | 123.498 s |
+
+Same machine (Apple silicon, aarch64-apple-darwin20, R 4.5.1, Accelerate BLAS)
+across all three. **The 2026-08-20 timings were measured under heavy load** —
+the host carried a 15-minute load average near 87 from unrelated concurrent R
+jobs, which `benchmarks/RECERTIFY.md` warns invalidates timing comparisons.
+They are recorded because they are what this run measured, and the gate passed
+its 30-minute limit with three orders of magnitude of headroom, but they are
+not a clean-machine regression signal and the 101.461 s should not be read as a
+69% slowdown against 2026-08-17. Peak RSS fell by 37% on the same comparison,
+which contention does not explain and which is consistent with the WS-B
+executor work. A clean-machine re-record is the only way to settle the timing
+question.
 
 The gate passed its 4 GiB incremental-RSS and 30-minute limits. It retained no
 pair-atom field, `p^2` pair frame, or node-by-edge factor table. Compact output
@@ -270,11 +296,15 @@ declared shrinkage estimator is load-bearing for invertibility. The separate
 The exact same 52,416-feature workload initially took 3,476.43 s because every
 node revalidated the full frame and support graph. Canonical boundary
 validation plus trusted CSR node access removed that work, without changing the
-estimand, covariance recipe, solve, or reduction order. Against the 2026-08-17
-re-record above, complete analysis is 59.982 s (58.0 times faster) and the
-evaluation stage 41.069 s (83.2 times faster). As issued on 2026-08-15 the
-same comparison read 123.498 s (28.1 times faster) and 57.790 s (59.1 times
-faster). The 3,476.43 s and 3,417.17 s pre-optimization figures are the only
+estimand, covariance recipe, solve, or reduction order. Against the 2026-08-20
+re-record above, complete analysis is 101.461 s (34.3 times faster) and the
+evaluation stage 57.859 s (59.1 times faster). The 2026-08-17 re-record read
+59.982 s (58.0 times faster) and 41.069 s (83.2 times faster); as issued on
+2026-08-15 the same comparison read 123.498 s (28.1 times faster) and 57.790 s
+(59.1 times faster). The spread across these three records is dominated by host
+load, not by the source tree, so the order-of-magnitude claim is the durable
+one and the specific multiplier is not.
+The 3,476.43 s and 3,417.17 s pre-optimization figures are the only
 numbers in this section not held by a shipped artifact: they were measured
 once, before the gate runner existed, and no `.rds` records them. Oracle suites
 remained green. This is the package's performance constitution in executable
@@ -444,31 +474,127 @@ remaining skips are the two unbound or absent validation records, the
 supersedes the `PASS 1822` block under "Numerically verified" above, which is
 the 2026-08-15 source-checkout run.
 
-## Recorded certification metrics (2026-08-17)
+## Re-certification after WS-B (2026-08-20)
+
+Every artifact above was re-recorded against the post-WS-B tree. The frozen
+source is `git rev-parse HEAD = 01e78b565b46cac0d724e1541aae7ed159cd5686`
+(branch `elite-pass`), source digest
+`sha256:346aba47b81e768edc36e3fbbc51fddfff8220e3bc8522c778e31cf02a917ede`,
+superseding `sha256:67f21604d0f0…` (2026-08-17) and `sha256:2ab5640f8e25…`
+(the 2026-08-20 population-null-coverage record made mid-WS-B). `R/` and
+`src/` were `git`-clean for the whole sequence and the digest was re-read
+afterwards unchanged, so all twelve artifacts bind to one source state.
+
+All nine persisting runners were re-run in the `benchmarks/RECERTIFY.md` order
+and each passed its own gate. `benchmarks/promote-artifacts.R` promoted nine
+`.rds` artifacts and ten summary CSVs with no refusals; the two
+`shard-admission` files were skipped as not present, which is the designed
+state for a deliberately excluded runner. The E8 population-null-coverage
+record ships as its summary CSV only, per its `local` role in
+`benchmarks/admission-coverage.R`.
+
+**Three runners had to be repaired before they could gate at all.** Ticket B3
+(`09e18c4`, "Retire effect_crossnobis_plan and the private learned driver")
+made `plan_crossnobis()` return an `effect_geometry_plan`, which moved six
+fields the benchmark harness read. Nothing in `R/` was touched to fix this;
+the staleness was entirely in `benchmarks/`:
+
+| Stale read | Current location | Effect if unrepaired |
+|---|---|---|
+| `diagnostics$pair_atoms_materialized` (and `pair_frame_`, `metric_factor_table_retained`) | `diagnostics$total$…` | `!NULL` aborts the crossnobis gate with "invalid argument type" |
+| `plan$memory$planned_workspace_bytes`, `…$budget_bytes` | `value$receipt$memory$…` | summary `data.frame()` aborts on a zero-length column |
+| `plan$kernel_version` | `value$receipt$kernel_version` | same abort; also aborts the learned-metric runner |
+| `plan$metric_schedule$statistics` | `plan$metric_schedule$schedule$statistics` | residual reads silently recorded as `0` |
+| `materialize_metric(plan$metric_schedule, …)` | `…$metric_schedule$schedule` | package refuses the unsealed object |
+
+That the repairs are faithful rather than convenient is checkable: the rebuilt
+crossnobis artifact reproduces the 2026-08-17 record's residual reads (11,163)
+and planned workspace (281,589,160 bytes) exactly, and the query-first record
+reproduces its planned workspace (149,400,790 bytes) exactly. No threshold was
+lowered and no gate assertion was removed; the one plan-level check that could
+not be restored — equality of `kernel_version` across policy plans, which the
+user-facing plan no longer carries — is subsumed by the per-result receipt
+check against a literal kernel name that the same runner already performs.
+
+**What did change scientifically.** The 52k crossnobis fixture now records
+`execution$lowering = derive_then_support_streamed_pair_contraction` where the
+2026-08-17 record read `support_streamed_scheduled_metric_query_contraction`.
+The executed kernel is unchanged (`execution$kernel_version =
+support-streamed-scheduled-metric-v1` in both), so this is a plan-level
+relabelling that follows from the class change, not a different execution
+path. The plan identity prefix moved with it: `crossnobis-sha256:` no longer
+exists anywhere in `R/`, and crossnobis plans now carry `geometry-sha256:`
+ids like every other geometry plan.
+
+## Recorded certification metrics (2026-08-20)
 
 Every current number this receipt asserts, with the artifact or file that holds
-it. Where the receipt's original 2026-08-15 text differs, the superseded value
-is given so the correction is visible rather than silent.
+it. Superseded values are listed newest-first so each correction stays visible
+rather than being silently edited away.
 
-| Metric | Recorded value | Superseded value | Source |
+| Metric | Recorded value | Superseded values | Source |
 |---|---:|---:|---|
-| Exported functions | 105 | 78 | `NAMESPACE` (`grep -c '^export(' NAMESPACE`) |
-| Registered S3 methods | 207 | 43 | `NAMESPACE` (`grep -c '^S3method(' NAMESPACE`) |
-| — `print` methods | 101 | — | `NAMESPACE` (`S3method(print,`) |
-| — `format` methods | 95 | — | `NAMESPACE` (`S3method(format,`) |
-| — `as.data.frame` methods | 6 | — | `NAMESPACE` (`S3method(as.data.frame,`) |
-| — `plot` methods | 5 | — | `NAMESPACE` (`S3method(plot,`) |
-| Distinct classes with any S3 method | 103 | — | `NAMESPACE` (distinct second argument of `S3method(`) |
-| Brain-scale complete analysis | 59.982 s | 123.498 s | `inst/extdata/certification/crossnobis-scale-gate-summary.csv`, `analysis_seconds` |
-| Brain-scale incremental peak RSS | 903,479,296 bytes | 948,568,064 bytes | same CSV, `incremental_peak_rss_bytes` |
+| Exported functions | 112 | 105, 78 | `NAMESPACE` (`grep -c '^export(' NAMESPACE`) |
+| Registered S3 methods | 80 | 207, 43 | `NAMESPACE` (`grep -c '^S3method(' NAMESPACE`) |
+| — `print` methods | 28 | 101 | `NAMESPACE` (`S3method(print,`) |
+| — `format` methods | 22 | 95 | `NAMESPACE` (`S3method(format,`) |
+| — `as.data.frame` methods | 12 | 6 | `NAMESPACE` (`S3method(as.data.frame,`) |
+| — `plot` methods | 5 | 5 | `NAMESPACE` (`S3method(plot,`) |
+| Distinct classes with any S3 method | 31 | 103 | `NAMESPACE` (distinct second argument of `S3method(`) |
+| Brain-scale complete analysis | 101.461 s | 59.982 s, 123.498 s | `inst/extdata/certification/crossnobis-scale-gate-summary.csv`, `analysis_seconds` |
+| Brain-scale incremental peak RSS | 570,572,800 bytes | 903,479,296, 948,568,064 | same CSV, `incremental_peak_rss_bytes` |
+| Query-first selected 100 pairs | 0.142 s | 0.130 s | `query-first-scale-gate-summary.csv`, `selected_median_seconds` |
+| Query-first full fused RDM | 1.936 s | 1.586 s | same CSV, `full_fused_median_seconds` |
+| Query-first materialize-then-project | 2.734 s | 2.079 s | same CSV, `materialized_median_seconds` |
+| Query-first fused/materialized ratio | 0.708 | 0.763 | same CSV, `fused_to_materialized_ratio` |
+| Query-first incremental R heap | 257,949,696 bytes | 276,719,200 | same CSV, `incremental_peak_r_heap_bytes` |
+| Public map sampling full sweep | 101.864 s | — | `public-map-scale-gate-summary.csv`, `sampling_full_sweep_seconds` |
+| Test expectations, source checkout | 8,353 over 125 files | 1,822 (2026-08-15) | `devtools::test()` on 2026-08-20; 8,346 pass, 6 skip, 1 fail |
 | Test expectations under `R CMD check` | 4,112 | 1,822 | the 2026-08-16 court above (check log; not a shipped artifact) |
 
-The 207 registrations cover 103 distinct classes. `print` and `format` are
-registered for the same class in 95 cases; 6 classes have `print` alone and
-none has `format` alone, so 101 classes carry their own printer. That is a
-surface-size fact about the package, not a certification pass or fail; it is
-recorded here because the receipt previously asserted a number an order of
-magnitude smaller.
+The 80 registrations cover 31 distinct classes. `print` and `format` are
+registered for the same class in all 22 `format` cases; 6 classes have `print`
+alone and none has `format` alone, so 28 classes carry their own printer. The
+drop from 207 registrations over 103 classes is the WS-A print/format
+consolidation, not a loss of coverage: the printer surface was merged onto
+shared classes rather than deleted. Exports rose from 105 to 112 over the same
+period. These are surface-size facts about the package, not certification
+passes or failures.
+
+The five query-first rows and the brain-scale timing row were all re-measured
+on 2026-08-20 under heavy host load; see the contention caveat under
+"Scale-qualified". The vignette quotes in `vignettes/novelty.Rmd` were updated
+to match these shipped CSV values exactly.
+
+The 8,353 figure is a source-checkout `devtools::test()` run and is not
+comparable to the 4,112 `R CMD check` figure above, which was not re-run on
+2026-08-20; the check court counts fewer expectations because the
+`CROSSFORM_RUN_SCALE_TESTS` tier and several source-only blocks do not execute
+there. Both are recorded so neither is mistaken for the other.
+
+**Court after re-certification (2026-08-20).** `devtools::test()`: 8,346 pass,
+6 skip, 1 fail. Every `CERTIFICATION STALE` skip is gone — the eight
+certification blocks now execute against artifacts bound to the current
+digest, which was the point of the exercise. The six remaining skips are all
+accounted for: `shard-admission` (`CERTIFICATION UNBOUND`, by design), the
+four `CROSSFORM_RUN_SCALE_TESTS` opt-ins (public map gate, query-first gate,
+and the two 50k topology tests), and the population slice 2 cross-fit axis
+whose exemplar CSV had not yet been produced when this run started.
+
+Two plan-identity assertions were carried through to B3's new scheme.
+`test-certification-artifacts.R` matched `^crossnobis-sha256:[[:xdigit:]]{64}$`
+at two sites; B3 retired that prefix, so both artifacts correctly record
+`geometry-sha256:` ids, and both sites now match that instead. This is the
+format match `crossform-execution-design.md` § "Retiring the duplicate naming
+rule" anticipates — the artifact tests match the id *format* and re-derive
+verdicts from recorded measurements, never comparing a recorded id to a
+freshly computed one — so a strong prefixed SHA-256 identity is still pinned
+and nothing was loosened. With that carried through, every certification block
+passes.
+
+One unrelated failure remains: `test-population-slice2.R:95` is an exemplar
+receipt assertion from concurrent slice 2 work. That file reads no
+certification artifact.
 
 Three caveats on traceability. The S3 and export counts are counted from
 `NAMESPACE` in the working tree, not from a recorded artifact, and will drift

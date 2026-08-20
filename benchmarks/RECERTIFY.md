@@ -54,10 +54,17 @@ Install from an out-of-tree copy so that `R CMD INSTALL` does not disturb the
 ```sh
 LIB=$(mktemp -d)/lib && mkdir -p "$LIB"
 SRC=$(mktemp -d)
-rsync -a --exclude '.git' --exclude 'benchmark-results' \
+rsync -a --exclude '.git' --exclude 'exemplars' --exclude 'benchmark-results' \
+  --exclude 'dist' --exclude 'doc' --exclude '*.tar.gz' \
   --exclude 'src/*.o' --exclude 'src/*.so' ./ "$SRC/crossform/"
 (cd "$SRC" && R CMD INSTALL --library="$LIB" --no-docs crossform)
 ```
+
+**Exclude `exemplars/`.** It holds the downloaded Haxby and population
+datasets and is now about 11 GB; without the exclusion this copy takes many
+minutes and fills the temp volume before `R CMD INSTALL` ever starts. The
+excluded directories are build products and data, none of which the install
+needs — with them out, the copy is roughly 9 MB and finishes instantly.
 
 ## 2. Run every persisting runner, in this order
 
@@ -98,6 +105,35 @@ Notes that cost real time to rediscover:
 - Each runner exits nonzero when its gate fails. **Do not lower a threshold to
   make a gate pass** — that is the one move that makes the whole apparatus
   worthless. Record the failure and fix the code.
+- **A runner that aborts is usually harness drift, not a gate failure.** The
+  runners reach into result and plan internals, and a refactor under `R/` can
+  move a field without any test noticing, because the only reader is the
+  runner. The 2026-08-20 re-certification hit five such reads at once (ticket
+  B3 turned `plan_crossnobis()` into an `effect_geometry_plan`). The
+  signatures to recognise:
+  - `Error in !result$work$… : invalid argument type` — the field read as
+    `NULL`; `!NULL` is an error in R 4.5, not `logical(0)`.
+  - `arguments imply differing number of rows: 1, 0` from the summary
+    `data.frame()` — some recorded field is `NULL`.
+  - `values must be length 1, but FUN(X[[1]]) result is length 0` from a
+    `vapply` over plans — a plan-level field is gone.
+  - A package-side refusal such as "Frozen metric-schedule fields are missing
+    or noncanonical" — the runner passed a wrapper where a sealed object is
+    wanted (`metric_schedule` vs its inner `metric_schedule$schedule`).
+
+  Repair the read, never the assertion, and prove the repair by checking that
+  a structural number the refactor should not have touched still reproduces
+  the previous record exactly — residual reads and planned workspace bytes are
+  the two that pinned the 2026-08-20 run.
+- **Silent `NULL`s are the quieter version of the same failure.** A field that
+  moves but is never dereferenced records `NULL` into the shipped artifact and
+  nothing fails. After promoting, walk each artifact for zero-length leaves.
+  Known-legitimate ones as of 2026-08-20: the four memory scenarios'
+  `plan$budget_bytes` and `plan$measured_*`/`*_rss_bytes` (no budget is set for
+  those scenarios), the query-first `identity$fused_lowering` and
+  `fused_materialization` (the additive-query-fused view does not populate
+  `execution_plan`), and everything under the unbound `shard-admission.rds`.
+  Anything else is drift.
 - `run-shard-admission.R` is deliberately excluded. It needs an installed
   `shard` at a pinned version in an isolated library, and its recorded
   artifact carries no provenance at all, so its test always skips

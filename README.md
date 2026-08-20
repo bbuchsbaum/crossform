@@ -529,8 +529,8 @@ stimulus categories over twelve runs, 577 ventral-temporal searchlights),
 `rMVPA` to `8.88e-16` on the matched crossvalidated squared-Euclidean/crossnobis
 estimand; refitting the raw responses to retain the error channel reproduces
 the point RDM to `4.44e-16`. At 100 conditions over 1,080 searchlights, one
-hundred selected pairs run in 0.13 s and the fused full RDM in 1.59 s against
-2.08 s for materialize-then-project — a ratio of 0.76, with a `4.4e-16`
+hundred selected pairs run in 0.14 s and the fused full RDM in 1.94 s against
+2.73 s for materialize-then-project — a ratio of 0.71, with a `4.4e-16`
 oracle (the materialized comparator is itself fast now that the packed-form
 kernel is native, so the query-first advantage is smaller than it was).
 

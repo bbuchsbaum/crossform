@@ -116,8 +116,12 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
   # stays out of the execution path this gate qualifies.
   pair_topology <- crossform:::.support_index_materialize_pair_pattern(index)
   support_sizes <- diff(index$ptr)
+  # Ticket B3 retired `effect_crossnobis_plan`: `plan_crossnobis()` now returns
+  # an `effect_geometry_plan`, and the frozen residual pair statistics moved
+  # one level down, under `metric_schedule$schedule`.
+  residual_statistics <- plan$metric_schedule$schedule$statistics
   residual_reads <- vapply(
-    plan$metric_schedule$statistics$execution$atomic,
+    residual_statistics$execution$atomic,
     `[[`, integer(1), "residual_reads"
   )
   evaluation_reads <- value$metadata$source_session$read_count
@@ -160,12 +164,17 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
       factorization_units =
         as.double(index$cost$one_dense_factorization_pass_units *
           nrow(over)),
+      # `metadata$diagnostics` is split into a `total` and a `coherent` arm by
+      # the execution driver (R/execution-driver.R); the structural flags live
+      # on the total arm. Reading the pre-split flat path yields NULL, and the
+      # gate's `!result$work$pair_atoms_materialized` then errors with
+      # "invalid argument type" instead of asserting anything.
       pair_atoms_materialized =
-        value$metadata$diagnostics$pair_atoms_materialized,
+        value$metadata$diagnostics$total$pair_atoms_materialized,
       pair_frame_materialized =
-        value$metadata$diagnostics$pair_frame_materialized,
+        value$metadata$diagnostics$total$pair_frame_materialized,
       factor_table_retained =
-        value$metadata$diagnostics$metric_factor_table_retained
+        value$metadata$diagnostics$total$metric_factor_table_retained
     ),
     reads = list(
       residual_by_partition = residual_reads,
@@ -185,11 +194,13 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
     memory = list(
       baseline_rss_bytes = baseline_rss,
       rss_after_bytes = rss_after,
-      planned_workspace_bytes = plan$memory$planned_workspace_bytes,
-      budget_bytes = plan$memory$budget_bytes,
+      # The memory plan is a property of the executed result, not of the
+      # geometry plan: `plan$memory` no longer exists after B3.
+      planned_workspace_bytes = value$receipt$memory$planned_workspace_bytes,
+      budget_bytes = value$receipt$memory$budget_bytes,
       frame_object_bytes = as.double(utils::object.size(frame)),
       residual_statistics_object_bytes = as.double(utils::object.size(
-        plan$metric_schedule$statistics
+        residual_statistics
       )),
       result_object_bytes = as.double(utils::object.size(value)),
       persistent_factor_table_bytes = 0
@@ -203,7 +214,9 @@ run_crossnobis_scale_gate <- function(repo, result_path, ready_path,
     ),
     execution = list(
       lowering = plan$lowering,
-      kernel_version = plan$kernel_version,
+      # The kernel version is stamped by the executor onto the receipt; the
+      # geometry plan does not carry one.
+      kernel_version = value$receipt$kernel_version,
       scientific_plan_id = plan$scientific_plan_id,
       completion_status = value$receipt$completion_status
     ),

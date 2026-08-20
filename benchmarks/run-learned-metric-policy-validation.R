@@ -165,11 +165,14 @@ run_replication <- function(regime, replication) {
       residual_workspace_bytes = 64 * 1024^2
     )
   })
+  # Ticket B3 retired `effect_crossnobis_plan`: the user-facing geometry plan
+  # no longer carries `kernel_version`, and the frozen residual statistics
+  # moved one level down, under `metric_schedule$schedule`. The kernel
+  # identity is still pinned below, per evaluated result and against a
+  # literal, which subsumes the plan-level equality dropped here.
   if (length(unique(vapply(plans, `[[`, character(1), "lowering"))) != 1L ||
-      length(unique(vapply(plans, `[[`, character(1),
-        "kernel_version"))) != 1L ||
       length(unique(vapply(plans, function(plan) {
-        plan$metric_schedule$statistics$signature
+        plan$metric_schedule$schedule$statistics$signature
       }, character(1)))) != 1L ||
       length(unique(vapply(plans, function(plan) {
         plan$metric_schedule$signature
@@ -197,8 +200,10 @@ run_replication <- function(regime, replication) {
         numeric(length(support))
       }
       sum(vapply(seq_len(nrow(over)), function(edge) {
+        # `materialize_metric()` takes the sealed
+        # `effect_frozen_metric_schedule`, which is the inner `schedule`.
         metric <- crossform:::materialize_metric(
-          plan$metric_schedule, selected_node, edge
+          plan$metric_schedule$schedule, selected_node, edge
         )
         over$weight[[edge]] * drop(delta %*% metric$value %*% delta)
       }, numeric(1)))

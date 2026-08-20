@@ -16,8 +16,10 @@ test_that("recorded brain-scale crossnobis evidence passes its gate", {
   expect_identical(artifact$fixture$id, "crossnobis-scale-52k:v1")
   expect_gte(artifact$fixture$features, 50000L)
   expect_identical(artifact$execution$completion_status, "complete")
+  # Ticket B3 (09e18c4) retired `effect_crossnobis_plan`, so crossnobis plans
+  # now carry the `geometry-sha256:` identity every geometry plan carries.
   expect_match(artifact$execution$scientific_plan_id,
-    "^crossnobis-sha256:[[:xdigit:]]{64}$")
+    "^geometry-sha256:[[:xdigit:]]{64}$")
 
   # Re-derive the recorded verdicts from the recorded measurements.
   expect_lte(
@@ -178,6 +180,8 @@ test_that("the recorded learned-metric policy validation is equivalence-shaped",
   # Two regimes, two residual policies, and two estimands per replication.
   expect_identical(nrow(artifact$raw),
     8L * as.integer(artifact$contract$replications))
-  expect_true(all(grepl("^crossnobis-sha256:[[:xdigit:]]{64}$",
+  # Ticket B3 (09e18c4) retired `effect_crossnobis_plan`; the identity scheme
+  # is `geometry-sha256:` for these plans now.
+  expect_true(all(grepl("^geometry-sha256:[[:xdigit:]]{64}$",
     artifact$raw$scientific_plan_id)))
 })

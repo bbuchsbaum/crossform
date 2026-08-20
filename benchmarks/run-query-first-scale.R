@@ -270,8 +270,15 @@ run_query_first_worker <- function(repo, result_path, ready_path,
       full_view_id = warm_full$receipt$scientific_plan_id,
       route_identity_stable = route_identity_stable,
       fused_kernel = fused_receipt$kernel_version,
-      fused_lowering = fused_receipt$execution_plan$lowering,
-      fused_materialization = fused_receipt$execution_plan$materialization,
+      # `execution_plan` is a metadata block, not a receipt field, so the
+      # former `fused_receipt$execution_plan$...` read could never resolve.
+      # Known gap: the additive-query-fused view does not populate
+      # `execution_plan`, so both fields still record NULL. They have been
+      # NULL in every shipped artifact to date and nothing gates on them;
+      # `fused_kernel` above is the binding route identity.
+      fused_lowering = warm_full$metadata$execution_plan$lowering,
+      fused_materialization =
+        warm_full$metadata$execution_plan$materialization,
       planned_workspace_bytes =
         fused_receipt$memory$planned_workspace_bytes
     ),
