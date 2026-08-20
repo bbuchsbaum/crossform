@@ -1,0 +1,10 @@
+key,value
+python,3.12.11
+rsatoolbox,0.3.2
+numpy,2.5.2
+scipy,1.18.0
+prec_from_residuals_max_abs_diff,2.3092638912203256e-14
+prec_from_residuals_rel_diff,3.60457138835135e-15
+loo_vs_allpairs_max_abs_diff,3.3306690738754696e-16
+cv_scheme,leave_one_fold_out
+distance_normalization,divide_by_n_channels

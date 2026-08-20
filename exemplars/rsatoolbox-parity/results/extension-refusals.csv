@@ -1,0 +1,4 @@
+"label","refused","message"
+"sampling covariance target is never inferred",TRUE,"Choose `target = ""plugin""` for the partition-mean signal policy or `target = ""null""` for the fixed-zero null; the signal-dependent covariance target is not inferred."
+"correlation-style normalization of the RDM",TRUE,"`rdm()` reports signed squared distances and will not apply correlation-style normalization: crossvalidated diagonal estimates can be zero or negative, so dividing by them is not conventional `1 - Pearson` distance and would silently change the estimand. Conventional correlation distance requires a guaranteed positive-semidefinite self form and its own named view; see the correlation-distance policy vignette."
+"crossnobis without a declared noise-precision metric",TRUE,"Crossnobis is a Mahalanobis reading, so it requires an explicit noise-precision metric; this plan carries the implicit identity metric, which is Euclidean and declares nothing about the noise."
