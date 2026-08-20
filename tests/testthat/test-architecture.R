@@ -76,6 +76,25 @@ layer_of <- c(
 # has to be argued for on its own terms.
 allowed_upward <- character()
 
+# The largest strongly connected component the file call graph may contain.
+#
+# The value is 1: every component is a single file, i.e. `R/` is acyclic and
+# every file can be read, changed, and reasoned about without holding another
+# one open. Layer 2 was made acyclic in commit 9c8be27 ("Record the layer-2
+# value order and untangle the nine-file SCC"), which was the last cycle in
+# the package; the whole graph has been acyclic since.
+#
+# This is a ratchet, not a threshold. Lowering it is impossible (1 is the
+# floor -- a component is at least the file itself). Raising it means
+# accepting a cycle, and the only honest way to do that is in a commit that
+# says which files are in it and what would remove it, the way
+# `allowed_upward` above carries its debt. Prefer the alternative: cycles in
+# this package have every time been one edge that pointed the wrong way, and
+# `Rscript benchmarks/call-graph-scc.R` prints the component so you can find
+# it. The layering test above catches upward edges *across* layers; this one
+# catches the sideways loop inside a layer that the layering permits.
+scc_ratchet <- 1L
+
 describe_edges <- function(rows) {
   if (!nrow(rows)) return(character())
   sort(paste(rows$from, "->", rows$to, ":", rows$symbol))
@@ -117,6 +136,21 @@ internal_call_graph <- function(dir) {
       }
       return(invisible())
     }
+    ## `x$field` and `x@slot` are not calls to `field` or `slot`: the
+    ## right-hand symbol names a component of `x`, so descend into the
+    ## left-hand side only. Without this rule a record field that shares a
+    ## name with a function defined in another file -- and in a package whose
+    ## values are named after the things they hold, `x$relation`,
+    ## `plan$pairing`, `x$task$left_relation$effect_space` all are -- records
+    ## a call the file never makes. There were 44 such phantom edges, and
+    ## they were not harmless: they inflated the file graph by 21 file-pairs
+    ## and made files look mutually dependent when only their vocabulary
+    ## overlapped.
+    if (is.call(x) && length(x) == 3L && is.name(x[[3L]]) &&
+        (identical(x[[1L]], quote(`$`)) || identical(x[[1L]], quote(`@`)))) {
+      collect(x[[2L]], out)
+      return(invisible())
+    }
     if (is.call(x) || is.pairlist(x)) {
       for (i in seq_along(x)) {
         el <- x[[i]]
@@ -140,6 +174,45 @@ internal_call_graph <- function(dir) {
   }
   .graph_cache$edges <- do.call(rbind, rows)
   .graph_cache$edges
+}
+
+# Tarjan's strongly connected components, the same implementation
+# benchmarks/call-graph-scc.R runs, so a failure here and the benchmark's
+# output name the same component. Recursion depth is bounded by the file
+# count, which is under a hundred.
+tarjan_scc <- function(nodes, edges) {
+  adj <- split(edges$to, factor(edges$from, levels = nodes))
+  index <- setNames(rep(NA_integer_, length(nodes)), nodes)
+  low <- index
+  on_stack <- setNames(rep(FALSE, length(nodes)), nodes)
+  stack <- character()
+  counter <- 0L
+  comps <- list()
+  strongconnect <- function(v) {
+    counter <<- counter + 1L
+    index[[v]] <<- counter
+    low[[v]] <<- counter
+    stack <<- c(stack, v)
+    on_stack[[v]] <<- TRUE
+    for (w in unique(adj[[v]])) {
+      if (is.na(index[[w]])) {
+        strongconnect(w)
+        low[[v]] <<- min(low[[v]], low[[w]])
+      } else if (on_stack[[w]]) {
+        low[[v]] <<- min(low[[v]], index[[w]])
+      }
+    }
+    if (low[[v]] == index[[v]]) {
+      pos <- match(v, stack)
+      comp <- stack[pos:length(stack)]
+      stack <<- stack[seq_len(pos - 1L)]
+      on_stack[comp] <<- FALSE
+      comps[[length(comps) + 1L]] <<- sort(comp)
+    }
+    invisible()
+  }
+  for (v in nodes) if (is.na(index[[v]])) strongconnect(v)
+  comps
 }
 
 test_that("every source file has a declared layer", {
@@ -170,6 +243,43 @@ test_that("no file calls upward through the layering, outside the register", {
   expect_identical(setdiff(observed, allowed_upward), character())
   # No stale register entry: the debt list must shrink honestly.
   expect_identical(setdiff(allowed_upward, observed), character())
+})
+
+test_that("the file call graph has no component larger than the ratchet", {
+  # The layering test is a statement about direction; this one is a statement
+  # about shape, and it is the stronger of the two. A file may call sideways
+  # within its layer without violating the layering, and two files that call
+  # each other sideways are one unit of code wearing two filenames: neither
+  # can be read alone, neither can be changed alone, and the pair will grow
+  # until someone breaks it. The specific cycles this package has had --
+  # layer 2's nine-file tangle, the receipt's one edge back into it, the
+  # evidence-sampling triple -- each have a test of their own above, because
+  # each has a story worth telling. This test is the general case: it does
+  # not know which cycle to expect, only that there is to be none.
+  dir <- find_source_dir()
+  skip_if(is.null(dir), "package sources are not available under this runner")
+  edges <- internal_call_graph(dir)
+  # Isolated files are nodes too -- a file nothing calls and that calls
+  # nothing must still appear, or the graph the components are computed over
+  # is not the package.
+  nodes <- sort(unique(c(edges$from, edges$to,
+    basename(list.files(dir, pattern = "[.]R$")))))
+  comps <- tarjan_scc(nodes, edges)
+
+  # Name the members on failure. A bare size tells you a cycle exists;
+  # the members tell you where to look, and `SCC_FOCUS=<file> Rscript
+  # benchmarks/call-graph-scc.R` then prints the edges that hold it shut.
+  offending <- comps[lengths(comps) > scc_ratchet]
+  described <- if (length(offending)) {
+    sort(vapply(offending, function(cm) {
+      paste0("SCC (", length(cm), "): ", paste(cm, collapse = " "))
+    }, character(1)))
+  } else {
+    character()
+  }
+
+  expect_identical(described, character())
+  expect_lte(max(lengths(comps)), scc_ratchet)
 })
 
 test_that("the compute core never calls into results, views, or printing", {

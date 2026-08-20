@@ -7,10 +7,15 @@
 ##
 ## The extraction rule is the one tests/testthat/test-architecture.R uses:
 ## top-level `name <- function(...)` definitions, then every symbol a file
-## references that resolves to a definition in another file. `SCC_FOCUS`
+## references that resolves to a definition in another file, skipping the
+## right-hand symbol of `$` and `@` (a field is not a call). `SCC_FOCUS`
 ## names the file whose edges into and out of the largest component are
 ## printed (default `receipt.R`, the file ticket C1 removed from it).
 ## Components are found with Tarjan.
+##
+## The invariant the test enforces is that the largest component has size 1,
+## i.e. the file graph is acyclic; this script is how you see *why* when it
+## does not.
 
 args <- commandArgs(trailingOnly = TRUE)
 dir <- if (length(args)) args[[1L]] else "R"
@@ -35,6 +40,16 @@ internal_call_graph <- function(dir) {
       if (nzchar(n) && exists(n, envir = defs, inherits = FALSE)) {
         assign(n, TRUE, envir = out)
       }
+      return(invisible())
+    }
+    ## `x$field` and `x@slot` are not calls to `field` or `slot`: the
+    ## right-hand symbol names a component of `x`. Descend into the left-hand
+    ## side only, or a field that happens to share a name with a function
+    ## defined elsewhere records a call the file never makes -- 44 such
+    ## phantom edges existed package-wide before this rule.
+    if (is.call(x) && length(x) == 3L && is.name(x[[3L]]) &&
+        (identical(x[[1L]], quote(`$`)) || identical(x[[1L]], quote(`@`)))) {
+      collect(x[[2L]], out)
       return(invisible())
     }
     if (is.call(x) || is.pairlist(x)) {
