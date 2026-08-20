@@ -4,16 +4,27 @@
 \alias{searchlights}
 \title{Specify Euclidean searchlights}
 \usage{
-searchlights(radius, normalization = "local")
+searchlights(radius, normalization = "local", weights = NULL)
 }
 \arguments{
-\item{radius}{Positive radius in domain coordinate units.}
+\item{radius}{Positive radius in domain coordinate units. Several radii
+request a multiscale family, one member frame per radius.}
 
-\item{normalization}{Explicit frame normalization.}
+\item{normalization}{Explicit frame normalization. Several radii admit only
+\code{"conservative"}.}
+
+\item{weights}{Family weights for a multiscale request: one positive weight
+per radius, summing to one, matched to the radii in order or by the
+\code{"radius-<r>"} names. \code{NULL} (the default) weights the radii equally. A
+single radius is one frame with no budget to divide, so \code{weights} is
+refused there rather than ignored.}
 }
 \value{
-An \code{effect_frame_spec} with \verb{$kind} \code{"searchlights"}, the requested
-\verb{$radius}, and \verb{$normalization}. Pass it to \code{\link[=compile_frame]{compile_frame()}}.
+An \code{effect_frame_spec}. With one radius its \verb{$kind} is
+\code{"searchlights"} and it carries the requested \verb{$radius} and
+\verb{$normalization}, exactly as before. With several its \verb{$kind} is
+\code{"searchlight_family"} and it carries the \verb{$radius} vector and the
+\verb{$weights} that will be applied. Pass either to \code{\link[=compile_frame]{compile_frame()}}.
 }
 \description{
 The default \code{"local"} normalization matches the conventional
@@ -23,6 +34,37 @@ be summed into a whole-brain quantity. Request
 \code{normalization = "conservative"} for exact local-to-global accounting of
 the \code{total} component, and check any frame with \code{\link[=frame_conservation]{frame_conservation()}}.
 }
+\details{
+Several radii request one conservative frame per radius, stacked into a
+multiscale \code{\link[=frame_family]{frame_family()}}; see \emph{Multiscale families}.
+}
+\section{Multiscale families}{
+
+\code{compile_frame(searchlights(c(4, 8, 12), "conservative"), domain)} returns
+a \code{\link[=frame_family]{frame_family()}}: one conservative member frame per radius, named
+\code{"radius-4"}, \code{"radius-8"}, \code{"radius-12"}, stacked with family weights
+\code{weights} (equal by default). Every row of the compiled frame's \verb{$index}
+carries its own \code{family}, \code{scale} (the radius it came from), \code{center}, and
+\code{alpha}, so a result can be grouped by scale after the fact.
+
+Only \code{normalization = "conservative"} admits several radii. Locally
+normalized values are not contributions to any total, so a family of them
+has no budget for \code{weights} to divide and the per-scale law below is
+undefined (\code{design/conservative-geometry-contract.md} section 3.1).
+
+\strong{What a multiscale family can and cannot show.} Because every member is
+column normalized and the weights sum to one, the family conserves block by
+block: the \code{total} component summed over the rows of scale \code{s} is exactly
+\eqn{\alpha_s G_\Omega}{alpha_s * G_Omega}, the scale's weight times the
+whole-brain total, whatever the data say. A panel of \emph{total energy by
+scale} is therefore a plot of the analyst's own \code{weights} vector and is not
+a finding. What does vary informatively with scale is the split of each
+block's fixed budget into coherent and configuration parts: the coherent
+share is invariant to \code{alpha} and is the scale-resolved quantity a
+multiscale family exists to report
+(\code{design/conservative-geometry-contract.md} sections 3.1 and 3.2).
+}
+
 \examples{
 grid <- as.matrix(expand.grid(x = 1:4, y = 1:4))
 domain <- abstract_domain(
@@ -41,10 +83,22 @@ frame_conservation(local)$conserved
 frame_conservation(
   compile_frame(searchlights(1.5, normalization = "conservative"), domain)
 )$conserved
+
+# Several radii request a multiscale family instead: one conservative
+# member frame per radius, each row labelled with the scale it came from.
+family <- compile_frame(
+  searchlights(c(1.5, 2.5), "conservative", weights = c(0.25, 0.75)), domain
+)
+unique(family$index[, c("family", "scale", "alpha")])
+
+# Each block carries exactly its weight, whatever the data: per-scale
+# energy is the `weights` vector, so only the coherent share is a finding.
+frame_conservation(family)$members
 }
 \seealso{
 \code{\link[=compile_frame]{compile_frame()}}, \code{\link[=frame_conservation]{frame_conservation()}} to check the
-normalization you chose, and \code{\link[=neuroim2_searchlights]{neuroim2_searchlights()}} for neighborhoods
+normalization you chose, \code{\link[=frame_family]{frame_family()}} for the family a multiscale
+request compiles to, and \code{\link[=neuroim2_searchlights]{neuroim2_searchlights()}} for neighborhoods
 built by neuroim2 instead.
 
 Other neural domains and frames: 

@@ -124,7 +124,12 @@ test_that("frame and domain errors report the value that was supplied", {
     class = "effect_input_error")
 
   expect_error(searchlights(-2), "received `-2`", class = "effect_input_error")
-  expect_error(searchlights(c(3, 4)), "received a numeric vector of length 2",
+  # Several radii are a multiscale request since ticket D3, so the vector that
+  # still has to be refused is one holding a radius that is not a radius; the
+  # well-formed vector is refused for the reason it is now refused for.
+  expect_error(searchlights(c(3, -4), "conservative"),
+    "received a numeric vector of length 2", class = "effect_input_error")
+  expect_error(searchlights(c(3, 4)), "2 radii asked for \"local\"",
     class = "effect_input_error")
   expect_error(compile_frame(regions(c("a", "b")), fixture$domain),
     "supplied 2 labels but the domain has 6 features",

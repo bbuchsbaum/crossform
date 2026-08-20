@@ -95,8 +95,17 @@ adapter_exported_calls <- list(
     "coefficient_parameterization", "condition_space", "design_model"
   ),
   "adapter-fmrireg.R" = c("effect_extractor", "relation", "relation_fit"),
+  # `searchlights()` joined this list with ticket D3: a multiscale
+  # `neuroim2_searchlights()` request delegates its refusals to the
+  # constructor that owns the multiscale rules, so both spatial providers
+  # refuse the same things in the same words. That route also calls
+  # `frame_family()`, which the two purity checks above do see and this
+  # heads-mode count does not, because `do.call()` makes it an argument rather
+  # than a call head. Both are exported, so the protocol holds either way;
+  # only the published count reads the narrower of the two.
   "neuroim2-adapter.R" = c(
-    "abstract_domain", "additive_frame", "neuroim2_volume_domain"
+    "abstract_domain", "additive_frame", "neuroim2_volume_domain",
+    "searchlights"
   )
 )
 
@@ -250,8 +259,9 @@ test_that("adapters use only layer-1 internals plus the exported surface", {
 
 test_that("the ledger's record of what an adapter calls is still true", {
   # design/api-tiers.md publishes "about fourteen crossform functions between
-  # them (twelve after decision 1), of which [five] are developer-tier". That
-  # number is a claim about this tree, so it is checked against this tree.
+  # them (twelve after decision 1, thirteen after ticket D3), of which [five]
+  # are developer-tier". That number is a claim about this tree, so it is
+  # checked against this tree.
   dir <- protocol_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   parsed <- protocol_parsed_sources(dir)
@@ -265,7 +275,7 @@ test_that("the ledger's record of what an adapter calls is still true", {
   names(observed) <- adapter_files
 
   expect_identical(observed, adapter_exported_calls)
-  expect_identical(length(unique(unlist(observed, use.names = FALSE))), 12L)
+  expect_identical(length(unique(unlist(observed, use.names = FALSE))), 13L)
 
   # Of those, exactly two are developer-tier: the design-in and
   # error-channel-in seams. The other three sanctioned entry points are

@@ -44,13 +44,51 @@ voxelwise <- function(normalization = "conservative") {
 #' `normalization = "conservative"` for exact local-to-global accounting of
 #' the `total` component, and check any frame with [frame_conservation()].
 #'
-#' @param radius Positive radius in domain coordinate units.
-#' @param normalization Explicit frame normalization.
-#' @return An `effect_frame_spec` with `$kind` `"searchlights"`, the requested
-#'   `$radius`, and `$normalization`. Pass it to [compile_frame()].
+#' Several radii request one conservative frame per radius, stacked into a
+#' multiscale [frame_family()]; see *Multiscale families*.
+#'
+#' @param radius Positive radius in domain coordinate units. Several radii
+#'   request a multiscale family, one member frame per radius.
+#' @param normalization Explicit frame normalization. Several radii admit only
+#'   `"conservative"`.
+#' @param weights Family weights for a multiscale request: one positive weight
+#'   per radius, summing to one, matched to the radii in order or by the
+#'   `"radius-<r>"` names. `NULL` (the default) weights the radii equally. A
+#'   single radius is one frame with no budget to divide, so `weights` is
+#'   refused there rather than ignored.
+#' @return An `effect_frame_spec`. With one radius its `$kind` is
+#'   `"searchlights"` and it carries the requested `$radius` and
+#'   `$normalization`, exactly as before. With several its `$kind` is
+#'   `"searchlight_family"` and it carries the `$radius` vector and the
+#'   `$weights` that will be applied. Pass either to [compile_frame()].
+#' @section Multiscale families:
+#' `compile_frame(searchlights(c(4, 8, 12), "conservative"), domain)` returns
+#' a [frame_family()]: one conservative member frame per radius, named
+#' `"radius-4"`, `"radius-8"`, `"radius-12"`, stacked with family weights
+#' `weights` (equal by default). Every row of the compiled frame's `$index`
+#' carries its own `family`, `scale` (the radius it came from), `center`, and
+#' `alpha`, so a result can be grouped by scale after the fact.
+#'
+#' Only `normalization = "conservative"` admits several radii. Locally
+#' normalized values are not contributions to any total, so a family of them
+#' has no budget for `weights` to divide and the per-scale law below is
+#' undefined (`design/conservative-geometry-contract.md` section 3.1).
+#'
+#' **What a multiscale family can and cannot show.** Because every member is
+#' column normalized and the weights sum to one, the family conserves block by
+#' block: the `total` component summed over the rows of scale `s` is exactly
+#' \eqn{\alpha_s G_\Omega}{alpha_s * G_Omega}, the scale's weight times the
+#' whole-brain total, whatever the data say. A panel of *total energy by
+#' scale* is therefore a plot of the analyst's own `weights` vector and is not
+#' a finding. What does vary informatively with scale is the split of each
+#' block's fixed budget into coherent and configuration parts: the coherent
+#' share is invariant to `alpha` and is the scale-resolved quantity a
+#' multiscale family exists to report
+#' (`design/conservative-geometry-contract.md` sections 3.1 and 3.2).
 #' @family neural domains and frames
 #' @seealso [compile_frame()], [frame_conservation()] to check the
-#'   normalization you chose, and [neuroim2_searchlights()] for neighborhoods
+#'   normalization you chose, [frame_family()] for the family a multiscale
+#'   request compiles to, and [neuroim2_searchlights()] for neighborhoods
 #'   built by neuroim2 instead.
 #' @examples
 #' grid <- as.matrix(expand.grid(x = 1:4, y = 1:4))
@@ -70,8 +108,19 @@ voxelwise <- function(normalization = "conservative") {
 #' frame_conservation(
 #'   compile_frame(searchlights(1.5, normalization = "conservative"), domain)
 #' )$conserved
+#'
+#' # Several radii request a multiscale family instead: one conservative
+#' # member frame per radius, each row labelled with the scale it came from.
+#' family <- compile_frame(
+#'   searchlights(c(1.5, 2.5), "conservative", weights = c(0.25, 0.75)), domain
+#' )
+#' unique(family$index[, c("family", "scale", "alpha")])
+#'
+#' # Each block carries exactly its weight, whatever the data: per-scale
+#' # energy is the `weights` vector, so only the coherent share is a finding.
+#' frame_conservation(family)$members
 #' @export
-searchlights <- function(radius, normalization = "local") {
+searchlights <- function(radius, normalization = "local", weights = NULL) {
   if (missing(radius)) {
     .input_error(paste0(
       "`radius` is required: pass one positive radius in the domain's own ",
@@ -81,19 +130,99 @@ searchlights <- function(radius, normalization = "local") {
       arg = "radius", received = "no argument",
       expected = "one positive radius in the domain's coordinate units")
   }
-  if (!.is_number(radius) || radius <= 0) {
+  if (length(radius) == 1L) {
+    if (!.is_number(radius) || radius <= 0) {
+      .input_error(sprintf(paste0(
+        "`radius` must be one positive finite number in the domain's ",
+        "coordinate units; received %s."
+      ), if (is.numeric(radius) && length(radius) == 1L) {
+        paste0("`", format(radius), "`")
+      } else {
+        .msg_value(radius)
+      }),
+        arg = "radius", received = .msg_value(radius),
+        expected = "one positive finite number")
+    }
+    .reject_single_scale_weights(weights)
+    return(.frame_spec("searchlights", normalization, radius = radius))
+  }
+  if (!is.numeric(radius) || length(radius) < 1L ||
+      any(!is.finite(radius)) || any(radius <= 0)) {
     .input_error(sprintf(paste0(
       "`radius` must be one positive finite number in the domain's ",
-      "coordinate units; received %s."
-    ), if (is.numeric(radius) && length(radius) == 1L) {
-      paste0("`", format(radius), "`")
-    } else {
-      .msg_value(radius)
-    }),
+      "coordinate units, or several of them for a multiscale family; ",
+      "received %s."
+    ), .msg_value(radius)),
       arg = "radius", received = .msg_value(radius),
-      expected = "one positive finite number")
+      expected = "one or more positive finite numbers")
   }
-  .frame_spec("searchlights", normalization, radius = radius)
+  .require_multiscale_normalization(normalization, length(radius))
+  scales <- .searchlight_scale_names(radius)
+  .reject_indistinct_scales(scales, radius)
+  weights <- .frame_family_alpha(weights, scales, 1e-12, arg = "weights",
+    unit = "radius", plural = "radii", subject = "radius")
+  .frame_spec("searchlight_family", "conservative",
+    radius = as.numeric(radius), weights = weights)
+}
+
+# The multiscale rules, shared by `searchlights()` and, through it,
+# `neuroim2_searchlights()`. They are stated without naming a constructor
+# because both entry points raise them and the argument names are the same.
+
+# A family name per radius. It is what `$index$family` reports and what named
+# `weights` are matched against, so it must be stable and readable: 4 prints
+# as "radius-4", not "radius-4.000000".
+.searchlight_scale_names <- function(radius) {
+  paste0("radius-", vapply(as.numeric(radius), function(value) {
+    format(value, trim = TRUE, digits = 15)
+  }, character(1)))
+}
+
+.reject_single_scale_weights <- function(weights) {
+  if (is.null(weights)) return(invisible(NULL))
+  .input_error(sprintf(paste0(
+    "`weights` divides a multiscale family's conserved budget between its ",
+    "radii, so it applies only when `radius` names more than one scale; ",
+    "received one radius and %s. One radius is one frame, which already ",
+    "carries the whole budget, so the weight is refused rather than ignored: ",
+    "drop `weights`, or ask for several radii."
+  ), .msg_count(length(weights), "weight")),
+    arg = "weights", received = "weights alongside a single radius",
+    expected = "NULL, or several radii")
+}
+
+.require_multiscale_normalization <- function(normalization, count) {
+  if (.is_string(normalization) && identical(normalization, "conservative")) {
+    return(invisible(NULL))
+  }
+  received <- if (.is_string(normalization)) {
+    paste0("\"", normalization, "\"")
+  } else {
+    .msg_value(normalization)
+  }
+  .input_error(sprintf(paste0(
+    "A multiscale request needs `normalization = \"conservative\"`; %s ",
+    "asked for %s. The family law sum over the rows of scale s of G equals ",
+    "alpha_s times G_Omega is defined only for column-normalized members, so ",
+    "locally normalized scales have no conserved budget for `weights` to ",
+    "divide (`design/conservative-geometry-contract.md` section 3.1). Pass ",
+    "`normalization = \"conservative\"`, or one radius."
+  ), .msg_count(count, "radius", "radii"), received),
+    arg = "normalization", received = received,
+    expected = "\"conservative\"")
+}
+
+.reject_indistinct_scales <- function(scales, radius) {
+  if (!anyDuplicated(scales)) return(invisible(NULL))
+  duplicated_scale <- scales[[anyDuplicated(scales)]]
+  .input_error(sprintf(paste0(
+    "Every radius must name a distinct scale, but `%s` names more than one ",
+    "of the %s supplied. The scale name is each member's `family` identity, ",
+    "so radii that print alike cannot be told apart in `$index`."
+  ), duplicated_scale, .msg_count(length(radius), "radius", "radii")),
+    arg = "radius", received = sprintf("duplicated scale `%s`",
+      duplicated_scale),
+    expected = "distinct radii")
 }
 
 #' Specify region measurements
@@ -211,6 +340,11 @@ whole_brain <- function(normalization = "local") {
 #'
 #' Any element not listed here, including `$support_index` and the
 #' representation flags, is internal and may change.
+#'
+#' One specification is not one operator: a multiscale [searchlights()]
+#' request compiles to a [frame_family()], whose `$index` carries the extra
+#' per-row `family`, `node`, `scale`, `center`, and `alpha` columns and whose
+#' `$specification` records every member rather than one scope.
 #' @family neural domains and frames
 #' @seealso [voxelwise()], [searchlights()], [regions()], [whole_brain()] for
 #'   the specifications, [frame_conservation()] to check normalization, and
@@ -304,6 +438,11 @@ compile_frame <- function(specification, domain) {
     weights <- .support_index_membership(support_index)
     index <- data.frame(measurement = domain$feature_ids,
       stringsAsFactors = FALSE)
+  } else if (kind == "searchlight_family") {
+    # A multiscale request is not one operator: it compiles to one member
+    # frame per radius, stacked by `frame_family()`, so it leaves here rather
+    # than falling through to the single-operator normalization below.
+    return(.compile_searchlight_family(specification, domain))
   } else {
     .input_error("Unknown additive frame specification.")
   }
@@ -337,6 +476,14 @@ compile_frame <- function(specification, domain) {
       }
       searchlights(specification$radius, specification$normalization)
     },
+    searchlight_family = {
+      if (!identical(names(specification),
+          c("kind", "normalization", "radius", "weights"))) {
+        .input_error("Frame specification fields are missing or noncanonical.")
+      }
+      searchlights(specification$radius, specification$normalization,
+        specification$weights)
+    },
     regions = {
       if (!identical(names(specification), c("kind", "normalization", "labels"))) {
         .input_error("Frame specification fields are missing or noncanonical.")
@@ -350,6 +497,24 @@ compile_frame <- function(specification, domain) {
     .input_error("Frame specification fields are missing or noncanonical.")
   }
   rebuilt
+}
+
+# One conservative member frame per radius, stacked with the requested family
+# weights. The members are ordinary single-radius frames, so a multiscale
+# family is exactly what an analyst could have assembled by hand -- what the
+# constructor adds is that the weights were checked before any frame was
+# built, and that the originating request survives on `$specification$request`
+# where the stacked specification would otherwise remember only the members.
+.compile_searchlight_family <- function(specification, domain) {
+  scales <- names(specification$weights)
+  members <- lapply(specification$radius, function(radius) {
+    compile_frame(searchlights(radius, "conservative"), domain)
+  })
+  names(members) <- scales
+  family <- do.call(frame_family,
+    c(members, list(alpha = specification$weights)))
+  family$specification$request <- specification
+  family
 }
 
 # Frame families ------------------------------------------------------------
@@ -408,8 +573,10 @@ compile_frame <- function(specification, domain) {
 #' Join a result back to this table by `measurement` to group values by scale,
 #' by center, or by member.
 #' @family neural domains and frames
-#' @seealso [compile_frame()] for the members, and [frame_conservation()],
-#'   which certifies a family both overall and block by block.
+#' @seealso [compile_frame()] for the members, [frame_conservation()], which
+#'   certifies a family both overall and block by block, and
+#'   [searchlights()], whose multiscale form is the shorthand for a family of
+#'   conservative searchlight frames at several radii.
 #' @examples
 #' domain <- abstract_domain(
 #'   9L, coordinates = cbind(seq_len(9L) - 1, 0), id = "frame-family-example"
@@ -616,48 +783,58 @@ frame_family <- function(..., alpha = NULL, normalization = "conservative",
   domain
 }
 
-.frame_family_alpha <- function(alpha, names, tolerance) {
+# One weight per member, checked before anything is stacked. The argument is
+# `alpha` on `frame_family()` and `weights` on a multiscale `searchlights()`
+# request, and the members are family members in one case and radii in the
+# other, so the four naming arguments exist to keep both refusals literal
+# about what the caller actually typed. The rules themselves are identical,
+# and G1 of the contract requires that they be: one applied weight per member,
+# positive, summing to one, never renormalized.
+.frame_family_alpha <- function(alpha, names, tolerance, arg = "alpha",
+                                unit = "family member", plural = "members",
+                                subject = "member") {
   count <- length(names)
   if (is.null(alpha)) alpha <- rep(1 / count, count)
   if (!is.numeric(alpha) || length(alpha) != count ||
       any(!is.finite(alpha))) {
     .input_error(sprintf(paste0(
-      "`alpha` must be %s, one per family member, and every weight finite; ",
-      "received %s."
-    ), .msg_count(count, "finite number"), .msg_value(alpha)),
-      arg = "alpha", received = .msg_value(alpha),
+      "`%s` must be %s, one per %s, and every weight finite; received %s."
+    ), arg, .msg_count(count, "finite number"), unit, .msg_value(alpha)),
+      arg = arg, received = .msg_value(alpha),
       expected = .msg_count(count, "finite weight"))
   }
   if (!is.null(names(alpha))) {
     if (!setequal(names(alpha), names) || anyDuplicated(names(alpha))) {
       .input_error(sprintf(paste0(
-        "Named `alpha` must name every family member exactly once. The ",
-        "members are %s; `alpha` names %s."
-      ), .frame_family_name_list(names), .frame_family_name_list(names(alpha))),
-        arg = "alpha", received = .frame_family_name_list(names(alpha)),
+        "Named `%s` must name every %s exactly once. The %s are %s; `%s` ",
+        "names %s."
+      ), arg, unit, plural, .frame_family_name_list(names), arg,
+        .frame_family_name_list(names(alpha))),
+        arg = arg, received = .frame_family_name_list(names(alpha)),
         expected = .frame_family_name_list(names))
     }
     alpha <- alpha[names]
   }
   if (any(alpha <= 0)) {
     .input_error(sprintf(paste0(
-      "Every family weight must be positive; `alpha` holds %s. A nonpositive ",
-      "weight does not remove a member: it contributes rows of zero or ",
-      "negative mass, which is not a share of the budget. Drop the member ",
+      "Every family weight must be positive; `%s` holds %s. A nonpositive ",
+      "weight does not remove a %s: it contributes rows of zero or ",
+      "negative mass, which is not a share of the budget. Drop the %s ",
       "from the family instead."
-    ), format(min(alpha))),
-      arg = "alpha", received = sprintf("a weight of %s", format(min(alpha))),
+    ), arg, format(min(alpha)), subject, subject),
+      arg = arg, received = sprintf("a weight of %s", format(min(alpha))),
       expected = "positive weights")
   }
   total <- sum(alpha)
   if (abs(total - 1) > tolerance) {
     .input_error(sprintf(paste0(
-      "Family weights must sum to one; `alpha` sums to %s, off by %s. The ",
-      "per-block law reads the weight that was actually applied, so `alpha` ",
+      "Family weights must sum to one; `%s` sums to %s, off by %s. The ",
+      "per-block law reads the weight that was actually applied, so `%s` ",
       "is never renormalized for you: pass weights summing to one, for ",
-      "example `alpha / sum(alpha)`."
-    ), format(total, digits = 12), format(abs(total - 1), digits = 3)),
-      arg = "alpha", received = sprintf("weights summing to %s",
+      "example `%s / sum(%s)`."
+    ), arg, format(total, digits = 12), format(abs(total - 1), digits = 3),
+      arg, arg, arg),
+      arg = arg, received = sprintf("weights summing to %s",
         format(total, digits = 12)),
       expected = "weights summing to one")
   }
@@ -795,7 +972,9 @@ frame_family <- function(..., alpha = NULL, normalization = "conservative",
 #' @return An `effect_frame_conservation` list reporting `conserved`, the
 #'   covered `component` (`"total"`), the frame `normalization`, its
 #'   `declared_normalization` together with `metric_folded` (whether a
-#'   diagonal metric has been folded into the weights), the maximum
+#'   diagonal metric has been folded into the weights) and the `composition`
+#'   law in force (`"none"` for a declared frame, `"diagonal_metric_fold"` for
+#'   a folded one), the maximum
 #'   per-feature deviation from the conserving `reference_mass`, and the
 #'   per-feature mass vector. `reference_mass` is one for a declared frame and
 #'   the folded metric diagonal for a metric-folded one, because that frame's
@@ -844,6 +1023,13 @@ frame_conservation <- function(x, tolerance = 1e-10) {
       fold$declared_normalization
     },
     metric_folded = !is.null(fold),
+    # The composition law these weights were built under, so a reader can tell
+    # what `reference_mass` is a mass *of*. `"none"` is a declared frame whose
+    # columns carry unit mass. A plan's metric composition is a separate
+    # statement and lives on `$metric_schedule`: `composition = "whitened"`
+    # transforms the effect coordinates, never the frame, so a frame used by a
+    # whitened plan correctly reports `"none"` here.
+    composition = if (is.null(fold)) "none" else fold$composition,
     max_deviation = max_deviation,
     feature_mass = mass,
     reference_mass = reference,

@@ -107,8 +107,10 @@ refused <- try(
 conditionMessage(attr(refused, "condition"))
 }
 \seealso{
-\code{\link[=compile_frame]{compile_frame()}} for the members, and \code{\link[=frame_conservation]{frame_conservation()}},
-which certifies a family both overall and block by block.
+\code{\link[=compile_frame]{compile_frame()}} for the members, \code{\link[=frame_conservation]{frame_conservation()}}, which
+certifies a family both overall and block by block, and
+\code{\link[=searchlights]{searchlights()}}, whose multiscale form is the shorthand for a family of
+conservative searchlight frames at several radii.
 
 Other neural domains and frames: 
 \code{\link{abstract_domain}()},

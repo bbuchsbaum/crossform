@@ -123,21 +123,48 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 #' The function calls only `neuroim2::searchlight_indices()` and maps its stable
 #' full-volume indices to the ordered compact feature columns of `domain`.
 #'
+#' Several radii request one conservative frame per radius, stacked into a
+#' multiscale [frame_family()]; see *Multiscale families*.
+#'
 #' @param mask A three-dimensional neuroim2 `NeuroVol` mask.
-#' @param radius Positive spherical radius in millimeters.
+#' @param radius Positive spherical radius in millimeters. Several radii
+#'   request a multiscale family, one member frame per radius.
 #' @param domain An exact domain from [neuroim2_volume_domain()]. When omitted,
 #'   it is constructed from `mask`.
-#' @param normalization One of `none`, `local`, or `conservative`.
+#' @param normalization One of `none`, `local`, or `conservative`. Several
+#'   radii admit only `conservative`.
 #' @param nonzero Passed to `neuroim2::searchlight_indices()`; version 0.1
 #'   requires `TRUE` so every member belongs to the compact domain.
+#' @param weights Family weights for a multiscale request: one positive weight
+#'   per radius, summing to one, matched to the radii in order or by the
+#'   `"radius-<r>"` names. `NULL` (the default) weights the radii equally. A
+#'   single radius is one frame with no budget to divide, so `weights` is
+#'   refused there rather than ignored.
 #' @return An `effect_frame` whose `$weights` are the sparse
 #'   measurement-by-feature operator, with `$index$measurement` holding the
 #'   full-volume center indices, `$normalization`, a `$specification`
 #'   recording the radius and the pinned `upstream_commit`, and a
-#'   `$support_index`.
+#'   `$support_index`. Several radii return a [frame_family()] instead: its
+#'   `$index` carries one row per measurement with that row's `family`,
+#'   `node`, `scale`, `center`, and `alpha`.
+#' @section Multiscale families:
+#' `neuroim2_searchlights(mask, c(4, 8), normalization = "conservative")`
+#' builds one conservative frame per radius from the same neuroim2
+#' neighborhoods, names them `"radius-4"` and `"radius-8"`, and stacks them
+#' with [frame_family()] under family weights `weights` (equal by default).
+#' Only conservative normalization is admitted, for the reason [searchlights()]
+#' gives: locally normalized values are not contributions to any total, so a
+#' family of them has no budget for `weights` to divide.
+#'
+#' Per-scale totals of such a family are \eqn{\alpha_s G_\Omega}{alpha_s *
+#' G_Omega} by construction, so a total-energy-by-scale panel reports the
+#' analyst's own `weights`, not the data. Only the coherent share of each
+#' block's fixed budget varies informatively with scale
+#' (`design/conservative-geometry-contract.md` sections 3.1 and 3.2).
 #' @family neural domains and frames
 #' @seealso [searchlights()] plus [compile_frame()] for the built-in
-#'   neighborhood builder, [neuroim2_volume_domain()] for the domain, and
+#'   neighborhood builder, [frame_family()] for the family several radii
+#'   compile to, [neuroim2_volume_domain()] for the domain, and
 #'   [frame_conservation()] to check the normalization you chose.
 #' @examples
 #' if (requireNamespace("neuroim2", quietly = TRUE) &&
@@ -158,6 +185,15 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 #'   # The pinned upstream geometry is part of the frame's specification.
 #'   print(frame$specification$upstream_commit)
 #'
+#'   # Several radii stack into a conservative family, one member per radius.
+#'   family <- neuroim2_searchlights(mask, c(4, 6), domain = domain,
+#'     normalization = "conservative", weights = c(0.4, 0.6))
+#'   print(unique(family$index[, c("family", "scale", "alpha")]))
+#'
+#'   # Each block carries exactly its weight, so per-scale energy is the
+#'   # `weights` vector and only the coherent share is a finding.
+#'   print(frame_conservation(family)$members)
+#'
 #'   # A mask whose geometry differs from the declared domain is refused.
 #'   moved <- neuroim2::LogicalNeuroVol(
 #'     values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(2, 2, 4))
@@ -166,7 +202,8 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 #' }
 #' @export
 neuroim2_searchlights <- function(mask, radius, domain = NULL,
-                                  normalization = "local", nonzero = TRUE) {
+                                  normalization = "local", nonzero = TRUE,
+                                  weights = NULL) {
   if (missing(mask) || missing(radius)) {
     .input_error(paste0(
       "`mask` and `radius` are both required: pass the `NeuroVol` mask and a ",
@@ -178,7 +215,39 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
   if (!.is_flag(nonzero) || !nonzero) {
     .input_error("crossform neuroim2 searchlights require `nonzero = TRUE`.")
   }
+  # A multiscale request is validated by the constructor that owns the rule --
+  # `searchlights()` -- so both spatial providers refuse the same things in the
+  # same words, and the returned specification carries the scale names and the
+  # applied weights. Only the neighborhoods differ between the two providers.
+  multiscale <- length(radius) != 1L || !is.null(weights)
+  request <- if (multiscale) {
+    searchlights(radius, normalization, weights)
+  } else {
+    NULL
+  }
   domain <- .neuroim2_domain_for_mask(mask, domain)
+  if (multiscale) {
+    members <- lapply(request$radius, function(one) {
+      .neuroim2_searchlight_frame(mask, one, domain, "conservative")
+    })
+    names(members) <- names(request$weights)
+    family <- do.call(frame_family,
+      c(members, list(alpha = request$weights)))
+    family$specification$request <- list(
+      kind = "neuroim2_searchlight_family",
+      radius = request$radius, weights = request$weights, units = "mm",
+      nonzero = TRUE, upstream_commit = "77b1ddb"
+    )
+    return(family)
+  }
+  .neuroim2_searchlight_frame(mask, radius, domain, normalization)
+}
+
+# One neuroim2 neighborhood frame at one radius, over a domain that has
+# already been checked against the mask. Split out of `neuroim2_searchlights()`
+# so a multiscale request builds its members without re-resolving the domain
+# or re-running the adapter's argument checks once per radius.
+.neuroim2_searchlight_frame <- function(mask, radius, domain, normalization) {
   neighborhoods <- neuroim2::searchlight_indices(mask, radius,
     nonzero = TRUE)
   centers <- attr(neighborhoods, "center_indices", exact = TRUE)
