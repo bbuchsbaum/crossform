@@ -236,3 +236,40 @@
   }
   invisible(TRUE)
 }
+
+# Unmatched arguments on a dispatched verb -------------------------------------
+#
+# A plain function refuses an argument it does not have; a generic's method
+# does not, because the generic's `...` absorbs anything that failed to match
+# and the method drops it. That difference is not neutral here. Several of
+# this package's arguments exist *only* to be refused --- `remove_univariate`,
+# `normalize`, `component` on a population view --- and their whole value is
+# that a caller who reaches for one gets the reasoned refusal. Under `...` a
+# misspelling turns the refusal into silence and hands back a number that
+# answers a different question.
+#
+# So every method that takes `...` purely to match its generic calls this
+# first. `...length()` is checked before the names are taken, so the ordinary
+# call forces no promise: only the failing call pays.
+.check_no_extra_arguments <- function(verb, ...) {
+  if (!...length()) return(invisible(NULL))
+  given <- names(list(...))
+  given <- if (is.null(given)) character() else given[nzchar(given)]
+  .input_error(sprintf(paste0(
+    "`%s()` does not take %s. Its arguments exist to be read *and* to be ",
+    "refused --- a misspelt `normalize` or `remove_univariate` that vanished ",
+    "into `...` would return a number answering a different question --- so ",
+    "an unmatched argument is an error rather than a silent omission."
+  ), verb, if (length(given)) {
+    .msg_names(given)
+  } else {
+    .msg_count(...length(), "unnamed extra argument")
+  }),
+    arg = if (length(given)) given[[1L]] else NULL,
+    received = if (length(given)) {
+      .msg_names(given)
+    } else {
+      .msg_count(...length(), "unnamed extra argument")
+    },
+    expected = sprintf("only the declared arguments of `%s()`", verb))
+}

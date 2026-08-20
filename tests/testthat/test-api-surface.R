@@ -29,7 +29,8 @@ crossform_public_api <- c(
   "geometry_alignment", "geometry_component", "geometry_spectrum",
   "identity_metric", "latent_geometry", "lm_extractor", "lm_relation_fit",
   "location_transport", "lower_effect_map", "match_control", "match_coupling",
-  "materialize_geometry", "measurement_components",
+  "materialize_geometry", "materialize_population",
+  "measurement_components",
   "measurement_form", "measurement_frame", "metric_capabilities",
   "metric_training_policy", "neural_metric", "neuroim2_searchlights",
   "neuroim2_volume_domain", "noise_precision", "numerical_agreement",
@@ -64,7 +65,7 @@ test_that("the exported surface is exactly the ledgered set", {
   # `latent_geometry()`, and WS-E the four population transport names,
   # `plan_population()` and `estimate_population()`
   # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 107L)
+  expect_identical(length(exports), 108L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

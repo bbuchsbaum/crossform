@@ -59,7 +59,7 @@ layer_of <- c(
   "result.R" = 4L, "crossnobis-driver.R" = 4L, "population-driver.R" = 4L,
 
   ## 5. results / views
-  "views.R" = 5L, "geometry-entry.R" = 5L,
+  "views.R" = 5L, "population-views.R" = 5L, "geometry-entry.R" = 5L,
   "latent.R" = 5L, "coupling-views.R" = 5L,
   "tomography.R" = 5L, "measurement-result.R" = 5L,
   "measurement-decomposition.R" = 5L, "format-results.R" = 5L,
@@ -296,7 +296,8 @@ test_that("the compute core never calls into results, views, or printing", {
   dir <- find_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
-  presentation <- c("result.R", "views.R", "latent.R", "coupling-views.R",
+  presentation <- c("result.R", "views.R", "population-views.R", "latent.R",
+    "coupling-views.R",
     "tomography.R", "measurement-result.R", "measurement-decomposition.R",
     "format-results.R", "print-methods.R", "plot-methods.R")
   offending <- edges[edges$from %in% c("kernel.R", "task.R") &

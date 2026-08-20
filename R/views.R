@@ -79,8 +79,18 @@
 #' )
 #' refusal$capability
 #' refusal$remedies
+#' @param ... Passed to the method. The generic dispatches on `x`: a geometry
+#'   plan or a complete geometry is read by the default method documented
+#'   here, and an `effect_population_result` from [estimate_population()] by
+#'   the group-level method in [population_views].
 #' @export
-contrast_energy <- function(x, weights, remove_univariate = FALSE) {
+contrast_energy <- function(x, ...) UseMethod("contrast_energy")
+
+#' @rdname contrast_energy
+#' @export
+contrast_energy.default <- function(x, weights, remove_univariate = FALSE,
+                                    ...) {
+  .check_no_extra_arguments("contrast_energy", ...)
   if (missing(weights)) {
     .input_error(paste0(
       "`weights` is required: pass one finite weight per experimental ",
@@ -317,9 +327,18 @@ contrast_energy <- function(x, weights, remove_univariate = FALSE) {
 #' # diagonals can be zero or negative.
 #' refusal <- catch_refusal(rdm(plan, normalize = "correlation"))
 #' refusal$capability
+#' @param ... Passed to the method. The generic dispatches on `x`: a geometry
+#'   plan or a complete effect form is read by the default method documented
+#'   here, and an `effect_population_result` from [estimate_population()] by
+#'   the group-level method in [population_views].
 #' @export
-rdm <- function(x, component = c("total", "coherent", "configuration"),
-                pairs = NULL, normalize = NULL) {
+rdm <- function(x, ...) UseMethod("rdm")
+
+#' @rdname rdm
+#' @export
+rdm.default <- function(x, component = c("total", "coherent", "configuration"),
+                        pairs = NULL, normalize = NULL, ...) {
+  .check_no_extra_arguments("rdm", ...)
   if (!is.null(normalize)) {
     .capability_refusal(paste0(
       "`rdm()` reports signed squared distances and will not apply ",
@@ -627,9 +646,19 @@ rdm <- function(x, component = c("total", "coherent", "configuration"),
 #' similarity <- 1 - animacy
 #' wrong <- try(rsa(plan, models = list(animacy = similarity)), silent = TRUE)
 #' conditionMessage(attr(wrong, "condition"))
+#' @param ... Passed to the method. The generic dispatches on `x`: a geometry
+#'   plan or a complete effect form is read by the default method documented
+#'   here, and an `effect_population_result` from [estimate_population()] by
+#'   the group-level method in [population_views].
 #' @export
-rsa <- function(x, models, nuisance = NULL, intercept = TRUE,
-                component = c("total", "coherent", "configuration")) {
+rsa <- function(x, ...) UseMethod("rsa")
+
+#' @rdname rsa
+#' @export
+rsa.default <- function(x, models, nuisance = NULL, intercept = TRUE,
+                        component = c("total", "coherent", "configuration"),
+                        ...) {
+  .check_no_extra_arguments("rsa", ...)
   source <- .self_geometry_source(x, "RSA")
   if (missing(models)) {
     .input_error(paste0(
@@ -1308,8 +1337,17 @@ geometry_spectrum <- function(x,
 #' )
 #' refusal <- catch_refusal(contribution(detection, by = network))
 #' refusal$capability
+#' @param ... Passed to the method. The generic dispatches on `x`: a
+#'   per-measurement view is aggregated by the default method documented here,
+#'   and an `effect_population_result` or `effect_population_view` by the
+#'   group-node method in [population_views].
 #' @export
-contribution <- function(x, by, using = NULL) {
+contribution <- function(x, ...) UseMethod("contribution")
+
+#' @rdname contribution
+#' @export
+contribution.default <- function(x, by, using = NULL, ...) {
+  .check_no_extra_arguments("contribution", ...)
   source <- .contribution_source(x)
   if (missing(by)) {
     .input_error(paste0(

@@ -56,6 +56,8 @@ Other population transports:
 \code{\link{estimate_population}()},
 \code{\link{external_transport}()},
 \code{\link{location_transport}()},
-\code{\link{plan_population}()}
+\code{\link{materialize_population}()},
+\code{\link{plan_population}()},
+\code{\link{population_views}}
 }
 \concept{population transports}

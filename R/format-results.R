@@ -411,11 +411,39 @@ print.effect_spectrum_view <- function(x, ...) {
 # leads every other result table. Long rather than wide because the result has
 # three axes and a wide table has to fold two of them into column names, which
 # stops being readable at the second query.
+#
+# A complete-form result is the same table with the readout axis renamed: one
+# row per group node, term and packed coordinate, and the coordinate's own
+# `row`, `column` and `scale` carried beside it so a reader can rebuild the
+# symmetric form --- or check the `sqrt(2)` --- without consulting the codec.
+# The axis order differs from the query-bank case because the arrays do
+# (`node x term x coordinate` against `node x query x term`), and the long
+# table follows the array rather than imposing an order on it.
 
 #' @export
 as.data.frame.effect_population_result <- function(x, row.names = NULL,
                                                    optional = FALSE, ...) {
   .validate_population_result(x)
+  if (identical(x$basis, "complete_form")) {
+    shape <- dim(x$coefficient_forms)
+    labels <- dimnames(x$coefficient_forms)
+    nodes <- shape[[1L]]
+    coordinates <- x$coordinates[
+      rep(seq_len(shape[[3L]]), each = nodes * shape[[2L]]), , drop = FALSE
+    ]
+    return(data.frame(
+      .result_index_data_frame(x$index)[
+        rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), , drop = FALSE
+      ],
+      term = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+      coordinate = coordinates$coordinate,
+      row = coordinates$row,
+      column = coordinates$column,
+      scale = coordinates$scale,
+      estimate = as.numeric(x$coefficient_forms),
+      check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+    ))
+  }
   shape <- dim(x$coefficients)
   labels <- dimnames(x$coefficients)
   nodes <- shape[[1L]]
@@ -427,6 +455,37 @@ as.data.frame.effect_population_result <- function(x, row.names = NULL,
     query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
     term = rep(labels[[3L]], each = nodes * shape[[2L]]),
     estimate = as.numeric(x$coefficients),
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+# Population views ------------------------------------------------------------
+#
+# One row per group node and view column, with the group node index -- the
+# sink included, marked, and carrying its units -- leading it exactly as it
+# leads the population result's own table. The transported component is named
+# by its `population-form-v1` section 8.1 ledger name and by nothing else:
+# there is no `component` column and no cell reading `coherent`, because a
+# transported coherent ledger is not the group node's coherent part and a
+# column header is where that confusion would start.
+
+#' @export
+as.data.frame.effect_population_view <- function(x, row.names = NULL,
+                                                 optional = FALSE, ...) {
+  .validate_population_view(x)
+  nodes <- nrow(x$values)
+  columns <- x$columns[rep(seq_len(nrow(x$columns)), each = nodes), ,
+    drop = FALSE]
+  names(columns)[names(columns) == "column"] <- "view_column"
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = ncol(x$values)), , drop = FALSE
+    ],
+    view = x$view,
+    ledger = x$ledger,
+    term = x$term,
+    columns,
+    estimate = as.numeric(x$values),
     check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
   )
 }

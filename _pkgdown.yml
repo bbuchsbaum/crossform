@@ -265,7 +265,15 @@ reference:
     `estimate_population()` executes one through a bank of contrasts, reading
     the query before the transport so complete packed geometry is never
     allocated, and asserting each participant's budget certificate at fit
-    time. See
+    time. `materialize_population()` is its complete-form counterpart, for
+    when the whole group form is wanted rather than a bank: it streams the
+    packed coordinate axis in tiles, so the group stack stays linear in the
+    tile and the dense participant-by-node-by-coordinate array is never
+    built. `population_views` are the reader verbs over either result —
+    `contrast_energy()`, `rdm()`, `rsa()` and `contribution()` again, reading
+    the group coefficients that run already produced rather than executing a
+    second one; a query the estimated basis cannot reach is refused with the
+    re-estimation remedy instead of being projected onto it. See
     [`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
   contents:
   - location_transport
@@ -274,6 +282,8 @@ reference:
   - transport_values
   - plan_population
   - estimate_population
+  - materialize_population
+  - population_views
 
 - title: Adapters
   desc: >

@@ -982,7 +982,7 @@ Everything above audits the 105 exports the subtraction release inherited and
 the 97 it left. This section is the append-only register of exports added
 *after* that release, so the historical arithmetic above stays readable as the
 record of what it actually decided. The binding total is the sum of the two:
-**97 + 10 = 107**, which is what `tests/testthat/test-api-surface.R` pins. A
+**97 + 11 = 108**, which is what `tests/testthat/test-api-surface.R` pins. A
 row short of it is a missing justification, which is exactly the failure this
 ledger exists to force.
 
@@ -1006,8 +1006,45 @@ ledger exists to force.
 
 | `estimate_population()` | `R/population-driver.R` | advanced (experimental: population) | ws-e (ticket E4) | the authorized group-level execution verb, standing to `plan_population()` exactly as `estimate_relation()` stands to `plan_relation()`: the plan names the estimand and reads nothing, and this is the one place a group number is computed. It is the query-first path `design/population-form-contract.md` §3 forces — query, then transport, then OLS — and the order is not a performance choice: query and transport act on different tensor factors so they commute exactly, but with heterogeneous native frames there is no common node axis, so fit-then-transport is not even definable and the transport *must* precede the fit. Reading the query first is what makes the route affordable: complete geometry at a native node is `q(q+1)/2` packed coordinates and a bank of `K` contrasts is `K` numbers, so a four-condition study read through four contrasts never allocates the ten-wide packed rows the naive route transports. Three things become facts of the result rather than caveats around it: the §2 budget certificate is asserted per participant and per query at fit time against an L¹-scaled tolerance and refuses rather than renormalizing; the §4 normalization is applied as the group functional it is, with `unit_budget` refused on density semantics (which conserves nothing, so the share would be a share of nothing) and a signed divisor that marks a participant `NA` rather than emitting a divergent share; and the transported components carry the §8.1 names, so a reader is never handed a `coherent` column that invites reading as a group-node common mode. The sink is a row of the output, fitted like any other node, because covariate-linked sink mass is how a differentially failing transport becomes visible. The sampling-covariance passthrough carries D8's per-native-node `K`-by-`K` blocks untransported and attaches a refusal for the transported covariance, which needs the cross-node terms `cross_node_sampling_covariance` refuses. Users: T:1 (`test-population-executor.R`) | keep |
 
+| `materialize_population()` | `R/population-driver.R` | advanced (experimental: population) | ws-e (ticket E5) | the complete-form counterpart of `estimate_population()`, standing to it exactly as `materialize_geometry()` stands to `evaluate_geometry()`. Two verbs and not one argument, for the reason E4 gave when it made `queries` required: there is no default readout of a transported geometry, and a `queries = NULL` default would turn a forgotten bank into a silently enormous complete form instead of the refusal E4 wrote. What it adds is the object the population views need and a bank cannot give them — the group coefficient **form** Θ at every group node, `q×q` symmetric and packed, rather than a coefficient per chosen contrast. It exists because the naive route to that object is `N×(m+1)×p` doubles held at once, which is what `design/population-form-contract.md` §5 says the population layer must never build ("the `D×D` covariance is never formed"; the Gram "accumulates node by node while streaming"). This route streams the packed coordinate axis in tiles instead: a coordinate tile is a column block of the `p×p` identity, so the *same* fused kernel E4 runs a contrast bank through runs it, the native `n_i×p` block is never allocated, and nothing in flight exceeds `N×(m+1)×tile` plus one `max_i n_i×tile` native block. The cost is `⌈p/tile⌉` source passes per participant, and it is recorded rather than hidden: the receipt's `$streaming` quotes the tile, the passes, the peak stack and the dense array the route refused. Two refusals are its own. `unit_budget` and `precision_weighted` are refused under capability `complete_form_normalization`, because §4.1's divisor is the native total *of a query* and a form is read through none — the only per-coordinate divisor available is a weight varying along the coordinate axis, exactly the case §3.2 measures breaking query–fit commutation by `25.5 %`, and a form that cannot be queried is not a form. And the result carries no `$values`, `$fitted` or `$residuals`: indexed by participant, node and packed coordinate they *are* the array the route exists not to build, so their absence is the acceptance criterion made structural rather than an omission. Users: T:1 (`test-population-form.R`) | keep |
+
 | `latent_geometry()` | `R/latent.R` | advanced | ws-d (ticket D7) | the named object `design/conservative-geometry-contract.md` §6 requires and the resolution of gap G7 of §11.4. §6 is normative that effective counts, cumulative-contribution curves and contribution fractions live **only** on a declared nonnegative projection of the signed estimates, and until this the package had the prohibition and not the layer: `coherence_fraction` masking was the sole instance of the discipline, and a user wanting `n_eff` or "the top two modes explain 90 %" had `pmax(geometry_spectrum(g)$values, 0)` and no record that anything had been clipped. That expression is wrong in three ways this function is right in, and none of them is discoverable from the number it returns. First, the projection is a *choice*: G7 says "nonnegativity projection" names no single operator — a per-node total clamp and an eigenvalue truncation of the form move different mass — so `method` is a closed set, `"psd_projection"` is the built member, and `"nearest_psd"` is declared and refuses rather than silently substituting. Second, the clipping is *never silent*: `$moved_mass` is the absolute mass removed per measurement and `$moved_share` is it against total **absolute** mass (the signed trace is the wrong denominator — it can be small, zero or negative while the form is far from PSD), both are on the projection receipt at `$projection` beside the operator that moved them, and the print states them. Third, `n_eff` is the participation ratio of the **projected** spectrum; on the signed one the numerator is the square of a signed sum and counts nothing. The layer also refuses what cannot be projected — a query readout has been contracted against fixed weights, so clamping it is the per-node clamp G7 distinguishes — and it leaves the signed source byte-identical, which is asserted rather than assumed. Advanced rather than core because the signed layer is what a conservative analysis reports and this is the descriptive follow-up, and because the object exists partly to make the *prohibition* legible: the fractions are here because they are not allowed anywhere else. Users: T:1 (`test-latent-geometry.R`) | keep |
 
 Tier arithmetic after this section: core 21 → **23**; advanced 33 → **35**;
-advanced (experimental) 16 → **22**, of which the six new ones are the
-population sub-label; total 97 → **107**.
+advanced (experimental) 16 → **23**, of which the seven new ones are the
+population sub-label; total 97 → **108**.
+
+### Shape changes that add no export (ws-e, ticket E6)
+
+`contrast_energy()`, `rdm()`, `rsa()` and `contribution()` became S3 generics.
+The export count is unchanged — four exported functions became four exported
+generics, and the new `effect_population_result` methods are `S3method()`
+registrations — but the *shape* of a public name changed, so it is recorded
+here rather than only in a commit message.
+
+The conversion was forced by the alternative. A population form is read with
+the same four questions a single participant's geometry is read with, and the
+choice was between four new names (`population_contrast_energy()`, and so on:
+four exports, four Rd pages, and a user who has to learn that the group verb
+is spelled differently) and four methods on the names that already mean those
+questions. `DESCRIPTION` already states the position the methods take: these
+readouts "are queries against that form rather than separate pipelines". What
+changes at the group level is the form being queried, not the query, and four
+parallel names would have said the opposite. The default methods carry the
+existing behaviour verbatim —
+same signatures, same refusals, same messages, same identities — so nothing
+that called these functions before dispatches anywhere new, and
+`tests/testthat/test-population-views.R` pins that with the per-participant
+verbs exercised through the generics.
+
+One cost is real and was paid for explicitly. A plain function refuses an
+argument it does not have; a method whose generic carries `...` silently drops
+it, and several of these arguments — `remove_univariate`, `normalize`,
+`component` on a population view — exist *only* to be refused. Under a bare
+`...` a misspelt `normalise =` would have turned the `guaranteed_psd` refusal
+into silence and returned a number answering a different question. So every
+one of the nine methods opens with `.check_no_extra_arguments()`, and an
+unmatched argument is an error naming itself. The remaining difference is that
+a wrong-type first argument now reaches the default method rather than a plain
+function, so the "received a number" error arrives one frame deeper; it is the
+same message, and `tests/testthat/test-population-views.R` asserts both.

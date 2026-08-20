@@ -2496,25 +2496,65 @@ print.effect_population_plan <- function(x, ...) {
     "covariance refused (", x$uncertainty$transported$capability, ")")
 }
 
+# The readout axis, said the way each basis reads it: a query bank is `K`
+# declared contrasts, a complete form is the whole packed geometry and declares
+# none. Keeping the two apart in the printed line is the same discipline
+# section 8.1 imposes on the ledger name --- a reader must never have to guess
+# whether a number came from a contrast someone chose.
+.pf_population_readout <- function(x) {
+  if (identical(x$basis, "complete_form")) {
+    q <- length(x$effects)
+    return(paste0("complete ", q, "x", q, " form, ",
+      nrow(x$coordinates), " packed coordinates (", .pf_set(
+        x$coordinates$coordinate, max = 3L), ")"))
+  }
+  paste0(nrow(x$queries), " (", .pf_set(rownames(x$queries), max = 3L), ")")
+}
+
+# The streamed route's bound, printed because it is the acceptance claim: the
+# dense stack the route refuses to build is quoted beside the one it built.
+.pf_population_streaming <- function(x) {
+  streaming <- x$receipt$streaming
+  if (is.null(streaming)) return(NULL)
+  paste0("coordinate tile ", streaming$coordinate_tile, " of ",
+    streaming$packed_width, ", ",
+    .msg_count(streaming$passes_per_subject, "pass", "passes"),
+    "/participant; peak group stack ",
+    format(streaming$group_stack_doubles, big.mark = ",", scientific = FALSE),
+    " doubles vs ",
+    format(streaming$refused_dense_doubles, big.mark = ",",
+      scientific = FALSE), " dense")
+}
+
 #' @export
 format.effect_population_result <- function(x, ...) {
   .pf_inline("effect_population_result", x$ledger,
-    .msg_count(dim(x$values)[[3L]], "subject"),
+    .msg_count(nrow(x$receipt$subjects), "subject"),
     paste0(nrow(x$index) - 1L, " group nodes + sink"),
-    .msg_count(nrow(x$queries), "query", "queries"))
+    if (identical(x$basis, "complete_form")) {
+      paste0("complete ", length(x$effects), "x", length(x$effects), " form")
+    } else {
+      .msg_count(nrow(x$queries), "query", "queries")
+    })
 }
 
 #' @export
 print.effect_population_result <- function(x, ...) {
   .validate_population_result(x)
   audit <- x$receipt$subjects
-  .pf_emit("effect_population_result", list(
+  form <- identical(x$basis, "complete_form")
+  # The readout line is labelled by what it holds: a query bank names the
+  # contrasts someone chose, a complete form declares none. One label for both
+  # would let a reader of a form believe a contrast was picked for them.
+  fields <- list(
     ledger = .pf_population_ledger(x),
     subjects = paste0(nrow(audit), " (", .pf_set(audit$subject, max = 4L),
       "), residual df ", x$residual_df),
-    `group nodes` = paste0(nrow(x$index) - 1L, " + sink"),
-    queries = paste0(nrow(x$queries), " (",
-      .pf_set(rownames(x$queries), max = 3L), ")"),
+    `group nodes` = paste0(nrow(x$index) - 1L, " + sink")
+  )
+  fields[[if (form) "readout" else "queries"]] <- .pf_population_readout(x)
+  .pf_emit("effect_population_result", c(fields, list(
+    streaming = .pf_population_streaming(x),
     frame = .pf_population_frame(x),
     transport = .pf_population_carrier(x),
     normalization = .pf_population_normalization(x),
@@ -2524,10 +2564,11 @@ print.effect_population_result <- function(x, ...) {
     budget = .pf_population_budget(x),
     uncertainty = .pf_population_uncertainty(x),
     unresolved = if (x$receipt$unresolved_columns) {
-      paste0(x$receipt$unresolved_columns, " node-query cells not estimated")
+      paste0(x$receipt$unresolved_columns, " node-",
+        if (form) "coordinate" else "query", " cells not estimated")
     },
     estimand = .pf_sig(x$scientific_plan_id)
-  ))
+  )))
   if (!identical(x$component, "total")) {
     .pf_note(paste0(
       "native_coherent_ledger + native_configuration_ledger = ",
@@ -2535,7 +2576,113 @@ print.effect_population_result <- function(x, ...) {
       " evidence carried to a group location, not a group-node common mode."
     ))
   }
-  cat(sprintf("  %-15s%s\n", "next:",
-    "as.data.frame(x), x$coefficients[, , term]"))
+  if (form) {
+    .pf_note(paste0(
+      "No participant-level arrays: indexed by participant, group node and ",
+      "packed coordinate they are the dense stack this route streams in ",
+      "order not to build. Read them through estimate_population() with the ",
+      "contrasts you want."
+    ))
+  }
+  cat(sprintf("  %-15s%s\n", "next:", if (form) {
+    "as.data.frame(x), x$coefficient_forms[node, term, ]"
+  } else {
+    "as.data.frame(x), x$coefficients[, , term]"
+  }))
+  invisible(x)
+}
+
+# Population views -------------------------------------------------------------
+#
+# `population-form-v1` section 8.1 makes two of these lines normative and one
+# of them forbidden. Required: the native frame family the ledger belongs to
+# (family, scale, normalization) and the transport that carried it (semantics,
+# provenance, cross-fit status), so a reader never has to infer which frame a
+# transported number is a ledger of. Forbidden: the bare words `coherent` and
+# `configuration` anywhere in the output. The closing note therefore names the
+# ledger rather than the component -- the additive identity does survive
+# transport, and the only false reading is of the ledger as a group-node
+# common mode.
+#
+# The basis line is the other half of what a reader needs: it says whether the
+# number was *selected* out of the estimated bank, *recombined* from several
+# of its columns, or read off an assembled coefficient form, which is the
+# difference between three routes that are exact for three different reasons.
+
+.pf_population_view_names <- c(
+  contrast_energy = "contrast energy",
+  rdm = "squared distances",
+  rsa = "RSA coefficients",
+  ledger = "estimated ledger",
+  contribution = "aggregated ledger"
+)
+
+.pf_population_view_kind <- function(x) {
+  position <- match(x$view, names(.pf_population_view_names))
+  if (is.na(position)) x$view else unname(.pf_population_view_names[[position]])
+}
+
+.pf_population_view_basis <- function(x) {
+  basis <- x$receipt$basis
+  route <- gsub("_", " ", basis$route)
+  if (identical(basis$kind, "complete_form")) {
+    return(paste0(route, ", ", basis$width, " packed coordinates"))
+  }
+  paste0(route, " over ", .msg_count(basis$width, "estimated query",
+    "estimated queries"), " (", .pf_set(basis$queries, max = 3L), ")")
+}
+
+.pf_population_view_rows <- function(x) {
+  if (identical(x$view, "contribution")) {
+    # The sink is a row of the aggregate and not one of the group nodes the
+    # territories were built from: section 3.3 is that it is never a value at
+    # a location, and counting it as one here would put it back.
+    return(paste0(nrow(x$index) - 1L, " territories + sink, from ",
+      .msg_count(sum(x$index$n_nodes[!x$index$sink]), "group node")))
+  }
+  paste0(nrow(x$index) - 1L, " + sink")
+}
+
+#' @export
+format.effect_population_view <- function(x, ...) {
+  .pf_inline("effect_population_view", .pf_population_view_kind(x), x$ledger,
+    paste0("term ", x$term), .pf_population_view_rows(x),
+    .msg_count(ncol(x$values), "column"))
+}
+
+#' @export
+print.effect_population_view <- function(x, ...) {
+  .validate_population_view(x)
+  .pf_emit("effect_population_view", list(
+    view = .pf_population_view_kind(x),
+    ledger = x$ledger,
+    term = x$term,
+    `group nodes` = .pf_population_view_rows(x),
+    columns = paste0(ncol(x$values), " (",
+      .pf_set(as.character(x$columns$column), max = 4L), ")"),
+    frame = .pf_population_frame(x),
+    transport = .pf_population_carrier(x),
+    normalization = .pf_population_normalization(x),
+    basis = .pf_population_view_basis(x),
+    budget = .pf_population_budget(x),
+    aggregation = if (identical(x$view, "contribution")) {
+      paste0("by ", x$metadata$aggregation$aggregated_by, ", ",
+        if (x$native_ledger) "frame-relative, " else "",
+        "budget-exact; the sink is its own row")
+    },
+    estimand = .pf_sig(x$scientific_plan_id)
+  ))
+  if (x$native_ledger) {
+    .pf_note(paste0(
+      "native_coherent_ledger + native_configuration_ledger = ",
+      "transported_total holds exactly; a ", x$ledger, " is native-node ",
+      "evidence carried to a group location, not a group-node common mode."
+    ))
+  }
+  cat(sprintf("  %-15s%s\n", "next:", if (identical(x$view, "contribution")) {
+    "as.data.frame(x), x$values"
+  } else {
+    "as.data.frame(x), contribution(x, by = ...)"
+  }))
   invisible(x)
 }

@@ -2,19 +2,28 @@
 % Please edit documentation in R/views.R
 \name{rsa}
 \alias{rsa}
+\alias{rsa.default}
 \title{Fit multiple-regression RSA as one compiled geometry query}
 \usage{
-rsa(
+rsa(x, ...)
+
+\method{rsa}{default}(
   x,
   models,
   nuisance = NULL,
   intercept = TRUE,
-  component = c("total", "coherent", "configuration")
+  component = c("total", "coherent", "configuration"),
+  ...
 )
 }
 \arguments{
 \item{x}{An \code{effect_geometry_plan} or a complete effect form carrying the
 symmetric self-form capability.}
+
+\item{...}{Passed to the method. The generic dispatches on \code{x}: a geometry
+plan or a complete effect form is read by the default method documented
+here, and an \code{effect_population_result} from \code{\link[=estimate_population]{estimate_population()}} by
+the group-level method in \link{population_views}.}
 
 \item{models}{Named model RDMs, each a finite symmetric zero-diagonal
 matrix over the experimental effects. Row and column names are optional;

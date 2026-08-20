@@ -2,15 +2,23 @@
 % Please edit documentation in R/views.R
 \name{contribution}
 \alias{contribution}
+\alias{contribution.default}
 \title{Add a conservative attribution map up over a territory}
 \usage{
-contribution(x, by, using = NULL)
+contribution(x, ...)
+
+\method{contribution}{default}(x, by, using = NULL, ...)
 }
 \arguments{
 \item{x}{A view whose per-measurement values are additive contributions: an
 \code{effect_contrast_view} from \code{\link[=contrast_energy]{contrast_energy()}}, or a query-only
 \code{effect_view} from \code{\link[=evaluate_geometry]{evaluate_geometry()}} or \code{\link[=query_geometry]{query_geometry()}}. Every
 other result kind is refused with the reason; see \emph{Refusals}.}
+
+\item{...}{Passed to the method. The generic dispatches on \code{x}: a
+per-measurement view is aggregated by the default method documented here,
+and an \code{effect_population_result} or \code{effect_population_view} by the
+group-node method in \link{population_views}.}
 
 \item{by}{The grouping. Either one column name of the per-measurement
 metadata (searched in \code{using} first, then in \code{x$index} when that is a
