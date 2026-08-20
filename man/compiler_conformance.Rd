@@ -49,6 +49,7 @@ all(as.matrix(conformance[-1L]))
 equivalent report on the study facts.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},
 \code{\link{file_matrix_source}()},

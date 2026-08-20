@@ -245,8 +245,15 @@
 fmridesign_design_model <- function(
     model, study, basis_id, units, scale = 1, block_map = NULL,
     semantic_map = NULL, specification = NULL, solver = "auto") {
-  version <- .require_adapter_version("fmridesign", "0.6.0")
-  study <- .validate_study(study)
+  version <- adapter_version_certificate("fmridesign", "0.6.0")
+  # `study_capabilities()` is the public way to make a study prove itself: it
+  # runs the same record validation, raising the same conditions, and it is
+  # reachable from outside the package. It checks the neural domain by
+  # reference rather than rebuilding it, which is the whole of the difference
+  # and costs this adapter nothing -- the compilation below reads partitions,
+  # event facts, and observation ids, and never the domain. `plan_relation()`,
+  # the only consumer of what comes back, rebuilds the domain itself.
+  study_capabilities(study)
   if (!inherits(model, "event_model")) {
     .input_error("`model` must inherit from `fmridesign::event_model()`.")
   }

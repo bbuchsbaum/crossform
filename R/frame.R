@@ -1038,23 +1038,3 @@ frame_conservation <- function(x, tolerance = 1e-10) {
   if (!is.null(members)) report$members <- members
   report
 }
-
-.normalize_frame <- function(weights, normalization) {
-  row_mass <- Matrix::rowSums(weights)
-  if (any(!is.finite(row_mass)) || any(row_mass <= 0)) {
-    .input_error("Every frame measurement must contain at least one feature.")
-  }
-  if (normalization == "local") {
-    weights <- Matrix::Diagonal(x = 1 / row_mass) %*% weights
-  } else if (normalization == "conservative") {
-    coverage <- Matrix::colSums(weights)
-    if (any(!is.finite(coverage)) || any(coverage <= 0)) {
-      .input_error("Conservative frames must cover every domain feature.")
-    }
-    weights <- weights %*% Matrix::Diagonal(x = 1 / coverage)
-  }
-  # A pattern (n*) matrix has no numeric slot; coerce to numeric so unnormalized
-  # membership frames carry explicit unit weights.
-  weights <- methods::as(weights, "dMatrix")
-  methods::as(methods::as(weights, "generalMatrix"), "CsparseMatrix")
-}

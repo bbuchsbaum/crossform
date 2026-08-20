@@ -50,6 +50,7 @@ extractor$map \%*\% matrix(rnorm(8), 4L, 2L)
 \code{\link[=relation]{relation()}}, which applies one extractor per partition.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{estimate_relation}()},
 \code{\link{file_matrix_source}()},

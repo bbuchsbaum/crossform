@@ -951,6 +951,20 @@ unexercised because no in-tree adapter brings its own out-of-memory source, not
 because the seam is imaginary; the set coherently covers data-in, design-in and
 error-channel-in, and no adapter is stranded. I would cut none of them.
 
+Updated after the adapter-protocol debt register closed. The adapters now call
+**17** exported functions between them, and **3 of the 5** sanctioned entry
+points: `source_capabilities()` joined when `fmrireg_relation()` stopped
+borrowing the plan's internal source builder and began declaring its planned,
+row-restricted sources itself — which is what an external executor has to do,
+and the reason the seam is now demonstrably external rather than asserted to
+be. `abstract_domain()` left the list, replaced by `volume_domain()`:
+`neuroim2_volume_domain()` had been assembling a volume domain out of an
+abstract one and rebuilding it below the constructor, and now asks the
+constructor for the domain it wanted. The two still-unexercised entry points
+are `file_matrix_source()` and `relation_block()`, for the same reason as
+before. `tests/testthat/test-adapter-protocol.R` pins all of this against the
+tree.
+
 Two caveats the release notes must carry — **both adopted**. (1) "≤ 5 sanctioned
 entry points" reads as *an extension package meets 5 crossform functions*; it
 meets about 14, because what adapters actually need is tiered core-ingestion.
@@ -982,7 +996,7 @@ Everything above audits the 105 exports the subtraction release inherited and
 the 97 it left. This section is the append-only register of exports added
 *after* that release, so the historical arithmetic above stays readable as the
 record of what it actually decided. The binding total is the sum of the two:
-**97 + 14 = 111**, which is what `tests/testthat/test-api-surface.R` pins. A
+**97 + 15 = 112**, which is what `tests/testthat/test-api-surface.R` pins. A
 row short of it is a missing justification, which is exactly the failure this
 ledger exists to force.
 
@@ -1016,9 +1030,11 @@ ledger exists to force.
 
 | `population_prevalence()` | `R/population-prevalence.R` | advanced (experimental: population) | ws-e (ticket E9) | the descriptive group summary `design/population-form-contract.md` §6.5 confines to the latent layer, and the verb that keeps it there. A group coefficient says what the average participant carried; it does not say how many participants carried it, and the four-line version at the call site — `mean(fit$values[node, query, ] > 0)` — gets three things wrong that nothing in the number reveals. It divides by `N` where density semantics returned `NA` at a node no native mass reached and `unit_budget` returned `NA` for an unadmitted divisor, so the denominator is a population that was not there; it counts the sink, which is unmapped territory in budget units at no location and where "the fraction of participants with positive mass" is a statement about transport failure and not about a place; and on a `unit_budget` population it silently mixes orientations, because §4.3's divisor is a **signed** native total, so a participant whose total is negative has every value sign-flipped and "above zero" means "above the group" for one participant and "below" for another — that one is a refusal here (`comparable_ledger_orientation`), because unlike a coverage floor no reading of the mixed count survives. The second measure has no call-site version at all: `$alignment` scores each participant's whole profile across the query bank against the **leave-one-out** mean of the others, so every product is a cross-participant one, on the same device §§6.2 and 7.1 use to kill the self term — the plain group mean puts `‖v_i‖²/n` inside every product, inflating the fraction by construction and reading exactly `1` at `n = 1`. Whether that inner product is a Frobenius inner product of the transported forms is measured rather than claimed: it is, restricted to the bank's span, exactly when the packed queries are orthonormal, and `$alignment$readout_gram_deviation` says how far this bank is (a two-condition contrast bank is not). The latent discipline is the point of the export. A prevalence projects nothing — there is no eigenvalue truncation and no moved mass — but `value > threshold` is a per-participant sign clamp that discards the magnitude of a crossvalidated estimate and keeps the sign, which is the noisy part, so **a cell at which nothing reproduces reports a fraction near `0.5`, not near `0`**; `$reference` carries that number, the record carries `$layer` and the same `$reading` sentence `latent_geometry()` prints (shared as `.latent_reading_line`, so the two cannot drift), and the validator raises a contract error if a field named `se`, `t`, `lower`, `upper` or `p_value` ever appears on it. The threshold is strict and absolute, inheriting rather than settling `conservative-geometry-v1` §11.4 gap G3's open tolerance decision. Two more refusals are its own: a `materialize_population()` result retains no participant axis by design (`population_participant_values`), and `term` exists only to be refused (`participant_term_decomposition`) because participants carry one transported ledger and not one per group-model column — which is also where a caller arriving from `population_uncertainty(x, term = )` learns that this layer is deliberately a different object. The form-space reading is refused as a *record* rather than an error: no population result ships per-participant transported forms, so `participant_form_prevalence` travels on `$receipt$form_prevalence_refusal` with `heterogeneity()` as its remedy. Users: T:1 (`test-population-prevalence.R`) | keep |
 
+| `adapter_version_certificate()` | `R/compiler-conformance.R` | developer | adapter-protocol (debt-register ticket) | the only addition in this register that closes a gap rather than adding a capability, and the only one the package was already *obliging* users to make. `vignette("crossform-extending")` states two binding obligations on an adapter author, and the first is to certify against *installed* package versions and record them, as the two shipped compiler adapters do. Until this row, the vignette discharged that obligation by naming `.require_adapter_version()` — a protocol that requires a behaviour and then points, as its worked example, at a function reachable only through `:::`. It was one of the twelve entries in `tests/testthat/test-adapter-protocol.R`'s debt register, and the only one of the four groups there whose honest closure was an export: the other eleven were redundant re-validation (deleted), an executor seam that turned out to be expressible from documented plan fields plus `source_capabilities()` (rewritten), and provider capabilities that belonged inside `volume_domain()` and `additive_frame()` (moved there). What it is, precisely, is the two-refusal check `first-moment-relation-v1` conformance rests on: `installed_compiler_adapter` when the upstream package is absent, `supported_compiler_version` when the installed version is not the certified one, both in the `relation_compiler` namespace, returning the version string an adapter records in its provenance. Hand-rolling it is possible — the condition classes are documented under `crossform_conditions` — and that is exactly the failure mode, because a hand-rolled refusal that gets the capability name or the namespace wrong is invisible to `catch_refusal()` branching and to every conformance report downstream of it. Developer tier because no analyst calls it: its whole audience is the extension author the vignette addresses. Users: T:1 (`test-compiler-conformance.R`, `test-adapter-protocol.R`), plus both in-tree compiler adapters | keep |
+
 Tier arithmetic after this section: core 21 → **23**; advanced 33 → **35**;
 advanced (experimental) 16 → **26**, of which the ten new ones are the
-population sub-label; total 97 → **111**.
+population sub-label; developer 5 → **6**; total 97 → **112**.
 
 ### Shape changes that add no export (ws-e, ticket E6)
 

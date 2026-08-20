@@ -106,6 +106,7 @@ channel is needed, \code{\link[=relation_block]{relation_block()}} to read one b
 \code{\link[=plan_geometry]{plan_geometry()}} for the next step.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

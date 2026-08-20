@@ -37,6 +37,7 @@ catch_refusal(residual_df(example$fit$relation, "run1"))$capability
 error channel, and \code{\link[=relation_fit_capabilities]{relation_fit_capabilities()}} to check availability.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

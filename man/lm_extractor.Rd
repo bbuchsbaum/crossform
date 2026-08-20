@@ -73,6 +73,7 @@ refusal$reasons
 \code{\link[=lm_relation_fit]{lm_relation_fit()}}, which additionally keeps the residual error channel.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

@@ -500,6 +500,19 @@ call graph.
 
 ## What remains
 
+**One later move, recorded here because it followed the same criterion.**
+`.normalize_frame()` --- the law that turns a membership pattern into a
+`"local"` or `"conservative"` operator --- moved from `frame.R` to `scope.R`
+when the adapter-protocol ticket taught `additive_frame()` to build a frame
+from a provider's own neighborhoods. `frame.R -> scope.R` already existed
+(`compile_frame()` calls `additive_frame()`), so leaving the law in `frame.R`
+would have inverted that edge and reopened a two-file component. The criterion
+in "The value order" settles it without reference to the cycle: the function
+is a statement about a weights matrix and about nothing else, so it belongs
+with the frame *value* in `scope.R`, not with the frame *specifications* in
+`frame.R`. Nothing moved but the text, and `compile_frame()` calls it
+downward exactly as before.
+
 **Layer 2 contains no cycle at all.** Not a smaller one — none. The value
 vocabulary is a directed acyclic graph, and the order above is the topological
 sort of it.

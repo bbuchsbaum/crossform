@@ -350,13 +350,16 @@ reference:
 - title: For extension packages
   desc: >
     The five sanctioned entry points an extension or adapter *package* uses
-    to hand data, a design, and an error channel into the core. Not an end
-    user's surface, and deliberately small: everything else that once lived
-    here is internal. `vignette("crossform-extending")` states what is open,
-    what is closed, and what an extension may rely on remaining true.
+    to hand data, a design, and an error channel into the core, plus the
+    version certificate every adapter is obliged to obtain before it touches
+    the package it adapts. Not an end user's surface, and deliberately small:
+    everything else that once lived here is internal.
+    `vignette("crossform-extending")` states what is open, what is closed, and
+    what an extension may rely on remaining true.
   contents:
   - file_matrix_source
   - source_capabilities
   - effect_extractor
   - relation_fit
   - relation_block
+  - adapter_version_certificate

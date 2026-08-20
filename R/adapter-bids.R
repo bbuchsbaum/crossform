@@ -5,8 +5,27 @@
     .input_error(sprintf("`%s` must contain one or more file paths.", what))
   }
   if (is.null(partitions)) partitions <- names(files)
-  partitions <- .validate_partition_names(partitions, length(files),
-    "partitions")
+  # The adapter's own argument check, spelled out rather than borrowed from
+  # the study-facts validator it used to call: what an adapter needs here is
+  # an ordinary guard on a character vector, and an external adapter writes
+  # exactly these three lines. The partition *column* it eventually builds is
+  # checked again, for real, by `observation_events()`.
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L) {
+    .input_error(sprintf(
+      "`partitions` must contain unique nonempty identifiers%s.",
+      if (is.character(partitions) && anyDuplicated(partitions)) {
+        sprintf("; %s appears more than once",
+          .msg_names(unique(partitions[duplicated(partitions)])))
+      } else {
+        sprintf("; received %s", .msg_value(partitions))
+      }))
+  }
+  if (length(partitions) != length(files)) {
+    .input_error(sprintf("`partitions` must supply %s; received %s.",
+      .msg_count(length(files), "name"),
+      .msg_count(length(partitions), "name")))
+  }
+  partitions <- unname(partitions)
   if (!is.null(names(files)) && any(nzchar(names(files))) &&
       !identical(names(files), partitions)) {
     .input_error("Named BIDS files must follow the declared partition order.")
@@ -258,7 +277,12 @@ bids_study <- function(observations, event_files, confound_files = NULL,
                        partitions = observations$partitions,
                        observation_ids = NULL, censor = NULL,
                        hierarchy = NULL, units = "seconds") {
-  observations <- .validate_observations(observations)
+  # Only the class is checked here. The record itself is validated by
+  # `study()` below, which refuses a malformed `observations` in exactly the
+  # words it always did -- one frame later, and without the adapter having to
+  # reach for the validator that call already runs on intake.
+  .check_class(observations, "effect_observations", "observations",
+    from = "observations()")
   if (!identical(partitions, observations$partitions)) {
     .input_error(
       "BIDS `partitions` must equal the observation partition axis in order."

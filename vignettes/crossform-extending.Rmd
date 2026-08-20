@@ -35,9 +35,9 @@ here is required to use crossform.
 
 An extension package meets crossform at two places.
 
-**The extension-only surface** is six entry points. They exist so another
-package can hand data, an estimator, an error channel, and a result type into
-the typed core; an ordinary analysis never calls them.
+**The extension-only surface** is six entry points, plus one obligation. They
+exist so another package can hand data, an estimator, an error channel, and a
+result type into the typed core; an ordinary analysis never calls them.
 
 | Entry point | Seam | Hands in |
 |---|---|---|
@@ -48,15 +48,20 @@ the typed core; an ordinary analysis never calls them.
 | `relation_fit()` | error-channel-in | the statistical envelope around a relation |
 | `as_neurovol()` | result-out | an S3 generic your result class can register on |
 
+`adapter_version_certificate()` is the seventh name and not a seam: it is how
+you discharge the certification obligation stated at the end of this guide,
+and it is here because a protocol that requires a behaviour has to publish the
+call that performs it.
+
 **The ordinary core** is everything else, and adapters use much more of it than
-of the list above. The four adapters shipped in this package call fourteen
-crossform functions between them and only two — `effect_extractor()` and
-`relation_fit()` — come from the extension-only list. The rest are the same
-`study()`, `observation_events()`, `condition_space()`, `design_model()`,
-`relation()`, `abstract_domain()` calls a user makes. That is deliberate: an
-adapter is a *morphism into the typed core*, so it builds ordinary crossform
-objects and hands them over. There is no privileged back door, and the absence
-of one is the point.
+of the list above. The four adapters shipped in this package call seventeen
+crossform functions between them and only three — `effect_extractor()`,
+`relation_fit()` and `source_capabilities()` — come from the extension-only
+list. The rest are the same `study()`, `observation_events()`,
+`condition_space()`, `design_model()`, `relation()`, `volume_domain()` calls a
+user makes. That is deliberate: an adapter is a *morphism into the typed
+core*, so it builds ordinary crossform objects and hands them over. There is
+no privileged back door, and the absence of one is the point.
 
 The rest of this guide takes the six in turn, then builds an adapter.
 
@@ -540,36 +545,69 @@ them.
 is not protocol, and the layering in `design/architecture.md` is not a public
 contract either.
 
-### The gaps, stated honestly
+### The gaps, once stated honestly, now closed
 
-The four adapters shipped in this package are not written entirely within the
-protocol they document. `tests/testthat/test-adapter-protocol.R` checks that
-every crossform function an adapter calls is either an export or a layer-1
-internal (argument checks, message formatting, refusal raising, hashing), and
-carries an explicit register of the twelve calls that are neither. Those twelve fall into
-four groups, and each is a place where an external package would today have to
-use `:::` or hand-roll a replacement:
+The four adapters shipped in this package used to be written partly outside
+the protocol they document. `tests/testthat/test-adapter-protocol.R` checks
+that every crossform function an adapter calls is either an export or a
+layer-1 internal (argument checks, message formatting, refusal raising,
+hashing), and it carried a register of twelve calls that were neither --- one
+per place an external package would have had to use `:::` or hand-roll a
+replacement.
+
+**The register is empty.** The twelve fell into four groups, and closing each
+one changed something about the protocol rather than about the bookkeeping:
 
 - **fact re-validation** (`.validate_observations()`,
-  `.validate_partition_names()`, `.validate_study()`) — an adapter that accepts
-  a study or an observations record cannot re-check it through a public call;
-- **adapter version pinning** (`.require_adapter_version()`) — the helper that
-  turns "the installed fmridesign is not the certified one" into an
-  `installed_compiler_adapter` or `supported_compiler_version` refusal;
+  `.validate_partition_names()`, `.validate_study()`) --- deleted, because
+  none of it was doing work. `bids_study()` was re-checking an `observations()`
+  record it was about to hand to `study()`, which checks it on intake; the
+  refusal now arrives from `study()`, one frame later and in the same words.
+  `fmridesign_design_model()` asks `study_capabilities()` instead: it is the
+  public verb that runs the study validator, so a study proves itself through
+  the published surface. And an adapter checking that its own `partitions`
+  argument is a vector of unique names writes that check itself, as you would.
+- **adapter version pinning** --- exported, as
+  `adapter_version_certificate()`. This was the one gap whose honest closure
+  was a new name. Two paragraphs below, this guide *obliges* you to certify
+  against installed versions; the refusal that discharges the obligation
+  cannot then be a private helper. Call it first, in your own adapter, exactly
+  as the two shipped compiler adapters do.
 - **external execution of a plan** (`.validate_relation_plan()`,
-  `.planned_observation_sources()`) — the entire seam an external *executor*
-  needs, which is why `fmrireg_relation()` cannot be written outside this
-  package;
+  `.planned_observation_sources()`) --- rewritten, and this is the seam that
+  changed the most. `relation_plan_receipts()` is the public verb that makes a
+  plan prove itself: it runs the plan validator and hands back the validated
+  per-partition receipts. The planned sources --- the study's readers
+  restricted to the rows censoring retained --- are then built in the adapter
+  from the plan's documented `$study`, `$retained_rows` and `$design_receipts`,
+  with `source_capabilities()` declaring what those derived sources can
+  honestly do. So `fmrireg_relation()` *can* now be written outside this
+  package, and `R/adapter-fmrireg.R` is the worked example of how.
 - **spatial provider internals** (`.new_domain()`, `.validate_domain()`,
   `.same_domain_reference()`, `.normalize_frame()`,
-  `.support_index_from_members()`, `.support_index_membership()`) — an
-  external searchlight provider can reach `abstract_domain()` and
-  `additive_frame()`, but not the support-index machinery that gives a frame
-  its membership pattern.
+  `.support_index_from_members()`, `.support_index_membership()`) --- moved
+  into the public constructors, where the missing capability turned out to be
+  two arguments. `volume_domain(metadata = )` records what a provider knows
+  and an array does not (`neuroim2_volume_domain()` uses it for the hash of
+  the full `neuroim2` space), and because a domain's geometry signature covers
+  its metadata, two domains that agree on every voxel and disagree about their
+  provenance stay correctly distinct. `additive_frame(members = )` takes the
+  neighborhoods a provider computed and compiles them the way
+  `compile_frame()` compiles crossform's own --- applying the normalization
+  law, building the support pattern, returning a frame with an `$index` and
+  the `$specification` you recorded. A provider supplies supports; it does not
+  reimplement what a frame is.
+
+Two of those closures compare a domain or a plan against a *rebuilt* one
+rather than against a recorded signature, which is worth copying: a value
+identical to one the constructor would have produced is a valid value, so the
+agreement check and the validity check are the same check, and both are
+reachable from outside.
 
 The register is a ratchet, not a licence: the test fails on a new unregistered
-internal call *and* on a registered one that has been removed, so the list can
-only shrink. If you need one of these seams, that is the ticket to open.
+internal call *and* on a registered one that has been removed. It is empty
+now, so any new entry is a request for a justification. If you need a seam
+that is not here, that is still the ticket to open.
 
 ## The compatibility promise
 
@@ -590,8 +628,11 @@ compiler may participate if it emits the same portable receipt and passes
 dependency is mandatory — every one of them is in `Suggests:`.
 
 Two obligations follow for you. Certify against *installed* package versions
-and record them, as `fmridesign_design_model()` and `fmrireg_relation()` do
-with `.require_adapter_version()`; source-checkout agreement is not evidence.
+and record them with `adapter_version_certificate()`, as
+`fmridesign_design_model()` and `fmrireg_relation()` do; source-checkout
+agreement is not evidence, and a hand-rolled version check that gets the
+capability name or the namespace wrong is invisible to every caller branching
+on `catch_refusal()`.
 And declare capabilities you can honour: crossform's refusals are only as good
 as the declarations they are computed from, and a source that overstates
 `thread_safe`, or a fit that claims an error channel it does not have, converts

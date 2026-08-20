@@ -53,6 +53,7 @@ for the external point-parity adapter, and \code{\link[=plan_geometry]{plan_geom
 second-moment question that follows.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{file_matrix_source}()},

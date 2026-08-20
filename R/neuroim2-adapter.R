@@ -58,28 +58,22 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
   if (!inherits(mask, "NeuroVol") || length(dim(mask)) != 3L) {
     .input_error("`mask` must be a three-dimensional neuroim2 NeuroVol.")
   }
-  values <- as.array(mask)
-  included <- is.finite(values) & values != 0
-  if (!any(included)) .input_error("`mask` must include at least one feature.")
-  feature_ids <- which(included)
-  grid <- neuroim2::index_to_grid(mask, feature_ids)
-  spacing <- as.numeric(neuroim2::spacing(mask))[1:3]
-  physical <- sweep(grid - 1, 2L, spacing, `*`)
-  spatial_metadata <- serialize(neuroim2::space(mask), NULL, version = 3)
-  domain <- abstract_domain(
-    length(feature_ids), coordinates = physical, feature_ids = feature_ids,
-    id = id, coordinate_units = "mm"
+  # Below the two questions only neuroim2 can answer -- what is in the mask,
+  # and what is its physical spacing -- this is the ordinary volume domain any
+  # provider builds, so the ordinary public constructor builds it. What the
+  # adapter adds is the one fact `volume_domain()` cannot derive from an
+  # array: the identity of the full neuroim2 space these voxels are addressed
+  # in, which is what makes writing a result back to them safe later.
+  volume_domain(
+    array(as.vector(mask), dim = dim(mask)),
+    spacing = as.numeric(neuroim2::spacing(mask))[1:3],
+    id = id, coordinate_units = "mm",
+    metadata = list(
+      neuroim2_space_sha256 = .sha256_string(
+        serialize(neuroim2::space(mask), NULL, version = 3)
+      )
+    )
   )
-  domain$kind <- "volume"
-  domain$metadata <- list(
-    dim = as.integer(dim(mask)),
-    spacing = spacing,
-    voxel = unname(grid),
-    mask = included,
-    neuroim2_space_sha256 = .sha256_string(spatial_metadata)
-  )
-  .new_domain(domain$id, domain$kind, domain$feature_ids, domain$coordinates,
-    domain$coordinate_units, domain$metadata)
 }
 
 # Both entry points in this file take a `NeuroVol` mask and an optional
@@ -90,15 +84,22 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 # side by side rather than saying they differ.
 .neuroim2_domain_for_mask <- function(mask, domain) {
   if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
-  .validate_domain(domain)
+  .check_class(domain, "effect_domain", "domain",
+    from = "neuroim2_volume_domain()")
   if (!identical(domain$kind, "volume")) {
     .input_error(sprintf(paste0(
-      "`domain` must be a volume domain from `neuroim2_volume_domain()` or ",
-      "`volume_domain()`; received a `%s` domain."
+      "`domain` must be a volume domain from `neuroim2_volume_domain()`; ",
+      "received a `%s` domain."
     ), domain$kind))
   }
+  # The comparison is against a whole domain rebuilt from the mask, not
+  # against its reference, and that is deliberate: a domain identical to one
+  # this constructor would have built is a *valid* domain, so the agreement
+  # test and the validity test are the same test, and both are reachable from
+  # outside the package. A domain whose recorded identity disagreed with its
+  # own fields fails here for the same reason a domain from another mask does.
   mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
-  if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
+  if (!identical(domain, mask_domain)) {
     .contract_error(sprintf(paste0(
       "`mask` and `domain` have different volume geometry, so a compact ",
       "index in one does not name the same voxel in the other. The mask is ",
@@ -271,27 +272,24 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
       "Every neuroim2 searchlight must contain at least one domain feature."
     )
   }
-  support_index <- .support_index_from_members(
-    members, domain, centers,
+  # The provider's whole contribution is `members`: which compact features
+  # each neighborhood covers, and what produced them. The normalization law,
+  # the membership operator, and the support bookkeeping belong to the frame
+  # constructor, so they are asked for rather than reimplemented here.
+  additive_frame(
+    members = members, measurements = centers,
+    normalization = normalization, domain = domain,
     construction = list(
       kind = "euclidean_ball",
       provider = "neuroim2_searchlight_indices",
       radius = as.numeric(radius),
       coordinate_units = domain$coordinate_units,
       upstream_commit = "77b1ddb"
-    )
+    ),
+    specification = list(kind = "neuroim2_searchlights",
+      radius = as.numeric(radius), units = "mm", nonzero = TRUE,
+      upstream_commit = "77b1ddb")
   )
-  weights <- .support_index_membership(support_index)
-  weights <- .normalize_frame(weights, normalization)
-  result <- additive_frame(weights, normalization = normalization,
-    domain = domain)
-  result$index <- data.frame(measurement = centers, stringsAsFactors = FALSE)
-  result$domain_kind <- domain$kind
-  result$specification <- list(kind = "neuroim2_searchlights",
-    radius = as.numeric(radius), units = "mm", nonzero = TRUE,
-    upstream_commit = "77b1ddb")
-  result$support_index <- support_index
-  result
 }
 
 # `as_neurovol()` is the package's only output adapter, and it is a generic so

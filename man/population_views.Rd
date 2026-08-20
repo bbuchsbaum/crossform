@@ -245,6 +245,7 @@ Other population transports:
 \code{\link{location_transport}()},
 \code{\link{materialize_population}()},
 \code{\link{plan_population}()},
+\code{\link{population_prevalence}()},
 \code{\link{population_uncertainty}()},
 \code{\link{transport_values}()}
 }

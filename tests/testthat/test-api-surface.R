@@ -10,7 +10,8 @@
 # A diff that touches only NAMESPACE will fail here, which is the point: the
 # failure is a request for the justification, not for a rubber stamp.
 crossform_public_api <- c(
-  "abstract_domain", "additive_frame", "aggregate_first",
+  "abstract_domain", "adapter_version_certificate", "additive_frame",
+  "aggregate_first",
   "anatomical_transport", "as_neurovol", "bids_study", "bilinear_query",
   "canonical_coupling", "catch_refusal",
   "coefficient_parameterization", "coherence_spectrum", "compile_frame",
@@ -68,9 +69,13 @@ test_that("the exported surface is exactly the ledgered set", {
   # `latent_geometry()`, and WS-E the four population transport names,
   # `plan_population()` and `estimate_population()`, and E8
   # `population_uncertainty()`, E7 `heterogeneity()` and E9
-  # `population_prevalence()`
+  # `population_prevalence()`, and the adapter-protocol ticket
+  # `adapter_version_certificate()` -- the one addition that closed a gap
+  # rather than adding a capability: the extending vignette obliges an adapter
+  # author to certify against installed versions, and the refusal that
+  # discharges that obligation was reachable only with `:::`
   # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 111L)
+  expect_identical(length(exports), 112L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

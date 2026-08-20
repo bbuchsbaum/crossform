@@ -37,6 +37,7 @@ relation_fit_capabilities(example$fit$relation)[1L, ]
 \code{\link[=catch_refusal]{catch_refusal()}} to inspect the refusal raised when one is missing.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

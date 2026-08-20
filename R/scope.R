@@ -6,11 +6,24 @@
 #' to rows of one spatial contraction in the version 0.1 compiler.
 #'
 #' @param weights A finite, nonnegative measurement-by-feature base or sparse
-#'   `Matrix` matrix.
+#'   `Matrix` matrix. Supply this or `members`, never both.
 #' @param normalization One of `none`, `local` (row sums equal one), or
 #'   `conservative` (column sums equal one).
 #' @param domain_id Stable identity of the neural feature domain.
 #' @param domain Optional exact `effect_domain` or internal domain reference.
+#'   The `members` route requires an exact domain.
+#' @param members A nonempty list of integer vectors, one per measurement,
+#'   giving the domain feature *positions* that measurement is supported on.
+#'   This is the neighborhood route described under *Two routes*.
+#' @param measurements Identifiers for the rows of the `members` route, one per
+#'   measurement, recorded as `$index$measurement`. Defaults to the measurement
+#'   positions.
+#' @param construction Named list recording how a `members` neighborhood was
+#'   produced --- the rule, the provider, its parameters --- kept with the
+#'   support pattern and folded into its identity.
+#' @param specification Optional named list recording what generated a
+#'   `members` frame, kept as `$specification` the way a [compile_frame()]
+#'   result keeps the scope it was compiled from.
 #' @return An `effect_frame` with `representation = "additive_diagonal"`,
 #'   carrying the `$weights` matrix, its `$normalization`, and the `$domain`
 #'   reference the weights are bound to.
@@ -26,11 +39,33 @@
 #' - `$domain`: the neural domain reference the columns are bound to, and
 #'   `$domain_id` its identity.
 #'
-#' Unlike a [compile_frame()] result, a declared frame has no `$index` and no
-#' `$specification`: nothing generated it, so views index its measurements by
-#' position. Any other element is internal and may change.
+#' Unlike a [compile_frame()] result, a frame declared from `weights` has no
+#' `$index` and no `$specification`: nothing generated it, so views index its
+#' measurements by position. Any other element is internal and may change.
+#' @section Two routes:
+#' A frame can be declared from an operator or built from neighborhoods, and
+#' the difference is who applies the normalization.
+#'
+#' - **`weights`** is the declaration: the operator is taken exactly as
+#'   supplied and `normalization` is *checked* against it, so unnormalized
+#'   rows are refused rather than silently rescaled.
+#' - **`members`** is the neighborhood route, for a spatial provider that
+#'   computes its own supports --- searchlights from an external package,
+#'   parcels from an atlas, any rule crossform does not implement. Each element
+#'   of `members` lists the domain feature positions one measurement covers;
+#'   `normalization` is then *applied* to that membership pattern, exactly as
+#'   [compile_frame()] applies it to the neighborhoods it computes itself. What
+#'   comes back is a frame of the same shape a compiled one has, carrying
+#'   `$index`, the `$specification` you recorded, and the support pattern that
+#'   makes a locality-aware plan possible.
+#'
+#' The neighborhood route is the reason an external searchlight provider does
+#' not have to reproduce crossform's normalization law or its support
+#' bookkeeping to hand back a frame the rest of the package accepts;
+#' `neuroim2_searchlights()` is written this way and is the worked example.
 #' @seealso [compile_frame()] with [searchlights()], [regions()], or
 #'   [voxelwise()], which build additive frames from a neural domain;
+#'   [neuroim2_searchlights()] for the `members` route in use; and
 #'   [measurement_frame()], which adapts one into oriented measurements.
 #' @family neural domains and frames
 #' @examples
@@ -59,9 +94,75 @@
 #' # The declared width must match the domain it claims.
 #' wrong <- try(additive_frame(matrix(1, 1, 3), domain = domain), silent = TRUE)
 #' conditionMessage(attr(wrong, "condition"))
+#'
+#' # The neighborhood route: hand over the supports a provider computed and
+#' # the declared normalization is applied to them, not asserted about them.
+#' neighborhoods <- additive_frame(
+#'   members = list(1:2, 2:4), measurements = c("left", "right"),
+#'   normalization = "local", domain = domain,
+#'   construction = list(kind = "declared_neighborhoods", provider = "example")
+#' )
+#' rowSums(as.matrix(neighborhoods$weights))
+#'
+#' # It comes back shaped like a compiled frame: the measurements are named,
+#' # not merely positional.
+#' neighborhoods$index$measurement
 #' @export
 additive_frame <- function(weights, normalization = "none",
-                           domain_id = "abstract", domain = NULL) {
+                           domain_id = "abstract", domain = NULL,
+                           members = NULL, measurements = NULL,
+                           construction = list(), specification = NULL) {
+  support_index <- NULL
+  domain_kind <- NULL
+  if (!is.null(members)) {
+    # The neighborhood route. Everything below the declaration -- the
+    # membership pattern, the normalization law, the support bookkeeping -- is
+    # crossform's own, so a provider that computes supports supplies exactly
+    # the supports and nothing else.
+    if (!missing(weights)) {
+      .input_error(paste0(
+        "Supply `weights` or `members`, not both: `weights` declares an ",
+        "operator already normalized, `members` asks for one to be built ",
+        "from neighborhoods."
+      ), arg = "members", received = "both `weights` and `members`",
+        expected = "exactly one of them")
+    }
+    if (!inherits(domain, "effect_domain")) {
+      .input_error(sprintf(paste0(
+        "The `members` route needs the exact `effect_domain` its supports ",
+        "index into (see `abstract_domain()`, `volume_domain()`, or ",
+        "`neuroim2_volume_domain()`); received %s."
+      ), .msg_value(domain)),
+        arg = "domain", received = .msg_value(domain),
+        expected = "an `effect_domain`")
+    }
+    if (!.is_string(normalization) ||
+        !normalization %in% c("none", "local", "conservative")) {
+      .input_error(sprintf(paste0(
+        "`normalization` must be one of \"none\", \"local\", or ",
+        "\"conservative\"; received %s."
+      ), .msg_value(normalization)),
+        arg = "normalization", received = .msg_value(normalization),
+        expected = "one of \"none\", \"local\", or \"conservative\"")
+    }
+    if (is.null(measurements)) measurements <- seq_along(members)
+    if (!is.null(specification) &&
+        (!is.list(specification) || !length(specification) ||
+         is.null(names(specification)) || anyNA(names(specification)) ||
+         any(!nzchar(names(specification))) ||
+         anyDuplicated(names(specification)))) {
+      .input_error(paste0(
+        "`specification` must be a uniquely named list recording what ",
+        "generated these measurements."
+      ), arg = "specification", received = .msg_value(specification),
+        expected = "a uniquely named list")
+    }
+    domain_kind <- domain$kind
+    support_index <- .support_index_from_members(members, domain, measurements,
+      construction)
+    weights <- .normalize_frame(.support_index_membership(support_index),
+      normalization)
+  }
   width <- if (length(dim(weights)) == 2L) ncol(weights) else NA_integer_
   domain <- if (is.null(domain)) {
     .positional_domain_reference(width, domain_id)
@@ -90,7 +191,40 @@ additive_frame <- function(weights, normalization = "none",
     class = "effect_frame"
   )
   .validate_frame_for_compile(frame)
+  if (!is.null(support_index)) {
+    # The same fields, in the same order, that `compile_frame()` attaches to a
+    # frame it built itself, so a family may stack members from either route.
+    frame$index <- data.frame(measurement = measurements,
+      stringsAsFactors = FALSE)
+    frame$domain_kind <- domain_kind
+    if (!is.null(specification)) frame$specification <- specification
+    frame$support_index <- support_index
+  }
   frame
+}
+
+# The normalization law itself: what `additive_frame(members = )` applies and
+# what `compile_frame()` applies to the neighborhoods it computes. It lives
+# beside the frame value rather than beside the frame *specifications*,
+# because it is a statement about a weights matrix and about nothing else.
+.normalize_frame <- function(weights, normalization) {
+  row_mass <- Matrix::rowSums(weights)
+  if (any(!is.finite(row_mass)) || any(row_mass <= 0)) {
+    .input_error("Every frame measurement must contain at least one feature.")
+  }
+  if (normalization == "local") {
+    weights <- Matrix::Diagonal(x = 1 / row_mass) %*% weights
+  } else if (normalization == "conservative") {
+    coverage <- Matrix::colSums(weights)
+    if (any(!is.finite(coverage)) || any(coverage <= 0)) {
+      .input_error("Conservative frames must cover every domain feature.")
+    }
+    weights <- weights %*% Matrix::Diagonal(x = 1 / coverage)
+  }
+  # A pattern (n*) matrix has no numeric slot; coerce to numeric so unnormalized
+  # membership frames carry explicit unit weights.
+  weights <- methods::as(weights, "dMatrix")
+  methods::as(methods::as(weights, "generalMatrix"), "CsparseMatrix")
 }
 
 #' Describe a fixed or locally estimated factor frame

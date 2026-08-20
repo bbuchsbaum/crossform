@@ -52,6 +52,7 @@ conditionMessage(attr(weak, "condition"))
 \code{\link[=compute_policy]{compute_policy()}}, which is checked against them before execution.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

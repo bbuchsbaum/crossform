@@ -51,6 +51,7 @@ boolean conformance summary of the same receipts, and
 \code{\link[=estimate_relation]{estimate_relation()}} to execute them.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

@@ -8,19 +8,40 @@ additive_frame(
   weights,
   normalization = "none",
   domain_id = "abstract",
-  domain = NULL
+  domain = NULL,
+  members = NULL,
+  measurements = NULL,
+  construction = list(),
+  specification = NULL
 )
 }
 \arguments{
 \item{weights}{A finite, nonnegative measurement-by-feature base or sparse
-\code{Matrix} matrix.}
+\code{Matrix} matrix. Supply this or \code{members}, never both.}
 
 \item{normalization}{One of \code{none}, \code{local} (row sums equal one), or
 \code{conservative} (column sums equal one).}
 
 \item{domain_id}{Stable identity of the neural feature domain.}
 
-\item{domain}{Optional exact \code{effect_domain} or internal domain reference.}
+\item{domain}{Optional exact \code{effect_domain} or internal domain reference.
+The \code{members} route requires an exact domain.}
+
+\item{members}{A nonempty list of integer vectors, one per measurement,
+giving the domain feature \emph{positions} that measurement is supported on.
+This is the neighborhood route described under \emph{Two routes}.}
+
+\item{measurements}{Identifiers for the rows of the \code{members} route, one per
+measurement, recorded as \verb{$index$measurement}. Defaults to the measurement
+positions.}
+
+\item{construction}{Named list recording how a \code{members} neighborhood was
+produced --- the rule, the provider, its parameters --- kept with the
+support pattern and folded into its identity.}
+
+\item{specification}{Optional named list recording what generated a
+\code{members} frame, kept as \verb{$specification} the way a \code{\link[=compile_frame]{compile_frame()}}
+result keeps the scope it was compiled from.}
 }
 \value{
 An \code{effect_frame} with \code{representation = "additive_diagonal"},
@@ -45,9 +66,34 @@ checked, not applied.
 \verb{$domain_id} its identity.
 }
 
-Unlike a \code{\link[=compile_frame]{compile_frame()}} result, a declared frame has no \verb{$index} and no
-\verb{$specification}: nothing generated it, so views index its measurements by
-position. Any other element is internal and may change.
+Unlike a \code{\link[=compile_frame]{compile_frame()}} result, a frame declared from \code{weights} has no
+\verb{$index} and no \verb{$specification}: nothing generated it, so views index its
+measurements by position. Any other element is internal and may change.
+}
+
+\section{Two routes}{
+
+A frame can be declared from an operator or built from neighborhoods, and
+the difference is who applies the normalization.
+\itemize{
+\item \strong{\code{weights}} is the declaration: the operator is taken exactly as
+supplied and \code{normalization} is \emph{checked} against it, so unnormalized
+rows are refused rather than silently rescaled.
+\item \strong{\code{members}} is the neighborhood route, for a spatial provider that
+computes its own supports --- searchlights from an external package,
+parcels from an atlas, any rule crossform does not implement. Each element
+of \code{members} lists the domain feature positions one measurement covers;
+\code{normalization} is then \emph{applied} to that membership pattern, exactly as
+\code{\link[=compile_frame]{compile_frame()}} applies it to the neighborhoods it computes itself. What
+comes back is a frame of the same shape a compiled one has, carrying
+\verb{$index}, the \verb{$specification} you recorded, and the support pattern that
+makes a locality-aware plan possible.
+}
+
+The neighborhood route is the reason an external searchlight provider does
+not have to reproduce crossform's normalization law or its support
+bookkeeping to hand back a frame the rest of the package accepts;
+\code{neuroim2_searchlights()} is written this way and is the worked example.
 }
 
 \examples{
@@ -76,10 +122,24 @@ conditionMessage(attr(unnormalized, "condition"))
 # The declared width must match the domain it claims.
 wrong <- try(additive_frame(matrix(1, 1, 3), domain = domain), silent = TRUE)
 conditionMessage(attr(wrong, "condition"))
+
+# The neighborhood route: hand over the supports a provider computed and
+# the declared normalization is applied to them, not asserted about them.
+neighborhoods <- additive_frame(
+  members = list(1:2, 2:4), measurements = c("left", "right"),
+  normalization = "local", domain = domain,
+  construction = list(kind = "declared_neighborhoods", provider = "example")
+)
+rowSums(as.matrix(neighborhoods$weights))
+
+# It comes back shaped like a compiled frame: the measurements are named,
+# not merely positional.
+neighborhoods$index$measurement
 }
 \seealso{
 \code{\link[=compile_frame]{compile_frame()}} with \code{\link[=searchlights]{searchlights()}}, \code{\link[=regions]{regions()}}, or
 \code{\link[=voxelwise]{voxelwise()}}, which build additive frames from a neural domain;
+\code{\link[=neuroim2_searchlights]{neuroim2_searchlights()}} for the \code{members} route in use; and
 \code{\link[=measurement_frame]{measurement_frame()}}, which adapts one into oriented measurements.
 
 Other neural domains and frames: 

@@ -102,6 +102,7 @@ the next step, and \code{\link[=compiler_conformance]{compiler_conformance()}} t
 adapter produced.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

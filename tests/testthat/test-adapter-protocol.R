@@ -27,6 +27,33 @@
 # cannot rot. Every entry is a real gap in the published protocol -- an
 # external package cannot write these adapters without `:::`.
 #
+# **The register is empty.** It held twelve entries in four groups, and the
+# follow-up ticket to this file closed all twelve, so the four adapters are now
+# written entirely within the protocol they document. What that cost, group by
+# group, is worth recording here because it is the evidence for the claim:
+#
+#   fact re-validation      -- deleted. Each adapter had been re-checking a
+#     record it was about to hand to a constructor that checks it on intake
+#     (`study()`), or re-checking its own character vector. `bids_study()` now
+#     gates on the class and lets `study()` raise the refusal it always
+#     raised; `fmridesign_design_model()` asks `study_capabilities()`, the
+#     public verb that runs the same validation.
+#   adapter version pinning -- exported, as `adapter_version_certificate()`.
+#     `vignette("crossform-extending")` *obliges* an external adapter to
+#     certify against installed versions; a protocol that requires a behaviour
+#     and hides its only implementation is not a protocol.
+#   external plan execution -- rewritten. `relation_plan_receipts()` validates
+#     the plan and yields the receipts, and the planned sources are built in
+#     the adapter from the plan's documented fields plus
+#     `source_capabilities()`, which is what an external executor must do.
+#   spatial provider internals -- moved into the public constructors.
+#     `volume_domain(metadata = )` records what a provider knows and the array
+#     does not; `additive_frame(members = )` compiles a provider's own
+#     neighborhoods the way `compile_frame()` compiles crossform's.
+#
+# Keep the register. A new gap belongs in it, with its justification, rather
+# than being argued away -- and the ratchet means it can only shrink again.
+#
 # The call graph is parsed here rather than imported from test-architecture.R
 # because testthat gives each test file its own environment; only helpers are
 # shared, and this file should not add one for two small functions.
@@ -49,37 +76,11 @@ adapter_files <- c(
 )
 
 # "<adapter file> -> <internal symbol>", with the reason it is not reachable
-# from outside the package today. Sorted by file, then symbol.
-unsanctioned_internal_calls <- c(
-  # Fact validators. An external adapter that builds an `observations()` or a
-  # `study()` re-validates its own input before handing it on; the protocol
-  # offers no public re-validation, so the check is skipped or duplicated.
-  "adapter-bids.R -> .validate_observations",
-  "adapter-bids.R -> .validate_partition_names",
-  "adapter-fmridesign.R -> .validate_study",
-  # Adapter version pinning. `.require_adapter_version()` is what turns "the
-  # installed fmridesign is not the certified one" into an
-  # `installed_compiler_adapter` / `supported_compiler_version` refusal. An
-  # external adapter must hand-roll the equivalent refusal.
-  "adapter-fmridesign.R -> .require_adapter_version",
-  "adapter-fmrireg.R -> .require_adapter_version",
-  # Executing a `plan_relation()` from outside the package. These two are the
-  # whole of the "external executor" seam and neither is public: an external
-  # engine cannot read a plan's planned sources without `:::`.
-  "adapter-fmrireg.R -> .planned_observation_sources",
-  "adapter-fmrireg.R -> .validate_relation_plan",
-  # Domain and frame construction below the public constructors. An external
-  # spatial provider can reach `abstract_domain()` and `additive_frame()`, but
-  # not the support-index machinery that makes a searchlight frame carry its
-  # membership pattern, nor the domain-identity comparison that makes writing
-  # results back to voxels safe.
-  "neuroim2-adapter.R -> .new_domain",
-  "neuroim2-adapter.R -> .normalize_frame",
-  "neuroim2-adapter.R -> .same_domain_reference",
-  "neuroim2-adapter.R -> .support_index_from_members",
-  "neuroim2-adapter.R -> .support_index_membership",
-  "neuroim2-adapter.R -> .validate_domain"
-)
+# from outside the package today. Sorted by file, then symbol. Empty since the
+# twelve entries above were closed; the two tests below still hold it to both
+# halves of the ratchet, so an entry added without a closure fails as loudly as
+# one removed without a fix.
+unsanctioned_internal_calls <- character()
 
 # The exported crossform functions each adapter calls, as `design/api-tiers.md`
 # records them in its "Verdict on the developer set". Kept here so the ledger's
@@ -91,10 +92,21 @@ adapter_exported_calls <- list(
   "adapter-bids.R" = c(
     "observation_confounds", "observation_events", "study"
   ),
+  # `study_capabilities()` joined when the adapter stopped calling the study
+  # validator directly: it is the public verb that runs that validation, and
+  # asking a study to prove itself through it is what an external adapter does.
   "adapter-fmridesign.R" = c(
-    "coefficient_parameterization", "condition_space", "design_model"
+    "adapter_version_certificate", "coefficient_parameterization",
+    "condition_space", "design_model", "study_capabilities"
   ),
-  "adapter-fmrireg.R" = c("effect_extractor", "relation", "relation_fit"),
+  # The two that closed the external-executor gap. `relation_plan_receipts()`
+  # is how a plan is validated from outside, and `source_capabilities()` is how
+  # the derived, row-restricted sources an executor hands to `relation()`
+  # declare what they can honestly do.
+  "adapter-fmrireg.R" = c(
+    "adapter_version_certificate", "effect_extractor", "relation",
+    "relation_fit", "relation_plan_receipts", "source_capabilities"
+  ),
   # `searchlights()` joined this list with ticket D3: a multiscale
   # `neuroim2_searchlights()` request delegates its refusals to the
   # constructor that owns the multiscale rules, so both spatial providers
@@ -103,9 +115,13 @@ adapter_exported_calls <- list(
   # heads-mode count does not, because `do.call()` makes it an argument rather
   # than a call head. Both are exported, so the protocol holds either way;
   # only the published count reads the narrower of the two.
+  #
+  # `abstract_domain()` left when the adapter stopped assembling a volume
+  # domain out of an abstract one and asked `volume_domain()` for the volume
+  # domain it actually wanted.
   "neuroim2-adapter.R" = c(
-    "abstract_domain", "additive_frame", "neuroim2_volume_domain",
-    "searchlights"
+    "additive_frame", "neuroim2_volume_domain", "searchlights",
+    "volume_domain"
   )
 )
 
@@ -259,9 +275,12 @@ test_that("adapters use only layer-1 internals plus the exported surface", {
 
 test_that("the ledger's record of what an adapter calls is still true", {
   # design/api-tiers.md publishes "about fourteen crossform functions between
-  # them (twelve after decision 1, thirteen after ticket D3), of which [five]
-  # are developer-tier". That number is a claim about this tree, so it is
-  # checked against this tree.
+  # them (twelve after decision 1, thirteen after ticket D3, seventeen once the
+  # debt register was closed), of which [five] are developer-tier". That number
+  # is a claim about this tree, so it is checked against this tree. It went up
+  # by four when the register closed, which is the shape of the whole exercise:
+  # an adapter that reaches for an internal makes no exported call, and an
+  # adapter written within the protocol makes one.
   dir <- protocol_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   parsed <- protocol_parsed_sources(dir)
@@ -275,10 +294,12 @@ test_that("the ledger's record of what an adapter calls is still true", {
   names(observed) <- adapter_files
 
   expect_identical(observed, adapter_exported_calls)
-  expect_identical(length(unique(unlist(observed, use.names = FALSE))), 13L)
+  expect_identical(length(unique(unlist(observed, use.names = FALSE))), 17L)
 
-  # Of those, exactly two are developer-tier: the design-in and
-  # error-channel-in seams. The other three sanctioned entry points are
+  # Of those, three are developer-tier: the design-in and error-channel-in
+  # seams, plus `source_capabilities()`, which `fmrireg_relation()` began
+  # calling when it started declaring its planned sources itself instead of
+  # borrowing the plan's internal builder. The remaining two entry points are
   # unexercised because no in-tree adapter brings its own out-of-memory
   # source -- see the ledger's "Verdict on the developer set".
   developer_used <- intersect(
@@ -286,5 +307,6 @@ test_that("the ledger's record of what an adapter calls is still true", {
     sanctioned_developer_entry_points
   )
 
-  expect_setequal(developer_used, c("effect_extractor", "relation_fit"))
+  expect_setequal(developer_used,
+    c("effect_extractor", "relation_fit", "source_capabilities"))
 })
