@@ -93,6 +93,7 @@ estimand* rather than a comparison row.
 | `07-conservative-geometry.R` | the conservative-geometry arm: attribution vs detection, the latent layer, the coherence spectrum |
 | `08-prepare-subjects.R` | 01's preparation over every downloaded subject, cross-checked against 01's own output for subject 1 |
 | `09-six-subject-conservative.R` | 07's attribution panel, per subject, over all six |
+| `10-population-slice1.R` | population slice 1: region-level nodes carried onto shared group ROIs, one group model over six subjects |
 | `models.R` | model RDMs and shared constants (radius, tolerance, seeds) |
 | `subjects.R` | the per-subject counterpart: subject paths, availability, and 01's preparation as one callable recipe |
 
@@ -101,11 +102,15 @@ Run order is numeric. Every script is idempotent and writes only under
 `.rds` and the comparison report, committed as evidence).
 
 Scripts 01–07 are subject 1 only and read `data/prepared-smoke.rds`. Scripts
-08–09 are the six-subject arm and read `data/prepared-<subj>.rds`; they never
+08–10 are the six-subject arm and read `data/prepared-<subj>.rds`; they never
 write `prepared-smoke.rds`, so the artifacts 02–07 were run against are left
-exactly as they are. Both `00-download.R` and the two six-subject scripts take
-a `SUBJECTS` environment variable (`SUBJECTS="subj2 subj5"`) and skip — by
+exactly as they are. Both `00-download.R` and the three six-subject scripts
+take a `SUBJECTS` environment variable (`SUBJECTS="subj2 subj5"`) and skip — by
 name, never silently — any subject that is not on disk.
+
+§09 and §10 differ in kind, not only in scale: §09 runs six *separate*
+per-subject analyses and reports their spread as description, while §10 is the
+one script in this directory that fits a group model across subjects.
 
 ## Tiers
 
@@ -116,11 +121,13 @@ name, never silently — any subject that is not on disk.
 
 ## Current status
 
-Updated 2026-08-20. **Smoke tier implemented and run end to end**, and the
-conservative arm extended to all six subjects (§09). All nine scripts exist
-and are idempotent; `results/smoke-comparison.rds` and
-`results/smoke-report.md` are the evidence for 02–04, and
-`results/six-subject-conservative-receipts.csv` for 09. Read the report for the
+Updated 2026-08-20. **Smoke tier implemented and run end to end**, the
+conservative arm extended to all six subjects (§09), and the first group
+analysis in the directory landed as population slice 1 (§10). All ten scripts
+exist and are idempotent; `results/smoke-comparison.rds` and
+`results/smoke-report.md` are the evidence for 02–04,
+`results/six-subject-conservative-receipts.csv` for 09, and
+`results/population-slice1-receipts.csv` for 10. Read the report for the
 full argument — this section records the outcome and the one place where
 reality contradicted the estimand written above.
 
@@ -573,6 +580,266 @@ asserted identities), `results/six-subject-conservative.rds`,
 `tests/testthat/test-haxby-six-subjects.R`, which reads the committed CSV and
 skips cleanly when the exemplar has not been run.
 
+### 10 — population slice 1: six subjects, region nodes
+
+§09 ends by insisting on what it is not: six subjects analyzed one at a time,
+no group model, six separate point estimates.
+`10-population-slice1.R` is the thing §09 refused to be. It is slice 1 of
+`design/population-form-contract.md` (`population-form-v1`) — the first
+analysis in this repository that carries several subjects' conservative
+geometry onto a shared node set and fits a group model over it.
+
+**Why the nodes are regions.** Each Haxby subject's VT mask lives in that
+subject's own volume; there is no voxel correspondence between them, and
+`crossform` performs no registration and refuses to (contract §9.2). So the
+nodes are territories, not voxels. Each subject's analyzed VT is partitioned
+into three:
+
+| node | definition |
+|---|---|
+| `face-territory` | the subject's own `mask8_face_vt`, intersected with the analyzed VT |
+| `house-territory` | the subject's own `mask8_house_vt`, minus any face-territory voxel |
+| `other-VT` | everything else in `mask4_vt` |
+
+These are the same Haxby-distributed functional ROIs §09 reads, and the same
+face-wins tie-break for overlap (measured: **zero overlapping voxels** in all
+six subjects, so the rule never fires). Because the three are a *partition* of
+VT, the region frame is conservative in exactly the sense §07 means — the
+three region totals sum to the whole-VT budget, worst deviation **1.99e−13**.
+And that budget is not a number this script vouches for on its own: it reads
+§09's committed CSV and asserts agreement with the whole-VT total §09 recorded
+independently, worst deviation **3.69e−13** over the six subjects.
+
+The transport is then the simplest possible `P`: a 3 × 3 identity on named
+territories, `semantics = "budget"`, with a materialized sink that is exactly
+empty because coverage is complete. Slice 1 exists to demonstrate the
+population *algebra* on real data; a transport that has to be earned is slice
+2's problem, which is also why `η_transport` and the six §7 diagnostics are
+absent here — an identity map has no displacement, no spreading and no
+unmapped territory to diagnose.
+
+**The territories are functionally defined, and the transport says so.**
+`mask8_face_vt` and `mask8_house_vt` were derived by Haxby's authors from these
+same subjects' responses, over runs the distribution does not name. A transport
+built from data is `"functional"` under contract §1.4 and then owes a
+`cross_fit` naming those runs — which cannot be supplied here. So the
+provenance declares `method = "external"`, the contract's name for an operator
+whose construction `crossform` did not observe, and carries the reason in its
+`details`. The consequence is stated rather than buried: **reading a face −
+house contrast inside a face-selective territory is not protected against
+circularity**, §7.2 measures an undeclared circular transport buying 3.15× the
+honest gain, and nothing below should be read as evidence that face-selective
+cortex discriminates faces from houses. What this slice is evidence about is
+the algebra.
+
+The chain is `regions(…, "conservative")` → `plan_geometry()` →
+`location_transport()` → `plan_population(model = ~ 1)` →
+`estimate_population()` (a two-query bank: face − house and animate −
+inanimate) → `materialize_population()` + `rdm()` → `heterogeneity()` →
+`population_uncertainty()` → `population_prevalence()`.
+
+#### The group result
+
+Group means over six subjects, OLS on `~ 1`, budget normalization `none` (the
+mean subject ledger, in native evidence units). Intervals are 95 % nominal on
+5 df and are **uncalibrated** — the verb labels every row it emits that way.
+
+| node | voxels/subject | face − house | SE | *t* | 95 % interval | positive | per voxel |
+|---|---|---:|---:|---:|---|---:|---:|
+| `face-territory` | 2–41 | 10.90 | 4.04 | 2.70 | [0.52, 21.28] | 6/6 | 0.431 |
+| `house-territory` | 48–163 | **117.09** | 27.74 | 4.22 | [45.77, 188.40] | 6/6 | **1.048** |
+| `other-VT` | 188–489 | 49.72 | 10.75 | 4.62 | [22.08, 77.36] | 6/6 | 0.147 |
+
+| node | animate − inanimate | SE | *t* | 95 % interval | positive |
+|---|---:|---:|---:|---|---:|
+| `face-territory` | 7.94 | 3.01 | 2.64 | [0.21, 15.67] | 6/6 |
+| `house-territory` | 12.69 | 4.21 | 3.01 | [1.87, 23.51] | 6/6 |
+| `other-VT` | 18.75 | 1.84 | **10.17** | [14.01, 23.49] | 6/6 |
+
+**Read the last column before the third.** These are *budget* numbers, and
+budget semantics means a bigger territory holds more of it: `other-VT` is
+188–489 voxels and `face-territory` is 2–41, so the budget ranking is partly a
+ranking of size. The same operator read under `semantics = "density"` — the
+declared row-mass ratio of contract §1.3, with each territory's voxel count as
+its mass — reorders the two: per voxel, `face-territory` carries **0.431** of
+face − house evidence against `other-VT`'s **0.147**, while on budget it looks
+like the weakest node. `house-territory` is first under both readings.
+
+This is not a correction applied to a wrong number. Budget and density are
+**two different estimands built from one `P`** (§1.3), they enter scientific
+plan identity separately, and the script fits both plans and records both. What
+density gives up is conservation, and the receipts say so as an inequality
+rather than an equality: its column sum misses the native total by **99 %**,
+because a density satisfies no conservation law at all.
+
+The transported component ledgers carry the names contract §8.1 requires, in
+the CSV's `quantity` column and not merely in a footnote:
+`native_coherent_ledger` and `native_configuration_ledger`, never the bare
+words and never a `group_` prefix. The prefix matters — §8 proves the
+transported coherent part is *not* the group node's coherent part, and in
+`crossform` the latter does not exist at all, because transport maps nodes and
+there is no group frame. Their pattern is a real result: the native coherent
+ledger carried to `face-territory` is 10.39 against a configuration ledger of
+0.51, at `house-territory` 102.43 against 14.65, and at `other-VT` 12.28
+against **37.44** — the one node where configuration exceeds coherence.
+
+What is deliberately **not** printed anywhere, in the table or the CSV, is a
+coherence *fraction*: that is a nonnegative functional of signed estimates and
+lives only on the latent PSD layer (§8.1, and `conservative-geometry-v1` §6).
+The ratchet test asserts no such column exists, and that the ledger names carry
+no `group_` prefix.
+
+#### The identity checks — the acceptance
+
+Slice 1's job is to show the population algebra behaving on real data, so the
+identities are the result and the group means are almost a by-product.
+
+| identity | contract | worst | tolerance |
+|---|---|---:|---:|
+| budget preservation through `P` | claim 2 | **1.54e−16** | 1e−12 |
+| **query-then-transport = transport-then-query** | **claim 3** | **7.11e−15** | 1e−12 |
+| the same, under density semantics | §1.3 | **4.44e−16** | 1e−12 |
+| Σ over group nodes + sink = transported total | claim 2 | **2.84e−14** | 1e−12 |
+| Σ over nodes of `contribution()` = group coefficient of the summed response | E6 | **5.68e−14** | 1e−12 |
+| `native_coherent_ledger` + `native_configuration_ledger` = `transported_total` | §8.1 | **7.11e−15** | 1e−12 |
+| executor plumbing (below) | — | **0** | 1e−12 |
+| three region totals = whole-VT budget | `conservative-geometry-v1` §2 | **1.99e−13** | 1e−10 |
+| whole-VT budget = §09's committed value | cross-script | **3.69e−13** | 1e−10 |
+
+**What makes the commutation row a check.** Both population executors query
+before they transport, so the obvious way to write this test is not a test at
+all. Comparing `transport_values(P, contrast_energy(plan, c))` against the
+group fit's per-subject response compares a call with *itself* —
+`contrast_energy()` lowers a contrast to exactly the packed operator the query
+bank carries — and it returns exactly `0` because it is the same arithmetic on
+the same numbers, not because anything commuted. An earlier draft of this
+section reported that zero as the headline. It is kept, renamed
+**executor plumbing**, and pinned at exactly zero, because it does pin
+something worth pinning: that the group response really is `transport_values()`
+of each subject's own ledger and not something else nearby.
+
+The genuine order reversal is the one now labelled claim 3.
+`estimate_population()` contracts face − house into a *single* packed operator
+first and transports one number per node — query, then transport.
+`materialize_population()` transports all **36 packed coordinates** of the form
+and the `rdm()` view contracts the (face, house) edge out of them *afterwards*
+— transport, then query. The contrast is that RDM edge, so the two orders must
+agree, and because they are not the same arithmetic they agree at a rounding
+scale (**7.11e−15**) rather than exactly. The ratchet test asserts this number
+is nonzero as well as small: an exact zero here would mean the two paths had
+collapsed back onto one, which is the failure the earlier draft had.
+
+Contract §1.3's first consequence is that density is still a fixed linear map —
+`P` and the row mass are declared, not estimated — so the same reversal must
+close for the density arm too, and it does (**4.44e−16**).
+
+One more row is honest rather than impressive. `native_coherent_ledger +
+native_configuration_ledger = transported_total` **cannot fail**: the
+configuration component is computed as `total − coherent` inside each subject's
+own execution, before any transport, so an error in the coherent part would be
+absorbed by the configuration part and the sum would still close. Contract §8.1
+requires the statement to be made, so it is made — as documentation of the
+decomposition's shape, not as evidence about its content. The receipt's own
+note says so.
+
+The sink deserves a note. It is materialized in every transport and is exactly
+empty, so deleting the sink row here would *not* break the sum-over-nodes
+identity (5.68e−14 either way). That is a property of full coverage, not a
+demonstration that the sink is optional; on a transport that loses territory it
+is precisely where the loss becomes visible, which is why the constructor
+refuses a `P` without one (§1.1). Slice 2 is where that column earns its keep.
+
+#### Heterogeneity, and what one draw is worth
+
+`heterogeneity()` on the population plan, default `estimator = "cross_fit"` —
+the only estimator the contract admits for a spectrum (§6.4). Each subject's
+own runs are interleaved into two halves (`run01, run03, …` against `run02,
+run04, …`), which 11–12 runs per subject supports comfortably against the
+four-partition floor. The 6 × 6 cross-fitted subject Gram has spectrum
+
+```
+7374, 2390, 1650, 1027, 434, -5.3e-13
+```
+
+— rank 5, which is the `N − rank(X)` bound, with the sixth eigenvalue at
+numerical zero. Subject 4 dominates mode 1 (loading +0.82 against subject 3's
+−0.40); subject 6 dominates mode 2 (+0.79 against subject 2's −0.50). The
+effective mode count after the PSD projection is **2.59**.
+
+Two things not to over-read. The contract measures the cross-fitted Gram coming
+out indefinite in 100 % of its own simulations, and this one **does not** — its
+only negative eigenvalue is the rank-deficiency zero at −5.3e−13, and the PSD
+projection accordingly moved 5.3e−13 of mass, a share of 4e−17. So the
+projection cost nothing *on this data*; that is a fact about this run, not a
+demonstration that projections are free, and the receipt's note says which. The
+spectrum is still reported signed and unclipped, because the discipline is not
+contingent on the numbers coming out convenient.
+
+And this is **description**. A single draw of a cross-fitted Gram's centred
+trace is not an estimate of a between-subject trace — the contract measures its
+sampling sd at roughly a third of its mean.
+
+#### Prevalence, and the number that makes it readable
+
+`population_prevalence()` reads two counts, both on the latent descriptive
+layer. The **sign** count is 6/6 at every group node and both queries: every
+subject carries a positive ledger everywhere. The **alignment** count — how
+many subjects agree in direction with the *leave-one-out* mean of the other
+five — is also 6/6 at all three nodes. The leave-one-out reference is the
+point: an inner product against the plain group mean carries the subject's own
+`‖v‖²/n` and would be positive whatever the subject did, so the plain version
+would read 1 by construction.
+
+The verb also carries the number without which a prevalence is unreadable:
+**a pure-noise cell reports 0.5, not 0.** Thresholding a signed crossvalidated
+estimate keeps the sign and discards the magnitude, and the sign is the noisy
+part — so "4 of 6" is barely above chance, not a two-thirds effect. 6/6 against
+a 0.5 reference is what makes these particular counts worth printing.
+
+One caveat the verb raises itself and the receipts record: the alignment inner
+product is Euclidean in the **query readout**, not Frobenius in the forms, and
+this two-query bank's Gram sits a distance 3 from the identity — so the two
+queries are not weighted equally in the alignment. Still descriptive: no
+standard error, interval or p-value attaches to a count of participants, and
+none follows from one.
+
+#### What is and is not claimed
+
+**Claimed.** Six subjects, three region-level group nodes, an anatomical
+identity transport under declared budget (and separately density) semantics; a
+group face − house and animate − inanimate contrast at each node with
+between-subject standard errors; a 28-pair group RDM at each node; the two
+transported component ledgers under their contract names; sign and alignment
+prevalence against their 0.5 noise reference; and eight algebraic identities
+holding to between 0 and 2e−13 on real data.
+
+**Not claimed.** (i) Anything about a population beyond these six subjects.
+(ii) Calibrated uncertainty — `population_uncertainty()` labels every row
+`uncalibrated`, and the package's own null-coverage benchmark measures **0.918**
+coverage for a nominal 0.95 interval at this residual df when participant noise
+is linked to the group covariates, degrading further as N grows. There is no
+permutation test, no p-value and no multiple-comparison correction anywhere in
+the script. (iii) Anything about heterogeneity beyond the descriptive reading
+above. (iv) That prevalence is an estimate — see below. (v) That the transport
+is neutral preprocessing — `P` is part of the estimand (§1.5), and a different
+territory definition is a different analysis, not a better-tuned one.
+(vi) **Anything about faces or houses.** The face and house territories were
+defined from these subjects' own responses and the transport carries no
+cross-fit, so those two nodes are unprotected against circularity; the contrast
+values there are inputs to an algebra demonstration, not findings.
+(vii) Anything at searchlight resolution: these are three regions, and the
+interesting transport questions start where the regions stop.
+
+Cost: **~13 s** for all six subjects (region nodes are three rows per subject,
+not six hundred), on top of §08's preparation. Evidence:
+`results/population-slice1-receipts.csv` (267 receipts, 51 of them asserted
+identities), `results/population-slice1.rds`, `results/population-slice1.png`.
+Held as a ratchet by `tests/testthat/test-haxby-population.R`, which reads the
+committed CSV and skips cleanly when the exemplar has not been run. That test
+pins the group numbers by *value*, not only the identities by tolerance: a
+rerun that quietly changed the estimand fails it and has to be re-recorded
+knowingly.
+
 ### Not done
 
 - Full (whole-brain) tier: out of scope here, and not run.
@@ -583,6 +850,12 @@ skips cleanly when the exemplar has not been run.
 - Six-subject versions of the other arms: §09 runs §07's attribution panel
   only. The detection/attribution contrast, the latent layer and the
   multiscale coherence spectrum are still subject 1 alone, as are 02–06.
-- Any group-level statement. There is deliberately no group model, no
-  permutation test and no across-subject inference anywhere in this directory;
-  §09's six subjects are six separate point estimates.
+- Group-level *inference*. §10 fits a group model — that part is no longer
+  "not done" — but its intervals are uncalibrated and there is still no
+  permutation test, no p-value and no multiple-comparison correction anywhere
+  in this directory. §09's six subjects remain six separate point estimates by
+  design.
+- Population analysis at searchlight resolution. §10 is slice 1: three region
+  nodes and an identity transport. Slice 2 — a normalized dataset, a
+  searchlight transport, `η_transport` and the six §7 transport diagnostics —
+  is a separate ticket and is not in this directory.
