@@ -16,7 +16,7 @@
         coverage:     minimum 2 of 4 participants contributing; no floor declared
         frame:        undeclared, conservative
         transport:    budget, anatomical, cross-fit not declared
-        estimand:     population-sha256:1b0f2bba5cf2...
+        estimand:     population-sha256:<digest>...
         reading:      latent descriptive layer; not for inference
         a cell at which nothing reproduces reports a fraction near 0.5, not near
           0: thresholding a signed crossvalidated estimate keeps the sign and
