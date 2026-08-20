@@ -496,9 +496,11 @@
 #'   high dimensional data", \emph{Journal of the Japan Statistical Society}
 #'   35(2), 251--272, for the unbiased estimator of
 #'   \eqn{\mathrm{tr}(\Sigma^2)}{tr(Sigma^2)} used here.
-#' @seealso [sampling_covariance()] to query the result,
-#'   [sampling_capabilities()] to ask whether the law is available before
-#'   provoking a refusal, and [rdm()] for the point estimates it describes.
+#' @seealso [sampling_covariance()] to query the result, including
+#'   `queries = ` for the covariance of a bank of [contrast_energy()] queries
+#'   at one measurement, [sampling_capabilities()] to ask whether the law is
+#'   available before provoking a refusal, and [rdm()] for the point estimates
+#'   it describes.
 #' @family sampling uncertainty
 #' @examples
 #' set.seed(23)
@@ -639,6 +641,271 @@ rdm_sampling_covariance <- function(
     class = c("effect_sampling_covariance_batch", "list"))
 }
 
+# Query banks over the distance basis ---------------------------------------
+#
+# A contrast energy is the crossvalidated quadratic form c' G c, which
+# `contrast_energy()` names by lowering the contrast to the physical query
+# `svec(c c')` (`bilinear_query(tcrossprod(weights))`). Whenever the contrast
+# is centred, that packed operator is an exact linear combination of the packed
+# distance operators,
+#
+#   c c' = - sum_{i<j} c_i c_j (e_i - e_j)(e_i - e_j)',   sum_i c_i = 0,
+#
+# so a bank of K such queries is a bank of linear functionals of the very
+# coordinates an `effect_sampling_covariance` in the `"rdm"` basis already
+# carries, and its K-by-K sampling covariance is exactly the transport
+# `A Sigma A'` of that covariance. `.sampling_query_bank_lowering()` builds `A`
+# and then *checks it in packed coordinates*, against `.svec_symmetric()` of
+# the same operator `contrast_energy()` would send to the compiler, so the
+# lowering is verified against the physical query rather than asserted.
+#
+# The route returns the transported covariance as a form in its own basis
+# rather than as a dense block. Rewriting the row factors as
+#
+#   signal <- T signal_rdm,   xi <- T xi_rdm,   with   T D = C,
+#
+# reproduces exactly the components the kernel would build from the contrast
+# bank directly (`.sampling_covariance_from_components(contrasts = C)`), which
+# is why the result stays factorized, stays queryable by every existing
+# operation, and agrees with `operation = "transport"` to machine precision.
+# `tests/testthat/test-query-bank-sampling.R` asserts that agreement rather
+# than trusting the algebra.
+#
+# A contrast whose weights do not sum to zero is refused, not approximated:
+# crossvalidated distances are invariant to a shift `G -> G + a 1' + 1 a'` of
+# the geometry and `c' G c` is not, so the distance basis carries no
+# information at all about such a query.
+
+.sampling_query_bank <- function(queries, effects) {
+  if (is.data.frame(queries)) queries <- as.matrix(queries)
+  if (is.matrix(queries)) {
+    if (!is.numeric(queries) || nrow(queries) < 1L) {
+      .input_error(paste0(
+        "A query bank matrix must hold at least one numeric row, one row per ",
+        "contrast and one column per experimental effect."
+      ),
+        arg = "queries", received = .msg_value(queries),
+        expected = "a K-by-q numeric matrix of contrast weights")
+    }
+    labels <- rownames(queries)
+    rows <- lapply(seq_len(nrow(queries)), function(k) {
+      row <- queries[k, ]
+      if (is.null(colnames(queries))) row <- unname(row)
+      .align_contrast(row, effects, label = sprintf("queries[%d, ]", k))
+    })
+  } else if (is.list(queries)) {
+    if (!length(queries)) {
+      .input_error("A query bank must hold at least one contrast.",
+        arg = "queries", received = "an empty list",
+        expected = "one contrast vector per query")
+    }
+    labels <- names(queries)
+    rows <- lapply(seq_along(queries), function(k) {
+      .align_contrast(queries[[k]], effects,
+        label = sprintf("queries[[%d]]", k))
+    })
+  } else if (is.numeric(queries)) {
+    labels <- NULL
+    rows <- list(.align_contrast(queries, effects, label = "queries"))
+  } else {
+    .input_error(paste0(
+      "A query bank is a numeric contrast vector, a K-by-q matrix of contrast ",
+      "rows, or a list of contrast vectors over the relation's effects."
+    ),
+      arg = "queries", received = .msg_value(queries),
+      expected = "a contrast vector, a contrast matrix, or a list of them")
+  }
+  if (is.null(labels)) labels <- paste0("query", seq_along(rows))
+  if (!.is_strings(labels, unique = TRUE) || length(labels) != length(rows)) {
+    .input_error(paste0(
+      "Query-bank labels must name every query exactly once; name the rows ",
+      "of the bank, or leave them unnamed to be numbered."
+    ),
+      arg = "queries", received = .msg_names(labels),
+      expected = "unique nonempty query names")
+  }
+  value <- do.call(rbind, rows)
+  dimnames(value) <- list(labels, effects)
+  list(matrix = value, labels = labels)
+}
+
+.sampling_query_bank_lowering <- function(bank, effects) {
+  distances <- .sampling_distance_contrasts(effects)
+  contrasts <- bank$matrix
+  left <- match(distances$pairs$left, effects)
+  right <- match(distances$pairs$right, effects)
+  # A[k, (i, j)] = -c_ki c_kj is the claim; the packed check below is what
+  # makes it a fact for this particular bank.
+  map <- -contrasts[, left, drop = FALSE] * contrasts[, right, drop = FALSE]
+  dimnames(map) <- list(bank$labels, distances$labels)
+  packed_query <- t(vapply(seq_len(nrow(contrasts)), function(k) {
+    .svec_symmetric(tcrossprod(contrasts[k, ]))
+  }, numeric(length(effects) * (length(effects) + 1L) / 2L)))
+  packed_distance <- t(vapply(seq_len(nrow(distances$matrix)), function(r) {
+    .svec_symmetric(tcrossprod(distances$matrix[r, ]))
+  }, numeric(length(effects) * (length(effects) + 1L) / 2L)))
+  rownames(packed_query) <- bank$labels
+  residual <- packed_query - map %*% packed_distance
+  scale <- pmax(1, apply(abs(packed_query), 1L, max))
+  outside <- apply(abs(residual), 1L, max) > 1e-10 * scale
+  if (any(outside)) {
+    sums <- rowSums(contrasts)
+    .capability_refusal(sprintf(paste0(
+      "The crossvalidated distance basis cannot express %s: %s. A ",
+      "contrast energy c'Gc is a linear functional of the pairwise distances ",
+      "only when the contrast is centred, because the distances are invariant ",
+      "to a shift G -> G + a1' + 1a' of the geometry and an uncentred energy ",
+      "is not. This covariance therefore carries no information about such a ",
+      "query, and crossform will not manufacture one."
+    ),
+      .msg_count(sum(outside), "query"),
+      paste(sprintf("`%s` sums to %s", bank$labels[outside],
+        format(sums[outside], digits = 3L)), collapse = "; ")
+    ),
+      capability = "distance_basis_query_bank",
+      namespace = "evidence_sampling",
+      reasons = "uncentred_contrast_not_in_distance_basis",
+      remedies = c(
+        "Centre each contrast so its weights sum to zero.",
+        paste0(
+          "Read the uncentred energy as a point estimate with ",
+          "`contrast_energy()`; evidence-sampling-v1 admits no sampling law ",
+          "for it."
+        )
+      )
+    )
+  }
+  # Any T with T D = C rebuilds the contrast bank's row factors from the
+  # distance basis, and every such T gives the same factors. The reference
+  # parameterization c = -sum_{i>1} c_i (e_1 - e_i) is exact for a centred
+  # contrast and needs no pseudo-inverse; the identity is checked, not assumed.
+  reduction <- matrix(0, nrow(contrasts), nrow(distances$matrix))
+  for (effect in seq_along(effects)[-1L]) {
+    forward <- which(left == 1L & right == effect)
+    if (length(forward) == 1L) {
+      reduction[, forward] <- -contrasts[, effect]
+    } else {
+      reduction[, which(left == effect & right == 1L)] <-
+        contrasts[, effect]
+    }
+  }
+  if (max(abs(reduction %*% distances$matrix - contrasts)) >
+      1e-10 * max(1, max(abs(contrasts)))) {
+    .contract_error(paste0(
+      "The query-bank reduction does not reproduce its own contrast bank ",
+      "over the distance basis."
+    ))
+  }
+  list(
+    map = map, reduction = reduction, packed_query = packed_query,
+    distances = distances
+  )
+}
+
+.sampling_query_bank_covariance <- function(x, bank, lowering) {
+  .validate_sampling_covariance(x, deep = FALSE)
+  source <- x$source
+  source$construction <- "query_bank_reduction_of_distance_basis"
+  source$basis_parent <- x$basis
+  source$queries <- bank$matrix
+  source$query_lowering <- lowering$map
+  source$packed_query <- lowering$packed_query
+  source$distance_labels <- x$labels
+  # Named, not implied: a reader of a K-by-K block must not be able to mistake
+  # it for one page of a joint covariance over measurements.
+  source$cross_node_covariance <- "unavailable"
+  source$local_only <- TRUE
+  signal_factor <- lowering$reduction %*% x$signal_factor
+  xi_factor <- lowering$reduction %*% x$xi_factor
+  source$signal_rank <- ncol(signal_factor)
+  source$effect_covariance_rank <- ncol(xi_factor)
+  .sampling_covariance_form(
+    x$plan,
+    signal_factor = signal_factor,
+    xi_factor = xi_factor,
+    noise_trace = x$noise_trace,
+    partitions = x$partitions,
+    labels = bank$labels,
+    source = source,
+    basis = "query_bank"
+  )
+}
+
+.sampling_query_bank_form <- function(x, queries) {
+  if (!inherits(x, "effect_sampling_covariance")) {
+    .input_error(paste0(
+      "A query bank is attached to a sampling covariance, not to the plan it ",
+      "came from: build one with `rdm_sampling_covariance()` first, then pass ",
+      "it as `x`."
+    ),
+      arg = "x", received = .msg_value(x),
+      expected = "an object from `rdm_sampling_covariance()`")
+  }
+  .validate_sampling_covariance(x, deep = TRUE)
+  if (!identical(x$basis, "rdm")) {
+    .capability_refusal(sprintf(paste0(
+      "A query bank is lowered onto the crossvalidated distance basis, and ",
+      "this covariance is in the `%s` basis. Build the bank from the ",
+      "`rdm_sampling_covariance()` form whose coordinates are the pairwise ",
+      "distances."
+    ), x$basis),
+      capability = "distance_basis_query_bank",
+      namespace = "evidence_sampling",
+      reasons = "covariance_is_not_in_the_distance_basis",
+      remedies = "Pass an `rdm_sampling_covariance()` result as `x`."
+    )
+  }
+  effects <- x$plan$evidence_plan$task$left_relation$effect_space$coordinates
+  bank <- .sampling_query_bank(queries, effects)
+  lowering <- .sampling_query_bank_lowering(bank, effects)
+  if (!identical(lowering$distances$labels, x$labels)) {
+    .contract_error(paste0(
+      "This covariance's coordinates are not the pairwise distances of its ",
+      "own plan's effect space, so a contrast bank cannot be lowered onto it."
+    ))
+  }
+  .sampling_query_bank_covariance(x, bank, lowering)
+}
+
+# Gap G8 of `design/conservative-geometry-contract.md`, answered where it is
+# asked instead of in prose only. The per-measurement K-by-K block is a
+# marginal; nothing in evidence-sampling-v1 supplies the covariance between the
+# estimates at two measurements, and a conservative frame does not supply one
+# either, because conservation is a law about estimates and not about their
+# uncertainty (contract 7.6a).
+.require_local_sampling_scope <- function(scope) {
+  if (identical(scope, "measurement")) return(invisible(TRUE))
+  .capability_refusal(paste0(
+    "Cross-measurement sampling covariance is unavailable. The admitted ",
+    "analytic law is local: it is built from one measurement's own support, ",
+    "its residual covariance, and its signal patterns, and nothing in ",
+    "evidence-sampling-v1 supplies the covariance between the estimates of ",
+    "two different measurements. What is missing is an explicit spatial ",
+    "model -- the cross-support residual second moment and the frame overlap ",
+    "it induces. A conservative frame does not supply one: conservation is a ",
+    "law about estimates, not about their uncertainty, so a conserved budget ",
+    "buys no error bars and per-measurement blocks must not be assembled ",
+    "into a joint covariance."
+  ),
+    capability = "cross_node_sampling_covariance",
+    namespace = "evidence_sampling",
+    reasons = c(
+      "spatial_covariance_model_unavailable",
+      "conservation_gives_no_uncertainty"
+    ),
+    remedies = c(
+      paste0(
+        "Request `scope = \"measurement\"` and read each K-by-K block as the ",
+        "marginal covariance of that measurement's queries."
+      ),
+      paste0(
+        "Supply cross-node precision externally; the population layer ",
+        "declares that as its own input rather than deriving it here."
+      )
+    )
+  )
+}
+
 #' Ask whether the analytic sampling law is available before provoking it
 #'
 #' A scientist should be able to ask what the uncertainty channel will grant
@@ -747,20 +1014,77 @@ print.effect_sampling_capabilities <- function(x, ...) {
 #' \eqn{P_{\mathrm{eff}}}{P_eff} for the measurement you queried; `print(x)` shows
 #' both.
 #'
+#' @section Banks of contrast-energy queries:
+#' `queries` names a bank of \eqn{K}{K} contrasts and moves the covariance into
+#' the coordinates of their signed contrast energies -- the same estimand
+#' [contrast_energy()] reports as `$total`. Supply a `K`-by-`q` matrix of
+#' contrast rows, a list of contrast vectors, or one contrast vector; named
+#' weights are aligned to the relation's effect order exactly as
+#' [contrast_energy()] aligns them, and row or list names become the query
+#' labels.
+#'
+#' `sampling_covariance(x, queries = )` returns an `effect_sampling_covariance`
+#' with `basis = "query_bank"`: the same factorized class, over `K`
+#' coordinates instead of the pairwise distances, carrying the aligned bank on
+#' `$source$queries` and the distance lowering it used on
+#' `$source$query_lowering`. Adding an `operation` applies that operation in
+#' the new basis, so
+#' `sampling_covariance(x, "materialize", queries = bank)` is the `K`-by-`K`
+#' covariance of the bank at one measurement, and the same call on a batch
+#' returns one `K`-by-`K` matrix per measurement, named by the measurement it
+#' belongs to (`values[[measurement]]`).
+#'
+#' This is exactly the `"transport"` of the distance-basis covariance through
+#' the operator that lowers each query onto the distances, and it is tested
+#' against that route rather than derived in parallel: a centred contrast
+#' satisfies
+#' \eqn{cc^\top=-\sum_{i<j}c_ic_j(e_i-e_j)(e_i-e_j)^\top}{c c' = -sum_{i<j} c_i c_j (e_i - e_j)(e_i - e_j)'},
+#' so `c'Gc` is a linear functional of the pairwise distances. A contrast whose
+#' weights do not sum to zero is refused rather than approximated: the
+#' crossvalidated distances are invariant to a shift
+#' \eqn{G\to G+a\mathbf{1}^\top+\mathbf{1}a^\top}{G -> G + a1' + 1a'} of the
+#' geometry and an uncentred energy is not, so the distance basis carries no
+#' information about it. Every refusal of the underlying law is inherited
+#' unchanged: a learned metric or a whitened plan is refused by
+#' [rdm_sampling_covariance()] before a bank can be attached to it.
+#'
+#' @section What a query bank does not give you:
+#' Each covariance is local to one measurement. `scope = "cross_measurement"`
+#' refuses with capability `"cross_node_sampling_covariance"` and names what is
+#' missing: an explicit spatial model, being the cross-support residual second
+#' moment and the frame overlap it induces. A conservative frame does not
+#' supply one either. Conservation is a law about estimates, not about their
+#' uncertainty, so overlapping rows are strongly positively correlated, per-row
+#' variances do not add to the variance of a conserved budget, and the
+#' per-measurement blocks returned here must not be assembled into a joint
+#' covariance.
+#'
 #' @param x An object from [rdm_sampling_covariance()], or a batch of those
 #'   objects. A batch returns one result per measurement.
-#' @param operation One exact covariance operation.
+#' @param operation One exact covariance operation. With `queries` supplied
+#'   and `operation` omitted, the query-bank covariance form itself is
+#'   returned instead of an operation on it.
 #' @param query Operation-specific argument: a two-column integer matrix for
 #'   `selected_entries`, an evidence-coordinate vector for `apply` or
 #'   `quadratic_form`, or an output-by-evidence matrix for `transport`.
 #' @param max_bytes Positive payload/workspace budget used only for explicit
 #'   dense materialization.
+#' @param queries Optional bank of contrast-energy queries: a `K`-by-`q`
+#'   matrix of contrast rows, a list of contrast vectors, or one contrast
+#'   vector. Each contrast must sum to zero. See the section below.
+#' @param scope Whether a query bank is read at one measurement
+#'   (`"measurement"`, the only admitted scope) or jointly across measurements
+#'   (`"cross_measurement"`, which refuses).
 #' @return A named variance vector (`"diagonal"`), selected covariance vector,
 #'   covariance action, scalar quadratic form, transported covariance, or
 #'   explicitly materialized covariance matrix, according to `operation`.
-#'   Names come from the distance labels carried by `x`.
-#' @seealso [rdm_sampling_covariance()] to build `x`, and
-#'   [sampling_capabilities()] to check the law is available first.
+#'   Names come from the distance labels carried by `x`, or from the query
+#'   labels once `queries` names a bank. With `queries` and no `operation`,
+#'   an `effect_sampling_covariance` with `basis = "query_bank"`, or a batch
+#'   of them named by measurement.
+#' @seealso [rdm_sampling_covariance()] to build `x`,
+#'   [sampling_capabilities()] to check the law is available first, and
+#'   [contrast_energy()] for the point estimates a query bank describes.
 #' @family sampling uncertainty
 #' @examples
 #' # Three conditions in three runs, with a fixed identity noise metric.
@@ -806,13 +1130,54 @@ print.effect_sampling_capabilities <- function(x, ...) {
 #'
 #' # Materialization is explicit, never a silent fallback.
 #' round(sampling_covariance(uncertainty, "materialize"), 6)
+#'
+#' # A bank of contrast-energy queries moves the same covariance into the
+#' # coordinates of the energies `contrast_energy()` reports.
+#' bank <- rbind(
+#'   animacy = c(face = 1, house = -1, tool = 0),
+#'   tools = c(face = -0.5, house = -0.5, tool = 1)
+#' )
+#' energies <- sampling_covariance(uncertainty, queries = bank)
+#' energies$basis
+#' round(sampling_covariance(energies, "materialize"), 6)
+#'
+#' # It is the transport of the distance covariance through the operator that
+#' # lowers each query onto the distances, and reports itself as such.
+#' round(energies$source$query_lowering, 3)
+#'
+#' # Cross-measurement covariance is refused, not approximated.
+#' catch_refusal(
+#'   sampling_covariance(uncertainty, queries = bank,
+#'     scope = "cross_measurement")
+#' )$capability
 #' @export
 sampling_covariance <- function(
     x,
     operation = c("diagonal", "selected_entries", "apply",
       "quadratic_form", "transport", "materialize"),
     query = NULL,
-    max_bytes = 512 * 1024^2) {
+    max_bytes = 512 * 1024^2,
+    queries = NULL,
+    scope = c("measurement", "cross_measurement")) {
+  # Asked of every route, not only of a query bank: the covariance between two
+  # measurements is unavailable whatever coordinates the caller reads.
+  .require_local_sampling_scope(match.arg(scope))
+  if (!is.null(queries)) {
+    reduced <- if (inherits(x, "effect_sampling_covariance_batch")) {
+      values <- lapply(x, .sampling_query_bank_form, queries = queries)
+      # Named by the measurement each block belongs to, so a population layer
+      # can read `values[[measurement]]` rather than trusting position.
+      names(values) <- vapply(values, function(value) {
+        as.character(value$source$node)
+      }, character(1))
+      .sampling_covariance_batch(values)
+    } else {
+      .sampling_query_bank_form(x, queries)
+    }
+    if (missing(operation)) return(reduced)
+    return(sampling_covariance(reduced, operation = match.arg(operation),
+      query = query, max_bytes = max_bytes))
+  }
   if (inherits(x, "effect_sampling_covariance_batch")) {
     operation <- match.arg(operation)
     return(lapply(x, sampling_covariance, operation = operation,

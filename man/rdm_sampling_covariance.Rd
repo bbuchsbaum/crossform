@@ -196,9 +196,11 @@ high dimensional data", \emph{Journal of the Japan Statistical Society}
 \eqn{\mathrm{tr}(\Sigma^2)}{tr(Sigma^2)} used here.
 }
 \seealso{
-\code{\link[=sampling_covariance]{sampling_covariance()}} to query the result,
-\code{\link[=sampling_capabilities]{sampling_capabilities()}} to ask whether the law is available before
-provoking a refusal, and \code{\link[=rdm]{rdm()}} for the point estimates it describes.
+\code{\link[=sampling_covariance]{sampling_covariance()}} to query the result, including
+\verb{queries = } for the covariance of a bank of \code{\link[=contrast_energy]{contrast_energy()}} queries
+at one measurement, \code{\link[=sampling_capabilities]{sampling_capabilities()}} to ask whether the law is
+available before provoking a refusal, and \code{\link[=rdm]{rdm()}} for the point estimates
+it describes.
 
 Other sampling uncertainty: 
 \code{\link{reconstruct_evidence}()},

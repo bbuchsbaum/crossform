@@ -4,12 +4,13 @@
 # an RDM covariance and the general evidence form is not its fields but the
 # basis its coordinates live in, so `basis` is a field of the form rather than
 # a subclass: `"rdm"` for crossvalidated squared distances, `"evidence"` for
-# the general evidence coordinates the kernel builds. Readers of the object
-# (print, format, plot, the query entry point) branch on that field, and the
-# basis enters the content signature because two forms over the same numbers
-# in different bases are different artifacts.
+# the general evidence coordinates the kernel builds, `"query_bank"` for a
+# declared bank of contrast-energy queries reduced out of the distance basis.
+# Readers of the object (print, format, plot, the query entry point) branch on
+# that field, and the basis enters the content signature because two forms over
+# the same numbers in different bases are different artifacts.
 
-.sampling_covariance_bases <- c("evidence", "rdm")
+.sampling_covariance_bases <- c("evidence", "rdm", "query_bank")
 
 .sampling_covariance_signature <- function(fields) {
   .sha256_signature(list(
