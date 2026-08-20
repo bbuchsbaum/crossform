@@ -11,22 +11,23 @@
 # failure is a request for the justification, not for a rubber stamp.
 crossform_public_api <- c(
   "abstract_domain", "additive_frame", "aggregate_first",
-  "as_neurovol", "bids_study", "bilinear_query",
+  "anatomical_transport", "as_neurovol", "bids_study", "bilinear_query",
   "canonical_coupling", "catch_refusal",
   "coefficient_parameterization", "compile_frame",
   "compiler_conformance", "compute_policy", "condition_space",
-  "connectivity", "contrast_energy", "control_coupling", "coupling",
+  "connectivity", "contrast_energy", "contribution",
+  "control_coupling", "coupling",
   "coupling_contrast", "covariance_coupling", "cross_partitions",
   "crossnobis", "design_model", "diagonal_precision", "edge_frame",
   "effect_coupling", "effect_extractor", "effect_map",
   "effect_space", "estimate_relation", "evaluate_geometry",
-  "example_fmri_effects", "file_matrix_source",
+  "example_fmri_effects", "external_transport", "file_matrix_source",
   "fmridesign_design_model", "fmrireg_relation",
   "frame_conservation", "frame_family",
   "gaussian_covariance_model",
   "geometry_alignment", "geometry_component", "geometry_spectrum",
   "identity_metric", "lm_extractor", "lm_relation_fit",
-  "lower_effect_map", "match_control", "match_coupling",
+  "location_transport", "lower_effect_map", "match_control", "match_coupling",
   "materialize_geometry", "measurement_components",
   "measurement_form", "measurement_frame", "metric_capabilities",
   "metric_training_policy", "neural_metric", "neuroim2_searchlights",
@@ -42,7 +43,7 @@ crossform_public_api <- c(
   "relation_plan_receipts", "residual_block", "residual_df", "rsa",
   "sampling_capabilities", "sampling_covariance", "searchlights",
   "shrinkage_precision", "source_capabilities", "study",
-  "study_axis", "study_capabilities", "variation_query",
+  "study_axis", "study_capabilities", "transport_values", "variation_query",
   "volume_domain", "voxelwise", "whole_brain"
 )
 
@@ -58,9 +59,10 @@ test_that("the exported surface is exactly the ledgered set", {
 
   # The count is stated separately because the ledger quotes it: the
   # subtraction release took 105 exports to 97, and WS-D has since added
-  # `frame_family()` (`design/api-tiers.md`, "Additions after the subtraction
+  # `frame_family()` and `contribution()`, and WS-E the four population
+  # transport names (`design/api-tiers.md`, "Additions after the subtraction
   # release").
-  expect_identical(length(exports), 98L)
+  expect_identical(length(exports), 103L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

@@ -38,7 +38,8 @@ layer_of <- c(
   "validation-memo.R" = 2L, "measurement.R" = 2L,
   "measurement-storage.R" = 2L, "relation-fit.R" = 2L,
   "relation-session.R" = 2L,
-  "residual-statistics.R" = 2L, "bridge.R" = 2L, "crossform-package.R" = 2L,
+  "residual-statistics.R" = 2L, "bridge.R" = 2L,
+  "transport.R" = 2L, "crossform-package.R" = 2L,
 
   ## 3. plans — scientific estimands and their identities
   "geometry-plan.R" = 3L, "relation-plan.R" = 3L, "crossnobis.R" = 3L,

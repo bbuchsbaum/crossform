@@ -157,9 +157,16 @@ Three normative consequences.
 
 ### 1.4 Provenance, and the cross-fit obligation
 
-`kind = "anatomical"` means `P` was built from a registration or a parcellation
-that never saw the response data; the provenance records the warp or atlas
-identity. `kind = "functional"` means `P` was built from data, and then
+(Field name: the implementation (`location_transport()`, E2) calls this field
+`provenance$method`, with a third admitted value `"external"` for a
+user-supplied operator whose construction crossform did not observe; an
+external transport still carries `cross_fit` when it was built from data. This
+contract follows the implementation.)
+
+`method = "anatomical"` means `P` was built from a registration or a
+parcellation that never saw the response data; the provenance records the warp
+or atlas identity. `method = "functional"` means `P` was built from data, and
+then
 `cross_fit` is **required**: it names the runs, sessions or tasks used to build
 `P`, and the plan refuses to evaluate on any partition listed there. §7 measures
 what happens when this is not enforced.
@@ -809,7 +816,7 @@ is not a global quantity, so the fraction has no denominator).
 
 **Required print line.** Every transported component view prints the native
 frame family it is a ledger of (family, scale, normalization) and the transport
-identity (id, `semantics`, `provenance$kind`, cross-fit status). A reader must
+identity (id, `semantics`, `provenance$method`, cross-fit status). A reader must
 never have to infer which frame a "coherent" number belongs to.
 
 **Required documentation sentence**, so that the prohibition does not invite

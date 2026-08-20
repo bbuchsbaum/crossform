@@ -84,9 +84,9 @@ check_transport <- function(P, tol = 1e-12) {
     row_stochastic = max(abs(rowSums(M) - 1)) <= tol,
     semantics_declared = P$semantics %in% c("budget", "density"),
     row_mass_positive = all(P$row_mass > 0),
-    provenance_kind = !is.null(P$provenance$kind),
+    provenance_method = !is.null(P$provenance$method),
     cross_fit_when_functional =
-      !identical(P$provenance$kind, "functional") ||
+      !identical(P$provenance$method, "functional") ||
         !is.null(P$provenance$cross_fit)
   )
 }

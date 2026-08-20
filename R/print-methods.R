@@ -2289,3 +2289,56 @@ print.effect_pair_coupling <- function(x, ...) {
   .pf_set(paste0(labels, " ",
     format(signif(as.numeric(weights), 4L), trim = TRUE)), max = max)
 }
+
+# Location transports ---------------------------------------------------------
+#
+# A transport is estimand-bearing, so its one-screen summary has to carry the
+# three things that change what a group number means -- the semantics, the
+# unmapped territory, and how the operator was built -- alongside the shape.
+# Density additionally names its denominator, because the declared row mass is
+# what the ratio is per unit of.
+
+.pf_transport_shape <- function(x) {
+  paste0(nrow(x$matrix), " native -> ", nrow(x$group_index),
+    " group + sink")
+}
+
+.pf_transport_provenance <- function(provenance) {
+  cross_fit <- if (is.null(provenance$cross_fit)) {
+    "none"
+  } else {
+    .pf_set(provenance$cross_fit, max = 3L)
+  }
+  paste0(.pf_or(provenance$method, "undeclared"), " (cross-fit: ", cross_fit,
+    ")")
+}
+
+#' @export
+format.effect_location_transport <- function(x, ...) {
+  .pf_inline("effect_location_transport", .pf_transport_shape(x),
+    x$semantics, .pf_or(x$provenance$method, "undeclared"))
+}
+
+#' @export
+print.effect_location_transport <- function(x, ...) {
+  .validate_location_transport(x)
+  sink <- .transport_sink_territory(x)
+  declared <- !all(x$row_mass == 1)
+  .pf_emit("effect_location_transport", list(
+    nodes = .pf_transport_shape(x),
+    semantics = x$semantics,
+    `row mass` = if (identical(x$semantics, "density") || declared) {
+      if (declared) {
+        paste0("declared, total ", .pf_num(sum(x$row_mass)))
+      } else {
+        "unit (one per native node)"
+      }
+    },
+    sink = paste0("mass ", .pf_num(sink$mass), " of ", nrow(x$matrix),
+      " rows, ", sprintf("%.1f%%", 100 * sink$share), " of territory"),
+    provenance = .pf_transport_provenance(x$provenance),
+    built = .pf_or(x$provenance$details, "undeclared"),
+    signature = .pf_sig(x$signature)
+  ))
+  invisible(x)
+}

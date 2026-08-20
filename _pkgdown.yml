@@ -91,10 +91,12 @@ reference:
   desc: >
     The plan is an identity, not a matrix. These read it: signed and
     decomposed contrast energy, squared crossvalidated distances, fixed
-    linear RSA, the analytic sampling law, and the refusal a view returns
+    linear RSA, the ledger reading that adds a conservative map up over a
+    territory, the analytic sampling law, and the refusal a view returns
     when the evidence for it was never earned.
   contents:
   - contrast_energy
+  - contribution
   - rdm
   - rsa
   - plot_views
@@ -231,6 +233,24 @@ reference:
   - gaussian_covariance_model
   - connectivity
   - reconstruct_evidence
+
+- title: "Population (experimental)"
+  desc: >
+    **Experimental.** Carrying one participant's conservative geometry onto a
+    shared group node set. A transport is an *input*: crossform accepts a
+    typed, sparse, provenance-bearing operator and refuses to learn one —
+    image registration and functional-transport learning stay outside the
+    package. The sink column is required and always materialized, so partial
+    coverage is a number you can read rather than budget that quietly went
+    missing, and `semantics` has no default because budget and density are
+    two different estimands. A transport built from the response data must
+    name the runs that built it. See
+    [`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
+  contents:
+  - location_transport
+  - anatomical_transport
+  - external_transport
+  - transport_values
 
 - title: Adapters
   desc: >
