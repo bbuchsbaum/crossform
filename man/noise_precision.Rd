@@ -71,7 +71,6 @@ residuals.
 
 Other neural metrics: 
 \code{\link{diagonal_precision}()},
-\code{\link{effect_covariance}()},
 \code{\link{gaussian_covariance_model}()},
 \code{\link{identity_metric}()},
 \code{\link{metric_capabilities}()},

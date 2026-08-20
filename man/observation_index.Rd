@@ -51,8 +51,6 @@ try(observation_index(1:3, "run-1", time = c(0, 2, 2), units = "seconds"))
 \code{\link[=observation_events]{observation_events()}} whose clock must use the same units.
 
 Other typed observation facts: 
-\code{\link{bids_confounds}()},
-\code{\link{bids_events}()},
 \code{\link{bids_study}()},
 \code{\link{observation_confounds}()},
 \code{\link{observation_events}()},

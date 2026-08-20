@@ -73,8 +73,6 @@ unlink(path)
 \code{\link[=plan_relation]{plan_relation()}} for the next step.
 
 Other typed observation facts: 
-\code{\link{bids_confounds}()},
-\code{\link{bids_events}()},
 \code{\link{observation_confounds}()},
 \code{\link{observation_events}()},
 \code{\link{observation_index}()},

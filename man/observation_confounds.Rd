@@ -55,8 +55,6 @@ records the resulting row lineage, and \code{\link[=bids_confounds]{bids_confoun
 fMRIPrep-style TSV input.
 
 Other typed observation facts: 
-\code{\link{bids_confounds}()},
-\code{\link{bids_events}()},
 \code{\link{bids_study}()},
 \code{\link{observation_events}()},
 \code{\link{observation_index}()},

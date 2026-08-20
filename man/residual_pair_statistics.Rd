@@ -43,7 +43,9 @@ values.
 # coexist in some searchlight, so the cost tracks support topology rather
 # than the square of the feature count.
 example <- example_fmri_effects()
-statistics <- residual_pair_statistics(example$fit, example$frame)
+statistics <- crossform:::residual_pair_statistics(
+  example$fit, example$frame
+)
 length(statistics$pair_i)
 statistics$partitions
 
@@ -52,7 +54,7 @@ statistics$atomic[["run1"]]$residual_df
 
 # The workspace budget is a cache size, not part of the numerical shape,
 # so shrinking it cannot change the accumulated values.
-frugal <- residual_pair_statistics(
+frugal <- crossform:::residual_pair_statistics(
   example$fit, example$frame, workspace_bytes = 4 * 1024^2
 )
 identical(frugal$signature, statistics$signature)
@@ -61,11 +63,5 @@ identical(frugal$signature, statistics$signature)
 \code{\link[=plan_crossnobis]{plan_crossnobis()}}, which compiles these statistics into a
 learned metric schedule, and \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, which can reuse
 them through \code{residual_strategy = "shared_pair_statistics"}.
-
-Other sampling uncertainty: 
-\code{\link{rdm_sampling_covariance}()},
-\code{\link{reconstruct_evidence}()},
-\code{\link{sampling_capabilities}()},
-\code{\link{sampling_covariance}()}
 }
-\concept{sampling uncertainty}
+\keyword{internal}

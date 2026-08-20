@@ -11,12 +11,7 @@ plan_crossnobis(
   metric = shrinkage_precision(),
   training = metric_training_policy("exclude_evaluation"),
   compute = compute_policy(),
-  residual_workspace_bytes = if (is.null(compute$workspace_bytes)) {
-     512 * 1024^2
- }
-    else {
-     compute$workspace_bytes
- }
+  residual_workspace_bytes = NULL
 )
 }
 \arguments{
@@ -34,13 +29,15 @@ plan_crossnobis(
 
 \item{residual_workspace_bytes}{Positive budget used while accumulating
 canonical residual pair sufficient statistics. It changes cache capacity,
-never the canonical numerical tile shape.}
+never the canonical numerical tile shape. Defaults to
+\code{compute$workspace_bytes}, or 512 MiB when the policy declares none.}
 }
 \value{
-An \code{effect_crossnobis_plan} reusable across fixed contrasts. It
-carries the frozen \verb{$metric_schedule}, the \verb{$frame}, \verb{$pairing}, and
-\verb{$memory} plan, and a \verb{$scientific_plan_id} that identifies the estimand
-independently of execution choices.
+An \code{effect_geometry_plan} reusable across fixed contrasts. It
+carries the learned \verb{$metric_schedule} wrapping the frozen schedule, the
+\verb{$frame}, \verb{$pairing}, and \verb{$execution_hints}, and a
+\verb{$scientific_plan_id} that identifies the estimand independently of
+execution choices.
 }
 \description{
 The plan freezes the residual-statistics identity, training policy,
@@ -52,6 +49,16 @@ crossnobis point estimates but does not apply the fixed-metric analytic
 covariance law in \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} or claim calibrated intervals
 for this plan; doing so requires propagation of metric-estimation
 uncertainty (for example, an admitted LD-t specialization).
+}
+\details{
+\code{plan_crossnobis()} is a convenience wrapper around \code{\link[=plan_geometry]{plan_geometry()}}, not
+a deprecated alias: it names the intent, and compiles exactly
+\verb{plan_geometry(x, at, over, metric = <recipe>, training = )}. The plan it
+returns is an ordinary \code{effect_geometry_plan} whose metric schedule has
+kind \code{learned_local_before_frame}, lowered by the geometry compiler like
+any other. The pairing contract crossnobis requires -- independent,
+cross-partition, self-product-free -- is enforced by \code{\link[=crossnobis]{crossnobis()}} when
+the plan is read, which is where the fixed-metric route enforces it.
 }
 \examples{
 set.seed(7)
@@ -81,7 +88,8 @@ result
 as.data.frame(result)
 }
 \seealso{
-\code{\link[=crossnobis]{crossnobis()}} to read a contrast from this plan,
+\code{\link[=plan_geometry]{plan_geometry()}}, which this wraps; \code{\link[=crossnobis]{crossnobis()}} to read a
+contrast from this plan,
 \code{\link[=shrinkage_precision]{shrinkage_precision()}} and \code{\link[=metric_training_policy]{metric_training_policy()}} for the metric
 declarations it freezes, and \code{\link[=residual_pair_statistics]{residual_pair_statistics()}} for the
 sufficient statistics it compiles.
@@ -96,7 +104,6 @@ Other geometry plans and views:
 \code{\link{example_fmri_effects}()},
 \code{\link{geometry_component}()},
 \code{\link{geometry_spectrum}()},
-\code{\link{inner_product}()},
 \code{\link{materialize_geometry}()},
 \code{\link{plan_geometry}()},
 \code{\link{plot_views}},

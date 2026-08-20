@@ -18,7 +18,7 @@ record that the geometry is the plain bilinear form.
 }
 \examples{
 # The normalizer only names the stage; nothing is computed here.
-normalizer <- inner_product()
+normalizer <- crossform:::inner_product()
 normalizer$kind
 
 # Because no denominator is involved, there is no zero-norm case to
@@ -29,24 +29,5 @@ normalizer$zero_policy
 \code{\link[=reduce_partitions]{reduce_partitions()}} and \code{\link[=aggregate_first]{aggregate_first()}} for the partition
 stage that follows normalization; \code{\link[=connectivity]{connectivity()}} for the normalized
 views that are gated behind explicit capabilities.
-
-Other geometry plans and views: 
-\code{\link{aggregate_first}()},
-\code{\link{bilinear_query}()},
-\code{\link{compute_policy}()},
-\code{\link{contrast_energy}()},
-\code{\link{crossnobis}()},
-\code{\link{evaluate_geometry}()},
-\code{\link{example_fmri_effects}()},
-\code{\link{geometry_component}()},
-\code{\link{geometry_spectrum}()},
-\code{\link{materialize_geometry}()},
-\code{\link{plan_crossnobis}()},
-\code{\link{plan_geometry}()},
-\code{\link{plot_views}},
-\code{\link{query_geometry}()},
-\code{\link{rdm}()},
-\code{\link{rsa}()},
-\code{\link{variation_query}()}
 }
-\concept{geometry plans and views}
+\keyword{internal}

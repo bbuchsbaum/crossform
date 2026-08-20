@@ -51,7 +51,6 @@ conditionMessage(attr(refused, "condition"))
 diagonal, and \code{\link[=plan_crossnobis]{plan_crossnobis()}}, which consumes the recipe.
 
 Other neural metrics: 
-\code{\link{effect_covariance}()},
 \code{\link{gaussian_covariance_model}()},
 \code{\link{identity_metric}()},
 \code{\link{metric_capabilities}()},

@@ -7,8 +7,8 @@
 metric_capabilities(x)
 }
 \arguments{
-\item{x}{A \code{neural_metric()} or an on-demand metric recipe. A
-\code{measurement_bridge()} is refused because cross-space bridges are not
+\item{x}{A \code{neural_metric()} or an on-demand metric recipe. A cross-space
+measurement bridge is refused because cross-space bridges are not
 same-space metrics.}
 }
 \value{
@@ -34,12 +34,9 @@ fixed[c("native_diagonal", "feature_additive", "materialized")]
 recipe <- metric_capabilities(shrinkage_precision(0.2))
 recipe[c("learned_recipe", "materialized", "support_dense")]
 
-# A cross-space bridge is not a same-space metric and is refused.
-bridge <- measurement_bridge(
-  rbind(c(1, 0, 0)), rbind(c(1, 0, 0)), domain, domain,
-  measurement_space(1, id = "capability-example:common")
-)
-refused <- try(metric_capabilities(bridge), silent = TRUE)
+# Anything that is not a metric or a recipe is refused rather than
+# coerced, so a bare matrix or a cross-space object cannot pass as one.
+refused <- try(metric_capabilities(diag(c(1, 2, 3))), silent = TRUE)
 conditionMessage(attr(refused, "condition"))
 }
 \seealso{
@@ -49,7 +46,6 @@ for on-demand recipes.
 
 Other neural metrics: 
 \code{\link{diagonal_precision}()},
-\code{\link{effect_covariance}()},
 \code{\link{gaussian_covariance_model}()},
 \code{\link{identity_metric}()},
 \code{\link{metric_training_policy}()},

@@ -86,7 +86,7 @@ Other neural domains and frames:
 \code{\link{compile_frame}()},
 \code{\link{edge_frame}()},
 \code{\link{frame_conservation}()},
-\code{\link{measurement_space}()},
+\code{\link{frame_family}()},
 \code{\link{neuroim2_searchlights}()},
 \code{\link{neuroim2_volume_domain}()},
 \code{\link{regions}()},

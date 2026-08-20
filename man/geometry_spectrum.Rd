@@ -93,7 +93,6 @@ Other geometry plans and views:
 \code{\link{evaluate_geometry}()},
 \code{\link{example_fmri_effects}()},
 \code{\link{geometry_component}()},
-\code{\link{inner_product}()},
 \code{\link{materialize_geometry}()},
 \code{\link{plan_crossnobis}()},
 \code{\link{plan_geometry}()},

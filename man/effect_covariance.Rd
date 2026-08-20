@@ -26,7 +26,7 @@ example <- example_fmri_effects()
 
 # Four condition means estimated from eight trials each: the design factor
 # is diagonal with entries 1/8, because the conditions are orthogonal.
-covariance <- effect_covariance(example$fit, "run1")
+covariance <- crossform:::effect_covariance(example$fit, "run1")
 round(covariance, 4)
 
 # Scaling it by a residual variance gives an effect standard error.
@@ -37,15 +37,5 @@ round(sqrt(diag(covariance) * variance), 3)
 \seealso{
 \code{\link[=residual_df]{residual_df()}} and \code{\link[=residual_block]{residual_block()}} for the other two pieces of
 the error channel, and \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, which combines them.
-
-Other neural metrics: 
-\code{\link{diagonal_precision}()},
-\code{\link{gaussian_covariance_model}()},
-\code{\link{identity_metric}()},
-\code{\link{metric_capabilities}()},
-\code{\link{metric_training_policy}()},
-\code{\link{neural_metric}()},
-\code{\link{noise_precision}()},
-\code{\link{shrinkage_precision}()}
 }
-\concept{neural metrics}
+\keyword{internal}

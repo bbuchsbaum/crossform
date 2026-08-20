@@ -27,7 +27,7 @@ spaces.
 }
 \examples{
 # A named 2-coordinate common space shared by two native neural domains.
-common <- measurement_space(
+common <- crossform:::measurement_space(
   2, id = "study:common-modes:v1",
   provenance = list(source = "group template modes")
 )
@@ -37,7 +37,7 @@ c(id = common$id, n = common$n_measurements)
 # so a stored bridge can be checked against the space it claims.
 identical(
   common$signature,
-  measurement_space(
+  crossform:::measurement_space(
     2, id = "study:common-modes:v1",
     provenance = list(source = "group template modes")
   )$signature
@@ -46,21 +46,5 @@ identical(
 \seealso{
 \code{\link[=measurement_bridge]{measurement_bridge()}}, which requires both legs to have this many
 rows.
-
-Other neural domains and frames: 
-\code{\link{abstract_domain}()},
-\code{\link{additive_frame}()},
-\code{\link{as_neurovol}()},
-\code{\link{compile_frame}()},
-\code{\link{edge_frame}()},
-\code{\link{frame_conservation}()},
-\code{\link{measurement_frame}()},
-\code{\link{neuroim2_searchlights}()},
-\code{\link{neuroim2_volume_domain}()},
-\code{\link{regions}()},
-\code{\link{searchlights}()},
-\code{\link{volume_domain}()},
-\code{\link{voxelwise}()},
-\code{\link{whole_brain}()}
 }
-\concept{neural domains and frames}
+\keyword{internal}

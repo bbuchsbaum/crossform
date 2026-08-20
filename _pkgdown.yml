@@ -36,6 +36,9 @@ articles:
   - neuroim2-data
 
 - title: Advanced evidence forms
+  desc: >
+    Experimental. Results that relate two sets of measurements to each other,
+    under a small-node scale gate.
   contents:
   - evidence-pairing
 
@@ -63,11 +66,54 @@ reference:
   contents:
   - crossform-package
 
-- title: From observations to a fitted relation
-  desc: Typed facts, condition-space effects, relation plans, design receipts, and optional compiler adapters.
+- title: "Core — the beta-first spine"
+  desc: >
+    Start here. Condition effects, the measurements you want answers at, and
+    the partitions that must generalize compile once into a geometry plan.
+    Nothing below this heading is optional for an ordinary analysis, and
+    nothing above the advanced sections is needed to complete one.
   contents:
-  - observation_index
+  - example_fmri_effects
+  - effect_space
+  - relation
+  - lm_relation_fit
+  - abstract_domain
+  - volume_domain
+  - searchlights
+  - regions
+  - voxelwise
+  - whole_brain
+  - compile_frame
+  - cross_partitions
+  - plan_geometry
+
+- title: "Core — views, uncertainty, and refusals"
+  desc: >
+    The plan is an identity, not a matrix. These read it: signed and
+    decomposed contrast energy, squared crossvalidated distances, fixed
+    linear RSA, the analytic sampling law, and the refusal a view returns
+    when the evidence for it was never earned.
+  contents:
+  - contrast_energy
+  - rdm
+  - rsa
+  - plot_views
+  - sampling_capabilities
+  - rdm_sampling_covariance
+  - sampling_covariance
+  - catch_refusal
+  - crossform_conditions
+  - compute_policy
+
+- title: "Core (ingestion) — from observations to a fitted relation"
+  desc: >
+    The typed-facts spine, for arriving with scan responses and an event
+    table rather than fitted betas: study, observations, design, relation
+    plan, receipts. A user who starts from betas meets none of it.
+    `vignette("from-observations")` is its single narrative.
+  contents:
   - observations
+  - observation_index
   - observation_events
   - observation_confounds
   - partition_hierarchy
@@ -78,110 +124,138 @@ reference:
   - effect_map
   - coefficient_parameterization
   - lower_effect_map
+  - raw_effect_map
   - design_model
   - raw_design_model
-  - raw_effect_map
   - observation_model
   - plan_relation
-  - relation_plan_receipts
   - compiler_conformance
+  - relation_plan_receipts
   - estimate_relation
-  - bids_study
-  - fmridesign_design_model
-  - fmrireg_relation
 
-- title: Start a representational analysis
-  desc: The small public surface for relations, spatial measurements, generalization, and scientific views.
+- title: "Advanced — explicit queries and geometries"
+  desc: >
+    Reaching past the view functions: materialize a geometry once and query
+    it many times, or evaluate a query without materializing anything at
+    all; custom bilinear operators, unequal axes, and explicit partition
+    pairings and reductions.
   contents:
-  - example_fmri_effects
-  - effect_space
-  - abstract_domain
-  - volume_domain
-  - compile_frame
-  - additive_frame
-  - searchlights
-  - regions
-  - voxelwise
-  - whole_brain
-  - frame_conservation
-  - catch_refusal
-  - crossform_conditions
-  - relation
-  - lm_relation_fit
-  - cross_partitions
-  - plan_geometry
   - materialize_geometry
   - evaluate_geometry
-  - contrast_energy
-  - rdm
-  - rsa
-  - plot_views
+  - query_geometry
   - geometry_component
   - geometry_spectrum
-  - rdm_sampling_covariance
-  - sampling_capabilities
-  - sampling_covariance
-  - relation_fit_capabilities
+  - bilinear_query
+  - pair_query
+  - pairing
+  - aggregate_first
+  - reduce_partitions
 
-- title: Metrics and crossnobis
-  desc: Fixed or learned neural metrics and the separately qualified crossnobis path.
+- title: "Advanced — frame algebra and conservation"
+  desc: >
+    Diagonal and α-weighted frame families, and the certificate that a frame
+    conserves the mass it claims to.
+  contents:
+  - additive_frame
+  - frame_family
+  - frame_conservation
+
+- title: "Advanced — metrics and crossnobis"
+  desc: >
+    Fixed and learned neural metrics, the leakage guard on metric training,
+    and the separately qualified crossnobis path.
   contents:
   - neural_metric
+  - noise_precision
   - identity_metric
   - diagonal_precision
-  - noise_precision
   - shrinkage_precision
   - metric_training_policy
   - metric_capabilities
   - plan_crossnobis
   - crossnobis
 
-- title: Ordered effect-form queries
-  desc: Advanced fixed queries, unequal axes, and explicit partition reductions.
+- title: "Advanced — extraction maps, error channels, and residuals"
+  desc: >
+    Where the estimates and their error channel come from: the extraction
+    map in `B = E Y`, whether a fit carries residuals at all, and the
+    bounded residual read with its correct divisor.
   contents:
-  - bilinear_query
-  - pair_query
-  - coupling_contrast
-  - pair_lm_query
-  - match_coupling
-  - match_control
-  - query_geometry
-  - variation_query
-  - control_coupling
-  - pairing
-  - reduce_partitions
-  - aggregate_first
+  - lm_extractor
+  - relation_fit_capabilities
+  - residual_block
+  - residual_df
 
-- title: Measurement forms and coupling
-  desc: Prespecified small-node measurements, ordered edges, and interpretation-gated coupling views.
+- title: "Advanced — numerical evidence"
+  desc: >
+    The reproducibility contract as a value, and the verifier that two runs
+    agree under a named guarantee.
+  contents:
+  - numerical_contract
+  - numerical_agreement
+
+- title: "Advanced — matched-pair contrasts (provisional API)"
+  desc: >
+    Matched encoding–retrieval pairs, eligible controls, and the balanced
+    matched-minus-control operator. **Provisional, not settled public API:**
+    this family is held open pending the rectangular ER-RSA exemplar, and
+    whichever of these the delivered exemplar does not exercise becomes
+    internal. Do not build against it yet.
+  contents:
+  - match_coupling
+  - control_coupling
+  - coupling_contrast
+  - match_control
+  - pair_lm_query
+
+- title: "Coupling and measurement (experimental, small-node only)"
+  desc: >
+    **Experimental.** Measurement forms, coupling closures, and tomography —
+    results that relate two sets of measurements to each other rather than
+    scoring one. The API and the returned kinds may change. This tier is
+    **scale-gated and the package refuses brain-scale claims here**: a
+    request whose dense payload exceeds the version 0.1 small-node limit of
+    256 MiB (268,435,456 bytes) is refused outright rather than approximated,
+    with the remedy "use the support-local geometry plan; brain-scale
+    measurement tomography is not yet exported."
+    `vignette("evidence-pairing")` is the narrative.
   contents:
   - measurement_frame
   - edge_frame
   - measurement_form
-  - coupling
   - measurement_components
-  - connectivity
+  - variation_query
+  - coupling
   - coupling_views
+  - effect_coupling_result
   - gaussian_covariance_model
+  - connectivity
   - reconstruct_evidence
 
-- title: Sources, extractors, residuals, and execution
-  desc: Infrastructure for lazy sources, fitted error channels, and bounded execution.
-  contents:
-  - effect_extractor
-  - lm_extractor
-  - relation_fit
-  - relation_block
-  - residual_block
-  - residual_df
-  - file_matrix_source
-  - source_capabilities
-  - compute_policy
-
-- title: Adapters and numerical evidence
+- title: Adapters
+  desc: >
+    Morphisms into the typed core from another package's vocabulary. Every
+    dependency here is `Suggests:`, and the core is not shaped by any of
+    them. The three `neuroim2` entries are de-facto core for volumetric
+    work — every real imaging path begins and ends there.
   contents:
   - neuroim2_volume_domain
   - neuroim2_searchlights
   - as_neurovol
-  - numerical_contract
-  - numerical_agreement
+  - bids_study
+  - fmridesign_design_model
+  - fmrireg_relation
+
+- title: For extension packages
+  desc: >
+    The five sanctioned entry points an extension or adapter *package* uses
+    to hand data, a design, and an error channel into the core. Not an end
+    user's surface, and deliberately small: everything else that once lived
+    here is internal. `vignette("crossform-extending")` states what is open,
+    what is closed, and what an extension may rely on remaining true.
+  contents:
+  - file_matrix_source
+  - source_capabilities
+  - effect_extractor
+  - relation_fit
+  - relation_block

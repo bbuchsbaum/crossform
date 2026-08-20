@@ -202,7 +202,6 @@ provoking a refusal, and \code{\link[=rdm]{rdm()}} for the point estimates it de
 
 Other sampling uncertainty: 
 \code{\link{reconstruct_evidence}()},
-\code{\link{residual_pair_statistics}()},
 \code{\link{sampling_capabilities}()},
 \code{\link{sampling_covariance}()}
 }

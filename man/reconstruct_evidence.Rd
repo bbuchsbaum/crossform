@@ -129,7 +129,6 @@ directed node pair for a lossless claim.
 
 Other sampling uncertainty: 
 \code{\link{rdm_sampling_covariance}()},
-\code{\link{residual_pair_statistics}()},
 \code{\link{sampling_capabilities}()},
 \code{\link{sampling_covariance}()}
 }

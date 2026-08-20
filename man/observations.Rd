@@ -70,8 +70,6 @@ confounds to these observations, and \code{\link[=file_matrix_source]{file_matri
 out-of-memory sources.
 
 Other typed observation facts: 
-\code{\link{bids_confounds}()},
-\code{\link{bids_events}()},
 \code{\link{bids_study}()},
 \code{\link{observation_confounds}()},
 \code{\link{observation_events}()},

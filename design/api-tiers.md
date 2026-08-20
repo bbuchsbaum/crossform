@@ -755,6 +755,41 @@ set to the 97 names ledgered here, the 5 sanctioned developer entry points, and
 the 8 demotions. Editing the export list without editing this document now
 breaks the suite, which is the ratchet the subtraction release needed.
 
+**Discharge record (2026-08-17, A9).** The two obligations this ledger handed
+to A9 are paid off in `_pkgdown.yml`, with `README.md` repeating both.
+
+- *The experimental label on the connect tier, in `_pkgdown.yml` and at the
+  head of its reference section* (decision 6). The section is titled
+  "Coupling and measurement (experimental, small-node only)" and its `desc`
+  opens with **Experimental**, says the API and the returned kinds may change,
+  and quotes the scale gate in the package's own terms: a request whose dense
+  payload exceeds the version 0.1 small-node limit of 256 MiB
+  (`.public_measurement_dense_limit_bytes`, `R/evidence-api.R:10-31`) is
+  refused outright rather than approximated, with the remedy "use the
+  support-local geometry plan; brain-scale measurement tomography is not yet
+  exported". The README's tier map repeats the label and the ceiling, and the
+  `evidence-pairing` entries in both the articles index and the README's
+  "Where next" list carry the label too.
+- *No presentation of the ER-RSA five as settled public API* (decision 3).
+  They are indexed in their own section, "Advanced — matched-pair contrasts
+  (provisional API)", whose `desc` states that the family is held open pending
+  ticket F2 and that whichever of the five the delivered exemplar does not
+  exercise becomes internal.
+
+The reference index is now grouped by this ledger's tiers rather than by
+defining file: package overview; core (the beta-first spine, then the views);
+core-ingestion; advanced (queries, frame algebra, metrics and crossnobis,
+extraction and error channels, numerical evidence, provisional matched-pair);
+coupling (experimental); adapters; and a "For extension packages" section
+holding exactly the five sanctioned developer entry points and pointing at
+`vignette("crossform-extending")`. All 98 exports are indexed exactly once
+across 95 topics; no demoted or `\keyword{internal}` topic appears apart from
+the package overview itself. `README.md`'s first-hour path is held to the core
+and core-ingestion tiers by `tests/testthat/test-readme-surface.R`, which
+parses the README's fenced `r` chunks and fails on any crossform call outside
+those two vectors — so an example that reaches into advanced or connect
+material is a deliberate edit of that test, and of a tier row here.
+
 ## Cross-check
 
 The ledger is verified against `NAMESPACE` by a script that parses the tier
@@ -931,3 +966,19 @@ ledger not exported; 35 tests-only rows with explicit dispositions and no
 duplicates; tier blocks 21 + 20 + 33 + 16 + 8 + 7 = 105, matching every tier
 heading. Post-subtraction the ledger stands at 97 exports
 (105 − 7 demote-internal − 1 merge).
+
+---
+
+## Additions after the subtraction release
+
+Everything above audits the 105 exports the subtraction release inherited and
+the 97 it left. This section is the append-only register of exports added
+*after* that release, so the historical arithmetic above stays readable as the
+record of what it actually decided. The binding total is the sum of the two:
+**97 + 1 = 98**, which is what `tests/testthat/test-api-surface.R` pins.
+
+| Name | Defining file | Tier | Program | Justification | Disposition |
+|---|---|---|---|---|---|
+| `frame_family()` | `R/frame.R` | advanced | ws-d (ticket D2) | the named constructor for α-weighted conservative frame families, closing gaps G1, G2 and G11 of `design/conservative-geometry-contract.md` §11.4. Before it, the only working route was `rbind()` of member weight matrices into `additive_frame(..., "conservative")`: numerically sound, undocumented, and provenance-blind — it dropped `$index` and `$specification`, so a result's `measurement` column degraded to row positions and no row could say which scale produced it. `frame_family()` is the same operator with the per-row `family` / `scale` / `center` / `alpha` metadata WS-E's transport layer requires (§7.1), and it enforces the two preconditions the per-block law needs rather than assuming them (α sums to one; every member column-normalized on its own). Users: T:1 (`test-frame-family.R`), plus `frame_conservation()`'s per-block certificate | keep |
+
+Tier arithmetic after this section: advanced 33 → **34**; total 97 → **98**.
