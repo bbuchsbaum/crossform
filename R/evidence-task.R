@@ -285,14 +285,29 @@
   rebuilt
 }
 
+# The enumerated kinds are exactly the kinds this package constructs. A third
+# arm, `scalar_field`, was legislated here for the closed/closed boundary pair
+# -- both the experimental and the neural boundary closed by a fixed query, so
+# that a task materializes one scalar per frame node rather than a form. It was
+# never constructed: the query-fused geometry route reaches the same numbers by
+# keeping the experimental boundary open and carrying the query in the
+# materialization projection, which is why every closed/closed task in this
+# package is spelled as a `query_only` `effect_form`. The arm was removed
+# rather than left standing as unreachable law.
+#
+# Re-introducing a genuine scalar-field materialization means re-introducing
+# all of: the enum value here; the invariant that a scalar field is necessarily
+# `query_only` (a closed experimental boundary already fixes the form, so a
+# complete-form scalar field is a contradiction); the `closed/closed` arm of
+# `.validate_evidence_boundary_combination()`; a reversal rule in
+# `.reverse_evidence_task()` for a task whose experimental *and* neural queries
+# both transpose; and an executor that admits the kind. Until a caller needs
+# all five, the two constructed kinds are the whole type law.
 .evidence_materialization <- function(
-    kind = c("effect_form", "measurement_form", "scalar_field"),
+    kind = c("effect_form", "measurement_form"),
     completeness = c("complete_form", "query_only"), projection = NULL) {
   kind <- match.arg(kind)
   completeness <- match.arg(completeness)
-  if (kind == "scalar_field" && completeness != "query_only") {
-    .input_error("A scalar field is necessarily a query-only materialization.")
-  }
   if (!is.null(projection) && !is.list(projection)) {
     .input_error("Materialization projection identity must be a list or NULL.")
   }
@@ -418,11 +433,14 @@
 .validate_evidence_boundary_combination <- function(experimental_boundary,
                                                     neural_boundary,
                                                     materialization) {
+  # Exactly one open boundary, and which one it is names the materialization.
+  # `closed/closed` and `open/open` are both refused here: the first would be
+  # the retired `scalar_field` arm (see `.evidence_materialization()`), the
+  # second has no materialization at all.
   state <- paste(experimental_boundary$state, neural_boundary$state, sep = "/")
   valid <- switch(materialization$kind,
     effect_form = identical(state, "open/closed"),
     measurement_form = identical(state, "closed/open"),
-    scalar_field = identical(state, "closed/closed"),
     FALSE
   )
   if (!isTRUE(valid)) {
@@ -433,11 +451,24 @@
   invisible(TRUE)
 }
 
+.evidence_identity_schema <- "evidence-pairing-v1"
+
+# One evidence task, one naming rule. `evidence-pairing-v1` is the only
+# identity schema: the task id is the digest of the semantic that
+# `.evidence_task_general_semantic()` builds from the four typed spaces, the
+# ordered partition products, both boundary signatures, the stage plan, and the
+# materialization. A second schema, named `effect-form-v1` after the scientific
+# contract of that name, used to name the bridged effect-form specialization
+# with its own flatter semantic -- one that could not mention either boundary
+# signature -- so that ids recorded before the boundary-typed IR existed stayed
+# byte-stable. That compatibility window is closed. Retiring the schema retires
+# a naming rule, not `design/effect-form-contract.md`, which is untouched: see
+# `design/crossform-execution-design.md`, "Identity schema consolidation (B6)",
+# and `tests/testthat/test-identity-schema.R`, which records both sides of the
+# resulting id change.
 .new_evidence_task <- function(
     left_relation, right_relation, same_relation, ordered_edges,
-    experimental_boundary, neural_boundary, stages, materialization,
-    identity_schema = c("evidence-pairing-v1", "effect-form-v1"),
-    compatibility_semantic = NULL) {
+    experimental_boundary, neural_boundary, stages, materialization) {
   .validate_relation(left_relation)
   .validate_relation(right_relation)
   left_relation$capabilities <- .relation_source_capabilities(left_relation)
@@ -500,50 +531,16 @@
   .validate_evidence_boundary_combination(
     experimental_boundary, neural_boundary, materialization
   )
-  identity_schema <- match.arg(identity_schema)
   spaces <- list(
     experimental_left = left_relation$effect_space,
     experimental_right = right_relation$effect_space,
     neural_left = left_relation$domain,
     neural_right = right_relation$domain
   )
-  if (identity_schema == "effect-form-v1") {
-    if (is.null(compatibility_semantic) ||
-        materialization$kind != "effect_form" ||
-        neural_boundary$closure_kind != "bridge") {
-      .input_error(
-        "Effect-form compatibility identity requires its legacy semantic."
-      )
-    }
-    expected_compatibility <- .effect_task_semantic(
-      left_id, right_id,
-      left_relation$effect_space, right_relation$effect_space,
-      ordered_edges, neural_boundary$bridge,
-      structure(stages$normalization$operation,
-        class = "effect_edge_normalizer"),
-      structure(stages$transform$operation,
-        class = "effect_edge_transform"),
-      structure(stages$reduction$operation,
-        class = "effect_partition_reducer"),
-      materialization$projection
-    )
-    if (!identical(compatibility_semantic, expected_compatibility)) {
-      .contract_error(
-        "Effect-form compatibility semantic differs from certified fields."
-      )
-    }
-    semantic <- expected_compatibility
-  } else {
-    if (!is.null(compatibility_semantic)) {
-      .input_error(
-        "Native evidence tasks cannot carry a legacy compatibility semantic."
-      )
-    }
-    semantic <- .evidence_task_general_semantic(
-      left_id, right_id, spaces, ordered_edges, experimental_boundary,
-      neural_boundary, stages, materialization
-    )
-  }
+  semantic <- .evidence_task_general_semantic(
+    left_id, right_id, spaces, ordered_edges, experimental_boundary,
+    neural_boundary, stages, materialization
+  )
   sources <- .effect_task_source_uses(
     left_relation, right_relation, left_id, right_id
   )
@@ -563,7 +560,7 @@
     materialization = materialization,
     source_uses = sources$uses,
     distinct_handle_keys = sources$distinct_handle_keys,
-    identity_schema = identity_schema,
+    identity_schema = .evidence_identity_schema,
     semantic = semantic,
     task_id = task_id
   ), class = "effect_evidence_task")
@@ -581,12 +578,12 @@
       !identical(task$schema_version, 1L)) {
     .input_error("Evidence-task fields are missing or noncanonical.")
   }
+  # A forged `identity_schema` is caught by the rebuild, which stamps the one
+  # schema unconditionally.
   rebuilt <- .new_evidence_task(
     task$left_relation, task$right_relation, task$same_relation,
     task$ordered_partition_products, task$experimental_boundary,
-    task$neural_boundary, task$stages, task$materialization,
-    task$identity_schema,
-    if (task$identity_schema == "effect-form-v1") task$semantic else NULL
+    task$neural_boundary, task$stages, task$materialization
   )
   if (!identical(task, rebuilt)) {
     .contract_error(
@@ -684,50 +681,47 @@
       class = "effect_partition_reducer"),
     projection
   )
-  compatibility <- if (task$identity_schema == "effect-form-v1") {
-    .effect_task_semantic(
-      task$right_relation_id, task$left_relation_id,
-      task$spaces$experimental_right, task$spaces$experimental_left,
-      reversed_edges, neural$bridge,
-      structure(task$stages$normalization$operation,
-        class = "effect_edge_normalizer"),
-      structure(task$stages$transform$operation,
-        class = "effect_edge_transform"),
-      structure(task$stages$reduction$operation,
-        class = "effect_partition_reducer"),
-      projection
-    )
-  } else {
-    NULL
-  }
   .new_evidence_task(
     task$right_relation, task$left_relation, task$same_relation,
-    reversed_edges, experimental, neural, stages, materialization,
-    task$identity_schema, compatibility
+    reversed_edges, experimental, neural, stages, materialization
   )
 }
 
-.new_effect_evidence_task <- function(
-    left, right, same_relation, edges, bridge, normalizer, transform, reducer,
-    query_identity, semantic) {
-  experimental <- .open_experimental_boundary(
-    left$effect_space, right$effect_space
-  )
-  neural <- .closed_neural_boundary(bridge, left, right)
+# The bridged effect-form specialization spelled in the boundary-typed
+# vocabulary: an open experimental boundary over a bridge-closed neural
+# boundary. Both the task constructor and the compiled-task validator go
+# through this, so a compiled task's recorded id is recomputed from exactly the
+# parts its evidence task was named from.
+.effect_form_evidence_parts <- function(left, right, bridge, normalizer,
+                                        transform, reducer, query_identity) {
   completeness <- if (identical(query_identity$kind, "complete_form")) {
     "complete_form"
   } else {
     "query_only"
   }
-  materialization <- .evidence_materialization(
-    "effect_form", completeness, query_identity
+  list(
+    experimental = .open_experimental_boundary(
+      left$effect_space, right$effect_space
+    ),
+    neural = .closed_neural_boundary(bridge, left, right),
+    stages = .evidence_stage_plan(
+      normalizer, transform, reducer, query_identity
+    ),
+    materialization = .evidence_materialization(
+      "effect_form", completeness, query_identity
+    )
   )
-  stages <- .evidence_stage_plan(
-    normalizer, transform, reducer, query_identity
+}
+
+.new_effect_evidence_task <- function(
+    left, right, same_relation, edges, bridge, normalizer, transform, reducer,
+    query_identity) {
+  parts <- .effect_form_evidence_parts(
+    left, right, bridge, normalizer, transform, reducer, query_identity
   )
   .new_evidence_task(
-    left, right, same_relation, edges, experimental, neural, stages,
-    materialization, "effect-form-v1", semantic
+    left, right, same_relation, edges, parts$experimental, parts$neural,
+    parts$stages, parts$materialization
   )
 }
 
@@ -739,10 +733,14 @@
 # put a values file in charge of checking a plan-layer record.
 .as_compiled_effect_task <- function(task, validate = TRUE) {
   if (isTRUE(validate)) .validate_evidence_task(task)
-  if (task$identity_schema != "effect-form-v1" ||
-      task$materialization$kind != "effect_form" ||
+  # The admitted shape used to be named by the retired `effect-form-v1`
+  # identity schema. It is now stated structurally, including the bridge
+  # closure the compiled record needs: a query-closed neural boundary is an
+  # effect form too, and it has no `$bridge` to project.
+  if (task$materialization$kind != "effect_form" ||
       task$experimental_boundary$state != "open" ||
-      task$neural_boundary$state != "closed") {
+      task$neural_boundary$state != "closed" ||
+      !identical(task$neural_boundary$closure_kind, "bridge")) {
     .input_error(
       "Only the certified effect-form specialization has a legacy adapter."
     )
@@ -811,25 +809,6 @@
   )
 }
 
-.effect_task_semantic <- function(left_id, right_id, left_space, right_space,
-                                  edges, bridge, normalizer, transform, reducer,
-                                  query_identity) {
-  list(
-    schema_version = 1L,
-    left_relation = left_id,
-    right_relation = right_id,
-    left_space = left_space,
-    right_space = right_space,
-    ordered_edges = unclass(as.data.frame(edges)),
-    edge_expansion = attr(edges, "expansion"),
-    bridge = bridge$signature,
-    normalizer = unclass(normalizer),
-    transform = unclass(transform),
-    reducer = unclass(reducer),
-    query = query_identity
-  )
-}
-
 .effect_task_id <- function(semantic) {
   .sha256_signature(semantic)
 }
@@ -838,24 +817,32 @@
 # the estimand-bearing task id: a fused query is an execution strategy, so a
 # queried task must still be verifiable against the complete-form identity of
 # its parent plan.
+#
+# The query is carried in two places -- the materialization projection and the
+# stage plan's projection -- so stripping it means rebuilding both from the
+# complete-form projection identity and renaming the task from the result.
 .effect_task_base_id <- function(task) {
   if (identical(task$materialization$completeness, "complete_form")) {
     return(task$task_id)
   }
-  semantic <- .effect_task_semantic(
-    task$left_relation_id, task$right_relation_id,
-    task$spaces$experimental_left, task$spaces$experimental_right,
-    task$ordered_partition_products,
-    task$neural_boundary$bridge,
+  complete <- list(kind = "complete_form", query = NULL)
+  stages <- .evidence_stage_plan(
     structure(task$stages$normalization$operation,
       class = "effect_edge_normalizer"),
     structure(task$stages$transform$operation,
       class = "effect_edge_transform"),
     structure(task$stages$reduction$operation,
       class = "effect_partition_reducer"),
-    list(kind = "complete_form", query = NULL)
+    complete
   )
-  .effect_task_id(semantic)
+  materialization <- .evidence_materialization(
+    task$materialization$kind, "complete_form", complete
+  )
+  .effect_task_id(.evidence_task_general_semantic(
+    task$left_relation_id, task$right_relation_id, task$spaces,
+    task$ordered_partition_products, task$experimental_boundary,
+    task$neural_boundary, stages, materialization
+  ))
 }
 
 .compile_effect_evidence_task <- function(
@@ -881,9 +868,6 @@
   edges <- .ordered_partition_edges(
     over, left$partitions, right$partitions, same_relation
   )
-  left_id <- .relation_family_identity(left)
-  right_id <- if (same_relation) left_id else .relation_family_identity(right)
-
   query_identity <- if (is.null(query)) {
     list(kind = "complete_form", query = NULL)
   } else if (.is_pair_difference_query(query)) {
@@ -931,13 +915,9 @@
       "Task queries must be NULL, axis-bound queries, or finite matrices."
     )
   }
-  semantic <- .effect_task_semantic(
-    left_id, right_id, left$effect_space, right$effect_space,
-    edges, bridge, normalizer, transform, reducer, query_identity
-  )
   .new_effect_evidence_task(
     left, right, same_relation, edges, bridge, normalizer, transform, reducer,
-    query_identity, semantic
+    query_identity
   )
 }
 
@@ -1007,10 +987,23 @@
       !identical(task$distinct_handle_keys, sources$distinct_handle_keys)) {
     .contract_error("Compiled effect-task source-use identity is inconsistent.")
   }
-  semantic <- .effect_task_semantic(
-    left_id, right_id, task$left_space, task$right_space,
-    task$ordered_edges, task$bridge, task$normalizer, task$transform,
-    task$reducer, task$query_identity
+  # The compiled record is a projection of an evidence task, so its id is
+  # recomputed the way that task was named: from the boundary-typed parts the
+  # compiled fields determine.
+  parts <- .effect_form_evidence_parts(
+    task$left_relation, task$right_relation, task$bridge, task$normalizer,
+    task$transform, task$reducer, task$query_identity
+  )
+  semantic <- .evidence_task_general_semantic(
+    left_id, right_id,
+    list(
+      experimental_left = task$left_space,
+      experimental_right = task$right_space,
+      neural_left = task$left_relation$domain,
+      neural_right = task$right_relation$domain
+    ),
+    task$ordered_edges, parts$experimental, parts$neural, parts$stages,
+    parts$materialization
   )
   if (!identical(task$task_id, .effect_task_id(semantic))) {
     .contract_error(
