@@ -85,6 +85,7 @@ estimand* rather than a comparison row.
 | `04-compare.R` | center-by-center agreement report, tolerance gates, divergence taxonomy |
 | `05-crossnobis-uncertainty.R` | the error-channel arm (crossform only) |
 | `06-coherent-configuration.R` | the coherent/configuration arm (crossform only) |
+| `07-conservative-geometry.R` | the conservative-geometry arm: attribution vs detection, the latent layer, the coherence spectrum |
 | `models.R` | model RDMs and shared constants (radius, tolerance, seeds) |
 
 Run order is numeric. Every script is idempotent and writes only under
@@ -308,6 +309,167 @@ p-values, no correction. Every number above is a description of one subject's
 ventral temporal cortex, and the claim it supports is that the decomposition
 runs exactly and informatively on real data — not anything about faces,
 houses, or animacy.
+
+### 07 — conservative geometry: attribution, not detection
+
+Added 2026-08-20. `07-conservative-geometry.R` runs the *other* instrument.
+Everything above it — 02, 03, 04, 06 — reads a **detection map**:
+`normalization = "local"` searchlights, whose node value is a weighted average
+over that node's own support. That is an intensive quantity: comparable across
+nodes of different size, correctly read as peaks, and **meaningless to add**,
+because overlapping neighbourhoods double-count the voxels they share
+(`design/conservative-geometry-contract.md` §1.1).
+
+A **conservative** frame is column-normalized instead: every voxel's unit of
+evidence is *partitioned* among the nodes that see it, so a node value is its
+share of one fixed global budget. That is extensive — addable over territories,
+aggregable to regions and networks, and **not comparable node-for-node with a
+detection map** (§1.2). Choosing between the two is a decision about the
+question, not a preference about scaling. Same prepared object, same relation,
+same 66 cross-run pairs as 02 and 06; the frame normalization is what changes.
+
+Four panels, on `results/conservative-geometry.png`, for face − house and
+animate − inanimate. Every number below is in the committed receipts file
+`results/conservative-geometry-receipts.csv` (104 rows, 19 of them identities
+carrying an explicit tolerance, where `passes` is exactly
+`abs(value) <= tolerance` and a row without a tolerance does not get to claim
+one) and is held as a ratchet by `tests/testthat/test-haxby-conservative.R`,
+which recomputes nothing and skips cleanly where the exemplar has not been
+run.
+
+#### A — the detection map has no budget
+
+577 local searchlights at r = 8 mm. `frame_conservation()` reports
+`conserved = FALSE` with a per-feature mass deviation of **0.5561**, and
+`contribution()` refuses the view outright, with capability
+`"conservative_frame"`. Summing the map anyway gives **263.99** for face −
+house against a whole-VT total of **251.52** — within 5 %, which is the point:
+the sum of a detection map is not an estimate of anything, and landing near the
+right number is an accident of how much VT neighbourhoods happen to overlap,
+not evidence that the sum means something. Read as a detection map should be
+read, the peak searchlight is **1.768** and the median **0.273**.
+
+#### B — the attribution map conserves exactly
+
+The same neuroim2 neighbourhoods at the same 8 mm radius, compiled with
+`normalization = "conservative"`. The frame's columns sum to one to
+**6.66e-16**, and the ledger closes against the *unnormalized* global
+comparator `whole_brain("none")` — the default `"local"` divides by the feature
+count and would manufacture a spurious failure (§2, precondition 1):
+
+| contrast | Σ_x total_x | whole-VT total | identity | acceptance |
+|---|---|---|---|---|
+| face − house | 251.522986302283 | 251.522986302283 | **−1.71e-13** | ≤ 1e-10 |
+| animate − inanimate | 51.634615419203 | 51.634615419203 | **−1.42e-14** | ≤ 1e-10 |
+
+Contract §2, claim 2, on real data rather than on a fixture. Conservation is a
+statement about a *signed* sum: 13 of 577 nodes carry a negative face − house
+total and 32 a negative animate − inanimate total, and clipping them would
+destroy both the unbiasedness and the identity (§6).
+
+`contribution()` then adds the ledger up over Haxby's own functionally defined
+VT ROIs (`mask8_face_vt`, `mask8_house_vt`, disjoint here). Grouping is **by
+row**: a searchlight belongs to the territory its *centre* falls in, because a
+node is not divisible, so an 8 mm node centred in the 9-voxel face ROI still
+draws most of its mass from outside it.
+
+| face − house | nodes | budget | share of whole VT | coherent share |
+|---|---|---|---|---|
+| face-selective | 9 | 2.049 | **0.8 %** | 0.034 |
+| house-selective | 163 | 137.979 | **54.9 %** | 0.873 |
+| other VT | 405 | 111.495 | 44.3 % | 0.577 |
+
+The territories re-add to the map total to **−1.71e-13**. Two readings a
+detection map cannot give: house-selective VT holds 28 % of the voxels and
+55 % of the face − house budget; and that budget is overwhelmingly *coherent*
+(share 0.873), meaning the reproducible energy there sits in the searchlights'
+own weighted common spatial mode rather than in pattern structure orthogonal
+to it, while the small face-selective territory's budget is almost entirely
+configuration (share 0.034). The aggregate masks `signed`, so neither reading
+carries a direction: a weighted mean is a density and densities do not add
+over a territory. 06 reports the direction at the node level.
+Coherent budgets are **frame-relative** (§4, claim 4): they are shares of *this
+frame's* coherent mass and are not comparable to another frame's.
+
+#### C — the latent layer, and what its projection cost
+
+Cumulative-contribution curves, effective counts and "top-k explains X %" all
+require a nonnegative partition, and crossvalidated estimates are signed. They
+therefore live only on a **declared** projection, which records the mass it
+moved (§6). At whole VT the signed 8-root spectrum has **2 negative roots**
+(smallest **−9.095**); `latent_geometry()` truncates them and says so:
+
+| quantity | value |
+|---|---|
+| n_eff (participation ratio, 8 roots) | **3.021** |
+| moved mass | **10.327** |
+| moved share of total absolute mass | **2.78 %** |
+| C(1) … C(5) | 0.488, 0.757, 0.868, 0.947, 0.986 |
+
+The empirical form does clip: the projection is not a formality on this data.
+Three roots carry 87 % of the projected mass. None of that is inference, and
+none of it may be read back onto the signed estimates in panel B.
+
+#### D — the coherence spectrum, and the smoothed-ledger caveat
+
+**The caveat first, because it governs how the panel may be read.** Under an
+identity metric the conservative total is `G_x = Σ_v w_xv b_v^L b_v^R'`: the
+per-voxel outer products form a **fixed ledger that the frame merely
+reallocates**. The total field at any scale is a spatially smoothed version of
+one univariate per-voxel map and carries no cross-voxel information at all
+(contract §3). Under a family whose members are each column-normalized and
+whose weights sum to one, this sharpens into an identity: the rows of scale *s*
+sum to exactly `α_s · G_Ω`, **whatever the data say** (§3.1). Measured here at
+radii {4, 8, 12} mm with equal α = 1/3:
+
+| radius | median node voxels | α | per-scale total (face − house) | coherent share |
+|---|---|---|---|---|
+| 4 mm | 4 | 1/3 | 83.8410 | **0.866** |
+| 8 mm | 18 | 1/3 | 83.8410 | **0.735** |
+| 12 mm | 52 | 1/3 | 83.8410 | **0.655** |
+
+The energy column is the same number three times — it is `α_s × 251.523`, to
+**≤ 1.14e-13** — so **a panel of total energy against scale is a plot of the
+analyst's own α vector and is not a finding**. crossform now refuses to draw
+it: `plot(spectrum, which = "profile")` signals an `effect_capability_refusal`
+with capability `"scale_energy_panel"`, and the script exercises that refusal
+and records it rather than describing it.
+
+What *is* a finding is the right-hand column. The coherent share is exactly
+invariant to α (§3.2), and the script measures that rather than citing it:
+rerunning the same three radii under a lopsided α = (0.6, 0.3, 0.1) moves the
+energy column by **67.07** (face − house) and **13.77** (animate − inanimate)
+while the shares change by **7.77e-16** — machine precision, for both
+contrasts. That is why a spectrum may be reported without disclosing α, the
+exact opposite of the energy panel. Panel D plots the share and nothing else. **Read it as
+coherence-versus-scale:** in this subject's VT the coherent share of the fixed
+budget falls monotonically as the neighbourhood grows —
+0.866 → 0.735 → 0.655 for face − house and 0.800 → 0.581 → 0.408 for animate −
+inanimate — and the location-wise medians track it (0.830 → 0.684 → 0.564;
+0.800 → 0.591 → 0.474). Small neighbourhoods see evidence that is nearly all
+common mode; as a node grows past the spatial extent over which the effect
+keeps one sign, more of the same fixed budget moves into configuration. Node
+shares are **masked, never clamped**, where the components are not a
+nonnegative partition: 315, 457 and 544 of 577 nodes carry a valid fraction at
+the three radii.
+
+Cost: 3.9 s of analysis (0.24 s detection, 0.19 s attribution, 0.26 s latent
+layer, 0.91 s for both coherence spectra including the by-location tables) plus
+R startup and mask reading. Evidence:
+`results/conservative-geometry-receipts.csv`, `results/conservative-geometry.rds`,
+`results/conservative-geometry.png`.
+
+**Caveats, which are not small.** All of 06's caveats carry over — one subject,
+a block design, per-run condition means rather than GLM betas, within-run
+z-scored series with a 2 TR shift, an identity metric under the native
+composition, and **no inference of any kind**. Two more are specific to this
+arm. First, the smoothed-ledger caveat above: nothing in panel B or D's *total*
+column is multivariate across space, and the multiscale totals are the α
+vector. Second, conservation is a **point-estimate law** (§7.6a): Σ_x θ̂_x =
+θ̂_Ω says nothing about uncertainty, node estimates of an overlapping frame are
+strongly correlated, and per-node standard errors must not be summed. A
+conserved ledger buys no free error bars, and every number above is reported
+without inference.
 
 ### Not done
 
