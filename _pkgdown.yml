@@ -48,6 +48,16 @@ articles:
   - interpreting-results
   - from-rmvpa
 
+- title: Conservative geometry
+  desc: >
+    The attribution instrument. A conservative frame partitions one fixed
+    global budget instead of reporting a density per neighbourhood, so its map
+    is a ledger that adds up over territories — and its per-scale totals are
+    the analyst's own weights, which is why the coherence spectrum, not the
+    energy spectrum, is the finding.
+  contents:
+  - conservative-frames
+
 - title: Claims and policies
   desc: What the package claims, what it refuses, and where the boundaries are drawn.
   contents:
