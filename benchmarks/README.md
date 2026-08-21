@@ -86,13 +86,14 @@ from the promote table, or if a shipped `.rds` has no listed role.
 |---|---|---|
 | `rdm()`, `contrast_energy()` | `public-map-scale-gate.rds` | certified |
 | query-first `rdm()`, `rsa()`, `contrast_energy()` | `query-first-scale-gate.rds` | certified |
+| fused pair-query cumulative allocation | `native-pair-allocation.rds` | certified internal Rcpp admission court |
 | `evaluate_geometry()` | query-first gate | covered |
 | `materialize_geometry()` | public-map and query-first late/comparator paths | covered |
 | `crossnobis()` | `crossnobis-scale-gate.rds` | certified |
 | `rdm_sampling_covariance()` | `sampling-covariance-scale.rds` | certified |
 | `plan_relation()`, `estimate_relation()`, `fmrireg_relation()` | `first-moment-vertical-slice.rds` | certified |
 | sequential memory contraction | `small-dense-memory-cold.rds`, `medium-sparse-memory-cold.rds`, `medium-sparse-block-cold.rds`, `medium-sparse-memory-warm.rds` | certified |
-| `measurement_form()` | none yet (`run-measurement-profile.R` is print-only) | **gap** |
+| `measurement_form()` | `measurement-profile.rds` | certified; profile retains BLAS and declines another Rcpp kernel |
 | shard executor | `shard-admission.rds` | refused (unbound) |
 
 Local-only records stay in `benchmark-results/` and are never promoted:
@@ -260,6 +261,22 @@ This fixture qualifies execution and storage only. Its training-only arm has
 30 residual degrees of freedom and support sizes up to 33, so the declared
 shrinkage estimator is load-bearing. Statistical recovery and residual-reuse
 policy claims belong to the separate 500-replication validation above.
+
+## Native pair-query allocation court
+
+Measure the cumulative R allocation of the fused structured pair-query kernel
+against its retained two-pass R oracle on the same deterministic work:
+
+```sh
+Rscript benchmarks/run-native-pair-allocation.R . benchmark-results 5
+```
+
+Both routes are warmed before measurement and every call receives a fresh
+`Rprofmem` log. The court checks numerical parity before interpreting memory,
+alternates route order across repetitions, and requires the native median
+cumulative allocation to be at most 70 percent of the oracle median. This is a
+cumulative-allocation claim about one kernel. It is deliberately separate from
+the query-first gate's fresh-worker peak-R-heap claim and from process RSS.
 
 ## Query-first scale gate (Gate 5)
 

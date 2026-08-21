@@ -79,7 +79,9 @@ Rscript benchmarks/run-population-null-coverage.R 2000 benchmark-results     #  
 Rscript benchmarks/run-first-moment-vertical-slice.R . benchmark-results    #  ~18 s
 Rscript benchmarks/run-public-map-scale-gate.R . benchmark-results          #  ~68 s
 Rscript benchmarks/run-query-first-scale.R . benchmark-results              #  ~40 s
+Rscript benchmarks/run-native-pair-allocation.R . benchmark-results 5        #  ~10 s
 Rscript benchmarks/run-crossnobis-scale-gate.R . benchmark-results          #  ~64 s
+Rscript benchmarks/run-measurement-profile.R . benchmark-results 5           #  ~90 s
 R_LIBS="$LIB" Rscript benchmarks/run-learned-metric-policy-validation.R 500 benchmark-results   # ~260 s
 ```
 
@@ -138,10 +140,11 @@ Notes that cost real time to rediscover:
   `shard` at a pinned version in an isolated library, and its recorded
   artifact carries no provenance at all, so its test always skips
   `CERTIFICATION UNBOUND`. That is the designed state, not a defect.
-- `run-measurement-benchmarks.R`, `run-measurement-profile.R`, and
-  `run-support-index-benchmark.R` persist nothing and certify nothing; they
-  only print. `measurement_form()` is a documented coverage gap until it has
-  a compact promoted gate.
+- `run-measurement-benchmarks.R` and `run-support-index-benchmark.R` persist
+  nothing and certify nothing; they only print. `run-measurement-profile.R`
+  writes the compact promoted court for `measurement_form()`. It certifies
+  oracle parity and plan identity while recording the `no_rcpp_keep_blas`
+  decision under the 15 percent / 1.25x native-admission rule.
 
 ## 3. Promote the small gate artifacts
 

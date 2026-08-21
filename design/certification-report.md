@@ -604,3 +604,39 @@ it is the one recorded number here that cannot be re-derived without running
 `R CMD check`. The 3,476.43 s / 3,417.17 s pre-optimization timings quoted
 under "Scale-qualified" predate the gate runner and are likewise unheld by any
 artifact.
+
+## Hot-path epic closure (2026-08-21)
+
+The legacy native-kernel epic was reconstructed in the current Mote store as
+`bd-01M0J3FYZ6Q20K1SR1R9DMD8SQ` because its original records were not present
+after the tracker-store replacement. The reconstruction audited the landed
+commits before adding new evidence: `d1504bd` introduced the fused pair-query
+kernel, `2bd7ba3` added the sampling, packed/coherent, and topology work, and
+`f6baa14`, `03e1d33`, and `8fdbb17` supplied the prior re-certification and
+admission ledger. No legacy child was credited from prose alone.
+
+Two remaining evidence gaps are now closed:
+
+- `measurement-profile.rds` promotes the no-Rcpp decision for
+  `measurement_form()`. Across the scalar and requested-multivariate routes,
+  the maximum independent-oracle error is `7.10543e-15`, plan identity is
+  stable, and the classified R-loop share is zero. The recorded decision is
+  `no_rcpp_keep_blas`: another native kernel is not admitted under the declared
+  15 percent R-loop / projected 1.25x speedup rule.
+- `native-pair-allocation.rds` records a five-repetition cumulative-allocation
+  court for the fused pair-query kernel. The native route allocated a median
+  4,638,576 bytes against 286,853,280 bytes for the retained two-pass R oracle,
+  a ratio of 0.0161706 against the maximum 0.70. Its maximum numerical error is
+  `9.43690e-16`; the median runtimes were 0.030 and 0.094 seconds,
+  respectively. This receipt concerns cumulative R allocation, not peak heap
+  or process RSS.
+
+The source tree remained bound to the certification digest
+`sha256:346aba47b81e768edc36e3fbbc51fddfff8220e3bc8522c778e31cf02a917ede`.
+The complete source-checkout test suite passed with the six declared skips
+(one unbound executor, one absent local-only population artifact, and four
+opt-in scale/topology courts). A compiler-neutral `R CMD check` using Apple
+clang passed with zero errors and zero warnings. Its single remaining note
+combines new-submission metadata with URLs for the not-yet-published site and
+files not yet on the hosted `main` branch; it is a release-state note, not a
+hot-path or package-correctness failure.

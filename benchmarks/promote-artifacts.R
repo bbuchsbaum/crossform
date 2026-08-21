@@ -43,7 +43,9 @@ promotable_summaries <- c(
   "memory-benchmark-summary.csv",
   "learned-metric-policy-summary.csv",
   "sampling-covariance-validation-summary.csv",
-  "population-null-coverage-summary.csv"
+  "population-null-coverage-summary.csv",
+  "measurement-profile-summary.csv",
+  "native-pair-allocation-summary.csv"
 )
 
 maximum_shipped_bytes <- 64 * 1024

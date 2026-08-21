@@ -4,7 +4,9 @@
 ^\.github$
 ^\.planning$
 ^\.ruff_cache$
+^\.git$
 ^\.gitignore$
+^\.rcmdcheck_result\.rds$
 ^_pkgdown\.yml$
 ^design$
 ^docs$

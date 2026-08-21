@@ -1,0 +1,2 @@
+"conditions","features","partitions","ordered_edges","pairs","repetitions","output_bytes","oracle_max_abs_error","native_median_allocated_bytes","oracle_median_allocated_bytes","native_to_oracle_allocation_ratio","native_median_elapsed_seconds","oracle_median_elapsed_seconds","native_to_oracle_runtime_ratio","passed"
+48,512,4,12,1128,5,4620504,9.43689570931383e-16,4638576,286853280,0.0161705524162039,0.0299999999999998,0.0939999999999999,0.319148936170211,TRUE

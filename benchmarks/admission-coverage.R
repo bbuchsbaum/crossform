@@ -58,6 +58,15 @@
       "query-first rdm, rsa, and bilinear contrast at q = 100"
     ),
     .admission_row(
+      "certified", "native_pair_query_allocation",
+      "native-pair-allocation.rds", "run-native-pair-allocation.R",
+      "test-certification-artifacts.R",
+      paste0(
+        "internal Rcpp admission court; cumulative allocation against the ",
+        "retained two-pass R oracle"
+      )
+    ),
+    .admission_row(
       "covered", "evaluate_geometry",
       "query-first-scale-gate.rds", "run-query-first-scale.R",
       "test-query-first-scale.R",
@@ -118,9 +127,13 @@
       "sequential sparse additive-frame workspace; not a public export"
     ),
     .admission_row(
-      "gap", "measurement_form",
-      runner = "run-measurement-profile.R",
-      notes = "print-only profile and no-Rcpp decision; no promoted gate yet"
+      "certified", "measurement_form",
+      "measurement-profile.rds", "run-measurement-profile.R",
+      "test-certification-artifacts.R",
+      paste0(
+        "scalar and requested-multivariate route court; BLAS-backed path ",
+        "retained after the native-admission rule declined Rcpp"
+      )
     ),
     .admission_row(
       "refused", "shard_executor",
