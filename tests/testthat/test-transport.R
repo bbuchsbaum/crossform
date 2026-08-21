@@ -255,7 +255,10 @@ test_that("provenance must declare a closed method and how it was built", {
     semantics = "budget",
     provenance = list(details = "warp", atlas = "x", method = "anatomical"))
   expect_identical(a$signature, b$signature)
-  expect_identical(names(a$provenance), c("method", "details", "atlas"))
+  expect_identical(names(a$provenance), c(
+    "method", "details", "fitting_sample", "cross_fit_folds",
+    "conditioning", "atlas"
+  ))
 })
 
 test_that("budget preservation is exact, for signed ledgers, incl. the sink", {

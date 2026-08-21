@@ -29,6 +29,29 @@
 # downward to `transport.R`, `frame.R`, `compute-policy.R` and the guards.
 
 .population_normalizations <- c("none", "unit_budget", "precision_weighted")
+.population_coverage_policies <- c("all_planned", "available_at_node")
+
+# A machine-readable pointer to the future gate, never an implemented
+# covariance object. Keeping it beside both refusals makes the requirements
+# discoverable without weakening either one.
+.population_cross_node_future_contract <- function() {
+  list(
+    contract_version = "cross-node-covariance-v0",
+    status = "not_implemented",
+    representations = c("dense_symmetric", "sparse_symmetric"),
+    required_checks = c(
+      "native_index_alignment", "query_index_alignment", "finite",
+      "symmetric", "positive_semidefinite", "declared_error_model"
+    ),
+    scaling_guardrails = c(
+      "dense_bytes_within_compute_budget",
+      "sparse_nnz_within_compute_budget",
+      "no_implicit_dense_materialization"
+    ),
+    inference_scope = "transported_within_subject_covariance",
+    contract = "design/cross-node-covariance-contract.md"
+  )
+}
 
 # Every per-row frame metadata column `population-form-v1` §9.1 requires of a
 # transported native index. Recorded per subject rather than refused on:
@@ -96,10 +119,11 @@
         "attribution share."
       ),
       paste0(
-        "The gate lifts when a cross-node sampling covariance exists (gap G8; ",
-        "`design/population-form-contract.md` sections 4.5 and 14.1). D8's ",
-        "query bank is not it: it refuses the cross-measurement scope that ",
-        "route would need."
+        "The gate lifts only after gap G8's typed dense/sparse, PSD-checked and ",
+        "compute-bounded contract in `design/cross-node-covariance-contract.md` ",
+        "is implemented together with a declared precision input. D8's query ",
+        "bank is not it: it refuses the cross-measurement scope that route ",
+        "would need."
       )
     ))
 }
@@ -620,7 +644,8 @@
 # the order the participants were listed in while still pinning which
 # transport belongs to which participant.
 .population_plan_scientific_id <- function(subjects, transport, model,
-                                           normalization, fit,
+                                           normalization, coverage_policy,
+                                           coverage_tolerance, fit,
                                            allow_nonconservative) {
   .sha256_signature(list(
     schema_version = 1L,
@@ -638,6 +663,8 @@
       data = model$data_digest
     ),
     normalization = normalization,
+    coverage_policy = coverage_policy,
+    coverage_tolerance = coverage_tolerance,
     fit = fit,
     allow_nonconservative = allow_nonconservative
   ), "population-sha256:")
@@ -650,14 +677,19 @@
 # derived from, or wider than, the sealed ingredients above -- so that
 # tampering with a printed record still breaks a signature.
 .population_plan_signature <- function(scientific_plan_id, compute,
-                                       subject_index, group_index, data) {
+                                       subject_index, group_index, data,
+                                       operator_mass, operator_coverage,
+                                       coverage_threshold) {
   .sha256_signature(list(
     schema_version = 1L,
     scientific_plan_id = scientific_plan_id,
     compute = unclass(compute),
     subject_index = subject_index,
     group_index = group_index,
-    data = data
+    data = data,
+    operator_mass = operator_mass,
+    operator_coverage = operator_coverage,
+    coverage_threshold = coverage_threshold
   ))
 }
 
@@ -672,7 +704,8 @@
     carrier <- transport[[label]]
     report <- conservation[[label]]
     sink <- .transport_sink_territory(carrier)
-    cross_fit <- carrier$provenance$cross_fit
+    cross_fit <- carrier$provenance[["cross_fit", exact = TRUE]]
+    conditioning <- carrier$provenance$conditioning
     data.frame(
       subject = label,
       measurements = as.integer(plan$measurements),
@@ -682,8 +715,16 @@
       max_deviation = as.numeric(report$max_deviation),
       semantics = carrier$semantics,
       provenance = carrier$provenance$method,
+      transport_source = conditioning$source,
+      transport_status = conditioning$operator_status,
+      fitting_sample = paste(conditioning$fitting_sample, collapse = "; "),
       cross_fit = if (is.null(cross_fit)) NA_character_ else
         paste(cross_fit, collapse = "; "),
+      cross_fit_folds = paste(conditioning$cross_fit_folds, collapse = "; "),
+      transport_inference_scope = conditioning$inference_scope,
+      transport_uncertainty_propagated =
+        conditioning$uncertainty_propagated,
+      marginal_over_transport = conditioning$marginal_over_transport,
       sink_territory = as.numeric(sink$share),
       all_sink_rows = as.integer(sink$all_sink),
       row_metadata = all(.population_row_metadata %in%
@@ -696,6 +737,30 @@
   index <- do.call(rbind, rows)
   rownames(index) <- NULL
   index
+}
+
+# Operator-derived coverage, before any response is read. Ordinary nodes are
+# covered only when transported row mass exceeds the declared relative
+# threshold. The sink is an audit response: zero means no budget was lost, so
+# every planned subject is observed there even when its sink mass is zero.
+.population_operator_coverage <- function(transport, tolerance) {
+  labels <- names(transport)
+  nodes <- c(as.character(transport[[1L]]$group_index$node),
+    .transport_sink_label)
+  mass <- matrix(0, length(labels), length(nodes),
+    dimnames = list(labels, nodes))
+  threshold <- numeric(length(labels))
+  names(threshold) <- labels
+  for (label in labels) {
+    carrier <- transport[[label]]
+    mass[label, ] <- as.numeric(Matrix::crossprod(
+      carrier$matrix, carrier$row_mass
+    ))
+    threshold[[label]] <- tolerance * sum(carrier$row_mass)
+  }
+  covered <- mass > threshold
+  covered[, ncol(covered)] <- TRUE
+  list(mass = mass, covered = covered, threshold = threshold)
 }
 
 # Constructor ------------------------------------------------------------------
@@ -766,6 +831,13 @@
 #' in the closed set, and in this argument's default, because the set *is* the
 #' plan identity; what is gated is admitting it.
 #'
+#' This gate does not apply to the default unweighted node-wise OLS. Each
+#' node-query cell is fitted across participants and needs no model for
+#' covariance between nodes. Future covariance-dependent operations must meet
+#' `design/cross-node-covariance-contract.md`: dense/sparse representation,
+#' index binding, symmetry and PSD checks, error-model provenance, and
+#' compute-budget guardrails are mandatory.
+#'
 #' @param subjects A named list of compiled `effect_geometry_plan` values from
 #'   [plan_geometry()], one per participant, over conservative frames on a
 #'   common experimental space. Names are participant identifiers and bind
@@ -783,6 +855,15 @@
 #' @param normalization How incommensurable per-participant budgets are made
 #'   commensurable: `"none"` (the default), `"unit_budget"`, or
 #'   `"precision_weighted"` (gated, see above).
+#' @param coverage_policy Population target under incomplete ordinary-node
+#'   coverage. "all_planned" (the default) returns a coefficient only when
+#'   every planned participant is available at that node and query.
+#'   "available_at_node" fits the explicitly selected participant set and
+#'   records that different target at every cell.
+#' @param coverage_tolerance Nonnegative relative transported-mass threshold.
+#'   Subject i covers ordinary node j when its transported row mass is greater
+#'   than coverage_tolerance times its total declared row mass. The sink is
+#'   observed for every admitted subject because zero sink budget is meaningful.
 #' @param compute A [compute_policy()]. It enters the plan's physical
 #'   signature, never its scientific identity.
 #' @param allow_nonconservative Plan on non-conservative subject frames
@@ -793,8 +874,12 @@
 #'   `$transport`, the shared `$group_index`, the transport `$semantics`, the
 #'   `$model` record (formula, canonical text, term labels, model matrix, its
 #'   pivoted `$qr`, `$rank` and `$pivot`, and per-covariate content digests),
-#'   `$data`, `$normalization`, the `$fit` marker, `$allow_nonconservative`,
-#'   a per-participant `$subject_index` audit table, `$compute`, the
+#'   `$data`, `$normalization`, `$coverage_policy`, `$coverage_tolerance`,
+#'   the subject-by-node `$operator_mass` and `$operator_coverage`, the `$fit`
+#'   marker, `$allow_nonconservative`, a per-participant `$subject_index` audit
+#'   table (including transport source, fixed-versus-estimated status, fitting
+#'   sample, cross-fitting folds, conditional inference scope, and whether
+#'   transport uncertainty was propagated), `$compute`, the
 #'   `$scientific_plan_id` naming the estimand, and the `$signature` covering
 #'   how it will be executed.
 #' @references `design/population-form-contract.md` (`population-form-v1`),
@@ -843,9 +928,17 @@
 plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
                             normalization = c("none", "unit_budget",
                               "precision_weighted"),
+                            coverage_policy = c("all_planned",
+                              "available_at_node"),
+                            coverage_tolerance = 0,
                             compute = compute_policy(),
                             allow_nonconservative = FALSE) {
   normalization <- match.arg(normalization)
+  coverage_policy <- match.arg(coverage_policy)
+  coverage_tolerance <- .check_number(
+    coverage_tolerance, "coverage_tolerance", nonnegative = TRUE,
+    what = "one nonnegative relative transported-mass threshold"
+  )
   .check_flag(allow_nonconservative, "allow_nonconservative")
   compute <- .validate_compute_policy(compute)
 
@@ -857,6 +950,7 @@ plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
   transport <- .population_transports(transport, subjects)
   group_index <- .population_group_nodes(transport)
   semantics <- transport[[1L]]$semantics
+  coverage <- .population_operator_coverage(transport, coverage_tolerance)
 
   if (identical(normalization, "precision_weighted")) {
     .population_precision_refusal()
@@ -878,7 +972,8 @@ plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
   )
   subject_index <- .population_subject_index(subjects, transport, conservation)
   scientific_plan_id <- .population_plan_scientific_id(
-    subjects, transport, model, normalization, fit, allow_nonconservative
+    subjects, transport, model, normalization, coverage_policy,
+    coverage_tolerance, fit, allow_nonconservative
   )
   value <- structure(list(
     subjects = subjects,
@@ -888,13 +983,19 @@ plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
     model = model[setdiff(names(model), "data")],
     data = model$data,
     normalization = normalization,
+    coverage_policy = coverage_policy,
+    coverage_tolerance = coverage_tolerance,
+    operator_mass = coverage$mass,
+    operator_coverage = coverage$covered,
+    coverage_threshold = coverage$threshold,
     fit = fit,
     allow_nonconservative = allow_nonconservative,
     subject_index = subject_index,
     compute = compute,
     scientific_plan_id = scientific_plan_id,
     signature = .population_plan_signature(
-      scientific_plan_id, compute, subject_index, group_index, model$data
+      scientific_plan_id, compute, subject_index, group_index, model$data,
+      coverage$mass, coverage$covered, coverage$threshold
     )
   ), class = "effect_population_plan")
   .validate_population_plan(value, deep = FALSE)
@@ -903,8 +1004,9 @@ plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
 
 .population_plan_fields <- c(
   "subjects", "transport", "group_index", "semantics", "model", "data",
-  "normalization", "fit", "allow_nonconservative", "subject_index",
-  "compute", "scientific_plan_id", "signature"
+  "normalization", "coverage_policy", "coverage_tolerance", "operator_mass",
+  "operator_coverage", "coverage_threshold", "fit", "allow_nonconservative",
+  "subject_index", "compute", "scientific_plan_id", "signature"
 )
 
 .population_model_fields <- c(
@@ -932,6 +1034,16 @@ plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
       !.is_string(x$semantics) || !x$semantics %in% c("budget", "density") ||
       !.is_string(x$normalization) ||
       !x$normalization %in% .population_normalizations ||
+      !.is_string(x$coverage_policy) ||
+      !x$coverage_policy %in% .population_coverage_policies ||
+      !is.numeric(x$coverage_tolerance) ||
+      length(x$coverage_tolerance) != 1L ||
+      !is.finite(x$coverage_tolerance) || x$coverage_tolerance < 0 ||
+      !is.matrix(x$operator_mass) || !is.numeric(x$operator_mass) ||
+      !is.matrix(x$operator_coverage) || !is.logical(x$operator_coverage) ||
+      !identical(dim(x$operator_mass), dim(x$operator_coverage)) ||
+      !is.numeric(x$coverage_threshold) ||
+      length(x$coverage_threshold) != length(x$subjects) ||
       !.is_flag(x$allow_nonconservative) ||
       !identical(names(model), .population_model_fields) ||
       !inherits(model$formula, "formula") || !.is_string(model$formula_text) ||
@@ -953,19 +1065,28 @@ plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
   }
   for (plan in x$subjects) .validate_geometry_plan(plan, deep = deep)
   for (value in x$transport) .validate_location_transport(value)
+  coverage <- .population_operator_coverage(
+    x$transport, x$coverage_tolerance
+  )
+  if (!identical(x$operator_mass, coverage$mass) ||
+      !identical(x$operator_coverage, coverage$covered) ||
+      !identical(x$coverage_threshold, coverage$threshold)) {
+    .contract_error("Population-plan coverage is inconsistent with transport.")
+  }
   compute <- .validate_compute_policy(x$compute)
   .check_signature(
     x$scientific_plan_id,
     .population_plan_scientific_id(
-      x$subjects, x$transport, model, x$normalization, x$fit,
-      x$allow_nonconservative
+      x$subjects, x$transport, model, x$normalization, x$coverage_policy,
+      x$coverage_tolerance, x$fit, x$allow_nonconservative
     ),
     "Population-plan scientific identity is inconsistent."
   )
   .check_signature(
     x$signature,
     .population_plan_signature(
-      x$scientific_plan_id, compute, x$subject_index, x$group_index, x$data
+      x$scientific_plan_id, compute, x$subject_index, x$group_index, x$data,
+      x$operator_mass, x$operator_coverage, x$coverage_threshold
     ),
     "Population-plan execution signature is inconsistent."
   )

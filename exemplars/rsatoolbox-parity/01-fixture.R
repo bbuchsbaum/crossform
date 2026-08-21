@@ -175,15 +175,30 @@ utils::write.csv(crossform_rdm, file.path(results, "crossform-rdm.csv"),
                  row.names = FALSE)
 utils::write.csv(crossform_rsa, file.path(results, "crossform-rsa.csv"),
                  row.names = FALSE)
+fixture_meta <- c(
+  seed = SEED,
+  n_runs = N_RUNS,
+  n_voxels = N_VOXELS,
+  n_conditions = fixture$q,
+  n_obs_per_run = fixture$n_obs,
+  residual_df = noise$residual_df,
+  n_pairs = nrow(pair_frame),
+  beta_vs_ols_max_abs_diff = beta_gap,
+  pairing_edges = nrow(over),
+  partition_weight = unique(over$weight),
+  covariance_condition_number = kappa(noise$covariance, exact = TRUE),
+  metric_role = "fixed_noise_precision",
+  metric_estimator = "inverse_pooled_within_run_residual_covariance",
+  metric_normalization = "frame_local_divide_by_support_size",
+  effect_centering = "none_pair_differences_are_zero_sum",
+  partition_scheme = "uniform_unordered_cross_run_pairs",
+  pair_order = "row_major_upper_triangle",
+  rsa_objective = "fixed_ols_on_vectorized_rdm",
+  claim_scope = "crossnobis_and_fixed_linear_rsa_only"
+)
 utils::write.csv(
-  data.frame(
-    key = c("seed", "n_runs", "n_voxels", "n_conditions", "n_obs_per_run",
-            "residual_df", "n_pairs", "beta_vs_ols_max_abs_diff",
-            "pairing_edges", "covariance_condition_number"),
-    value = c(SEED, N_RUNS, N_VOXELS, fixture$q, fixture$n_obs,
-              noise$residual_df, nrow(pair_frame), beta_gap, nrow(over),
-              kappa(noise$covariance, exact = TRUE)),
-    stringsAsFactors = FALSE),
+  data.frame(key = names(fixture_meta), value = unname(fixture_meta),
+             stringsAsFactors = FALSE),
   file.path(results, "fixture-meta.csv"), row.names = FALSE)
 
 saveRDS(list(fixture = fixture, noise = noise, domain = domain, fit = fit,

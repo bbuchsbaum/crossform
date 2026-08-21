@@ -4,7 +4,13 @@
 \alias{population_uncertainty}
 \title{Read the group uncertainty layers of an estimated population form}
 \usage{
-population_uncertainty(x, term = NULL, level = 0.95)
+population_uncertainty(
+  x,
+  term = NULL,
+  level = 0.95,
+  estimator = c("classical", "HC3"),
+  leverage_tolerance = 1e-08
+)
 }
 \arguments{
 \item{x}{An \code{effect_population_result} from \code{\link[=estimate_population]{estimate_population()}}.}
@@ -16,11 +22,19 @@ population_uncertainty(x, term = NULL, level = 0.95)
 \verb{$between$upper}. The default \code{0.95} is the level the recorded coverage
 simulation measured; the interval is labelled uncalibrated whatever level
 is asked for.}
+
+\item{estimator}{Between-subject covariance estimator. \code{"classical"} is
+ordinary homoskedastic OLS; \code{"HC3"} is the leverage-adjusted
+heteroskedasticity-robust sandwich estimator.}
+
+\item{leverage_tolerance}{Positive tolerance below which HC3 treats
+\eqn{1-h_i}{1-h_i} as numerically zero and refuses that cell.}
 }
 \value{
 An \code{effect_population_uncertainty}: \verb{$between} holding \verb{$estimate},
-\verb{$se}, \verb{$t}, \verb{$lower}, \verb{$upper} (each a \code{node}-by-\code{query}-by-\code{term}
-array), \verb{$residual_sd}, \verb{$residual_df}, \verb{$level} and \verb{$calibration};
+\verb{$covariance}, \verb{$se}, \verb{$t}, \verb{$lower}, \verb{$upper}, leverage, adjusted
+residuals and local design diagnostics, estimator identity, assumptions,
+status and refusal reasons;
 \verb{$within} holding the transported layer's \verb{$admitted}, \verb{$coefficient},
 \verb{$source_node}, \verb{$variance} and \verb{$refusal}, or \code{NULL} when
 \code{\link[=estimate_population]{estimate_population()}} was not given \code{uncertainty}; \verb{$separation}
@@ -37,6 +51,28 @@ with that fit's residual degrees of freedom. The \strong{within-subject} layer i
 the sampling variance of one participant's transported value, and it exists
 only where it is exact.
 }
+\section{Classical OLS and HC3}{
+
+\code{estimator = "classical"} reproduces the ordinary OLS covariance
+\eqn{s^2(X'X)^{-1}}{s^2 (X'X)^-1}. \code{estimator = "HC3"} returns the
+heteroskedasticity-robust sandwich covariance
+\eqn{(X'X)^{-1}X'\mathrm{diag}\{e_i^2/(1-h_i)^2\}X(X'X)^{-1}}{(X'X)^-1
+X' diag(e_i^2 / (1-h_i)^2) X (X'X)^-1}. The latter is the recommended
+sensitivity analysis when subject-level variance differs with covariates or
+transport quality. It is not a distributional calibration theorem, so both
+routes retain the \code{"uncalibrated"} label.
+
+Every node-query cell is computed from its exact contributing subject set.
+\verb{$between} therefore carries the full coefficient covariance, SEs, local
+\code{n}, design rank and residual df, subject leverage, the residual adjustment
+actually used in the sandwich, maximum leverage, conditioning statement,
+and a cellwise status/reason. Rank-deficient and
+saturated cells are refused. HC3 also refuses a cell when any
+\eqn{1-h_i}{1-h_i} is no larger than \code{leverage_tolerance}; dividing by an
+almost-zero leverage complement would turn a numerical singularity into a
+confident-looking result.
+}
+
 \section{The two layers are never pooled}{
 
 They answer different questions and are not summands. The between-subject
@@ -51,7 +87,8 @@ and there is no field holding their sum.
 \section{The \code{t} is uncalibrated, and stays uncalibrated}{
 
 \verb{$between$t} is the estimate over its standard error. Its null distribution
-has been \emph{measured} against \eqn{t_{df}}{t_df} by
+for \code{estimator = "classical"} has been \emph{measured} against
+\eqn{t_{df}}{t_df} by
 \code{benchmarks/run-population-null-coverage.R}, a 2,000-replication null
 simulation of the group layer. Under a \strong{correctly specified} group model
 the nominal 95\% interval covered the null term in \strong{0.9485} of
@@ -72,6 +109,17 @@ sample size: at \code{N = 24} the nominal 5\% test rejects a true null \strong{1
 of the time, and the null \code{t} is distinguishable from \eqn{t_{df}}{t_df} at
 \code{p = 1.2e-6}.
 
+Those coverage figures do not transfer to HC3. Its randomized court proves
+agreement with the defining sandwich covariance over full-rank designs and
+adversarial leverage fixtures; it does not supply a finite-sample reference
+distribution. HC3 therefore retains the same \code{"uncalibrated"} label.
+The expanded paired benchmark in
+\code{inst/extdata/certification/population-calibration-results.csv} records
+classical, HC3, and wild-bootstrap behavior across eight synthetic regimes.
+It supports only the regimes and conditional targets named there:
+informative coverage remains ineligible for a marginal claim, and no arm is
+marginal over transport estimation.
+
 A real population fit carries misspecification of unknown degree and a
 transport whose displacement, entropy and subject coverage vary across
 participants (\code{population-form-v1} section 7.5), which is exactly the
@@ -91,6 +139,13 @@ w_x^2 Var(z_ix)} is exact. \strong{No independence assumption is made anywhere},
 and none would be defensible: overlapping searchlight supports under
 spatially correlated noise are positively correlated, so a diagonal sum
 would be an under-estimate in a known direction.
+
+A future joint covariance may support transported precision or a separately
+calibrated spatial procedure, but it is not required by the cellwise
+between-subject covariance computed here. Dense/sparse representation, PSD
+validation and scaling requirements are specified in
+\code{design/cross-node-covariance-contract.md}. maxT and multiple-comparison
+methods are optional later consumers, not part of this gate.
 
 Admission is per participant and per group column, and \verb{$within$admitted}
 is the matrix that records it. A hard anatomical parcellation usually
@@ -120,6 +175,16 @@ The streamed route does not retain the participant residuals, by design.
 \item \code{between_subject_residual_df} --- a saturated group model. With no
 residual degrees of freedom the participants' scatter is not estimable.
 }
+}
+
+\section{Transport conditioning}{
+
+Classical and HC3 intervals use the exact subject-level residuals and may
+account for homoskedastic or heteroskedastic between-subject variation.
+They remain conditional on each realized transport. In particular, HC3
+does not include uncertainty from learning a functional transport or from
+assigning its cross-fitting folds. The complete conditioning record is
+retained in \verb{$between$conditioning}.
 }
 
 \examples{
@@ -183,6 +248,7 @@ Other population transports:
 \code{\link{plan_population}()},
 \code{\link{population_prevalence}()},
 \code{\link{population_views}},
+\code{\link{population_wild_bootstrap}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

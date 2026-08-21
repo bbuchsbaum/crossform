@@ -431,6 +431,11 @@ as.data.frame.effect_population_result <- function(x, row.names = NULL,
     coordinates <- x$coordinates[
       rep(seq_len(shape[[3L]]), each = nodes * shape[[2L]]), , drop = FALSE
     ]
+    node_position <- rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]])
+    term_position <- rep(rep(seq_len(shape[[2L]]), each = nodes),
+      times = shape[[3L]])
+    readout_position <- rep(seq_len(shape[[3L]]),
+      each = nodes * shape[[2L]])
     return(data.frame(
       .result_index_data_frame(x$index)[
         rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), , drop = FALSE
@@ -440,6 +445,8 @@ as.data.frame.effect_population_result <- function(x, row.names = NULL,
       row = coordinates$row,
       column = coordinates$column,
       scale = coordinates$scale,
+      .population_result_coverage_frame(x$coverage, node_position,
+        readout_position, term_position),
       estimate = as.numeric(x$coefficient_forms),
       check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
     ))
@@ -447,6 +454,10 @@ as.data.frame.effect_population_result <- function(x, row.names = NULL,
   shape <- dim(x$coefficients)
   labels <- dimnames(x$coefficients)
   nodes <- shape[[1L]]
+  node_position <- rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]])
+  readout_position <- rep(rep(seq_len(shape[[2L]]), each = nodes),
+    times = shape[[3L]])
+  term_position <- rep(seq_len(shape[[3L]]), each = nodes * shape[[2L]])
   data.frame(
     .result_index_data_frame(x$index)[
       rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), ,
@@ -454,7 +465,41 @@ as.data.frame.effect_population_result <- function(x, row.names = NULL,
     ],
     query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
     term = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    .population_result_coverage_frame(x$coverage, node_position,
+      readout_position, term_position),
     estimate = as.numeric(x$coefficients),
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+.population_subject_list <- function(coverage, node, readout, include = TRUE) {
+  selected <- coverage$availability[node, readout, ]
+  if (!include) selected <- !selected
+  paste(coverage$planned_subjects[selected], collapse = ",")
+}
+
+.population_result_coverage_frame <- function(coverage, node, readout, term) {
+  cell <- cbind(node, readout)
+  coefficient <- cbind(node, readout, term)
+  data.frame(
+    coverage_policy = coverage$policy,
+    planned_n = length(coverage$planned_subjects),
+    n = coverage$n[cell],
+    fraction = coverage$fraction[cell],
+    n_eff = coverage$n_eff[cell],
+    mass_n_eff = coverage$mass_n_eff[node],
+    design_rank = coverage$design_rank[cell],
+    residual_df = coverage$residual_df[cell],
+    coverage_status = coverage$status[cell],
+    coefficient_estimable = coverage$coefficient_estimable[coefficient],
+    exclusion_reason = coverage$exclusion_reason[coefficient],
+    subject_set_id = coverage$subject_set_id[cell],
+    available_subjects = mapply(.population_subject_list,
+      MoreArgs = list(coverage = coverage, include = TRUE), node, readout,
+      USE.NAMES = FALSE),
+    excluded_subjects = mapply(.population_subject_list,
+      MoreArgs = list(coverage = coverage, include = FALSE), node, readout,
+      USE.NAMES = FALSE),
     check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
   )
 }
@@ -477,6 +522,9 @@ as.data.frame.effect_population_view <- function(x, row.names = NULL,
   columns <- x$columns[rep(seq_len(nrow(x$columns)), each = nodes), ,
     drop = FALSE]
   names(columns)[names(columns) == "column"] <- "view_column"
+  node_position <- rep(seq_len(nodes), times = ncol(x$values))
+  column_position <- rep(seq_len(ncol(x$values)), each = nodes)
+  cell <- cbind(node_position, column_position)
   data.frame(
     .result_index_data_frame(x$index)[
       rep(seq_len(nodes), times = ncol(x$values)), , drop = FALSE
@@ -485,6 +533,23 @@ as.data.frame.effect_population_view <- function(x, row.names = NULL,
     ledger = x$ledger,
     term = x$term,
     columns,
+    coverage_policy = x$coverage$policy,
+    planned_n = length(x$coverage$planned_subjects),
+    n = x$coverage$n[cell],
+    fraction = x$coverage$fraction[cell],
+    n_eff = x$coverage$n_eff[cell],
+    design_rank = x$coverage$design_rank[cell],
+    residual_df = x$coverage$residual_df[cell],
+    coverage_status = x$coverage$status[cell],
+    coefficient_estimable = x$coverage$estimable[cell],
+    exclusion_reason = x$coverage$exclusion_reason[cell],
+    subject_set_id = x$coverage$subject_set_id[cell],
+    available_subjects = mapply(.population_subject_list,
+      MoreArgs = list(coverage = x$coverage, include = TRUE),
+      node_position, column_position, USE.NAMES = FALSE),
+    excluded_subjects = mapply(.population_subject_list,
+      MoreArgs = list(coverage = x$coverage, include = FALSE),
+      node_position, column_position, USE.NAMES = FALSE),
     estimate = as.numeric(x$values),
     check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
   )
@@ -512,9 +577,24 @@ as.data.frame.effect_population_view <- function(x, row.names = NULL,
     ledger = x$ledger,
     query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
     term = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    estimator = x$between$estimator,
+    assumptions = paste(x$between$assumptions, collapse = ";"),
     estimate = as.numeric(x$between$estimate),
     se = as.numeric(x$between$se),
-    residual_df = x$between$residual_df,
+    n = as.numeric(x$between$n),
+    design_rank = as.numeric(x$between$design_rank),
+    residual_df = as.numeric(x$between$residual_df),
+    max_leverage = as.numeric(x$between$max_leverage),
+    max_abs_adjusted_residual = as.numeric(apply(
+      abs(x$between$adjusted_residual), c(1L, 2L), function(value) {
+        finite <- value[is.finite(value)]
+        if (length(finite)) max(finite) else NA_real_
+      }
+    )),
+    uncertainty_status = as.character(x$between$status),
+    uncertainty_reason = as.character(x$between$reason),
+    transport_conditioning = x$between$conditioning$transport,
+    coverage_conditioning = x$between$conditioning$coverage,
     t = as.numeric(x$between$t),
     level = x$between$level,
     lower = as.numeric(x$between$lower),
@@ -587,4 +667,56 @@ as.data.frame.effect_population_uncertainty <- function(
     return(.population_uncertainty_between_frame(x))
   }
   .population_uncertainty_within_frame(x)
+}
+
+# Population wild bootstrap --------------------------------------------------
+
+#' @export
+as.data.frame.effect_population_wild_bootstrap <- function(
+    x, row.names = NULL, optional = FALSE, ...) {
+  .validate_population_bootstrap(x)
+  nodes <- nrow(x$index)
+  queries <- nrow(x$queries)
+  node_position <- rep(seq_len(nodes), times = queries)
+  query_position <- rep(seq_len(queries), each = nodes)
+  cell <- cbind(node_position, query_position)
+  contrast <- paste0(
+    names(x$contrast), "=", format(x$contrast, trim = TRUE),
+    collapse = ";"
+  )
+  data.frame(
+    .result_index_data_frame(x$index)[node_position, , drop = FALSE],
+    query = rep(rownames(x$queries), each = nodes),
+    estimator = x$estimator,
+    studentization = x$studentization,
+    weight_distribution = x$weight_distribution,
+    contrast = contrast,
+    null = x$null,
+    alternative = x$alternative,
+    observed_estimate = x$observed_estimate[cell],
+    observed_se = x$observed_se[cell],
+    observed_t = x$observed_t[cell],
+    successful_replicates = x$successful_replicates[cell],
+    failed_replicates = x$failed_replicates[cell],
+    p_value = x$p_value[cell],
+    monte_carlo_se = x$monte_carlo_se[cell],
+    critical_value = x$critical_value[cell],
+    reject = x$reject[cell],
+    level = x$level,
+    status = x$status[cell],
+    reason = x$reason[cell],
+    n = x$coverage$n[cell],
+    design_rank = x$coverage$design_rank[cell],
+    residual_df = x$coverage$residual_df[cell],
+    subject_set_id = x$coverage$subject_set_id[cell],
+    available_subjects = mapply(.population_subject_list,
+      MoreArgs = list(coverage = x$coverage, include = TRUE),
+      node_position, query_position, USE.NAMES = FALSE),
+    transport_conditioning = x$conditioning$transport,
+    coverage_conditioning = x$conditioning$coverage,
+    seed = x$seed,
+    replicates = x$replicates,
+    weight_signature = x$weight_signature,
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
 }

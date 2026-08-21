@@ -23,6 +23,11 @@ Nothing here claims that `rsatoolbox` is wrong or slow. The parity arm exists
 so that the extension arm is anchored: the extra quantities come out of an
 object that reproduces the standard answer exactly.
 
+The scope is deliberately narrow: the external result supports the fixed
+crossnobis and fixed linear-RSA rows described below, not every statistic
+called RSA. The exact mapping into the common-geometry theorem is recorded in
+[`design/common-geometry-equivalence.md`](../../design/common-geometry-equivalence.md#8-external-parity-binding).
+
 ## How to run
 
 R first, then Python, then R.
@@ -39,6 +44,7 @@ Rscript 01-fixture.R          # build the fixture, fit it, export CSVs
 rsaenv/bin/python 02-rsatoolbox.py
 Rscript 03-compare.R          # agreement table -> results/agreement.csv
 Rscript 04-extension.R        # the strict extension
+Rscript 05-manifest.R         # bind sources, environment, and outputs
 
 # or, equivalently
 RSA_PYTHON=rsaenv/bin/python ./run-all.sh
@@ -51,6 +57,22 @@ is the CSV directory `results/`.
 
 Recorded run: R 4.5, CPython 3.12.11, `rsatoolbox` 0.3.2, `numpy` 2.5.2,
 `scipy` 1.18.0, darwin/arm64, 2026-08-17.
+
+To revalidate the recorded external output against a changed crossform source
+without rebuilding Python, run `Rscript 01-fixture.R`, `Rscript 03-compare.R`,
+and `Rscript 05-manifest.R`. This regenerates the deterministic crossform arm,
+rechecks every matched value against the pinned external CSVs, and refreshes
+the source binding. A full external regeneration uses `run-all.sh` and the
+pinned environment above.
+
+`results/parity-manifest.csv` is the drift diagnostic. It records byte sizes
+and MD5 digests for the fixture and comparison sources, Python implementation,
+environment lock, algebraic claim, machine-readable fixture contract, and
+recorded outputs. `tests/testthat/test-rsatoolbox-parity.R` recomputes every
+entry, so editing a producer or an output without regenerating and reviewing
+the parity evidence fails CI/certification. A digest mismatch identifies the
+exact stale path; a semantic assertion then diagnoses version, tolerance,
+metric, centering, partition, ordering, or objective drift.
 
 ## The fixture
 

@@ -536,13 +536,27 @@ print.effect_geometry_plan <- function(x, detail = FALSE, ...) {
 }
 
 .pf_transport_provenance <- function(provenance) {
-  cross_fit <- if (is.null(provenance$cross_fit)) {
+  declared_cross_fit <- provenance[["cross_fit", exact = TRUE]]
+  cross_fit <- if (is.null(declared_cross_fit)) {
     "none"
   } else {
-    .pf_set(provenance$cross_fit, max = 3L)
+    .pf_set(declared_cross_fit, max = 3L)
   }
-  paste0(.pf_or(provenance$method, "undeclared"), " (cross-fit: ", cross_fit,
+  paste0(.pf_or(provenance$method, "undeclared"), ", ",
+    provenance$conditioning$operator_status, " (cross-fit: ", cross_fit,
     ")")
+}
+
+.pf_transport_conditioning <- function(conditioning) {
+  paste0(
+    conditioning$transport, "; uncertainty ",
+    if (isTRUE(conditioning$uncertainty_propagated)) {
+      "propagated"
+    } else {
+      "not propagated"
+    }, "; marginal over transport: ",
+    if (isTRUE(conditioning$marginal_over_transport)) "yes" else "no"
+  )
 }
 
 # Population plans -------------------------------------------------------------
@@ -579,6 +593,15 @@ print.effect_geometry_plan <- function(x, detail = FALSE, ...) {
     " weights), ", gsub("_", " ", x$fit$evaluation_order))
 }
 
+.pf_population_plan_coverage <- function(x) {
+  ordinary <- x$operator_coverage[, !colnames(x$operator_coverage) %in%
+    .transport_sink_label, drop = FALSE]
+  counts <- colSums(ordinary)
+  paste0(x$coverage_policy, ", operator mass > ",
+    format(x$coverage_tolerance), " relative tolerance; node n ",
+    min(counts), " to ", max(counts), " of ", length(x$subjects))
+}
+
 # Population results -----------------------------------------------------------
 #
 # `population-form-v1` section 8.1 makes one line of this print method
@@ -606,6 +629,7 @@ print.effect_geometry_plan <- function(x, detail = FALSE, ...) {
   audit <- x$receipt$subjects
   cross_fit <- audit$cross_fit[!is.na(audit$cross_fit)]
   paste0(x$semantics, ", ", .pf_set(unique(audit$provenance), max = 3L),
+    ", ", .pf_set(unique(audit$transport_status), max = 2L),
     ", cross-fit ", if (length(cross_fit)) {
       .pf_set(unique(cross_fit), max = 2L)
     } else {
@@ -635,6 +659,15 @@ print.effect_geometry_plan <- function(x, detail = FALSE, ...) {
     else "")
 }
 
+.pf_population_coverage <- function(x) {
+  coverage <- x$coverage
+  counts <- coverage$n
+  statuses <- sort(unique(as.character(coverage$status)))
+  paste0(coverage$policy, "; cell n ", min(counts), " to ", max(counts),
+    " of ", length(coverage$planned_subjects), "; ",
+    .pf_set(statuses, max = 3L))
+}
+
 # Section 7 requires the two layers to be reported apart, and so does the
 # printed block: they are two keys, never one line with a semicolon in it,
 # because a reader who sees them joined will read the second as a refinement of
@@ -647,10 +680,12 @@ print.effect_geometry_plan <- function(x, detail = FALSE, ...) {
   if (is.null(x$uncertainty)) {
     return(NULL)
   }
-  if (x$residual_df < 1L) {
+  dfs <- x$coverage$residual_df
+  if (!any(dfs > 0L)) {
     return("between-subject SE not estimable (saturated group model)")
   }
-  paste0("between-subject SE, df ", x$residual_df, " (uncalibrated)")
+  paste0("between-subject covariance classical/HC3, cell df ",
+    min(dfs), " to ", max(dfs), " (uncalibrated)")
 }
 
 # The within-subject line, said as what it is rather than as a status word. A
@@ -729,6 +764,8 @@ print.effect_population_result <- function(x, ...) {
     frame = .pf_population_frame(x),
     transport = .pf_population_carrier(x),
     normalization = .pf_population_normalization(x),
+    coverage = .pf_population_coverage(x),
+    inference = .pf_transport_conditioning(x$coverage$conditioning),
     fit = paste0(toupper(x$receipt$fit$kind), " (",
       gsub("_", "-", x$receipt$fit$weights), " weights), ",
       gsub("_", " ", x$receipt$evaluation_order)),
@@ -818,13 +855,18 @@ print.effect_population_uncertainty <- function(x, ...) {
     queries = paste0(nrow(x$queries), " (",
       .pf_set(rownames(x$queries), max = 3L), ")"),
     terms = .pf_set(x$term, max = 4L),
-    `between-subject` = paste0("SE ",
-      .pf_uncertainty_range(x$between$se), ", df ",
-      x$between$residual_df, ", |t| up to ",
+    `between-subject` = paste0(x$between$estimator, " SE ",
+      .pf_uncertainty_range(x$between$se), ", cell df ",
+      .pf_uncertainty_range(x$between$residual_df), ", |t| up to ",
       .pf_uncertainty_max(abs(x$between$t))),
+    leverage = paste0("max h ",
+      .pf_uncertainty_max(x$between$max_leverage), "; ",
+      .pf_set(unique(as.character(x$between$status)), max = 3L)),
+    assumptions = .pf_set(x$between$assumptions, max = 3L),
     interval = paste0(format(100 * x$between$level), "% nominal, ",
       x$between$calibration),
     `within-subject` = .pf_uncertainty_within(x),
+    inference = .pf_transport_conditioning(x$between$conditioning),
     normalization = x$normalization,
     estimand = .pf_sig(x$scientific_plan_id)
   ))
@@ -834,15 +876,64 @@ print.effect_population_uncertainty <- function(x, ...) {
     "variance answer different questions, and their sum answers neither."
   ))
   .pf_note(paste0(
-    "The t is UNCALIBRATED for real data. Measured against t_df, the nominal ",
-    "95% interval covers 0.948 to 0.952 of the time under a correctly ",
-    "specified group model, and 0.885 to 0.923 when the participants' noise ",
-    "is linked to the group covariates -- a nominal 5% test rejecting a true ",
-    "null 11.5% of the time at N = 24. See ",
-    "benchmarks/POPULATION-NULL-COVERAGE.md."
+    "These intervals condition on the realized transport. Cross-fitting ",
+    "limits circularity but does not propagate uncertainty from estimating ",
+    "that transport."
   ))
+  .pf_note(if (identical(x$between$estimator, "HC3")) {
+    paste0(
+      "The HC3 t is UNCALIBRATED for real data. HC3 adjusts each squared ",
+      "residual by (1-h)^-2 and removes the classical homoskedastic covariance ",
+      "assumption; the randomized oracle verifies that arithmetic, not a ",
+      "finite-sample reference distribution or empirical coverage theorem."
+    )
+  } else {
+    paste0(
+      "The t is UNCALIBRATED for real data. Measured against t_df, the nominal ",
+      "95% interval covers 0.948 to 0.952 of the time under a correctly ",
+      "specified group model, and 0.885 to 0.923 when the participants' noise ",
+      "is linked to the group covariates -- a nominal 5% test rejecting a true ",
+      "null 11.5% of the time at N = 24. See ",
+      "benchmarks/POPULATION-NULL-COVERAGE.md."
+    )
+  })
   cat(sprintf("  %-15s%s\n", "next:",
     "as.data.frame(x, layer = \"between\"), x$between$se[, , term]"))
+  invisible(x)
+}
+
+#' @export
+print.effect_population_wild_bootstrap <- function(x, ...) {
+  .validate_population_bootstrap(x)
+  finite_p <- x$p_value[is.finite(x$p_value)]
+  failures <- sum(x$failed_replicates)
+  .pf_emit("effect_population_wild_bootstrap", list(
+    estimator = paste0(x$estimator, ", ", x$studentization,
+      " studentized"),
+    null = paste0("c'beta = ", format(x$null), "; ", paste0(
+      names(x$contrast), "=", format(x$contrast, trim = TRUE),
+      collapse = ", ")),
+    weights = paste0(x$weight_distribution, "; ", x$replicates,
+      " replicates; seed ", x$seed),
+    dependence = "one subject weight reused across every node/query",
+    cells = paste0(sum(x$status == "estimated"), " estimated, ",
+      sum(x$status != "estimated"), " refused"),
+    `p range` = if (length(finite_p)) .pf_uncertainty_range(finite_p)
+      else "all NA",
+    `Monte Carlo SE` = .pf_uncertainty_range(x$monte_carlo_se),
+    failures = paste0(failures, " replicate-cell failures retained"),
+    conditioning = paste0(x$conditioning$transport, "; ",
+      x$conditioning$coverage),
+    estimand = .pf_sig(x$scientific_plan_id)
+  ))
+  .pf_note(paste0(
+    "The bootstrap is conditional on realized transport and coverage. Its ",
+    "stored subject-by-replicate weights, statistics and failure reasons are ",
+    "the resampling provenance; Monte Carlo SE is reported beside each p. ",
+    "Cross-fitting does not make it marginal over transport estimation."
+  ))
+  cat(sprintf("  %-15s%s\n", "next:",
+    "as.data.frame(x), x$replicate_t[node, query, ]"))
   invisible(x)
 }
 
@@ -910,6 +1001,8 @@ print.effect_population_view <- function(x, ...) {
     frame = .pf_population_frame(x),
     transport = .pf_population_carrier(x),
     normalization = .pf_population_normalization(x),
+    coverage = .pf_population_coverage(x),
+    inference = .pf_transport_conditioning(x$coverage$conditioning),
     basis = .pf_population_view_basis(x),
     budget = .pf_population_budget(x),
     aggregation = if (identical(x$view, "contribution")) {
@@ -2359,6 +2452,10 @@ print.effect_population_view <- function(x, ...) {
           " rows, ", sprintf("%.1f%%", 100 * sink$share), " of territory"),
         provenance = .pf_transport_provenance(x$provenance),
         built = .pf_or(x$provenance$details, "undeclared"),
+        inference = paste0(
+          x$provenance$conditioning$inference_scope,
+          "; uncertainty not propagated"
+        ),
         signature = .pf_sig(x$signature)
       )
     }
@@ -2378,6 +2475,11 @@ print.effect_population_view <- function(x, ...) {
           .pf_set(unique(x$subject_index$provenance), max = 3L)),
         model = .pf_population_model(x),
         normalization = x$normalization,
+        coverage = .pf_population_plan_coverage(x),
+        inference = paste0(
+          .pf_set(unique(x$subject_index$transport_status), max = 2L),
+          "; conditional on realized transport; uncertainty not propagated"
+        ),
         fit = .pf_population_fit(x),
         frames = if (isTRUE(x$allow_nonconservative)) {
           "non-conservative admitted (declared)"
@@ -2400,7 +2502,12 @@ print.effect_population_view <- function(x, ...) {
   effect_population_uncertainty = list(
     inline = function(x) c(x$ledger,
       paste0(nrow(x$index) - 1L, " group nodes + sink"),
-      .msg_count(length(x$term), "term"), "uncalibrated")
+      .msg_count(length(x$term), "term"), x$estimator, "uncalibrated")
+  ),
+  effect_population_wild_bootstrap = list(
+    inline = function(x) c(x$estimator, x$weight_distribution,
+      paste0(x$replicates, " replicates"),
+      paste0(sum(x$status == "estimated"), " estimated cells"))
   ),
   effect_population_view = list(
     inline = function(x) c(.pf_population_view_kind(x), x$ledger,

@@ -1,0 +1,72 @@
+---
+title: "Equal total effects can have different spatial organization"
+description: >
+  A matched simulation comparing conventional summaries with coherent and configuration spectra across spatial scale.
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Equal total effects can have different spatial organization}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE,
+                      warning = FALSE)
+library(crossform)
+artifact <- function(name) {
+  candidates <- c(
+    system.file("extdata", "certification", name, package = "crossform"),
+    file.path("..", "inst", "extdata", "certification", name),
+    file.path("inst", "extdata", "certification", name)
+  )
+  candidates <- candidates[nzchar(candidates) & file.exists(candidates)]
+  if (!length(candidates)) stop("Missing certification artifact: ", name)
+  candidates[[1L]]
+}
+figure_data <- utils::read.csv(
+  artifact("matched-interpretability-figure-data.csv"),
+  stringsAsFactors = FALSE
+)
+```
+
+This simulation asks one narrow question: if total crossvalidated contrast
+magnitude is fixed, can its spatial organization still differ? Three planted
+patterns have equal total magnitude. One is a constant regional mean, one is a
+50/50 mean-plus-alternating mixture, and one is a pure alternating
+configuration. Every fitted comparison uses the same balanced design and the
+same Gaussian noise draw within a replication.
+
+The conventional activation comparator is the mean signed regional contrast.
+The aggregate multivariate comparator is the average squared-Euclidean
+cross-partition contrast magnitude over every unordered run pair. A comparator
+is called ambiguous here only when its truth differs by at most `1e-12` while
+the configuration-share spectra differ by at least `0.2` at some scale.
+
+```{r canonical-figure, echo=FALSE, fig.cap="Matched effects under identical designs and paired noise. A: planted contrast patterns. B: conventional regional activation. C: aggregate crossvalidated squared-Euclidean contrast magnitude, which is equal in truth across scenarios. D-E: coherent and configuration magnitude at the widest radius on one shared y-axis. F: coherent share across scale. Crosses are analytic truth; points or lines are Monte Carlo means; whiskers and bands are empirical 95% intervals over 24 paired replications. The pure-broad and 50/50 mixed scenarios satisfy the declared aggregate-magnitude ambiguity criterion, while the spectrum separates their organization.", fig.alt="Six panels compare broad coherent, mixed, and fine configuration effects. The total multivariate magnitude is equal, but coherent magnitude falls and configuration magnitude rises across scenarios; their coherence spectra separate with radius."}
+knitr::include_graphics(
+  artifact("matched-interpretability-figure.png")
+)
+```
+
+The regional activation panel is a negative control, not a failed comparator:
+it correctly distinguishes a pure mean effect from a mixed effect. The
+aggregate magnitude panel is the ambiguous one. Its truth is equal by
+construction even though the two component panels and the spectrum differ.
+
+```{r numeric-check, echo=FALSE}
+aggregate <- figure_data[
+  figure_data$metric == "aggregate_crossvalidated_magnitude",
+  c("scenario_label", "truth", "estimate_mean", "interval_lower",
+    "interval_upper", "n_replications")
+]
+knitr::kable(aggregate, digits = 4,
+             col.names = c("Scenario", "Truth", "Mean", "2.5%", "97.5%",
+                           "Replications"))
+stopifnot(max(aggregate$truth) - min(aggregate$truth) < 1e-12)
+```
+
+This is matched-simulation evidence, not a real-data result. The figure does
+not establish that a particular brain region is coherent or configurational,
+and its intervals show Monte Carlo variation rather than population coverage.
+The generator, thresholds, and evidence boundary are specified in
+[`design/matched-interpretability-simulation-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/matched-interpretability-simulation-contract.md).

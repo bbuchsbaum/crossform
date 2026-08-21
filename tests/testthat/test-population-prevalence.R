@@ -81,11 +81,12 @@ pv_subjects <- function(sizes = pv_sizes, planted = 0.8, gain = 1) {
 }
 
 pv_plan <- function(sizes = pv_sizes, semantics = "budget", planted = 0.8,
-                    gain = 1, ...) {
+                    gain = 1, coverage_policy = "available_at_node", ...) {
   plan_population(
     pv_subjects(sizes, planted = planted, gain = gain),
     lapply(stats::setNames(names(sizes), names(sizes)), function(id)
       pv_carrier(sizes[[id]], semantics = semantics)),
+    coverage_policy = coverage_policy,
     ...
   )
 }
@@ -101,13 +102,15 @@ pv_fit <- function(..., queries = pv_bank()) {
 # The oracles. Explicit loops over the shipped `$values` array, sharing no
 # code with `R/population-prevalence.R`.
 
-pv_sign_oracle <- function(values, threshold = 0) {
+pv_sign_oracle <- function(values, threshold = 0,
+                           availability = array(TRUE, dim(values))) {
   keep <- seq_len(dim(values)[[1L]])
   out <- matrix(NA_real_, length(keep), dim(values)[[2L]],
     dimnames = dimnames(values)[1:2])
   for (u in keep) {
     for (k in seq_len(dim(values)[[2L]])) {
-      v <- values[u, k, ]
+      admitted <- availability[u, k, ]
+      v <- values[u, k, admitted]
       v <- v[is.finite(v)]
       out[u, k] <- if (length(v)) sum(v > threshold) / length(v) else NA_real_
     }
@@ -118,11 +121,14 @@ pv_sign_oracle <- function(values, threshold = 0) {
 # The reference for participant `i` is the mean of the *other* participants,
 # formed here by averaging the complement explicitly rather than by subtracting
 # `v_i` from a total.
-pv_alignment_oracle <- function(values) {
+pv_alignment_oracle <- function(values,
+                                availability = array(TRUE, dim(values))) {
   out <- rep(NA_real_, dim(values)[[1L]])
   for (u in seq_len(dim(values)[[1L]])) {
     profile <- matrix(values[u, , ], dim(values)[[2L]], dim(values)[[3L]])
-    ok <- which(colSums(!is.finite(profile)) == 0L)
+    admitted <- matrix(availability[u, , ], dim(values)[[2L]],
+      dim(values)[[3L]])
+    ok <- which(colSums(!is.finite(profile) | !admitted) == 0L)
     if (length(ok) < 2L) next
     positive <- 0L
     for (i in ok) {
@@ -142,7 +148,8 @@ test_that("sign prevalence is the fraction of participants above the threshold",
   prevalence <- population_prevalence(fit)
 
   keep <- !fit$index$sink
-  expected <- pv_sign_oracle(fit$values[keep, , , drop = FALSE])
+  expected <- pv_sign_oracle(fit$values[keep, , , drop = FALSE],
+    availability = fit$coverage$availability[keep, , , drop = FALSE])
   expect_equal(unname(prevalence$sign$fraction), unname(expected))
 
   # The counts and the denominators are published beside the fraction, and
@@ -157,8 +164,8 @@ test_that("sign prevalence is the fraction of participants above the threshold",
   # participant that reached a group node at all is positive there: the
   # numerator is the coverage count exactly. This literal is a property of the
   # fixture, not of the oracle, and it is also the reason a bare fraction is
-  # not enough --- at the group node only half the participants reach, the
-  # fraction reads `0.5` while every participant present carries the effect.
+  # not enough: at the group node only half the participants reach, the
+  # fraction remains `1` while the exact count reveals the thinner target.
   expect_identical(unname(prevalence$sign$count[, "face-house"]),
     unname(prevalence$coverage$contributing[, "face-house"]))
   full <- prevalence$coverage$contributing[, "face-house"] ==
@@ -169,7 +176,7 @@ test_that("sign prevalence is the fraction of participants above the threshold",
 
   # And the contrast that reproduces in nobody sits at the null reference.
   expect_identical(prevalence$reference, 0.5)
-  expect_true(all(prevalence$sign$fraction[, "face-tool"] <= 0.75))
+  expect_true(all(prevalence$sign$fraction[full, "face-tool"] <= 0.75))
 })
 
 test_that("the threshold moves the count and never the denominator", {
@@ -181,7 +188,8 @@ test_that("the threshold moves the count and never the denominator", {
 
   raised <- population_prevalence(fit, threshold = high / 2)
   expect_equal(unname(raised$sign$fraction),
-    unname(pv_sign_oracle(values, high / 2)))
+    unname(pv_sign_oracle(values, high / 2,
+      fit$coverage$availability[keep, , , drop = FALSE])))
   expect_identical(raised$sign$resolved, at_zero$sign$resolved)
   expect_true(all(raised$sign$count <= at_zero$sign$count))
   expect_true(any(raised$sign$count < at_zero$sign$count))
@@ -212,7 +220,8 @@ test_that("alignment prevalence scores against a leave-one-out reference", {
   keep <- !fit$index$sink
 
   expect_equal(unname(prevalence$alignment$fraction),
-    pv_alignment_oracle(fit$values[keep, , , drop = FALSE]))
+    pv_alignment_oracle(fit$values[keep, , , drop = FALSE],
+      fit$coverage$availability[keep, , , drop = FALSE]))
   expect_identical(prevalence$alignment$reference,
     "leave_one_out_participant_mean")
   expect_identical(prevalence$receipt$prevalence$alignment_reference,
@@ -301,7 +310,10 @@ test_that("an unresolved cell leaves the denominator rather than dividing by N",
   expect_true(anyNA(values))
 
   prevalence <- population_prevalence(fit)
-  expect_equal(unname(prevalence$sign$fraction), unname(pv_sign_oracle(values)))
+  expect_equal(unname(prevalence$sign$fraction), unname(pv_sign_oracle(values,
+    availability = fit$coverage$availability[
+      !fit$index$sink, , , drop = FALSE
+    ])))
   # The row that lost participants lost them from the denominator, not from
   # the numerator only.
   unresolved <- apply(is.na(values), c(1L, 2L), sum)
@@ -320,17 +332,17 @@ test_that("coverage counts contributing participants and marks a declared floor"
   prevalence <- population_prevalence(fit)
   values <- fit$values[!fit$index$sink, , , drop = FALSE]
 
-  contributing <- apply(is.finite(values) & values != 0, c(1L, 2L), sum)
+  contributing <- fit$coverage$n[!fit$index$sink, , drop = FALSE]
   expect_identical(prevalence$coverage$contributing,
     structure(as.integer(contributing), dim = dim(contributing),
       dimnames = dimnames(prevalence$coverage$contributing)))
   expect_identical(prevalence$coverage$definition,
-    "participants_with_a_finite_nonzero_transported_value")
-  # Under budget semantics an unreached group node receives budget zero rather
-  # than `NA`, so the coverage count is the number that separates a low
-  # prevalence from a thin one.
-  expect_true(any(prevalence$coverage$contributing <
-    prevalence$sign$resolved))
+    "subjects_available_by_realized_transport_and_query_admission")
+  expect_true(is.na(prevalence$coverage$proxy_for))
+  # Under budget semantics an unreached group node has numeric transported
+  # value zero, but exact operator coverage keeps absence out of the target.
+  expect_identical(prevalence$coverage$contributing,
+    prevalence$sign$resolved)
 
   # No floor by default: `population-form-v1` section 14.3 records the
   # threshold as an open maintainer decision, so the number is reported and
@@ -367,7 +379,9 @@ test_that("query selection restricts both measures and enters the identity", {
   expect_identical(one$alignment$fraction,
     stats::setNames(
       pv_alignment_oracle(fit$values[!fit$index$sink, "face-house", ,
-        drop = FALSE]),
+        drop = FALSE], fit$coverage$availability[
+          !fit$index$sink, "face-house", , drop = FALSE
+        ]),
       rownames(one$sign$fraction)))
 
   expect_identical(population_prevalence(fit, query = 2L)$query_labels,

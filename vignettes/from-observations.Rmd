@@ -395,7 +395,8 @@ round(distances$values, 3)
 round(model_fit$coefficients, 3)
 ```
 
-For every region, total energy must equal coherent plus configuration energy.
+For every region, the total component must equal the coherent plus
+configurational components.
 The hidden check below also verifies the expected result dimensions and every
 compiler-conformance guarantee.
 

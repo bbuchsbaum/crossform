@@ -338,7 +338,7 @@ If you want the two packages to compute the same thing, the estimand both can
 express is the condition-level crossvalidated squared Euclidean (crossnobis)
 distance — which is the pairing used for the parity check below.
 
-## What crossform does not do (yet)
+## What remains outside crossform
 
 Each absence below was checked against the package's actual exports rather
 than recalled.
@@ -346,14 +346,19 @@ than recalled.
 - **Classification and decoding.** There is no classifier, no accuracy, no AUC,
   no confusion matrix, no `MVPAModels` registry. `crossform` computes
   second-order geometry only.
-- **Group inference.** No second-level model, no random-effects map, no
-  across-subject test. `rdm_sampling_covariance()` is a *within*-measurement,
-  within-participant covariance law and says so.
+- **Universal group inference.** The experimental population layer now has
+  declared group models, classical and HC3 intervals, and a participant-level
+  null-imposed wild bootstrap, calibrated only in its recorded synthetic
+  regimes and conditional on realized transport. It does not provide random
+  fields, simultaneous/maxT bands, general multiplicity correction, or a
+  marginal interval under informative coverage or transport learning.
 - **Feature selection.** No `FTest`/`catscore` ranking, no `top_k` cutoff. The
   frame decides which features each measurement reads, and it is declared in
   advance.
-- **Permutation and bootstrap.** No label shuffling, no null distributions, no
-  FDR correction.
+- **Label permutation and multiplicity correction.** There is no label
+  shuffling, cluster/random-field procedure, or FDR correction. The exported
+  `population_wild_bootstrap()` is a different object: it resamples participants
+  under a declared group-model null and keeps its conditional target explicit.
 - **Parallel backends.** Execution is sequential. This is refused rather than
   silently downgraded:
 
@@ -367,8 +372,9 @@ compute_policy(workers = 4)
 ```{r absence-check, include=FALSE}
 exports <- getNamespaceExports("crossform")
 stopifnot(
-  !any(grepl("classif|decod|accuracy|permut|bootstrap|feature_select",
+  !any(grepl("classif|decod|accuracy|permut|feature_select|fdr",
              exports, ignore.case = TRUE)),
+  "population_wild_bootstrap" %in% exports,
   inherits(try(compute_policy(workers = 2), silent = TRUE), "try-error")
 )
 ```

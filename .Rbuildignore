@@ -12,7 +12,10 @@
 ^benchmarks$
 ^benchmark-results$
 ^doc$
+^dist$
 ^Meta$
+^\.rcmdcheck_result\.rds$
+^protocols$
 ^.*\.tar\.gz$
 ^CRAN-SUBMISSION$
 ^figure$

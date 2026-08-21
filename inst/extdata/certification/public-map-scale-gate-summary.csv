@@ -1,2 +1,2 @@
 "features","frame_nodes","conditions","partitions","implicit_median_seconds","explicit_median_seconds","explicit_to_implicit_ratio","sampling_probe_median_seconds_per_node","sampling_full_sweep_seconds","sampling_full_sweep_seconds_per_node","independent_oracle_max_abs_error","explicit_implicit_max_abs_error","incremental_peak_rss_bytes","passed"
-576,576,12,8,0.109999999999999,0.178000000000001,1.61818181818183,0.18228,101.864,0.176847222222222,2.22044604925031e-16,0,13664256,TRUE
+576,576,12,8,0.056,0.085,1.51785714285714,0.09412,52.279,0.0907621527777778,2.22044604925031e-16,0,112082944,TRUE

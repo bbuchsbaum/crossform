@@ -33,7 +33,9 @@ column \code{m + 1} of the operator and has no index row.}
 \item{semantics}{\code{"budget"} or \code{"density"}. Required; there is no default.}
 
 \item{provenance}{A list carrying at least \code{method} and \code{details}, plus
-\code{cross_fit} when \code{method} is \code{"functional"}.}
+\code{cross_fit} when \code{method} is \code{"functional"}. Optional \code{fitting_sample}
+and \code{cross_fit_folds} refine that declaration. Conditioning fields are
+derived and cannot be supplied by the caller.}
 
 \item{row_mass}{Optional declared positive territory measure, one entry per
 native node. Defaults to the unit vector.}
@@ -98,7 +100,18 @@ field is not advisory. A circular transport --- one fitted on a partition
 that is also used to evaluate it --- reports a transport gain roughly three
 times the honest one and is otherwise indistinguishable from it, so the
 field that would let a plan exclude those partitions is required rather
-than encouraged. Any further keys are kept as declared.
+than encouraged. \code{fitting_sample} and \code{cross_fit_folds} may distinguish the
+operator's full fitting sample from the named fold assignments; for
+compatibility they default to the required \code{cross_fit} declaration.
+
+Cross-fitting is a circularity control, not uncertainty propagation. Every
+transport receives a derived \verb{$provenance$conditioning} record naming its
+source, fixed-versus-estimated status, fitting sample, folds, conditional
+inference scope, excluded uncertainty, and the future propagation
+capability. Current population inference is always conditional on the
+realized operator: \code{uncertainty_propagated} and
+\code{marginal_over_transport} are immutable \code{FALSE}. Any further non-reserved
+keys are kept as declared.
 }
 
 \section{Refusal}{
@@ -164,6 +177,7 @@ Other population transports:
 \code{\link{population_prevalence}()},
 \code{\link{population_uncertainty}()},
 \code{\link{population_views}},
+\code{\link{population_wild_bootstrap}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

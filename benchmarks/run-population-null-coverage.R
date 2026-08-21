@@ -79,19 +79,43 @@ node_correlation <- 0.5
 # The shipped group layer, called the way `estimate_population()` calls it.
 # The reshape is the one the driver performs: `.population_ols()` returns
 # `p`-by-`(m+1)K` and the result carries `node x query x term`.
-group_layer <- function(model, stack, nodes, queries, subjects) {
-  fit <- crossform:::.population_ols(model, stack)
+group_layer <- function(model, stack, nodes, queries, subjects,
+                        availability = is.finite(stack)) {
+  fit <- crossform:::.population_ols(
+    model, stack, availability, coverage_policy = "available"
+  )
   shape <- function(values, third, name) {
     array(t(values), c(length(nodes), length(queries), length(third)),
       dimnames = stats::setNames(list(nodes, queries, third),
         c("node", "query", name)))
   }
+  coverage_labels <- list(node = nodes, query = queries)
+  result <- list(
+    coefficients = shape(fit$coefficients, model$columns, "term"),
+    values = shape(stack, subjects, "subject"),
+    residuals = shape(fit$residuals, subjects, "subject"),
+    uncertainty = list(between = crossform:::.population_between_uncertainty(
+      model
+    )),
+    coverage = list(
+      availability = shape(availability, subjects, "subject"),
+      n = array(fit$n, c(length(nodes), length(queries)),
+                dimnames = coverage_labels),
+      design_rank = array(fit$rank, c(length(nodes), length(queries)),
+                          dimnames = coverage_labels),
+      residual_df = array(fit$residual_df,
+                          c(length(nodes), length(queries)),
+                          dimnames = coverage_labels),
+      status = array(fit$status, c(length(nodes), length(queries)),
+                     dimnames = coverage_labels),
+      coefficient_estimable = shape(
+        fit$estimable, model$columns, "term"
+      )
+    )
+  )
   crossform:::.population_between_statistics(
-    shape(fit$coefficients, model$columns, "term"),
-    shape(fit$residuals, subjects, "subject"),
-    nrow(stack) - model$rank,
-    crossform:::.population_between_uncertainty(model)$unscaled_covariance,
-    level
+    result, terms = model$columns, level = level, estimator = "classical",
+    leverage_tolerance = sqrt(.Machine$double.eps)
   )
 }
 
@@ -245,13 +269,28 @@ wiring_check <- function() {
   stack <- matrix(aperm(fit$values, c(3L, 1L, 2L)), nrow(fit$receipt$subjects),
     dim(fit$values)[[1L]] * dim(fit$values)[[2L]],
     dimnames = list(dimnames(fit$values)[[3L]], NULL))
+  availability <- matrix(
+    aperm(fit$coverage$availability, c(3L, 1L, 2L)),
+    nrow(fit$receipt$subjects),
+    dim(fit$values)[[1L]] * dim(fit$values)[[2L]],
+    dimnames = list(dimnames(fit$values)[[3L]], NULL)
+  )
   fast <- group_layer(plan$model, stack, dimnames(fit$values)[[1L]],
-    dimnames(fit$values)[[2L]], dimnames(fit$values)[[3L]])
+    dimnames(fit$values)[[2L]], dimnames(fit$values)[[3L]], availability)
+  se_difference <- abs(fast$se - verb$between$se)
+  t_difference <- abs(fast$t - verb$between$t)
+  fast_se_missing <- is.na(fast$se)
+  verb_se_missing <- is.na(verb$between$se)
   list(
-    se_max_absolute_difference = max(abs(fast$se - verb$between$se)),
-    t_max_absolute_difference = max(abs(fast$t - verb$between$t)),
+    se_max_absolute_difference = max(se_difference, na.rm = TRUE),
+    t_max_absolute_difference = max(t_difference, na.rm = TRUE),
     residual_df = verb$between$residual_df,
-    identical_se = identical(fast$se, verb$between$se),
+    identical_se = identical(
+      as.vector(fast_se_missing), as.vector(verb_se_missing)
+    ) &&
+      all(se_difference[is.finite(se_difference)] == 0),
+    fast_missing_se = which(fast_se_missing, arr.ind = TRUE),
+    verb_missing_se = which(verb_se_missing, arr.ind = TRUE),
     # An independent court for one cell: base R's own `lm()` on the same
     # response, which shares no code with the population driver.
     lm_max_absolute_difference = local({
@@ -266,8 +305,10 @@ wiring_check <- function() {
 }
 
 wiring <- wiring_check()
-if (!isTRUE(wiring$se_max_absolute_difference < 1e-12) ||
+if (!isTRUE(wiring$identical_se) ||
+    !isTRUE(wiring$se_max_absolute_difference < 1e-12) ||
     !isTRUE(wiring$lm_max_absolute_difference < 1e-10)) {
+  print(wiring)
   stop("The simulated group layer does not reproduce population_uncertainty().",
     call. = FALSE)
 }

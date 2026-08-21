@@ -1,14 +1,25 @@
 # crossform
 
-Ask a task-fMRI dataset four questions from one fit, and find out what *kind*
-of effect you found.
+Crossform gives univariate contrasts, multivariate distances and fixed linear
+RSA, and population summaries one declared crossvalidated bilinear geometry,
+then decomposes each scale's reproducible effect into coherent and
+configurational estimand components.
 
 ![Effects, frame, and pairing compile into one geometry plan, which four view functions then read.](man/figures/crossform-overview.svg)
 
-You declare the condition effects, the measurements you want answers at, and
-which runs must generalize. That compiles once into a **geometry plan**, which
-records the quantity you are estimating before any brain data is read.
-Contrasts, RDMs, RSA, and crossnobis distances are queries against it.
+You declare the condition effects, spatial measurements, independent
+partitions, and—when participants differ—their realized transports and
+population model. That compiles into an estimand-bearing plan before outcomes
+are read. The common geometry makes supported univariate and multivariate
+readouts comparable; the coherent/configurational split attributes
+reproducible effect energy within that estimand rather than naming separate
+biological mechanisms.
+
+Crossform is not a complete fMRI analysis solution: it does not replace
+preprocessing, registration, universal HRF/GLM modeling, every RSA statistic,
+classification, learned transport, or arbitrary downstream inference.
+Population intervals remain pointwise and conditional on realized transport
+and coverage unless a stricter procedure is explicitly supplied and certified.
 
 A **measurement** is a spatial unit: a searchlight, a region, a voxel, or the
 whole brain. Every result has one row per measurement.
@@ -211,10 +222,10 @@ very slightly negative, which is the honest answer for a block that has no
 pattern beyond its mean.
 
 Back at searchlight resolution: every one of the 52 searchlights touching the
-pattern block carries more configuration than coherent energy, and the largest
-coherent energy among them is `0.33` against `4.10` of configuration. The 52
-touching the mean-shift block reach `4.01` of coherent energy while their
-configuration never exceeds `1.27`.
+pattern block carries a larger configurational than coherent component, and the
+largest coherent component among them is `0.33` against `4.10` configurational.
+The 52 touching the mean-shift block reach `4.01` on the coherent component
+while their configurational component never exceeds `1.27`.
 
 `signed`, back in that first table, is a first moment: the ordinary contrast of
 the region-average pattern, in your effect's units and sign. The energies are
@@ -359,9 +370,11 @@ the picture still works. In the right panel the band around zero *is* the noise
 floor, because crossvalidated energy is centered there when nothing reproduces;
 candidates are the measurements standing clear of it.
 
-What the picture does not give you is a threshold or a p-value. `crossform`
-does no spatial and no group inference (see [Status and scope](#status-and-scope)),
-and a within-measurement standard error needs the residual channel, so fit with
+What the picture does not give you is a spatial threshold or a selected-peak
+p-value. This single-participant map performs no spatial multiplicity or
+population inference; population analysis is a separate declared
+`plan_population()` target. A within-measurement standard error needs the
+residual channel, so fit with
 `lm_relation_fit()` as above, or take the
 [from-observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
 route (`vignette("from-observations")`), rather than importing betas.
@@ -472,11 +485,23 @@ is grouped in the same order this README is.
   a design, and an error channel into the core; see
   `vignette("crossform-extending")`. Not an end user's surface.
 
-**Population (forthcoming).** A population layer — mass-preserving transport
-of per-subject conservative geometry — is specified in
-[`design/population-form-contract.md`](design/population-form-contract.md) and
-under construction. Until it lands, `crossform` does no group inference at
-all.
+**Population (experimental).** The package now transports per-subject
+conservative geometry with a declared, realized operator and fits nodewise
+population models conditional on that transport and the exact cellwise coverage
+set. `population_uncertainty()` selects classical OLS or HC3 pointwise
+intervals; `population_wild_bootstrap()` supplies a null-imposed,
+participant-level, HC3-studentized sensitivity with Monte Carlo error. The
+matched calibration artifacts bound their behavior in declared synthetic
+regimes, not universally. `population_scale_profile()` labels bands pointwise,
+and `population_diagnostic_view()` exposes subject-set, coverage, effective-N,
+sink, and transport-quality support for every displayed estimate. Simultaneous
+or maxT bands, general transported cross-node covariance, multiplicity control,
+marginal inference over transport estimation, and valid marginal inference
+under informative coverage are not implemented or implied. See
+`vignette("population-form")`,
+[`design/population-estimand-contract.md`](design/population-estimand-contract.md),
+and the canonical
+[`evidence-status ledger`](design/evidence-status-ledger.md).
 
 ## Install
 
@@ -544,7 +569,7 @@ reproducible face/house energy in this subject's VT is carried by the
 searchlight's own weighted common spatial mode, which a demeaning analysis
 would discard and a total-only analysis would never see. The retained signed
 marginal supplies the direction the energies cannot: it is negative at 568 of
-577 searchlights, so the common mode runs house above face. One subject,
+577 searchlights, so the coherent mean-mode component runs house above face. One subject,
 condition means rather than GLM betas, an identity metric, and no inference —
 this demonstrates the decomposition, not a result about faces.
 
@@ -561,7 +586,8 @@ count, the pooled precision estimator, and the cosine-normalized regression
 objective. From the same fit `crossform` additionally returns the signed
 contrast energy, the exact coherent/configuration/total partition, and
 analytic standard errors, none of which the external RDM carries. One
-simulated subject, the fixed-linear subset only, no group inference, no
+simulated subject, the fixed-linear subset only, no group-level parity or
+population-inference claim, no
 correlation distance, and no timing claim.
 
 **Not demonstrated.** Those results show numerical parity and an integrated

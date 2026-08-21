@@ -1,0 +1,434 @@
+---
+title: "Contrast, crossnobis, and linear RSA as one geometry"
+description: >
+  An executable theorem, independent oracle, estimator claim table, and external parity receipt for Crossform's fixed bilinear geometry.
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Contrast, crossnobis, and linear RSA as one geometry}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+library(crossform)
+
+pair_matrix <- function(q) t(utils::combn(seq_len(q), 2L))
+
+oracle_geometry <- function(blocks, gamma, metric) {
+  answer <- matrix(0, nrow(blocks[[1L]]), nrow(blocks[[1L]]))
+  for (r in seq_along(blocks)) {
+    for (s in seq_along(blocks)) {
+      answer <- answer + gamma[r, s] *
+        blocks[[r]] %*% metric %*% t(blocks[[s]])
+    }
+  }
+  answer
+}
+
+oracle_energy <- function(operator, blocks, gamma, metric) {
+  total <- 0
+  for (r in seq_along(blocks)) {
+    for (s in seq_along(blocks)) {
+      for (i in seq_len(nrow(operator))) {
+        for (j in seq_len(ncol(operator))) {
+          for (a in seq_len(nrow(metric))) {
+            for (b in seq_len(ncol(metric))) {
+              total <- total + gamma[r, s] * operator[i, j] *
+                blocks[[r]][i, a] * metric[a, b] * blocks[[s]][j, b]
+            }
+          }
+        }
+      }
+    }
+  }
+  total
+}
+
+rdm_from_geometry <- function(geometry) {
+  pairs <- pair_matrix(nrow(geometry))
+  vapply(seq_len(nrow(pairs)), function(k) {
+    u <- numeric(nrow(geometry))
+    u[pairs[k, ]] <- c(1, -1)
+    drop(crossprod(u, geometry %*% u))
+  }, numeric(1))
+}
+
+rdm_matrix <- function(values, labels) {
+  pairs <- pair_matrix(length(labels))
+  answer <- matrix(0, length(labels), length(labels),
+                   dimnames = list(labels, labels))
+  answer[cbind(pairs[, 1L], pairs[, 2L])] <- values
+  answer + t(answer)
+}
+```
+
+This article makes one bounded claim: fixed contrast energy, pairwise
+crossvalidated squared distance, crossnobis under a declared precision, and a
+fixed linear RSA coefficient are linear queries of the same geometry. It does
+not say that every method called RSA, decoding, or multivariate inference is
+implemented by one formula.
+
+The normative derivation and exact independent implementation are
+[`design/common-geometry-equivalence.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/common-geometry-equivalence.md)
+and
+[`design/oracles/common-geometry-equivalence.R`](https://github.com/bbuchsbaum/crossform/blob/main/design/oracles/common-geometry-equivalence.R).
+The calculations below reproduce their central identities without sourcing
+package internals or the oracle file.
+
+## The theorem
+
+Let (B_r) be the effects-by-features matrix estimated in partition (r),
+(H) a fixed effect-side operator, (K) a fixed neural metric, and
+(\Gamma) the declared partition-pair weights. Define
+
+\[
+G_K = \sum_{r,s} \Gamma_{rs} B_r K B_s^\top,
+\qquad
+\mathcal E(H,K) = \langle H,G_K\rangle_F.
+\]
+
+Linearity of trace gives the equivalent direct expression
+
+\[
+\mathcal E(H,K)
+= \sum_{r,s}\Gamma_{rs}
+  \operatorname{tr}(H^\top B_r K B_s^\top).
+\]
+
+Three substitutions give the familiar estimators.
+
+- A contrast (c) uses (H=cc^\top), so the output is (c^\top G_Kc).
+- An RDM entry for effects (i,j) uses (u_{ij}=e_i-e_j) and
+  (H=u_{ij}u_{ij}^\top). With a declared noise precision for (K), this is
+  crossnobis.
+- A fixed OLS RSA coefficient uses the row (a_\ell^\top) of
+  ((X^\top X)^{-1}X^\top) and the RDM adjoint
+  (H=\mathcal D^*(a_\ell)=\sum_{i<j}a_{\ell,ij}u_{ij}u_{ij}^\top).
+
+The equalities concern the estimand. Crossnobis additionally needs independent
+evaluated partitions and an honestly fixed or cross-fitted precision. RSA
+additionally needs a fixed, full-rank design and a linear objective.
+
+## A hand-sized exact case
+
+The fixture has two partitions, three effects, two features, off-diagonal
+partition weights, and a non-identity metric. Every displayed value is
+computed in this article.
+
+```{r hand-fixture}
+effect_labels <- c("a", "b", "c")
+blocks <- list(
+  run1 = matrix(c(1, 0, 0, 1, 1, 1), 3L, 2L, byrow = TRUE,
+                dimnames = list(effect_labels, NULL)),
+  run2 = matrix(c(2, 0, 0, 2, 1, 3), 3L, 2L, byrow = TRUE,
+                dimnames = list(effect_labels, NULL))
+)
+gamma <- matrix(c(0, 0.5, 0.5, 0), 2L, 2L,
+                dimnames = list(names(blocks), names(blocks)))
+metric <- diag(c(2, 1))
+geometry <- oracle_geometry(blocks, gamma, metric)
+knitr::kable(geometry, digits = 3, caption = "Generated common geometry")
+```
+
+The pairwise squared distances are generated from (u^\top G_Ku). The direct
+court below independently expands every partition, effect, and feature index.
+
+```{r hand-rdm}
+pairs <- pair_matrix(length(effect_labels))
+pair_labels <- apply(pairs, 1L, function(x) {
+  paste(effect_labels[x], collapse = " - ")
+})
+rdm_values <- rdm_from_geometry(geometry)
+direct_values <- vapply(seq_len(nrow(pairs)), function(k) {
+  u <- numeric(length(effect_labels))
+  u[pairs[k, ]] <- c(1, -1)
+  oracle_energy(tcrossprod(u), blocks, gamma, metric)
+}, numeric(1))
+hand_rdm <- data.frame(
+  pair = pair_labels,
+  from_geometry = rdm_values,
+  direct_index_oracle = direct_values,
+  absolute_error = abs(rdm_values - direct_values)
+)
+knitr::kable(hand_rdm, digits = 15)
+```
+
+Now fit a fixed linear RSA model to the generated RDM. The same coefficients
+are recovered by compiling each coefficient row back into an (H) operator.
+
+```{r hand-rsa}
+rsa_design <- cbind(`(Intercept)` = 1, category = c(1, 0, 1))
+coefficient_map <- solve(crossprod(rsa_design), t(rsa_design))
+rsa_from_rdm <- drop(coefficient_map %*% rdm_values)
+rsa_from_adjoint <- vapply(seq_len(nrow(coefficient_map)), function(term) {
+  operator <- matrix(0, length(effect_labels), length(effect_labels))
+  for (k in seq_len(nrow(pairs))) {
+    u <- numeric(length(effect_labels))
+    u[pairs[k, ]] <- c(1, -1)
+    operator <- operator + coefficient_map[term, k] * tcrossprod(u)
+  }
+  oracle_energy(operator, blocks, gamma, metric)
+}, numeric(1))
+hand_rsa <- data.frame(
+  term = colnames(rsa_design),
+  from_materialized_rdm = rsa_from_rdm,
+  from_compiled_adjoint = rsa_from_adjoint,
+  absolute_error = abs(rsa_from_rdm - rsa_from_adjoint)
+)
+knitr::kable(hand_rsa, digits = 15)
+```
+
+```{r hand-production-check, include=FALSE}
+domain <- abstract_domain(ncol(blocks[[1L]]), id = "common-geometry-article")
+rel <- relation(blocks, domain = domain)
+plan <- plan_geometry(
+  rel,
+  compile_frame(whole_brain(normalization = "none"), domain),
+  cross_partitions(rel, independence = "independent"),
+  metric = noise_precision(metric, domain,
+    provenance = list(source = "fixed article metric"))
+)
+contrast <- stats::setNames(c(1, -1, 0), effect_labels)
+model_rdm <- rdm_matrix(c(1, 0, 1), effect_labels)
+production_contrast <- crossnobis(plan, contrast)$values
+production_rdm <- as.numeric(rdm(plan)$values)
+production_rsa <- as.numeric(rsa(plan, models = list(category = model_rdm))$coefficients)
+stopifnot(
+  max(abs(production_contrast - direct_values[[1L]])) < 1e-12,
+  max(abs(production_rdm - rdm_values)) < 1e-12,
+  max(abs(production_rsa - rsa_from_rdm)) < 1e-12,
+  max(hand_rdm$absolute_error) < 1e-12,
+  max(hand_rsa$absolute_error) < 1e-12
+)
+```
+
+The hidden assertions above run the public `crossnobis()`, `rdm()`, and
+`rsa()` paths against the direct oracle. A build stops if any mapping differs.
+
+## Randomized production-to-oracle evidence
+
+The hand case is exact but small. This bounded generated court changes blocks,
+SPD metrics, contrasts, and RSA models across replayable seeds. The oracle is
+the explicit matrix definition above; the candidate is the public package
+path.
+
+```{r randomized-court}
+run_case <- function(seed) {
+  set.seed(seed)
+  q <- 4L
+  d <- 3L
+  runs <- paste0("run", seq_len(3L))
+  effects <- paste0("e", seq_len(q))
+  generated_blocks <- stats::setNames(lapply(runs, function(run) {
+    matrix(stats::rnorm(q * d), q, d, dimnames = list(effects, NULL))
+  }), runs)
+  factor <- matrix(stats::rnorm(d * d), d, d)
+  generated_metric <- crossprod(factor) + diag(0.25, d)
+  generated_gamma <- matrix(1 / 6, 3L, 3L,
+                            dimnames = list(runs, runs))
+  diag(generated_gamma) <- 0
+  generated_geometry <- oracle_geometry(
+    generated_blocks, generated_gamma, generated_metric
+  )
+  generated_rdm <- rdm_from_geometry(generated_geometry)
+  generated_contrast <- stats::setNames(stats::rnorm(q), effects)
+  generated_contrast <- generated_contrast - mean(generated_contrast)
+
+  model_vectors <- cbind(
+    model1 = stats::rnorm(length(generated_rdm)),
+    model2 = seq_along(generated_rdm)
+  )
+  design <- cbind(`(Intercept)` = 1, model_vectors)
+  expected_rsa <- drop(solve(crossprod(design), t(design)) %*% generated_rdm)
+  models <- lapply(seq_len(ncol(model_vectors)), function(j) {
+    rdm_matrix(model_vectors[, j], effects)
+  })
+  names(models) <- colnames(model_vectors)
+
+  generated_domain <- abstract_domain(d, id = paste0("article-seed-", seed))
+  generated_relation <- relation(generated_blocks, domain = generated_domain)
+  generated_plan <- plan_geometry(
+    generated_relation,
+    compile_frame(whole_brain("none"), generated_domain),
+    cross_partitions(generated_relation, independence = "independent"),
+    metric = noise_precision(generated_metric, generated_domain,
+      provenance = list(source = "generated fixed metric"))
+  )
+
+  expected_contrast <- drop(crossprod(
+    generated_contrast,
+    generated_geometry %*% generated_contrast
+  ))
+  observed <- c(
+    contrast = as.numeric(crossnobis(
+      generated_plan, generated_contrast
+    )$values),
+    as.numeric(rdm(generated_plan)$values),
+    as.numeric(rsa(generated_plan, models = models)$coefficients)
+  )
+  expected <- c(expected_contrast, generated_rdm, expected_rsa)
+  max(abs(observed - expected))
+}
+
+court_seeds <- 1201:1206
+court_errors <- vapply(court_seeds, run_case, numeric(1))
+randomized_summary <- data.frame(
+  cases = length(court_seeds),
+  first_seed = min(court_seeds),
+  last_seed = max(court_seeds),
+  worst_absolute_error = max(court_errors),
+  declared_tolerance = 5e-10,
+  passes = max(court_errors) <= 5e-10
+)
+knitr::kable(randomized_summary, digits = 15)
+stopifnot(all(randomized_summary$passes))
+```
+
+The package test court extends this article with rank-deficient PSD metrics,
+unequal partition weights, near-singular metrics, nonfinite refusals,
+permutation equivariance, scaling laws, and a 50-seed deep mode. See the
+[`test-common-geometry-*` files](https://github.com/bbuchsbaum/crossform/tree/main/tests/testthat)
+and their independent oracle link above.
+
+## External differential evidence
+
+The external court uses a deterministic six-condition, four-run fixture, a
+fixed non-spherical pooled-residual precision, local support normalization,
+and pinned Python packages. It compares the same RDM vector and fixed OLS RSA
+coefficients to `rsatoolbox`. The table is read from the generated package
+certification artifact; no result is typed into this article.
+
+```{r external-parity}
+parity_candidates <- c(
+  file.path("..", "inst", "extdata", "certification",
+            "common-geometry-external-parity.csv"),
+  file.path("inst", "extdata", "certification",
+            "common-geometry-external-parity.csv"),
+  system.file("extdata", "certification",
+              "common-geometry-external-parity.csv", package = "crossform")
+)
+parity_path <- parity_candidates[nzchar(parity_candidates) &
+                                   file.exists(parity_candidates)][1L]
+if (is.na(parity_path)) stop("External parity certification artifact missing.")
+external_parity <- utils::read.csv(parity_path, stringsAsFactors = FALSE)
+external_summary <- external_parity[
+  external_parity$quantity %in%
+    c("crossnobis_rdm", "linear_rsa_coefficients") &
+    !duplicated(external_parity$quantity),
+  c("rsatoolbox_version", "quantity", "comparator", "n_values",
+    "max_abs_diff", "tolerance", "passes")
+]
+knitr::kable(external_summary, digits = 15)
+stopifnot(all(external_parity$passes))
+```
+
+The full fixture, reproduction instructions, convention mapping, and
+source/artifact manifest live in
+[`exemplars/rsatoolbox-parity`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/rsatoolbox-parity).
+The manifest makes an edited producer, claim, environment lock, or result a
+test failure until the external evidence is regenerated or explicitly
+revalidated.
+
+## Estimator claim table
+
+This generated table separates an algebraic mapping from the extra assumptions
+that license a familiar estimator name.
+
+```{r claim-table, results='asis'}
+claim_table <- data.frame(
+  estimator = c(
+    "Fixed bilinear contrast energy",
+    "Pairwise crossvalidated squared-distance RDM",
+    "Crossnobis RDM",
+    "Fixed multiple-regression RSA coefficient",
+    "Correlation/cosine RDM or RSA",
+    "Spearman/Kendall RSA",
+    "Adaptive classifier, kernel, or embedding"
+  ),
+  H = c(
+    "`c c^T`",
+    "`u_ij u_ij^T`",
+    "`u_ij u_ij^T`",
+    "`D*(a_l)`",
+    "No fixed `H` in general",
+    "No fixed `H`",
+    "No fixed `H`"
+  ),
+  K = c(
+    "Declared fixed metric",
+    "Declared fixed metric",
+    "Fixed or honestly cross-fitted noise precision",
+    "Same declared metric as the source RDM",
+    "Data-dependent norm",
+    "Any, followed by ranks",
+    "Learned from evaluated data"
+  ),
+  Gamma = c(
+    "Declared partition weights",
+    "Independent cross-partition weights",
+    "Independent cross-partition weights",
+    "Inherited unchanged from the source geometry",
+    "Not sufficient to linearize",
+    "Not sufficient to linearize",
+    "Data-adaptive"
+  ),
+  preprocessing_assumptions = c(
+    "Fixed contrast; centering only when translation invariance is claimed",
+    "Zero-sum pair differences; declared normalization",
+    "Same plus fixed/cross-fitted precision provenance",
+    "Fixed full-rank OLS design, pair order, intercept, and model scaling",
+    "Observed-pattern normalization is nonlinear",
+    "Ranking is nonlinear and tie policy matters",
+    "Training rule is part of a different estimand"
+  ),
+  output = c(
+    "Scalar contrast energy",
+    "One signed squared-distance estimate per pair",
+    "Noise-normalized signed squared-distance estimate",
+    "One scalar coefficient per fixed model term",
+    "Normalized dissimilarity/similarity",
+    "Rank association",
+    "Prediction or learned representation"
+  ),
+  evidence = c(
+    "Algebra + exact/randomized/adversarial courts",
+    "Algebra + exact/randomized/adversarial courts",
+    "Same courts + pinned external parity",
+    "Adjoint proof + same courts + pinned external parity",
+    "Explicit boundary/refusal",
+    "Explicit boundary/refusal",
+    "Explicit boundary only"
+  ),
+  status = c(
+    rep("Equivalent special case", 4L),
+    rep("Outside this theorem", 3L)
+  ),
+  stringsAsFactors = FALSE
+)
+knitr::kable(claim_table, escape = FALSE)
+```
+
+“Equivalent special case” means unification of the named fixed estimand under
+the stated assumptions. It does not mean that Crossform implements every
+estimator family, preprocessing convention, uncertainty procedure, null law,
+or population generalization target associated with that name.
+
+## Limits and evidence status
+
+The theorem is algebraic. The hand, randomized, adversarial, and external
+courts are computational evidence. None supplies population coverage,
+calibrates a null distribution, or proves validity after data-adaptive model or
+metric selection. External parity validates only the mapped fixed-linear case,
+not all of `rsatoolbox` and not all RSA.
+
+For the broader package evidence boundary, see the
+[`certification report`](https://github.com/bbuchsbaum/crossform/blob/main/design/certification-report.md).
+For the vocabulary separating theorem, numerical verification, statistical
+validation, empirical demonstration, and interpretation, see the
+[`unification contract`](https://github.com/bbuchsbaum/crossform/blob/main/design/unification-contract.md).

@@ -42,7 +42,8 @@ divisor: a participant contributes a share for query \code{k} only when
 An \code{effect_population_result}: a sealed record carrying
 \verb{$coefficients} (a \code{node}-by-\code{query}-by-\code{term} array), \verb{$values},
 \verb{$fitted} and \verb{$residuals} (\code{node}-by-\code{query}-by-\code{subject}), the
-\verb{$index} of group nodes plus the sink, \verb{$queries}, \verb{$ledger},
+\verb{$index} of group nodes plus the sink, \verb{$queries}, \verb{$ledger}, \verb{$coverage}
+(the exact node/readout population target and provenance),
 \verb{$uncertainty} (see the section above; read it through
 \code{\link[=population_uncertainty]{population_uncertainty()}}), and a \verb{$receipt} recording every
 participant's read, its
@@ -121,14 +122,34 @@ are computed against a total read from the same data as the ledger, which
 the receipt declares (\code{budget_estimate = "same_data_ratio"}).
 }
 
+\section{Coverage and the population target}{
+
+Ordinary-node availability is derived from positive realized transported
+mass and query admission, never from whether a numeric response equals
+zero. Under the default \code{coverage_policy = "all_planned"}, a cell is
+unresolved if any planned participant is unavailable. The explicit
+\code{"available_at_node"} policy fits the exact local subject set and therefore
+names a different target. \verb{$coverage} records the policy, planned subjects,
+stable plan and transport identifiers, operator coverage, exact analytic
+availability, recoverable dictionary-encoded subject sets, \code{n}, \code{n_eff},
+\code{mass_n_eff}, local design rank and residual df, status, and
+coefficient-specific estimability and exclusion reasons. The estimates are
+conditional on the realized transport and coverage. \verb{$coverage$conditioning}
+retains every participant's transport source, fitting sample, cross-fitting
+folds, and fixed-versus-estimated status. Transport-estimation uncertainty
+is not propagated by this contract, and cross-fitting does not make the
+result marginal over it.
+}
+
 \section{Uncertainty}{
 
 \verb{$uncertainty} always carries \verb{$between}, the ingredients of the
-between-subject layer: the group design's unscaled covariance
-\eqn{(X'X)^{-1}}{(X'X)^-1} and the terms it is indexed by. That is what
-\code{\link[=population_uncertainty]{population_uncertainty()}} needs and the result does not otherwise hold;
-the standard errors themselves are computed when they are read rather than
-stored as three more \code{node}-by-\code{query}-by-\code{term} arrays.
+between-subject layer: the subject-aligned group design, available
+estimators, estimator assumptions, and the terms they are indexed by. That
+is what \code{\link[=population_uncertainty]{population_uncertainty()}} needs to reconstruct each node-query
+cell's exact local design and return either classical OLS or HC3 sandwich
+covariance. The covariances themselves are computed when read rather than
+stored beside every point estimate.
 
 Supplying \code{uncertainty} adds two more blocks. \verb{$native} is D8's own
 per-native-node covariance per participant, carried \strong{untransported}, with
@@ -138,6 +159,14 @@ produces one. \verb{$within} is the part of that refusal E8 lifts --- a group
 column fed by exactly one native row, where the cross-node terms carry
 weight zero --- admitted per participant and per column and absent
 elsewhere. No independence assumption is made anywhere.
+
+The missing joint covariance does not gate ordinary population point
+estimation: unweighted OLS operates across participants separately at each
+node-query cell. It gates covariance-dependent operations such as
+transported within-subject precision, conserved-budget variance, or later
+joint spatial inference. The future admission law is recorded in
+\code{design/cross-node-covariance-contract.md} and on the transported refusal's
+\verb{$future} field with status \code{"not_implemented"}.
 
 The two layers are reported separately and are never pooled; there is no
 field holding their sum. See \code{\link[=population_uncertainty]{population_uncertainty()}}.
@@ -219,6 +248,7 @@ Other population transports:
 \code{\link{population_prevalence}()},
 \code{\link{population_uncertainty}()},
 \code{\link{population_views}},
+\code{\link{population_wild_bootstrap}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

@@ -72,10 +72,10 @@ def numeric_block(rows, prefix="V"):
 
 
 def main() -> int:
-    meta = {r["key"]: float(r["value"]) for r in read_csv("fixture-meta.csv")}
-    n_voxels = int(meta["n_voxels"])
-    n_runs = int(meta["n_runs"])
-    residual_df = int(meta["residual_df"])
+    meta = {r["key"]: r["value"] for r in read_csv("fixture-meta.csv")}
+    n_voxels = int(float(meta["n_voxels"]))
+    n_runs = int(float(meta["n_runs"]))
+    residual_df = int(float(meta["residual_df"]))
 
     beta_rows = read_csv("betas.csv")
     betas = numeric_block(beta_rows)

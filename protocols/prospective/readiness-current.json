@@ -1,0 +1,20 @@
+{
+  "schema_version": "prospective-readiness-v1",
+  "generated": "2026-08-21",
+  "state": "BLOCKED",
+  "phase": "discovery",
+  "reasons": [
+    "eligible_data",
+    "environment_locked",
+    "provenance_bound",
+    "analyst_identified",
+    "artifact_storage_reserved"
+  ],
+  "frozen_configuration": true,
+  "synthetic_rehearsal_passed": true,
+  "evidence_state": "prospective_protocol",
+  "successor_discovery_ticket": "bd-01M0HGAFB4MEQTFNWG4TMM55S9",
+  "successor_replication_ticket": "bd-01M0HGAPYHSFQ1SN4N1GEHHM59",
+  "ready_implies_result": false,
+  "executed": false
+}

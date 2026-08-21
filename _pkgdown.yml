@@ -73,6 +73,8 @@ articles:
 - title: Claims and policies
   desc: What the package claims, what it refuses, and where the boundaries are drawn.
   contents:
+  - common-geometry-equivalence
+  - matched-interpretability
   - novelty
   - failure-gallery
   - correlation-distance-policy

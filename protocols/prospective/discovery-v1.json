@@ -1,0 +1,90 @@
+{
+  "schema_version": "crossform-prospective-discovery-v1",
+  "frozen": "2026-08-21",
+  "status": "BLOCKED_DATASET_NOT_SELECTED",
+  "evidence_state": "prospective_protocol",
+  "dataset": {
+    "dataset_id": null,
+    "version": null,
+    "manifest_sha256": null,
+    "eligibility_contract": "protocols/prospective/eligibility-v1.md"
+  },
+  "condition_roles": ["condition_a", "condition_b", "negative_control"],
+  "primary_contrast": {"condition_a": 1, "condition_b": -1, "negative_control": 0},
+  "negative_control_contrast": {"condition_a": 0.5, "condition_b": 0.5, "negative_control": -1},
+  "partitions": {
+    "estimator": "all_unordered_independent_partition_pairs",
+    "minimum_partitions": 4,
+    "transport_evaluation_overlap": "forbidden"
+  },
+  "spatial": {
+    "primary_region": "whole_eligible_declared_support",
+    "roi_selection": "metadata_only_before_outcomes",
+    "frame_family": "conservative_radial",
+    "scales_mm": [0, 4, 8, 12],
+    "group_support": "intersection_meeting_frozen_coverage_floor",
+    "sink": "required"
+  },
+  "metrics": {
+    "activation": "signed_regional_mean",
+    "aggregate_mvpa": "crossnobis_all_partition_pairs",
+    "rsa": "fixed_linear_bilinear",
+    "crossform_components": ["total", "coherent", "configuration"]
+  },
+  "transport": {
+    "primary": "fixed_anatomical_or_registration_operator",
+    "secondary": "leave_one_subject_out_functional_operator",
+    "conditioning": "conditional_on_realized_transport",
+    "uncertainty_propagated": false
+  },
+  "population": {
+    "formula": "~ 1",
+    "primary_term": "(Intercept)",
+    "coverage_policy": "all_planned",
+    "normalization": "none"
+  },
+  "uncertainty": {
+    "primary": "HC3_pointwise_95_percent",
+    "sensitivity": "null_imposed_wild_bootstrap_HC3_t",
+    "bootstrap_replicates": 1999,
+    "simultaneous_coverage": "not_available"
+  },
+  "decision_contract": "protocols/prospective/comparators-v1.md",
+  "outcomes": {
+    "primary": ["comparator_ambiguity", "component_profile_interpretive_gain"],
+    "secondary": ["population_component_coefficients", "transport_comparison"],
+    "diagnostic": ["coverage", "effective_n", "sink", "transport_quality", "influence", "negative_controls"]
+  },
+  "outputs": [
+    "eligibility.json",
+    "dataset-manifest.csv",
+    "primary-results.csv",
+    "comparators.csv",
+    "component-profile.csv",
+    "support-diagnostics.csv",
+    "failure-states.csv",
+    "primary-figure.png",
+    "execution-manifest.csv",
+    "deviations.md"
+  ],
+  "failure_states": [
+    "dataset_ineligible",
+    "missing_partition",
+    "condition_mapping_invalid",
+    "coverage_below_floor",
+    "transport_quality_below_floor",
+    "transport_evaluation_overlap",
+    "coefficient_not_estimable",
+    "uncertainty_refused",
+    "conservation_failed",
+    "comparator_not_ambiguous",
+    "interpretive_gain_not_established"
+  ],
+  "exploratory": {
+    "allowed": true,
+    "headline_eligible": false,
+    "namespace": "exploratory/",
+    "requires_separate_manifest": true
+  },
+  "amendment_policy": "append_only_new_version_before_affected_outcome_access"
+}

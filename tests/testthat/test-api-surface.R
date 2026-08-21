@@ -40,8 +40,11 @@ crossform_public_api <- c(
   "observation_events", "observation_index", "observation_model",
   "observations", "pair_lm_query", "pair_query", "pairing",
   "partition_hierarchy", "plan_crossnobis", "plan_geometry",
-  "plan_population", "plan_relation", "population_prevalence",
-  "population_uncertainty",
+  "plan_population", "plan_relation", "population_component_view",
+  "population_decomposition", "population_diagnostic_view",
+  "population_diagnostics", "population_influence", "population_prevalence",
+  "population_scale_profile", "population_uncertainty",
+  "population_wild_bootstrap",
   "query_geometry", "raw_design_model",
   "raw_effect_map", "rdm", "rdm_sampling_covariance",
   "reconstruct_evidence", "reduce_partitions", "regions", "relation",
@@ -75,7 +78,7 @@ test_that("the exported surface is exactly the ledgered set", {
   # author to certify against installed versions, and the refusal that
   # discharges that obligation was reachable only with `:::`
   # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 112L)
+  expect_identical(length(exports), 119L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

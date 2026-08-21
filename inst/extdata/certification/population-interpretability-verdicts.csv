@@ -1,0 +1,8 @@
+"gate","observed","threshold","comparison","passes","boundary"
+"population_component_ordering",1,1,"==",TRUE,"broad greater than mixture greater than fine at nonpoint scales"
+"matched_total_effects",0,0.08,"<=",TRUE,"paired scenarios retain matched total coefficients"
+"coefficient_conservation",2.66453525910038e-15,1e-10,"<=",TRUE,"total equals coherent plus configuration"
+"supported_hc3_coverage",0.887750838935622,0.88,">=",TRUE,"two-MCSE lower pointwise conditional coverage"
+"scale_profile_recovery",0.999990787073822,0.98,">=",TRUE,"estimated versus planted coherent-share scale profile"
+"injected_influence_recovery",1,0.65,">=",TRUE,"planted s01 magnitude outlier is top leave-one-out influence"
+"informative_coverage_limit_retained",0.16389714324479,0.05,">=",TRUE,"informative coverage shifts target and remains unsupported"

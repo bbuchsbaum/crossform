@@ -512,9 +512,11 @@ stopifnot(
 ```
 
 `crossform` deliberately gives you no way to turn that shoulder into a finding.
-There is no threshold, no p-value, no permutation null, no spatial
-random-field correction, and no group inference; the README's **Status and
-scope** section says so, and the failure gallery
+There is no threshold, selected-peak p-value, permutation null, or spatial
+random-field correction in this single-participant view. Population inference
+requires a separate declared population plan and does not retroactively
+calibrate this selected map. The README's **Status and scope** section says so,
+and the failure gallery
 ([online](failure-gallery.html), or `vignette("failure-gallery")` offline)
 treats manufactured uncertainty as an error to guard against. Measurements
 standing clear of the floor are **candidates**. What you may legitimately do

@@ -61,6 +61,7 @@ Other population transports:
 \code{\link{plan_population}()},
 \code{\link{population_prevalence}()},
 \code{\link{population_uncertainty}()},
-\code{\link{population_views}}
+\code{\link{population_views}},
+\code{\link{population_wild_bootstrap}()}
 }
 \concept{population transports}

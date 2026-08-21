@@ -1,7 +1,7 @@
 ---
 title: "Population form: one participant's ledger, carried to a group"
 description: >
-  Experimental. A group analysis of conservative geometry is three typed objects — a per-participant plan, a transport you supply, and a group model — and one theorem: the query, the transport and the group fit act on different axes, so modelling then querying is the same number as querying then modelling. This article builds the objects on a generated six-participant fixture, asserts the commutation and the conservation identity, finds a planted odd participant with the cross-fitted subject Gram, and reports the two error bars the layer keeps apart — separately, and labelled uncalibrated.
+  Experimental. A group analysis of conservative geometry is three typed objects — a per-participant plan, a transport you supply, and a group model — and one theorem: the query, transport, and group fit act on different axes. This article builds the objects on a generated fixture, checks commutation and conservation, and exercises classical, HC3, wild-bootstrap, decomposition, diagnostic, scale-profile, and influence routes under their stated calibration boundaries.
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Population form: one participant's ledger, carried to a group}
@@ -19,11 +19,14 @@ knitr::opts_chunk$set(
 library(crossform)
 ```
 
-**This layer is experimental.** The API and the returned kinds may change, and
-nothing in it is calibrated group inference. What it *is* is a typed way to
-carry each participant's conservative attribution ledger onto a shared set of
-group nodes, fit one group model there, and read the result without any of the
-three steps quietly changing what was estimated.
+**This layer is experimental.** The API and returned kinds may change. Its
+classical, HC3, and wild-bootstrap procedures have bounded matched-simulation
+evidence across declared regimes, but they are not universal guarantees:
+informative coverage supports no marginal population claim, every interval is
+conditional on realized transport, and simultaneous cross-node inference is
+not provided. The layer is a typed way to carry each participant's conservative
+attribution ledger onto shared group nodes, fit one group model, and read the
+result without any step quietly changing what was estimated.
 
 Read `vignette("conservative-frames")` first. Everything here operates on the
 attribution instrument from that article: a map whose values are shares of one
@@ -77,9 +80,12 @@ pop_subject <- function(id, features, gain = 1, tilt = 0, runs = 4L,
     cross_partitions(relation))
 }
 
-sizes <- c(s01 = 9L, s02 = 11L, s03 = 13L, s04 = 10L, s05 = 12L, s06 = 14L)
+# All participants reach every ordinary group node; the transport radius below
+# still leaves genuine sink territory. Variable-coverage targets are a separate
+# explicit policy rather than numeric zeroes in this introductory OLS example.
+sizes <- c(s01 = 12L, s02 = 14L, s03 = 16L, s04 = 13L, s05 = 15L, s06 = 17L)
 gains <- c(s01 = 1, s02 = 1.3, s03 = 0.8, s04 = 1.1, s05 = 0.9, s06 = 1.2)
-tilts <- c(s01 = 0, s02 = 0, s03 = 0, s04 = 0, s05 = 0, s06 = 1.6)
+tilts <- c(s01 = 0, s02 = 0, s03 = 0, s04 = 0, s05 = 0, s06 = 4)
 
 subjects <- stats::setNames(lapply(names(sizes), function(id)
   pop_subject(id, sizes[[id]], gains[[id]], tilts[[id]])), names(sizes))
@@ -209,15 +215,31 @@ stopifnot(
 
 honest <- external_transport(P, semantics = "budget",
   provenance = list(method = "functional", details = "hyperalignment",
-    cross_fit = c("run1", "run2")))
-honest$provenance$cross_fit
-stopifnot(identical(honest$provenance$cross_fit, c("run1", "run2")))
+    fitting_sample = c("session-A", "session-B"),
+    cross_fit = c("run1", "run2"),
+    cross_fit_folds = c("fold-A", "fold-B")))
+honest$provenance$conditioning
+stopifnot(
+  identical(honest$provenance$cross_fit, c("run1", "run2")),
+  identical(honest$provenance$conditioning$operator_status, "estimated"),
+  identical(honest$provenance$conditioning$fitting_sample,
+    c("session-A", "session-B")),
+  identical(honest$provenance$conditioning$cross_fit_folds,
+    c("fold-A", "fold-B")),
+  !honest$provenance$conditioning$uncertainty_propagated,
+  !honest$provenance$conditioning$marginal_over_transport
+)
 ```
 
-Naming the partitions is what the refusal asks for, and the names travel with
-the operator into the estimand's identity. An anatomical or external transport
-never saw the responses, so it owes no such record — which is why the six
-carriers above passed without one.
+Naming the partitions is what the refusal asks for, and the fitting sample,
+folds, and fixed-versus-estimated status travel with the operator into the
+estimand's identity. This limits circularity; it does **not** propagate
+uncertainty from learning the alignment. The sealed record therefore says
+`conditional_on_realized_transport`, `uncertainty_propagated = FALSE`, and
+`marginal_over_transport = FALSE`. An anatomical or external transport never
+saw the responses, so it owes no cross-fit record — which is why the six
+carriers above passed without one — but it still declares the same conditional
+boundary for its fixed operator.
 
 ### 1.3 `plan_population()`: the group estimand
 
@@ -441,6 +463,109 @@ fit$index$units
 stopifnot(all(fit$index$units == "budget"))
 ```
 
+The diagnostic view keeps those warnings beside their subject provenance. It
+summarizes node-wise coverage and sink exposure, reports descriptive
+associations with the declared design and outcomes, and shows what a declared
+coverage or retained-territory threshold would remove. The thresholded summary
+is never substituted for the fitted result:
+
+```{r population-diagnostics}
+diagnostics <- population_diagnostics(fit,
+  minimum_coverage = 0.8,
+  minimum_transport_quality = 0.7,
+  material_change = 0.2)
+c(cells = nrow(diagnostics$cells), warnings = nrow(diagnostics$warnings))
+unique(diagnostics$sensitivity$target_status)
+stopifnot(
+  identical(diagnostics$parent_result_id, fit$scientific_plan_id),
+  all(diagnostics$associations$interpretation ==
+        "descriptive_association_not_causal_correction"),
+  all(diagnostics$sensitivity$target_status ==
+        "sensitivity_descriptive_not_primary")
+)
+```
+
+The component identity also survives the group model, but only when all three
+fits share that exact plan and its cellwise subject sets. The decomposition
+object checks comparability first and carries the cross-component covariance
+needed for derived coefficient contrasts:
+
+```{r population-decomposition}
+coherent_fit <- estimate_population(plan, bank, component = "coherent")
+configuration_fit <- estimate_population(plan, bank,
+  component = "configuration")
+decomposition <- population_decomposition(
+  fit, coherent_fit, configuration_fit, estimator = "HC3")
+c(coefficient_gap = decomposition$max_coefficient_gap,
+  covariance_gap = decomposition$direct_derived_total_covariance_gap)
+stopifnot(decomposition$max_coefficient_gap < 1e-10)
+```
+
+This is an additive estimand law. It does not make coherent and
+configurational contributions separate neural mechanisms.
+
+For presentation, `population_component_view()` maps all three coefficients
+and their intervals onto one signed symmetric axis. Its `$data` and
+`$coverage` tables are the plotting inputs, so the visual mapping can be
+audited without comparing raster files:
+
+```{r population-component-view}
+component_view <- population_component_view(decomposition, "(Intercept)",
+  query = "face-house")
+component_view$axis
+head(component_view$data[, c("component", "node", "estimate", "lower",
+  "upper", "visual_magnitude")])
+stopifnot(
+  component_view$axis$limits[[1]] == -component_view$axis$limits[[2]],
+  identical(component_view$receipt$aggregation,
+    "population_coefficient_not_participant_ratio_average")
+)
+```
+
+Scale-profile bands select their uncertainty method explicitly. They retain
+the same coefficient and `subject_set_id` as the point, annotate `n`, coverage
+fraction, and effective sample size, and leave sparse cells as gaps. These are
+pointwise bands: simultaneous coverage and maxT are not implemented or
+calibrated.
+
+The matched hierarchical certification behind the supported-regime statement
+uses 200 paired 24-subject replications. It recovers the planted component
+ordering and scale profile while keeping an informative-coverage arm as a
+failed marginal target; see
+`inst/extdata/certification/population-interpretability-verdicts.csv`.
+
+```{r population-scale-profile}
+scale_profile <- population_scale_profile(decomposition, "(Intercept)",
+  query = "face-house", interval = "HC3")
+scale_profile$interval
+head(scale_profile$data[, c("component", "node", "estimate", "lower",
+  "upper", "n", "fraction", "subject_set_id", "gap")])
+stopifnot(
+  identical(scale_profile$interval$semantics, "pointwise"),
+  identical(scale_profile$receipt$interpolation,
+    "none_gaps_and_subject_set_changes_retained")
+)
+```
+
+An interpretive display can bind the effect rows to coverage, effective N,
+sink territory, and retained-territory support by exact node/query identity.
+Selections are synchronized and recorded, while each diagnostic retains its
+own unit-labelled axis:
+
+```{r population-diagnostic-view}
+diagnostic_view <- population_diagnostic_view(scale_profile, diagnostics,
+  query = "face-house")
+names(diagnostic_view$panels)
+diagnostic_view$filters
+stopifnot(
+  !anyNA(diagnostic_view$effect$support_key),
+  identical(diagnostic_view$filters$operation,
+    "synchronized_exact_key_selection"),
+  length(unique(vapply(diagnostic_view$panels, `[[`, character(1),
+    "scale_identity"))) == 4L
+)
+```
+
 ## 4. Heterogeneity: what the participants disagree about
 
 The group fit gives the consensus. The other half of the section 6 decomposition
@@ -511,6 +636,23 @@ gradient — and it holds over 90 % of the projected heterogeneity mass. Pass
 `nodes =` to reconstruct the *geometry* of a mode at named group nodes and see
 which effect pair it lives in.
 
+`population_influence()` links that cross-fitted Gram to leave-one-subject
+coefficient and component changes, exact cellwise coverage, and each subject's
+transport provenance. Its default court is bounded; a larger run requires
+`mode = "deep"`. The output is descriptive and never an automatic exclusion
+rule:
+
+```{r population-influence}
+influence <- population_influence(decomposition, heterogeneity = het)
+head(influence$influence[, c("subject", "node", "query", "term",
+  "component", "abs_delta", "primary_subject_set_id", "sink_territory")])
+stopifnot(
+  identical(influence$heterogeneity$estimator, "cross_fit"),
+  !any(influence$subject_provenance$transport_self_fit),
+  grepl("descriptive", influence$interpretation)
+)
+```
+
 ### Why the estimator is not a free choice
 
 The plug-in Gram books every participant's within-subject sampling noise as
@@ -571,12 +713,12 @@ hand_estimate <- apply(fit$values, c("node", "query"), mean)
 hand_se <- apply(fit$values, c("node", "query"),
   function(y) stats::sd(y) / sqrt(length(y)))
 c(
-  residual_df = between$residual_df,
+  residual_df = unique(as.numeric(between$residual_df)),
   estimate_gap = max(abs(between$estimate[, , "(Intercept)"] - hand_estimate)),
   se_gap = max(abs(between$se[, , "(Intercept)"] - hand_se))
 )
 stopifnot(
-  identical(between$residual_df, 5L),
+  all(between$residual_df == 5L),
   max(abs(between$estimate[, , "(Intercept)"] - hand_estimate)) < 1e-12,
   max(abs(between$se[, , "(Intercept)"] - hand_se)) < 1e-12
 )
@@ -594,6 +736,16 @@ transport whose quality varies with age or motion produces — coverage falls to
 participants, because the bias is in the standard error and not in the sample
 size.
 
+The expanded certification court now compares classical, HC3, and a
+null-imposed wild bootstrap on the same 500 datasets in each of eight regimes.
+Its versioned results are in
+`inst/extdata/certification/population-calibration-results.csv`. HC3 improves
+coverage in the declared heteroskedastic arm, but no method is licensed for a
+marginal claim under informative coverage, and every result remains
+conditional on the realized transport. That bounded simulation evidence is
+why the API still reports `calibration = "uncalibrated"` rather than turning a
+selected synthetic success into a universal guarantee.
+
 ```{r calibration}
 between$calibration
 c(level = between$level, t_max = round(max(abs(between$t), na.rm = TRUE), 3))
@@ -602,6 +754,73 @@ stopifnot(identical(between$calibration, "uncalibrated"))
 
 Report the statistic; do not report a p-value derived from it without an
 argument that the section 7.5 transport diagnostics are benign.
+
+The classical interval assumes equal subject-level variance. HC3 is the
+leverage-adjusted sandwich sensitivity analysis when that assumption is not
+credible. It uses the same exact cellwise subject set and returns the full
+coefficient covariance, along with the leverage and assumptions that produced
+it:
+
+```{r between-hc3}
+hc3 <- population_uncertainty(fit, estimator = "HC3")$between
+ratio <- hc3$se / between$se
+c(
+  estimator = hc3$estimator,
+  max_leverage = round(max(hc3$max_leverage, na.rm = TRUE), 3),
+  min_se_ratio = round(min(ratio, na.rm = TRUE), 3),
+  max_se_ratio = round(max(ratio, na.rm = TRUE), 3)
+)
+stopifnot(
+  identical(hc3$estimator, "HC3"),
+  "heteroskedasticity_robust_sandwich" %in% hc3$assumptions,
+  all(hc3$residual_df == fit$coverage$residual_df),
+  identical(dim(hc3$covariance), c(4L, 2L, 1L, 1L))
+)
+```
+
+Neither estimator repairs an unidentified cell. Rank deficiency, saturation,
+or leverage with `1 - h` at the declared numerical tolerance produces an
+explicit per-cell refusal in `$status` and `$reason` instead of an infinite or
+silently unstable standard error.
+
+The included-versus-excluded uncertainty boundary is concrete here. HC3
+includes heteroskedasticity in the observed between-subject residuals,
+conditional on the transported values. If those values came from `honest`, it
+would exclude variation from estimating the hyperalignment and from assigning
+its cross-fitting folds. Cross-fitting protects the evaluation split; it does
+not turn the HC3 interval into an interval marginal over transport learning.
+
+For a resampling diagnostic, the null-imposed wild bootstrap keeps the
+participant—not the node—as the randomization unit. The single stored
+subject-by-replicate weight matrix is reused across every node and query, so
+the joint spatial/readout dependence within a participant is never broken:
+
+```{r between-wild-bootstrap}
+wild <- population_wild_bootstrap(
+  fit, "(Intercept)", null = 0, replicates = 199, seed = 20260821
+)
+wild_table <- as.data.frame(wild)
+wild_table[, c("node", "query", "observed_t", "p_value",
+  "monte_carlo_se", "successful_replicates", "status")]
+stopifnot(
+  identical(dim(wild$weights), c(6L, 199L)),
+  identical(rownames(wild$weights), fit$coverage$planned_subjects),
+  all(wild$successful_replicates[!fit$index$sink, ] == 199L),
+  identical(wild$conditioning, fit$coverage$conditioning)
+)
+```
+
+The tested null and coefficient contrast are fields, not prose. The plus-one
+p-value is accompanied by its Monte Carlo standard error, and the sink remains
+in the same table—with its own estimate or refusal—rather than disappearing.
+`weights = "mammen"` selects the mean-zero, variance-one two-point Mammen
+distribution for an asymmetric-error sensitivity analysis; Rademacher is the
+default.
+
+The bootstrap inherits exactly the same boundary. Its participant weights
+resample group residuals while holding the realized operator fixed; they do not
+refit the transport. The future extension point and its required ingredients
+are recorded at `wild$conditioning$future`.
 
 ### 5.2 The within-subject layer, and where it is refused
 
@@ -723,8 +942,22 @@ value. It is not the third error bar; it is on the **latent layer**, the same
 place `latent_geometry()` confines fractions to, and it carries no interval.
 
 ```{r prevalence}
-before <- fit$uncertainty
-prevalence <- population_prevalence(fit, coverage_floor = length(subjects))
+# Make partial coverage deliberate for this diagnostic: group3 moves to x=16,
+# and the explicit policy says that its coefficient targets the participants
+# available there. The introductory OLS fit above remains all-planned.
+coverage_carrier <- function(features) anatomical_transport(
+  native_coords = cbind(seq_len(features) - 1),
+  group_coords = cbind(c(0, 5, 16)), semantics = "budget", radius = 2,
+  native_index = paste0("f", seq_len(features))
+)
+coverage_transports <- stats::setNames(lapply(names(sizes), function(id)
+  coverage_carrier(sizes[[id]])), names(sizes))
+coverage_plan <- plan_population(subjects, coverage_transports,
+  coverage_policy = "available_at_node")
+coverage_fit <- estimate_population(coverage_plan, bank)
+before <- coverage_fit$uncertainty
+prevalence <- population_prevalence(coverage_fit,
+  coverage_floor = length(subjects))
 round(prevalence$sign$fraction, 3)
 c(reference = prevalence$reference)
 c(layer = prevalence$layer, reading = prevalence$reading)
@@ -744,7 +977,7 @@ stopifnot(
     "statistic", "level", "confidence")), character(0)),
   identical(prevalence$receipt$prevalence$inference, "none_derivable"),
   # And constructing one does not reach into the inferential layer.
-  identical(before, fit$uncertainty)
+  identical(before, coverage_fit$uncertainty)
 )
 ```
 
@@ -768,9 +1001,11 @@ stopifnot(
 )
 ```
 
-`group3` sits at `x = 11`, out of radius of every native node the smallest
-participant has. Five participants stand behind it, not six — a fact about the
-transport, available before any of its numbers are interpreted.
+For this diagnostic, `group3` sits at `x = 16`, out of radius of every native
+node in the smaller frames. Its exact available-at-node subject set is recorded
+beside the fraction — a fact about the realized transport, available before any
+of its numbers are interpreted, and explicitly a different target from the
+all-planned fit used earlier.
 
 ## 6. What this article does not give you
 
@@ -792,6 +1027,12 @@ the transported components take their own names — `native_coherent_ledger` is
 native-node coherent evidence carried to a group node, not a group-node common
 mode, and reading it as one is the error the name exists to prevent.
 
+**No marginal inference over transport estimation.** Functional cross-fitting
+limits circularity, but all intervals and resampling results condition on the
+realized operator. The transport-conditioning record names the fitting sample,
+folds, included and excluded uncertainty, and the currently unimplemented
+`transport_uncertainty_propagation` extension point.
+
 ```{r ledger-names}
 c(total = fit$ledger,
   coherent = estimate_population(plan, bank, component = "coherent")$ledger)
@@ -802,6 +1043,12 @@ stopifnot(identical(fit$ledger, "transported_total"))
 budget. Node estimates of an overlapping frame are strongly positively
 correlated; variances do not add. Section 5.2's carve-out is the whole of what
 exists.
+
+This absence does **not** block the ordinary unweighted population estimate.
+That OLS is performed across participants separately at each node and query; it
+does not combine sampling errors across nodes. The gate begins only when an
+operation asks for transported within-subject precision, a conserved-budget
+variance, or joint spatial inference.
 
 **No precision weighting.** `normalization = "precision_weighted"` is in the
 closed set and refused at plan construction, because the per-subject budget
@@ -816,6 +1063,16 @@ stopifnot(
   "per_subject_budget_variance_unavailable" %in% weighted$reasons
 )
 ```
+
+The future admission law is explicit but not implemented: a covariance must
+bind the subject, native-node and query indices; declare its error model; pass
+finite, symmetry and positive-semidefinite checks; and fit either a dense-byte
+or sparse-nonzero compute budget without implicit densification. The tiny
+fixture in `design/oracles/cross-node-covariance.R` proves
+`Cov(P' z) = P' Cov(z) P` and shows why `sum(diag(Sigma))` is not a budget
+variance. It exports no package function. Optional maxT, simultaneous-band and
+multiple-comparison procedures are later consumers requiring their own
+calibration; they are not part of the core estimation gate.
 
 ## See also
 

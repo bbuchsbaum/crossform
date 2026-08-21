@@ -61,7 +61,10 @@ layer_of <- c(
   ## 5. results / views
   "views.R" = 5L, "population-views.R" = 5L,
   "population-heterogeneity.R" = 5L, "population-prevalence.R" = 5L,
-  "population-uncertainty.R" = 5L, "geometry-entry.R" = 5L,
+  "population-uncertainty.R" = 5L, "population-bootstrap.R" = 5L,
+  "population-decomposition.R" = 5L, "population-component-view.R" = 5L,
+  "population-diagnostics.R" = 5L, "population-diagnostic-view.R" = 5L,
+  "population-influence.R" = 5L, "geometry-entry.R" = 5L,
   "latent.R" = 5L, "coupling-views.R" = 5L,
   "tomography.R" = 5L, "measurement-result.R" = 5L,
   "measurement-decomposition.R" = 5L, "format-results.R" = 5L,

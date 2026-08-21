@@ -716,9 +716,11 @@ Your own data will not come with `volume_planted`, and the figure still works.
   reproducible pattern; far along the horizontal axis is a regional mean that a
   univariate analysis would also have found.
 
-What the figure does not give you is a threshold or a p-value. `crossform`
-performs no spatial and no group inference, and it will not invent a null
-distribution over measurements for you. A within-measurement standard error is
+What the figure does not give you is a spatial threshold or selected-peak
+p-value. This single-participant view performs no spatial multiplicity or
+population inference and will not invent a null distribution over measurements.
+Population analysis is a separate declared `plan_population()` target. A
+within-measurement standard error is
 available, but only from a fit that kept residuals, which the beta matrices
 above did not.
 [Reading a map without ground truth](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth)

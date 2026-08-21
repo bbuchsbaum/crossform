@@ -1,0 +1,10 @@
+"schema_version","path","size_bytes","hash_algorithm","digest","config_sha256","real_data_claim"
+"prospective-rehearsal-manifest-v1","eligibility.json",253,"md5","b84dd7813da257a8364057b91aa04674","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","dataset-manifest.csv",1333,"md5","f4518b3293f60ad56f3758521426085b","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","primary-results.csv",12134,"md5","a15c442865ae077e4dcfecb0b2cdd0b9","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","comparators.csv",248,"md5","84ca0d828dea2067cc77f6844714502e","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","component-profile.csv",35809,"md5","3980556e39a440ee1a32ee2a2f9b54d7","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","support-diagnostics.csv",3104,"md5","c4dbc3ca693135e9f902e7846ee0a076","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","failure-states.csv",327,"md5","ac0b21740957f814e5e3879de09fcd70","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","primary-figure.png",84360,"semantic_plot","","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE
+"prospective-rehearsal-manifest-v1","deviations.md",99,"md5","c87ac0291a370265f8c6f843e19fa52a","7defe146b72eb26b0b743f4c49f388390ea9a4c60bbdab2f4f5fba4846ac209a",FALSE

@@ -445,9 +445,136 @@
 
 .population_view_fields <- c(
   "values", "view", "term", "ledger", "native_ledger", "semantics",
-  "normalization", "index", "columns", "query", "receipt",
+  "normalization", "index", "columns", "query", "coverage", "receipt",
   "scientific_plan_id", "metadata"
 )
+
+.population_view_coverage_fields <- c(
+  "contract_version", "policy", "planned_subjects", "subject_plan_id",
+  "transport_signature", "availability", "subject_set_id", "subject_sets",
+  "n", "fraction", "n_eff", "design_rank", "residual_df", "status",
+  "estimable", "exclusion_reason", "conditioning"
+)
+
+.population_coverage_refusal <- function(node, column) {
+  .capability_refusal(paste0(
+    "This population view would combine estimates made from different ",
+    "participant sets at node `", node, "` for view column `", column,
+    "`. Their coefficients do not share one population target, so adding ",
+    "them would create a number with no recoverable subject set."
+  ),
+    capability = "common_population_subject_set",
+    namespace = "population_views",
+    reasons = paste0("source_subject_sets_differ:", node, ":", column),
+    remedies = c(
+      "Re-estimate the desired query directly so coverage is resolved once.",
+      paste0(
+        "Use `coverage_policy = \"all_planned\"` with complete coverage, ",
+        "or select a single already-estimated query."
+      )
+    ))
+}
+
+# Project result coverage through the same query map as the values. A linear
+# combination is a population coefficient only when every nonzero source
+# column used the same exact subject set at that node. Selection is therefore
+# always lossless; recombination is checked cell by cell and refused when it
+# would erase the target identity.
+.population_view_coverage <- function(x, term, alpha) {
+  source <- x$coverage
+  nodes <- nrow(source$n)
+  subjects <- length(source$planned_subjects)
+  term_position <- match(term, dimnames(source$coefficient_estimable)$term)
+  maps <- if (is.null(alpha)) {
+    lapply(seq_len(ncol(source$n)), identity)
+  } else {
+    lapply(seq_len(ncol(alpha)), function(column) which(alpha[, column] != 0))
+  }
+  labels <- if (is.null(alpha)) colnames(source$n) else colnames(alpha)
+  width <- length(maps)
+  availability <- array(FALSE, c(nodes, width, subjects), dimnames = list(
+    node = rownames(source$n), view_column = labels,
+    subject = source$planned_subjects
+  ))
+  subject_set_id <- matrix(NA_character_, nodes, width,
+    dimnames = list(node = rownames(source$n), view_column = labels))
+  copy_matrix <- function(mode = c("integer", "numeric", "character")) {
+    mode <- match.arg(mode)
+    value <- matrix(NA, nodes, width,
+      dimnames = list(node = rownames(source$n), view_column = labels))
+    storage.mode(value) <- mode
+    value
+  }
+  n <- copy_matrix("integer")
+  fraction <- copy_matrix("numeric")
+  n_eff <- copy_matrix("numeric")
+  design_rank <- copy_matrix("integer")
+  residual_df <- copy_matrix("integer")
+  status <- copy_matrix("character")
+  estimable <- matrix(FALSE, nodes, width,
+    dimnames = list(node = rownames(source$n), view_column = labels))
+  exclusion_reason <- copy_matrix("character")
+
+  for (column in seq_len(width)) {
+    used <- maps[[column]]
+    if (!length(used)) {
+      .invariant_error("A population view contains an empty query map.")
+    }
+    for (node in seq_len(nodes)) {
+      reference <- source$availability[node, used[[1L]], ]
+      if (length(used) > 1L && any(vapply(used[-1L], function(position) {
+        !identical(as.logical(reference),
+          as.logical(source$availability[node, position, ]))
+      }, logical(1)))) {
+        .population_coverage_refusal(rownames(source$n)[[node]],
+          labels[[column]])
+      }
+      position <- used[[1L]]
+      availability[node, column, ] <- reference
+      subject_set_id[node, column] <- source$subject_set_id[node, position]
+      n[node, column] <- source$n[node, position]
+      fraction[node, column] <- source$fraction[node, position]
+      n_eff[node, column] <- source$n_eff[node, position]
+      design_rank[node, column] <- source$design_rank[node, position]
+      residual_df[node, column] <- source$residual_df[node, position]
+      status[node, column] <- source$status[node, position]
+      source_estimable <- source$coefficient_estimable[
+        node, used, term_position, drop = TRUE
+      ]
+      estimable[node, column] <- all(source_estimable)
+      if (!estimable[node, column]) {
+        reasons <- stats::na.omit(as.character(source$exclusion_reason[
+          node, used, term_position, drop = TRUE
+        ]))
+        exclusion_reason[node, column] <- if (length(reasons)) {
+          reasons[[1L]]
+        } else {
+          "source_coefficient_not_estimable"
+        }
+      }
+    }
+  }
+
+  list(
+    contract_version = source$contract_version,
+    policy = source$policy,
+    planned_subjects = source$planned_subjects,
+    subject_plan_id = source$subject_plan_id,
+    transport_signature = source$transport_signature,
+    availability = availability,
+    subject_set_id = subject_set_id,
+    subject_sets = source$subject_sets,
+    n = n,
+    fraction = fraction,
+    n_eff = n_eff,
+    design_rank = design_rank,
+    residual_df = residual_df,
+    status = status,
+    estimable = estimable,
+    exclusion_reason = exclusion_reason,
+    conditioning = source$conditioning
+  )
+}
 
 # What a view's identity is a hash *of*: the packed operators it reads and the
 # names it reads them under. Not the arguments that produced them. A contrast
@@ -500,13 +627,19 @@
       provenance = sort(unique(as.character(x$receipt$subjects$provenance))),
       cross_fit = sort(unique(stats::na.omit(
         as.character(x$receipt$subjects$cross_fit)
-      )))
+      ))),
+      conditioning = x$coverage$conditioning
     ),
     frame = x$receipt$frame,
     subjects = x$receipt$subjects,
     normalization = x$receipt$normalization,
     budget = x$receipt$budget,
     fit = x$receipt$fit,
+    coverage = list(
+      contract_version = x$coverage$contract_version,
+      policy = x$coverage$policy,
+      conditioning = x$coverage$conditioning
+    ),
     evaluation_order = x$receipt$evaluation_order,
     # How the view's own query was reached from the estimated basis, and
     # `$route` is the field to read first. The coefficients are recorded for a
@@ -533,6 +666,7 @@
                                  metadata = list()) {
   if (is.null(index)) index <- x$index
   identity <- .population_view_scientific_id(x, view, term, descriptor)
+  coverage <- .population_view_coverage(x, term, alpha)
   value <- structure(list(
     values = values,
     view = view,
@@ -544,6 +678,7 @@
     index = index,
     columns = columns,
     query = query,
+    coverage = coverage,
     receipt = .population_view_receipt(x, view, term, basis, alpha, identity),
     scientific_plan_id = identity,
     metadata = metadata
@@ -565,7 +700,8 @@
       !.is_string(x$view) || !.is_string(x$term) || !.is_string(x$ledger) ||
       !.is_flag(x$native_ledger) || !.is_string(x$semantics) ||
       !.is_string(x$normalization) || !is.data.frame(x$index) ||
-      !is.data.frame(x$columns) || !is.list(x$receipt) ||
+      !is.data.frame(x$columns) || !is.list(x$coverage) ||
+      !is.list(x$receipt) ||
       !.strong_sha256(sub("^population-", "", x$scientific_plan_id))) {
     .input_error("Population-view fields are missing or noncanonical.")
   }
@@ -576,6 +712,47 @@
       "Population-view values do not agree with their group node index and ",
       "column table."
     ))
+  }
+  coverage <- x$coverage
+  if (!identical(names(coverage), .population_view_coverage_fields) ||
+      !identical(coverage$contract_version, "population-estimand-v1") ||
+      !.is_string(coverage$policy) ||
+      !coverage$policy %in% .population_coverage_policies ||
+      !identical(dim(coverage$availability),
+        c(nrow(x$values), ncol(x$values), length(coverage$planned_subjects))) ||
+      !identical(dim(coverage$subject_set_id), dim(x$values)) ||
+      !identical(dim(coverage$n), dim(x$values)) ||
+      !identical(dim(coverage$fraction), dim(x$values)) ||
+      !identical(dim(coverage$n_eff), dim(x$values)) ||
+      !identical(dim(coverage$design_rank), dim(x$values)) ||
+      !identical(dim(coverage$residual_df), dim(x$values)) ||
+      !identical(dim(coverage$status), dim(x$values)) ||
+      !identical(dim(coverage$estimable), dim(x$values)) ||
+      !identical(dim(coverage$exclusion_reason), dim(x$values)) ||
+      !is.list(coverage$subject_sets) ||
+      !identical(as.logical(is.finite(x$values)),
+        as.logical(coverage$estimable))) {
+    .input_error("Population-view coverage fields are missing or noncanonical.")
+  }
+  .validate_population_conditioning(
+    coverage$conditioning, coverage$planned_subjects
+  )
+  if (!identical(x$receipt$transport$conditioning,
+      coverage$conditioning)) {
+    .contract_error(paste0(
+      "Population-view transport conditioning did not survive into its ",
+      "receipt."
+    ))
+  }
+  for (node in seq_len(nrow(x$values))) {
+    for (column in seq_len(ncol(x$values))) {
+      key <- coverage$subject_set_id[node, column]
+      if (!key %in% names(coverage$subject_sets) ||
+          !identical(coverage$subject_sets[[key]],
+            coverage$planned_subjects[coverage$availability[node, column, ]])) {
+        .contract_error("Population-view subject sets are not recoverable.")
+      }
+    }
   }
   if (!x$ledger %in% .population_ledger_names ||
       !identical(x$native_ledger,
@@ -683,6 +860,10 @@
 #'   normalized.
 #' * `sink_is_not_a_territory` --- a `by` that labels a group node `<sink>`.
 #'   The sink is appended as its own row automatically.
+#' * `common_population_subject_set` --- a query recombination or spatial
+#'   aggregation whose source coefficients were estimated from different
+#'   subject sets. Re-estimate the desired query directly, or aggregate only
+#'   cells with one common recoverable set.
 #' * `nondestructive_decomposition` and `guaranteed_psd` --- `remove_univariate`
 #'   and `normalize`, refused for the same reasons the per-participant views
 #'   refuse them.
@@ -719,7 +900,9 @@
 #' @return An `effect_population_view`: `$values`, one row per group node plus
 #'   the sink and one column per view column; `$columns` naming those columns;
 #'   `$index`, the group node table with the sink marked and its units; the
-#'   `$ledger` name, `$term`, `$semantics`, `$normalization`; a `$receipt`
+#'   `$ledger` name, `$term`, `$semantics`, `$normalization`; `$coverage`,
+#'   preserving the exact subject set, rank, df, and estimability of each view
+#'   cell (and refusing combinations with incompatible sets); a `$receipt`
 #'   carrying the transport, the native frame family, the budget certificate,
 #'   the normalization and the basis coefficients that reached this view; and
 #'   a `$scientific_plan_id` derived from the population plan and the view's
@@ -1162,6 +1345,79 @@ rsa.effect_population_result <- function(x, models, nuisance = NULL,
   using
 }
 
+.population_aggregate_view_coverage <- function(coverage, rows, keys) {
+  width <- ncol(coverage$n)
+  subjects <- length(coverage$planned_subjects)
+  source_labels <- rownames(coverage$n)
+  column_labels <- colnames(coverage$n)
+  availability <- array(FALSE, c(length(rows), width, subjects),
+    dimnames = list(node = keys, view_column = column_labels,
+      subject = coverage$planned_subjects))
+  subject_set_id <- matrix(NA_character_, length(rows), width,
+    dimnames = list(node = keys, view_column = column_labels))
+  copy_matrix <- function(source) {
+    matrix(source[NA_integer_, NA_integer_], length(rows), width,
+      dimnames = list(node = keys, view_column = column_labels))
+  }
+  n <- copy_matrix(coverage$n)
+  fraction <- copy_matrix(coverage$fraction)
+  n_eff <- copy_matrix(coverage$n_eff)
+  design_rank <- copy_matrix(coverage$design_rank)
+  residual_df <- copy_matrix(coverage$residual_df)
+  status <- copy_matrix(coverage$status)
+  estimable <- matrix(FALSE, length(rows), width,
+    dimnames = list(node = keys, view_column = column_labels))
+  exclusion_reason <- copy_matrix(coverage$exclusion_reason)
+
+  for (group in seq_along(rows)) {
+    members <- rows[[group]]
+    for (column in seq_len(width)) {
+      reference <- coverage$availability[members[[1L]], column, ]
+      if (length(members) > 1L && any(vapply(members[-1L], function(node) {
+        !identical(as.logical(reference),
+          as.logical(coverage$availability[node, column, ]))
+      }, logical(1)))) {
+        .population_coverage_refusal(
+          paste(source_labels[members], collapse = "+"),
+          column_labels[[column]]
+        )
+      }
+      node <- members[[1L]]
+      availability[group, column, ] <- reference
+      subject_set_id[group, column] <- coverage$subject_set_id[node, column]
+      n[group, column] <- coverage$n[node, column]
+      fraction[group, column] <- coverage$fraction[node, column]
+      n_eff[group, column] <- coverage$n_eff[node, column]
+      design_rank[group, column] <- coverage$design_rank[node, column]
+      residual_df[group, column] <- coverage$residual_df[node, column]
+      status[group, column] <- coverage$status[node, column]
+      estimable[group, column] <- coverage$estimable[node, column]
+      exclusion_reason[group, column] <-
+        coverage$exclusion_reason[node, column]
+    }
+  }
+
+  list(
+    contract_version = coverage$contract_version,
+    policy = coverage$policy,
+    planned_subjects = coverage$planned_subjects,
+    subject_plan_id = coverage$subject_plan_id,
+    transport_signature = coverage$transport_signature,
+    availability = availability,
+    subject_set_id = subject_set_id,
+    subject_sets = coverage$subject_sets,
+    n = n,
+    fraction = fraction,
+    n_eff = n_eff,
+    design_rank = design_rank,
+    residual_df = residual_df,
+    status = status,
+    estimable = estimable,
+    exclusion_reason = exclusion_reason,
+    conditioning = coverage$conditioning
+  )
+}
+
 .population_contribution <- function(x, by, using, label) {
   .validate_population_view(x)
   .population_require_budget(x)
@@ -1225,6 +1481,7 @@ rsa.effect_population_result <- function(x, models, nuisance = NULL,
     x$scientific_plan_id, resolved$label, keys,
     lapply(rows, function(subset) index$node[subset])
   )
+  coverage <- .population_aggregate_view_coverage(x$coverage, rows, keys)
   value <- structure(list(
     values = .contribution_group_column_sums(x$values, rows),
     view = "contribution",
@@ -1236,6 +1493,7 @@ rsa.effect_population_result <- function(x, models, nuisance = NULL,
     index = aggregate_index,
     columns = x$columns,
     query = x$query,
+    coverage = coverage,
     receipt = utils::modifyList(x$receipt, list(
       view = "contribution",
       aggregated_from = x$scientific_plan_id,

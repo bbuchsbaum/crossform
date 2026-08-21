@@ -1,0 +1,8 @@
+"gate","observed","threshold","comparison","passes","boundary"
+"paired_methods",1,1,">=",TRUE,"each scenario has classical, HC3, and wild bootstrap"
+"gaussian_nominal_coverage",0.0139999999999999,0.04,"<=",TRUE,"absolute coverage error across all three methods"
+"hc3_supported_coverage",0.904880138408719,0.88,">=",TRUE,"two-MCSE lower bound in declared marginally supported regimes"
+"heteroskedastic_hc3_improves_classical",0.174,0.02,">=",TRUE,"paired covariate-linked heteroskedastic arm"
+"informative_coverage_refusal",6,6,"==",TRUE,"no implemented interval is licensed for a marginal claim"
+"transport_regime_inventory",2,2,"==",TRUE,"fixed and cross-fitted transport are both explicit"
+"failure_rate",0,0.02,"<=",TRUE,"numerical or rank failure across certification cells"

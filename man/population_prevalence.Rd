@@ -122,13 +122,11 @@ about transport failure and not about a place. The exclusion is recorded at
 stays readable at \verb{$receipt$sink_budget}.
 
 A prevalence is uninterpretable without the number of participants behind
-it. \verb{$coverage$contributing} counts, per node and query, the participants
-whose transported value is finite and not exactly zero --- a proxy, read off
-the shipped values, for \code{population-form-v1} section 7.5's
-\code{group_node_subject_coverage}, which is a property of the transport
-operators a result does not carry. \code{coverage_floor} marks the nodes below a
-declared floor; it has no default because section 14.3 records the threshold
-itself as an open maintainer decision.
+it. \verb{$coverage$contributing} is the result's exact node-query availability,
+derived from realized transported mass and query admission rather than from
+whether the observed value is nonzero. \code{coverage_floor} marks the nodes
+below a declared floor; it has no default because section 14.3 records the
+threshold itself as an open maintainer decision.
 }
 
 \section{Refusals}{
@@ -220,6 +218,7 @@ Other population transports:
 \code{\link{plan_population}()},
 \code{\link{population_uncertainty}()},
 \code{\link{population_views}},
+\code{\link{population_wild_bootstrap}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

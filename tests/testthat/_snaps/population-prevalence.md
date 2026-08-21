@@ -10,12 +10,12 @@
         group nodes:  3 (sink excluded)
         queries:      face-house, face-tool
         threshold:    value > 0 (ledger units, exact)
-        sign:         median 0.75 (range 0.5 to 1)
-        alignment:    median 1 (range 0.5 to 1), leave-one-out reference
+        sign:         median 1 (range 0.75 to 1)
+        alignment:    median 1 (range 1 to 1), leave-one-out reference
         readout:      2 queries; bank Gram off identity by 3, not Frobenius
         coverage:     minimum 2 of 4 participants contributing; no floor declared
         frame:        undeclared, conservative
-        transport:    budget, anatomical, cross-fit not declared
+        transport:    budget, anatomical, fixed, cross-fit not declared
         estimand:     population-sha256:<digest>...
         reading:      latent descriptive layer; not for inference
         a cell at which nothing reproduces reports a fraction near 0.5, not near

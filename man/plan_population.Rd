@@ -10,6 +10,8 @@ plan_population(
   model = ~1,
   data = NULL,
   normalization = c("none", "unit_budget", "precision_weighted"),
+  coverage_policy = c("all_planned", "available_at_node"),
+  coverage_tolerance = 0,
   compute = compute_policy(),
   allow_nonconservative = FALSE
 )
@@ -37,6 +39,17 @@ needs.}
 commensurable: \code{"none"} (the default), \code{"unit_budget"}, or
 \code{"precision_weighted"} (gated, see above).}
 
+\item{coverage_policy}{Population target under incomplete ordinary-node
+coverage. "all_planned" (the default) returns a coefficient only when
+every planned participant is available at that node and query.
+"available_at_node" fits the explicitly selected participant set and
+records that different target at every cell.}
+
+\item{coverage_tolerance}{Nonnegative relative transported-mass threshold.
+Subject i covers ordinary node j when its transported row mass is greater
+than coverage_tolerance times its total declared row mass. The sink is
+observed for every admitted subject because zero sink budget is meaningful.}
+
 \item{compute}{A \code{\link[=compute_policy]{compute_policy()}}. It enters the plan's physical
 signature, never its scientific identity.}
 
@@ -50,8 +63,12 @@ An \code{effect_population_plan}: a sealed list carrying \verb{$subjects},
 \verb{$transport}, the shared \verb{$group_index}, the transport \verb{$semantics}, the
 \verb{$model} record (formula, canonical text, term labels, model matrix, its
 pivoted \verb{$qr}, \verb{$rank} and \verb{$pivot}, and per-covariate content digests),
-\verb{$data}, \verb{$normalization}, the \verb{$fit} marker, \verb{$allow_nonconservative},
-a per-participant \verb{$subject_index} audit table, \verb{$compute}, the
+\verb{$data}, \verb{$normalization}, \verb{$coverage_policy}, \verb{$coverage_tolerance},
+the subject-by-node \verb{$operator_mass} and \verb{$operator_coverage}, the \verb{$fit}
+marker, \verb{$allow_nonconservative}, a per-participant \verb{$subject_index} audit
+table (including transport source, fixed-versus-estimated status, fitting
+sample, cross-fitting folds, conditional inference scope, and whether
+transport uncertainty was propagated), \verb{$compute}, the
 \verb{$scientific_plan_id} naming the estimand, and the \verb{$signature} covering
 how it will be executed.
 }
@@ -126,6 +143,13 @@ margins would reweight participants by the wrong quantity, and the contract
 measures the three normalizations disagreeing by up to 94 \%. The mode stays
 in the closed set, and in this argument's default, because the set \emph{is} the
 plan identity; what is gated is admitting it.
+
+This gate does not apply to the default unweighted node-wise OLS. Each
+node-query cell is fitted across participants and needs no model for
+covariance between nodes. Future covariance-dependent operations must meet
+\code{design/cross-node-covariance-contract.md}: dense/sparse representation,
+index binding, symmetry and PSD checks, error-model provenance, and
+compute-budget guardrails are mandatory.
 }
 
 \examples{
@@ -184,6 +208,7 @@ Other population transports:
 \code{\link{population_prevalence}()},
 \code{\link{population_uncertainty}()},
 \code{\link{population_views}},
+\code{\link{population_wild_bootstrap}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

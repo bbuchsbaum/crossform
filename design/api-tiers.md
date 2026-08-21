@@ -996,7 +996,7 @@ Everything above audits the 105 exports the subtraction release inherited and
 the 97 it left. This section is the append-only register of exports added
 *after* that release, so the historical arithmetic above stays readable as the
 record of what it actually decided. The binding total is the sum of the two:
-**97 + 15 = 112**, which is what `tests/testthat/test-api-surface.R` pins. A
+**97 + 22 = 119**, which is what `tests/testthat/test-api-surface.R` pins. A
 row short of it is a missing justification, which is exactly the failure this
 ledger exists to force.
 
@@ -1032,9 +1032,23 @@ ledger exists to force.
 
 | `adapter_version_certificate()` | `R/compiler-conformance.R` | developer | adapter-protocol (debt-register ticket) | the only addition in this register that closes a gap rather than adding a capability, and the only one the package was already *obliging* users to make. `vignette("crossform-extending")` states two binding obligations on an adapter author, and the first is to certify against *installed* package versions and record them, as the two shipped compiler adapters do. Until this row, the vignette discharged that obligation by naming `.require_adapter_version()` — a protocol that requires a behaviour and then points, as its worked example, at a function reachable only through `:::`. It was one of the twelve entries in `tests/testthat/test-adapter-protocol.R`'s debt register, and the only one of the four groups there whose honest closure was an export: the other eleven were redundant re-validation (deleted), an executor seam that turned out to be expressible from documented plan fields plus `source_capabilities()` (rewritten), and provider capabilities that belonged inside `volume_domain()` and `additive_frame()` (moved there). What it is, precisely, is the two-refusal check `first-moment-relation-v1` conformance rests on: `installed_compiler_adapter` when the upstream package is absent, `supported_compiler_version` when the installed version is not the certified one, both in the `relation_compiler` namespace, returning the version string an adapter records in its provenance. Hand-rolling it is possible — the condition classes are documented under `crossform_conditions` — and that is exactly the failure mode, because a hand-rolled refusal that gets the capability name or the namespace wrong is invisible to `catch_refusal()` branching and to every conformance report downstream of it. Developer tier because no analyst calls it: its whole audience is the extension author the vignette addresses. Users: T:1 (`test-compiler-conformance.R`, `test-adapter-protocol.R`), plus both in-tree compiler adapters | keep |
 
+| `population_wild_bootstrap()` | `R/population-bootstrap.R` | advanced (experimental: population) | PE-D5 | Null-imposed Rademacher resampling at the participant level, with one stored subject-by-replicate weight matrix reused across nodes and queries. The result records the coefficient contrast, null, seed, Monte Carlo error, successful replicates, exact subject sets, and realized-transport conditioning. The eight-regime court licenses only its synthetic regimes and explicitly fails the marginal informative-coverage target. Users: T:1 (`test-population-bootstrap.R`, `test-population-calibration-certification.R`) | keep |
+
+| `population_decomposition()` | `R/population-decomposition.R` | advanced (experimental: population) | PE-E1 | Fits total, coherent, and configuration on exactly the same subjects, model, transport, and queries; refuses nonadditive normalization; asserts coefficient conservation; and carries joint cross-component covariance. Users: T:1 (`test-population-decomposition.R`) | keep |
+
+| `population_component_view()` | `R/population-component-view.R` | advanced (experimental: population) | PE-E2 | Data-first component reader with one equal symmetric squared-response axis, preventing separate autoscaling from manufacturing a component difference while preserving query, term, node, subject-set, and transport provenance. Users: T:1 (`test-population-component-view.R`) | keep |
+
+| `population_scale_profile()` | `R/population-component-view.R` | advanced (experimental: population) | PE-E3 | Component-by-scale profiles with an explicit classical, HC3, or parent-bound wild-bootstrap pointwise band. Gaps and subject-set changes are retained; simultaneous/maxT calibration is not claimed. Users: T:1 (`test-population-scale-profile.R`) | keep |
+
+| `population_diagnostics()` | `R/population-diagnostics.R` | advanced (experimental: population) | PE-D6 | Subject provenance, node/query coverage, effective sample size, sink and retained territory, covariate associations, and non-mutating sensitivity summaries. Diagnostics remain descriptive and never silently change the target. Users: T:1 (`test-population-diagnostics.R`) | keep |
+
+| `population_diagnostic_view()` | `R/population-diagnostic-view.R` | advanced (experimental: population) | PE-E5 | Exact-key binding of effects to support diagnostics. Selections are synchronized, while effect and support retain separate unit-labelled axes. Users: T:1 (`test-population-diagnostic-view.R`) | keep |
+
+| `population_influence()` | `R/population-influence.R` | advanced (experimental: population) | PE-E4 | Bounded or deep leave-one-subject coefficient/component changes, optionally linked to cross-fitted heterogeneity and transport provenance. It is descriptive, not an automatic exclusion rule. Users: T:1 (`test-population-influence.R`) | keep |
+
 Tier arithmetic after this section: core 21 → **23**; advanced 33 → **35**;
-advanced (experimental) 16 → **26**, of which the ten new ones are the
-population sub-label; developer 5 → **6**; total 97 → **112**.
+advanced (experimental) 16 → **33**, of which the seventeen new ones are the
+population sub-label; developer 5 → **6**; total 97 → **119**.
 
 ### Shape changes that add no export (ws-e, ticket E6)
 

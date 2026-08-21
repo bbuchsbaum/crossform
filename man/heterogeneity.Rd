@@ -262,6 +262,7 @@ Other population transports:
 \code{\link{population_prevalence}()},
 \code{\link{population_uncertainty}()},
 \code{\link{population_views}},
+\code{\link{population_wild_bootstrap}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

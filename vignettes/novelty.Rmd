@@ -384,13 +384,50 @@ estimand identities.
 
 ## Evidence ledger
 
-Every claim carries one of four statuses — **established algebraically**
-(proved and independently law-tested as a mathematical identity),
-**implemented** (reachable through the public package path and executed by
-compiled plans), **demonstrated** (validated in a substantive comparison,
-generative recovery, or realistic example), or **prospective** — and every
-row links the machine-checkable artifact that certifies it, so the ledger can
-be audited rather than believed.
+The canonical ledger uses eight evidence classes because proofs, internal
+oracles, external parity, simulations, retrospective illustrations,
+prospective protocols, completed real-data results, and independent
+replications answer different questions. The table below is generated from
+the package certification artifact. The definitions and promotion rules are
+in
+[`design/evidence-status-ledger.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/evidence-status-ledger.md).
+The companion claim registry assigns exactly one owner and current status to
+each claim, and the promotion history records why that status changed. The
+strongest new population evidence is matched simulation: the interval court
+covers the declared Gaussian, heteroskedastic, heavy-tailed, and informative
+coverage regimes, while the hierarchical interpretability court recovers its
+planted component ordering and scale profiles. Neither is empirical evidence.
+The discovery and replication protocols are frozen and rehearsed, but current
+readiness is `BLOCKED`; no completed real-data result or independent
+replication exists.
+
+```{r evidence-status-ledger, echo=FALSE}
+ledger_path <- system.file(
+  "extdata", "certification", "evidence-status-ledger.csv",
+  package = "crossform"
+)
+if (!nzchar(ledger_path)) {
+  candidates <- c(
+    file.path("..", "inst", "extdata", "certification",
+              "evidence-status-ledger.csv"),
+    file.path("inst", "extdata", "certification",
+              "evidence-status-ledger.csv")
+  )
+  ledger_path <- candidates[file.exists(candidates)][1L]
+}
+if (is.na(ledger_path) || !file.exists(ledger_path)) {
+  stop("The evidence-status certification ledger is missing.")
+}
+claim_ledger <- utils::read.csv(ledger_path, stringsAsFactors = FALSE)
+knitr::kable(
+  claim_ledger[c("claim_id", "headline_claim", "evidence_class", "boundary")],
+  col.names = c("Claim", "Headline claim", "Evidence class", "Boundary")
+)
+```
+
+The detailed notes below predate the eight-class ledger. Their coarse words
+such as “implemented” and “demonstrated” summarize local gates; they are not
+promotion classes. The generated ledger above governs status.
 
 | Claim | Status | Evidence artifact and boundary |
 |---|---|---|
@@ -469,7 +506,11 @@ sections are promoted only as these gates land:
    analysed with the same scripts.
 4. **Operational spatial accounting:** overlapping searchlights, coverage
    correction, a mass-preserving global comparator, and an interpretive
-   consequence. *Open.*
+   consequence. **Landed in bounded simulation:** the matched
+   interpretability and hierarchical population courts retain exact total
+   conservation while separating planted coherent and configurational
+   organizations. This remains synthetic evidence, not an empirical regional
+   interpretation.
 5. **Large-\(q\) query-first execution:** selected queries without a full RDM,
    with numerical, memory, and runtime receipts. **Landed:** see the
    [query-first scale gate](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-query-first-scale.R) and its
@@ -494,8 +535,11 @@ structure the square RDM view has already collapsed.
 `crossform` does not claim to have invented RSA, crossnobis, cross-validated
 MANOVA, analytic RDM covariance, searchlights, noise ceilings,
 condition/subject generalization, the regional-mean versus pattern
-distinction, or connectivity. It does not yet claim empirical superiority to `rsatoolbox`, a
-matched-estimator speed advantage, or a complete population-inference layer.
+distinction, or connectivity. It does not claim empirical superiority to
+`rsatoolbox`, a matched-estimator speed advantage, marginal inference under
+informative coverage, transport-superiority from the retrospective ds003745
+illustration, cross-node covariance, or completed prospective or independently
+replicated evidence.
 Nor does it claim that every nonlinear RDM comparison belongs in the bilinear
 core.
 
