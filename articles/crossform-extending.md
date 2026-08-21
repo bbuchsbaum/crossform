@@ -1,0 +1,781 @@
+# Extending crossform: the developer protocol
+
+This guide is for people writing a *package*, not an analysis: a storage
+backend, a first-level fitting engine, a design compiler, a spatial
+provider, or a result type. It states the surface crossform promises to
+such a package — what you supply, what the compiler checks, and which
+refusal you get when the declaration and the object disagree — and then
+builds a small adapter end to end so the protocol is demonstrated rather
+than described.
+
+If you are analysing data rather than writing a package, you want
+[`vignette("introduction")`](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
+or
+[`vignette("from-observations")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md)
+instead. Nothing here is required to use crossform.
+
+## The protocol
+
+An extension package meets crossform at two places.
+
+**The extension-only surface** is six entry points, plus one obligation.
+They exist so another package can hand data, an estimator, an error
+channel, and a result type into the typed core; an ordinary analysis
+never calls them.
+
+| Entry point | Seam | Hands in |
+|----|----|----|
+| [`file_matrix_source()`](https://bbuchsbaum.github.io/crossform/reference/file_matrix_source.md) | data-in | a reopenable out-of-memory response store |
+| [`source_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/source_capabilities.md) | data-in | what an opaque source can actually do |
+| [`relation_block()`](https://bbuchsbaum.github.io/crossform/reference/relation_block.md) | data-in | the bounded read the whole design rests on |
+| [`effect_extractor()`](https://bbuchsbaum.github.io/crossform/reference/effect_extractor.md) | design-in | the declared map `E` in `B = E Y` |
+| [`relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit.md) | error-channel-in | the statistical envelope around a relation |
+| [`as_neurovol()`](https://bbuchsbaum.github.io/crossform/reference/as_neurovol.md) | result-out | an S3 generic your result class can register on |
+
+[`adapter_version_certificate()`](https://bbuchsbaum.github.io/crossform/reference/adapter_version_certificate.md)
+is the seventh name and not a seam: it is how you discharge the
+certification obligation stated at the end of this guide, and it is here
+because a protocol that requires a behaviour has to publish the call
+that performs it.
+
+**The ordinary core** is everything else, and adapters use much more of
+it than of the list above. The four adapters shipped in this package
+call seventeen crossform functions between them and only three —
+[`effect_extractor()`](https://bbuchsbaum.github.io/crossform/reference/effect_extractor.md),
+[`relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit.md)
+and
+[`source_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/source_capabilities.md)
+— come from the extension-only list. The rest are the same
+[`study()`](https://bbuchsbaum.github.io/crossform/reference/study.md),
+[`observation_events()`](https://bbuchsbaum.github.io/crossform/reference/observation_events.md),
+[`condition_space()`](https://bbuchsbaum.github.io/crossform/reference/condition_space.md),
+[`design_model()`](https://bbuchsbaum.github.io/crossform/reference/design_model.md),
+[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md),
+[`volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/volume_domain.md)
+calls a user makes. That is deliberate: an adapter is a *morphism into
+the typed core*, so it builds ordinary crossform objects and hands them
+over. There is no privileged back door, and the absence of one is the
+point.
+
+The rest of this guide takes the six in turn, then builds an adapter.
+
+### `file_matrix_source()` — an out-of-memory store
+
+You supply a path, the two-element `dim` (observations by neural
+features), and optionally an expected `sha256:` revision. You get an
+`effect_source_descriptor`, which is a *description*: no handle is
+opened, and the descriptor is serializable, so it survives being sent to
+a worker.
+
+The constructor checks that the file is exactly
+`offset_bytes + prod(dim) * 8` bytes, and computes the content revision
+itself. If you declare a `stable_revision` that does not match the bytes
+on disk, it is an `effect_contract_error` — two objects disagreeing, not
+a bad argument:
+
+``` r
+
+path <- tempfile(fileext = ".bin")
+writeBin(as.vector(matrix(as.double(1:12), 4L, 3L)), path, size = 8L)
+
+tryCatch(
+  file_matrix_source(
+    path, dim = c(4L, 3L),
+    stable_revision = paste0("sha256:", strrep("0", 64))
+  ),
+  effect_contract_error = conditionMessage
+)
+#> [1] "The matrix file does not match `stable_revision`."
+```
+
+The same check runs again every time the file is reopened for a block
+read (`"Reopenable matrix source has a stale content revision."`), so a
+store that is silently rewritten between planning and execution is
+caught rather than used.
+
+Your own store need not be a flat matrix file. Any function
+`function(features) -> matrix` is accepted as a source by
+[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+when you declare `source_dims`;
+[`file_matrix_source()`](https://bbuchsbaum.github.io/crossform/reference/file_matrix_source.md)
+is the one concrete descriptor crossform ships, and the one whose
+capabilities it can derive for you.
+
+### `source_capabilities()` — what the source can do
+
+This is the declaration the compiler plans against: `block_read`,
+`reopenable`, `thread_safe`, and a `stable_revision` that goes into the
+execution receipt. A source descriptor implies its own capabilities, so
+[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+derives them for you when every source is a descriptor. A source that is
+an opaque closure implies nothing, and you must say.
+
+Three ways to get it wrong, and what each raises:
+
+``` r
+
+weak <- tryCatch(
+  source_capabilities(TRUE, stable_revision = "2026-08-15"),
+  effect_input_error = conditionMessage
+)
+flags <- tryCatch(
+  source_capabilities(block_read = "yes", stable_revision = paste0(
+    "sha256:", strrep("a", 64)
+  )),
+  effect_input_error = conditionMessage
+)
+c(weak_revision = weak, nonlogical_flag = flags)
+#>                                                               weak_revision 
+#> "`stable_revision` must be a sha256 identifier with 64 hexadecimal digits." 
+#>                                                             nonlogical_flag 
+#>                       "Source capability flags must each be TRUE or FALSE."
+```
+
+``` r
+
+# Claiming `reopenable` for a source that has no reopenable descriptor: the
+# claim cannot be honoured, because there is nothing to reopen.
+source_fn <- function(features) matrix(0, 4L, length(features))
+tryCatch(
+  relation(
+    list(`run-1` = source_fn), effects = c("a", "b", "c", "d"),
+    source_dims = list(c(4L, 3L)),
+    capabilities = source_capabilities(
+      block_read = TRUE, reopenable = TRUE,
+      stable_revision = paste0("sha256:", strrep("a", 64))
+    )
+  ),
+  effect_input_error = conditionMessage
+)
+#> [1] "Reopenable source capabilities require a reopenable descriptor."
+```
+
+Two more are worth knowing because they gate execution rather than
+construction. Both come from `.relation_source_capabilities()` in
+`R/capabilities.R`, which every route into the executor passes through:
+
+- omitting capabilities for an opaque source —
+  `"Opaque relation sources require explicit source_capabilities() before execution."`
+- declaring `block_read = FALSE` —
+  `"All relation sources must support bounded block reads."`
+
+Note what class these are. A wrong capability declaration is an
+`effect_input_error` or an `effect_contract_error`, not an
+`effect_capability_refusal`: crossform reserves the refusal class for
+*“the interpretation you asked for cannot be earned from the objects you
+supplied”*, and a source that lies about itself is a bug in the adapter.
+Refusals appear one layer up, at the error channel, and carry
+`$capability` and `$namespace` (see
+[`?crossform_conditions`](https://bbuchsbaum.github.io/crossform/reference/crossform_conditions.md)).
+Both are demonstrated in the worked example below.
+
+### `relation_block()` — the bounded read
+
+`relation_block(x, partition, features)` is where neural values are
+actually read: only the requested feature columns are pulled from the
+source and mapped through that partition’s extractor. It is on the
+extension surface for two reasons — an external executor needs it, and
+it is the observable that proves your source is genuinely block-readable
+rather than a whole-array read wearing a closure.
+
+Feature indices must be unique and in range
+(`"features must be unique valid neural feature indices."`), and the
+partition must name one the relation declares
+(`"partition must identify one relation partition."`). The returned
+matrix always has one row per effect coordinate in effect-space order,
+whatever order your source stored things in.
+
+### `effect_extractor()` — the declared map
+
+An extractor is the matrix `E` in `B = E Y`: effect-by-observation,
+holding no neural data, and therefore reusable across every feature
+block. Supply `map` plus an `estimator` identity string; the constructor
+requires a finite nonempty matrix and names the rows from the effect
+space.
+
+This is the seam for an engine that owns its own estimator. crossform’s
+[`lm_extractor()`](https://bbuchsbaum.github.io/crossform/reference/lm_extractor.md)
+compiles one from a design and a target and is *not* part of the
+developer protocol — maintainer decision 2 in `design/api-tiers.md`
+re-tiered it as advanced, because it is an `extract =` argument value of
+[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+and so reachable by an ordinary user. Use it if it fits; it raises the
+capability refusals `full_rank_design` and `estimable_effects` in
+namespace `relation_fit` when the design cannot identify what was asked
+for. If your package does something
+[`lm_extractor()`](https://bbuchsbaum.github.io/crossform/reference/lm_extractor.md)
+does not, compute `E` yourself and hand it in through
+[`effect_extractor()`](https://bbuchsbaum.github.io/crossform/reference/effect_extractor.md)
+— that is what the fmrireg adapter does with
+[`fmrireg::fmri_ols_fit()`](https://bbuchsbaum.github.io/fmrireg/reference/fmri_ols_fit.html).
+
+### `relation_fit()` — the error channel
+
+`relation_fit(relation, error_models, provenance)` wraps a
+mathematically intact relation in a separate, capability-bearing
+statistical envelope. The relation itself is untouched; what the wrapper
+adds is a per-partition record of what uncertainty the fit can support,
+readable with
+[`relation_fit_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit_capabilities.md).
+
+**Be precise about what an external package can attach today.** The
+`error_models` argument takes crossform’s internal error-model values,
+and no public constructor for one exists: the separable-GLM model is
+built inside
+[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md).
+So from outside the package,
+[`relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit.md)
+attaches an **explicitly absent** channel — `error_models = NULL` —
+which is a real and useful statement, and different from an unstated
+one. It is exactly what
+[`fmrireg_relation()`](https://bbuchsbaum.github.io/crossform/reference/fmrireg_relation.md)
+does (`R/adapter-fmrireg.R`), recording
+`analytic_error_channel = "withheld"` in its provenance. An engine that
+has residuals and wants them honoured routes its raw responses through
+[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
+instead.
+
+The consequence, once declared, is enforced. Every operation that needs
+the channel refuses with a capability whose name is the missing column
+of
+[`relation_fit_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit_capabilities.md),
+in namespace `relation_fit`:
+
+| Capability | Refused operation |
+|----|----|
+| `error_model` | any statistical envelope at all |
+| `residual_blocks` | [`residual_block()`](https://bbuchsbaum.github.io/crossform/reference/residual_block.md), learned metrics |
+| `effect_covariance` | design-side factor of the separable error model |
+| `residual_df` | [`residual_df()`](https://bbuchsbaum.github.io/crossform/reference/residual_df.md), the noise-variance divisor |
+| `separable_error` | the separable second-moment law |
+| `learned_metric_input` | metric learning from residuals |
+| `within_participant_calibration` | analytic within-participant standard errors |
+
+### `as_neurovol()` — writing a result type out
+
+[`as_neurovol()`](https://bbuchsbaum.github.io/crossform/reference/as_neurovol.md)
+is an S3 generic dispatching on `values`, so a package with its own
+result class can teach crossform to write that class to a volume without
+crossform importing it. Register the method the ordinary way —
+`S3method(as_neurovol, my_result)` in your `NAMESPACE` — and it receives
+`mask`, `domain`, `fill`, and `label` unchanged. The generic validates
+nothing, so your method may take different arguments; it is expected to
+return a `NeuroVol` on the space of `mask`. crossform ships the
+numeric-vector method and a `default` that behaves identically.
+
+## A worked adapter
+
+Suppose you maintain `runstore`, a package that keeps one response
+matrix per run in a binary file store and fits its own first-level
+model. This section builds it against the protocol, with synthetic data
+so it runs here.
+
+### The store
+
+Three runs, twenty-four scans, forty features. Eight of the forty carry
+a real `face` effect; the rest are noise. Each run is written to disk in
+R’s column-major order as consecutive doubles — the layout
+[`file_matrix_source()`](https://bbuchsbaum.github.io/crossform/reference/file_matrix_source.md)
+requires.
+
+``` r
+
+n_scans <- 24L
+n_features <- 40L
+runs <- c("run-1", "run-2", "run-3")
+signal_features <- 1:8
+
+condition <- rep(c("face", "house", "tool"), times = 8L)
+design <- stats::model.matrix(~ 0 + factor(condition))
+colnames(design) <- levels(factor(condition))
+design <- cbind(design, drift = as.numeric(scale(seq_len(n_scans))))
+
+store <- file.path(tempdir(), "runstore")
+dir.create(store, showWarnings = FALSE)
+paths <- vapply(runs, function(run) {
+  coefficients <- matrix(
+    rnorm(ncol(design) * n_features, sd = 0.2), ncol(design), n_features,
+    dimnames = list(colnames(design), NULL)
+  )
+  coefficients["face", signal_features] <-
+    coefficients["face", signal_features] + 1.5
+  responses <- design %*% coefficients +
+    matrix(rnorm(n_scans * n_features, sd = 0.5), n_scans, n_features)
+  path <- file.path(store, paste0(run, ".bin"))
+  writeBin(as.vector(responses), path, size = 8L)
+  path
+}, character(1))
+basename(paths)
+#> [1] "run-1.bin" "run-2.bin" "run-3.bin"
+```
+
+### Data-in: sources and capabilities
+
+`runstore_sources()` is the entire storage adapter. Because every source
+is a descriptor,
+[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+will derive the capability record itself — including the content hash
+that lands in the execution receipt.
+
+``` r
+
+runstore_sources <- function(paths, dim) {
+  sources <- lapply(paths, file_matrix_source, dim = dim)
+  names(sources) <- names(paths)
+  sources
+}
+
+sources <- runstore_sources(paths, dim = c(n_scans, n_features))
+c(kind = sources[[1L]]$kind, access = sources[[1L]]$access)
+#>          kind        access 
+#> "file_matrix"  "reopenable"
+```
+
+### Design-in: your own estimator
+
+`runstore` fits its own model, so it computes `E` and hands it in rather
+than calling
+[`lm_extractor()`](https://bbuchsbaum.github.io/crossform/reference/lm_extractor.md).
+Two contrasts are requested on the design’s coefficient axis.
+
+``` r
+
+runstore_extractor <- function(design, targets) {
+  # Your estimator, whatever it is. Here: ordinary least squares, composed
+  # with the requested contrasts, giving the effect-by-observation map E.
+  pseudoinverse <- solve(crossprod(design), t(design))
+  effect_extractor(targets %*% pseudoinverse, estimator = "runstore::ols")
+}
+
+targets <- rbind(
+  `face-house` = c(1, -1, 0, 0),
+  `face-tool` = c(1, 0, -1, 0)
+)
+colnames(targets) <- colnames(design)
+
+extractor <- runstore_extractor(design, targets)
+c(effects = paste(extractor$effects, collapse = ", "),
+  observations = extractor$n_observations)
+#>                 effects            observations 
+#> "face-house, face-tool"                    "24"
+```
+
+### Assembling an ordinary relation
+
+Nothing here is extension-specific:
+[`abstract_domain()`](https://bbuchsbaum.github.io/crossform/reference/abstract_domain.md)
+and
+[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+are core functions a user calls the same way. Recording the adapter and
+its version in `provenance` is the convention every in-tree adapter
+follows.
+
+``` r
+
+domain <- abstract_domain(n_features, id = "runstore-domain")
+
+runstore_relation <- function(paths, design, targets, domain) {
+  relation(
+    runstore_sources(paths, dim = c(nrow(design), domain$n_features)),
+    extract = runstore_extractor(design, targets),
+    domain = domain,
+    provenance = list(
+      adapter = "runstore::runstore_relation",
+      adapter_version = "0.3.1"
+    )
+  )
+}
+
+relation_value <- runstore_relation(paths, design, targets, domain)
+relation_value$partitions
+#> [1] "run-1" "run-2" "run-3"
+relation_value$capabilities[["run-1"]]
+#> <effect_source_capabilities>
+#>   block_read:  yes
+#>   reopenable:  yes
+#>   thread_safe: no
+#>   revision:    sha256:b308043c7d81...
+```
+
+The capability record was derived from the descriptors: `block_read` and
+`reopenable` are true because a file matrix supports both, `thread_safe`
+is false because crossform will not assume it, and the revision is the
+content hash of `run-1.bin`.
+
+### The bounded read
+
+``` r
+
+round(relation_block(relation_value, "run-1", c(1L, 2L, 39L)), 3)
+#>             [,1]  [,2]  [,3]
+#> face-house 1.227 1.973 0.032
+#> face-tool  0.992 1.953 0.156
+```
+
+Three columns were read from a forty-column store. The first two
+features are planted and the last is not, which the numbers show. Rows
+come back in effect-space order regardless of how the store is laid out.
+
+``` r
+
+c(
+  bad_feature = tryCatch(
+    relation_block(relation_value, "run-1", c(1L, 99L)),
+    effect_input_error = conditionMessage
+  ),
+  bad_partition = tryCatch(
+    relation_block(relation_value, "run-9", 1L),
+    effect_input_error = conditionMessage
+  )
+)
+#>                                               bad_feature 
+#> "`features` must be unique valid neural feature indices." 
+#>                                             bad_partition 
+#>       "`partition` must identify one relation partition."
+```
+
+### Error-channel-in
+
+`runstore` computed point estimates and kept no residuals, so it says
+so.
+
+``` r
+
+fit <- relation_fit(
+  relation_value,
+  error_models = NULL,
+  provenance = list(
+    adapter = "runstore::runstore_relation",
+    analytic_error_channel = "withheld"
+  )
+)
+relation_fit_capabilities(fit)[, 1:5]
+#>   partition error_model residual_blocks effect_covariance residual_df
+#> 1     run-1       FALSE           FALSE             FALSE       FALSE
+#> 2     run-2       FALSE           FALSE             FALSE       FALSE
+#> 3     run-3       FALSE           FALSE             FALSE       FALSE
+```
+
+Every statistical capability is `FALSE`, and the refusals follow from
+that rather than from a special case. Asking for the residual degrees of
+freedom returns a refusal carrying the capability that was missing:
+
+``` r
+
+refusal <- catch_refusal(residual_df(fit, "run-1"))
+c(capability = refusal$capability, namespace = refusal$namespace)
+#>     capability      namespace 
+#>  "residual_df" "relation_fit"
+refusal$remedies
+#> [1] "Refit raw observations with `lm_relation_fit()`."
+```
+
+[`sampling_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/sampling_capabilities.md)
+is the ask-before-you-provoke form of the same question: it returns the
+unmet requirements as a value, so an adapter can report them without
+provoking the refusal.
+
+``` r
+
+frame <- compile_frame(
+  regions(ifelse(seq_len(n_features) %in% signal_features,
+    "planted", "background")),
+  domain
+)
+plan <- plan_geometry(
+  fit$relation,
+  at = frame,
+  over = cross_partitions(
+    fit$relation, independence = "independent", generalizes_over = "run"
+  )
+)
+sampling_capabilities(plan, fit)
+#> <effect_sampling_capabilities>
+#>   analytic sampling law: unavailable 
+#>   metric: fixed | partitions: equal | error channel: absent 
+#>   unmet requirements:
+#>   * missing_error_channel - this evidence plan has only a precomputed relation and no error channel. Refit raw observations with `lm_relation_fit()` or supply a validated, identity-bound external error channel; beta matrices alone cannot recover residual uncertainty 
+#>       remedy: Refit raw observations with `lm_relation_fit()`. 
+#>   note: requirements that describe the error channel itself cannot be
+#>         evaluated until one exists, and are not listed.
+```
+
+### An opaque source, and why it needs a declaration
+
+Not every store is a file. If `runstore` gained an in-memory or
+networked backend exposed as a closure, the descriptor — and with it the
+derived capability record — disappears, and the declaration becomes the
+adapter’s job.
+
+``` r
+
+opaque <- function(features) {
+  matrix(rnorm(n_scans * length(features)), n_scans, length(features))
+}
+undeclared <- relation(
+  list(`run-1` = opaque), extract = extractor,
+  source_dims = list(c(n_scans, n_features)), domain = domain
+)
+
+# Constructing the relation is fine; executing it is not.
+tryCatch(relation_fit(undeclared), effect_input_error = conditionMessage)
+#> [1] "Opaque relation sources require explicit `source_capabilities()` before execution."
+```
+
+``` r
+
+declared <- relation(
+  list(`run-1` = opaque), extract = extractor,
+  source_dims = list(c(n_scans, n_features)), domain = domain,
+  capabilities = source_capabilities(
+    block_read = TRUE,
+    stable_revision = paste0("sha256:", strrep("a", 64))
+  )
+)
+relation_fit_capabilities(relation_fit(declared))$error_model
+#> [1] FALSE
+```
+
+In a real adapter the revision must actually identify the bytes your
+source will return — it is what a receipt is checked against later. A
+literal constant like the one above is only acceptable in a vignette.
+
+### It is now an ordinary relation
+
+The point of the protocol is that nothing downstream knows an adapter
+was involved. The plan built above compiles and runs:
+
+``` r
+
+contrast_energy(plan, c(1, 0))
+#> <effect_contrast_view>
+#>   measurements: 2
+#>   contrast:     face-house 1, face-tool 0
+#>  measurement   signed   coherent configuration   total coherence_fraction
+#>      planted  1.51088  2.2786381       0.01542 2.29406             0.9933
+#>   background -0.01807 -0.0001196       0.00255 0.00243                 NA
+#>   coherence_fraction: 1 of 2 valid; NA where coherent and configuration are
+#>     not a nonnegative partition
+```
+
+The planted region reproduces across runs and the background region does
+not, which is the answer the data were built to give.
+
+### Result-out: registering an `as_neurovol()` method
+
+Finally, suppose `runstore` returns its maps in its own class.
+Registering one method teaches crossform to write it out; the method
+delegates to the shipped numeric method rather than reimplementing the
+index arithmetic.
+
+``` r
+
+# In a package this is `S3method(as_neurovol, runstore_map)` in NAMESPACE.
+as_neurovol.runstore_map <- function(values, mask, ...) {
+  as_neurovol(values$statistic, mask, ...)
+}
+
+voxels <- array(FALSE, c(4L, 4L, 3L))
+voxels[2:3, 2:3, 1:2] <- TRUE
+mask <- neuroim2::LogicalNeuroVol(
+  voxels, neuroim2::NeuroSpace(c(4L, 4L, 3L), spacing = c(3, 3, 3))
+)
+volume_domain_value <- neuroim2_volume_domain(mask, id = "runstore-mask")
+
+boxed <- structure(
+  list(statistic = seq_len(volume_domain_value$n_features) /
+    volume_domain_value$n_features),
+  class = "runstore_map"
+)
+written <- as_neurovol(
+  boxed, mask, volume_domain_value, label = "runstore statistic"
+)
+dim(written)
+#> [1] 4 4 3
+round(as.numeric(written[volume_domain_value$feature_ids]), 3)
+#> [1] 0.125 0.250 0.375 0.500 0.625 0.750 0.875 1.000
+```
+
+## What is not part of the protocol
+
+The list above is exhaustive, and the exclusions are deliberate.
+
+**The compiler and the executor are closed.**
+[`plan_geometry()`](https://bbuchsbaum.github.io/crossform/reference/plan_geometry.md),
+[`plan_relation()`](https://bbuchsbaum.github.io/crossform/reference/plan_relation.md),
+and
+[`estimate_relation()`](https://bbuchsbaum.github.io/crossform/reference/estimate_relation.md)
+are user-facing verbs, not extension points. Nothing in `R/compiler.R`,
+`R/execution-driver.R`, `R/task.R`, or `R/storage.R` is reachable, and
+the compiled task IR, the memory plan, and the reduction schedule are
+internal by construction. An adapter supplies inputs and reads outputs;
+it does not schedule work.
+
+**Kernels are closed.** The numerical kernels (`R/kernel.R`,
+`R/measurement-kernel.R`, `R/evidence-sampling-kernel.R`, the crossnobis
+execution driver, and the C++ in `src/`) are not an extension surface at
+any version.
+[`crossnobis()`](https://bbuchsbaum.github.io/crossform/reference/crossnobis.md)
+is a user verb, not a hook into the kernel behind it. Their identity is
+recorded in the execution receipt precisely so that a result can be
+attributed to one; a third-party kernel would make that attribution
+meaningless.
+
+**Everything the tier ledger demotes.** `design/api-tiers.md` moves
+seven exports to internal in the subtraction release — `inner_product`,
+`measurement_space`, `measurement_bridge`, `effect_covariance`,
+`residual_pair_statistics`, `bids_events`, `bids_confounds` — and merges
+`reverse_bridge` into `measurement_bridge`. Two of those were
+developer-tier:
+[`effect_covariance()`](https://bbuchsbaum.github.io/crossform/reference/effect_covariance.md)
+(a design-side factor with no call site anywhere in `R/` outside its own
+file —
+[`relation_fit_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit_capabilities.md)
+already answers the only question anyone asks of it) and
+[`residual_pair_statistics()`](https://bbuchsbaum.github.io/crossform/reference/residual_pair_statistics.md)
+(a compiler-stage accumulator that
+[`plan_crossnobis()`](https://bbuchsbaum.github.io/crossform/reference/plan_crossnobis.md)
+runs internally). Do not build against them.
+
+**Anything reached with `:::`.** If you cannot get there from
+`NAMESPACE`, it is not protocol, and the layering in
+`design/architecture.md` is not a public contract either.
+
+### The gaps, once stated honestly, now closed
+
+The four adapters shipped in this package used to be written partly
+outside the protocol they document.
+`tests/testthat/test-adapter-protocol.R` checks that every crossform
+function an adapter calls is either an export or a layer-1 internal
+(argument checks, message formatting, refusal raising, hashing), and it
+carried a register of twelve calls that were neither — one per place an
+external package would have had to use `:::` or hand-roll a replacement.
+
+**The register is empty.** The twelve fell into four groups, and closing
+each one changed something about the protocol rather than about the
+bookkeeping:
+
+- **fact re-validation** (`.validate_observations()`,
+  `.validate_partition_names()`, `.validate_study()`) — deleted, because
+  none of it was doing work.
+  [`bids_study()`](https://bbuchsbaum.github.io/crossform/reference/bids_study.md)
+  was re-checking an
+  [`observations()`](https://bbuchsbaum.github.io/crossform/reference/observations.md)
+  record it was about to hand to
+  [`study()`](https://bbuchsbaum.github.io/crossform/reference/study.md),
+  which checks it on intake; the refusal now arrives from
+  [`study()`](https://bbuchsbaum.github.io/crossform/reference/study.md),
+  one frame later and in the same words.
+  [`fmridesign_design_model()`](https://bbuchsbaum.github.io/crossform/reference/fmridesign_design_model.md)
+  asks
+  [`study_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/study_capabilities.md)
+  instead: it is the public verb that runs the study validator, so a
+  study proves itself through the published surface. And an adapter
+  checking that its own `partitions` argument is a vector of unique
+  names writes that check itself, as you would.
+- **adapter version pinning** — exported, as
+  [`adapter_version_certificate()`](https://bbuchsbaum.github.io/crossform/reference/adapter_version_certificate.md).
+  This was the one gap whose honest closure was a new name. Two
+  paragraphs below, this guide *obliges* you to certify against
+  installed versions; the refusal that discharges the obligation cannot
+  then be a private helper. Call it first, in your own adapter, exactly
+  as the two shipped compiler adapters do.
+- **external execution of a plan** (`.validate_relation_plan()`,
+  `.planned_observation_sources()`) — rewritten, and this is the seam
+  that changed the most.
+  [`relation_plan_receipts()`](https://bbuchsbaum.github.io/crossform/reference/relation_plan_receipts.md)
+  is the public verb that makes a plan prove itself: it runs the plan
+  validator and hands back the validated per-partition receipts. The
+  planned sources — the study’s readers restricted to the rows censoring
+  retained — are then built in the adapter from the plan’s documented
+  `$study`, `$retained_rows` and `$design_receipts`, with
+  [`source_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/source_capabilities.md)
+  declaring what those derived sources can honestly do. So
+  [`fmrireg_relation()`](https://bbuchsbaum.github.io/crossform/reference/fmrireg_relation.md)
+  *can* now be written outside this package, and `R/adapter-fmrireg.R`
+  is the worked example of how.
+- **spatial provider internals** (`.new_domain()`, `.validate_domain()`,
+  `.same_domain_reference()`, `.normalize_frame()`,
+  `.support_index_from_members()`, `.support_index_membership()`) —
+  moved into the public constructors, where the missing capability
+  turned out to be two arguments. `volume_domain(metadata = )` records
+  what a provider knows and an array does not
+  ([`neuroim2_volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_volume_domain.md)
+  uses it for the hash of the full `neuroim2` space), and because a
+  domain’s geometry signature covers its metadata, two domains that
+  agree on every voxel and disagree about their provenance stay
+  correctly distinct. `additive_frame(members = )` takes the
+  neighborhoods a provider computed and compiles them the way
+  [`compile_frame()`](https://bbuchsbaum.github.io/crossform/reference/compile_frame.md)
+  compiles crossform’s own — applying the normalization law, building
+  the support pattern, returning a frame with an `$index` and the
+  `$specification` you recorded. A provider supplies supports; it does
+  not reimplement what a frame is.
+
+Two of those closures compare a domain or a plan against a *rebuilt* one
+rather than against a recorded signature, which is worth copying: a
+value identical to one the constructor would have produced is a valid
+value, so the agreement check and the validity check are the same check,
+and both are reachable from outside.
+
+The register is a ratchet, not a licence: the test fails on a new
+unregistered internal call *and* on a registered one that has been
+removed. It is empty now, so any new entry is a request for a
+justification. If you need a seam that is not here, that is still the
+ticket to open.
+
+## The compatibility promise
+
+`design/ingestion-contract.md` §13 is the binding statement. In short:
+the
+[`effect_extractor()`](https://bbuchsbaum.github.io/crossform/reference/effect_extractor.md),
+[`lm_extractor()`](https://bbuchsbaum.github.io/crossform/reference/lm_extractor.md),
+and
+[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
+APIs remain valid for explicit linear designs and keep their honest,
+narrower capabilities; a future ingestion layer may reimplement them
+through shared internals but must not silently grant symbolic provenance
+or change their numerical estimand.
+[`plan_geometry()`](https://bbuchsbaum.github.io/crossform/reference/plan_geometry.md)
+continues to consume the existing relation-fit output, and no parallel
+downstream engine is introduced alongside it. The promise binds
+regardless of tier —
+[`lm_extractor()`](https://bbuchsbaum.github.io/crossform/reference/lm_extractor.md)
+moving from developer to advanced does not weaken it.
+
+§12 of the same document states the boundary the other way round: *the
+conformance protocol, not a particular package, is the core boundary*.
+Any compiler may participate if it emits the same portable receipt and
+passes
+[`compiler_conformance()`](https://bbuchsbaum.github.io/crossform/reference/compiler_conformance.md).
+The core is not BIDS-shaped, and no adapter’s dependency is mandatory —
+every one of them is in `Suggests:`.
+
+Two obligations follow for you. Certify against *installed* package
+versions and record them with
+[`adapter_version_certificate()`](https://bbuchsbaum.github.io/crossform/reference/adapter_version_certificate.md),
+as
+[`fmridesign_design_model()`](https://bbuchsbaum.github.io/crossform/reference/fmridesign_design_model.md)
+and
+[`fmrireg_relation()`](https://bbuchsbaum.github.io/crossform/reference/fmrireg_relation.md)
+do; source-checkout agreement is not evidence, and a hand-rolled version
+check that gets the capability name or the namespace wrong is invisible
+to every caller branching on
+[`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md).
+And declare capabilities you can honour: crossform’s refusals are only
+as good as the declarations they are computed from, and a source that
+overstates `thread_safe`, or a fit that claims an error channel it does
+not have, converts a principled refusal into a wrong number.
+
+## Where to look next
+
+- `design/api-tiers.md` — the tier ledger; every export’s tier,
+  disposition, and the reasoning behind it.
+- `design/ingestion-contract.md` — §12 external compiler adapters, §13
+  compatibility, §10 required refusals.
+- `design/architecture.md` — the layering the internals obey. Read for
+  orientation, not as a contract.
+- `R/adapter-fmrireg.R`, `R/adapter-fmridesign.R`, `R/adapter-bids.R`,
+  `R/neuroim2-adapter.R` — the four worked examples in the tree.
+- `tests/testthat/test-adapter-protocol.R` — the executable statement of
+  this guide.

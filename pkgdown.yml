@@ -1,0 +1,20 @@
+pandoc: 3.8.3
+pkgdown: 2.2.1
+pkgdown_sha: ~
+articles:
+  conservative-frames: conservative-frames.html
+  correlation-distance-policy: correlation-distance-policy.html
+  crossform-extending: crossform-extending.html
+  evidence-pairing: evidence-pairing.html
+  failure-gallery: failure-gallery.html
+  from-observations: from-observations.html
+  from-rmvpa: from-rmvpa.html
+  interpreting-results: interpreting-results.html
+  introduction: introduction.html
+  neuroim2-data: neuroim2-data.html
+  novelty: novelty.html
+  population-form: population-form.html
+last_built: 2026-08-21T16:31Z
+urls:
+  reference: https://bbuchsbaum.github.io/crossform/reference
+  article: https://bbuchsbaum.github.io/crossform/articles

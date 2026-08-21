@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 340" width="820" height="340" role="img" aria-labelledby="cf-title cf-desc">
+  <title id="cf-title">How crossform compiles one geometry plan and reads several views from it</title>
+  <desc id="cf-desc">Three declarations — a relation of run-by-condition effects, a measurement frame of searchlights, regions, voxels or whole brain, and a pairing saying which runs must generalize — are compiled by plan_geometry() into one geometry plan. That plan is read by contrast_energy(), rdm(), rsa() and crossnobis(). A side branch sends the plan to rdm_sampling_covariance(), which returns standard errors or a classed refusal naming what is missing.</desc>
+  <defs>
+    <marker id="cf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8a8f98"/>
+    </marker>
+    <style>
+      .cf-box   { fill: #e7e9ed; fill-opacity: 0.95; stroke: #8a8f98; stroke-width: 1.2; }
+      .cf-plan  { fill: #dbdee4; fill-opacity: 0.95; stroke: #6e7681; stroke-width: 1.6; }
+      .cf-line  { stroke: #8a8f98; stroke-width: 1.4; fill: none; }
+      .cf-code  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; fill: #3b3f46; }
+      .cf-sub   { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 12px; fill: #3b3f46; }
+      .cf-cap   { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 12px; fill: #4a4f57; }
+      .cf-name  { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #3b3f46; }
+    </style>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="819" height="339" rx="10" fill="#f4f5f7" fill-opacity="0.96" stroke="#d4d7dd"/>
+
+  <!-- inputs -->
+  <rect class="cf-box" x="16" y="18" width="198" height="74" rx="7"/>
+  <text class="cf-code" x="30" y="42">relation()</text>
+  <text class="cf-sub"  x="30" y="61">run × condition effect</text>
+  <text class="cf-sub"  x="30" y="78">estimates, one per run</text>
+
+  <rect class="cf-box" x="16" y="104" width="198" height="74" rx="7"/>
+  <text class="cf-code" x="30" y="128">compile_frame()</text>
+  <text class="cf-sub"  x="30" y="147">searchlights · regions ·</text>
+  <text class="cf-sub"  x="30" y="164">voxels · whole brain</text>
+
+  <rect class="cf-box" x="16" y="190" width="198" height="74" rx="7"/>
+  <text class="cf-code" x="30" y="214">cross_partitions()</text>
+  <text class="cf-sub"  x="30" y="233">which runs must</text>
+  <text class="cf-sub"  x="30" y="250">generalize</text>
+
+  <!-- inputs -> plan_geometry -->
+  <path class="cf-line" d="M214 55 H234 V141"/>
+  <path class="cf-line" d="M214 227 H234 V141"/>
+  <path class="cf-line" d="M214 141 H248" marker-end="url(#cf-arrow)"/>
+
+  <rect class="cf-plan" x="254" y="107" width="152" height="68" rx="7"/>
+  <text class="cf-code" x="266" y="138">plan_geometry()</text>
+  <text class="cf-sub"  x="266" y="158">compiles once</text>
+
+  <path class="cf-line" d="M406 141 H430" marker-end="url(#cf-arrow)"/>
+
+  <rect class="cf-plan" x="436" y="107" width="152" height="68" rx="7"/>
+  <text class="cf-name" x="448" y="137">geometry plan</text>
+  <text class="cf-sub"  x="448" y="157">the estimand</text>
+
+  <!-- plan -> views -->
+  <path class="cf-line" d="M588 141 H606"/>
+  <path class="cf-line" d="M606 29 V167"/>
+  <path class="cf-line" d="M606 29 H618"  marker-end="url(#cf-arrow)"/>
+  <path class="cf-line" d="M606 75 H618"  marker-end="url(#cf-arrow)"/>
+  <path class="cf-line" d="M606 121 H618" marker-end="url(#cf-arrow)"/>
+  <path class="cf-line" d="M606 167 H618" marker-end="url(#cf-arrow)"/>
+
+  <rect class="cf-box" x="624" y="10" width="180" height="38" rx="6"/>
+  <text class="cf-code" x="636" y="34">contrast_energy()</text>
+
+  <rect class="cf-box" x="624" y="56" width="180" height="38" rx="6"/>
+  <text class="cf-code" x="636" y="80">rdm()</text>
+
+  <rect class="cf-box" x="624" y="102" width="180" height="38" rx="6"/>
+  <text class="cf-code" x="636" y="126">rsa()</text>
+
+  <rect class="cf-box" x="624" y="148" width="180" height="38" rx="6"/>
+  <text class="cf-code" x="636" y="172">crossnobis()</text>
+
+  <!-- uncertainty branch -->
+  <path class="cf-line" d="M512 175 V222" marker-end="url(#cf-arrow)"/>
+
+  <rect class="cf-box" x="396" y="228" width="222" height="62" rx="7"/>
+  <text class="cf-code" x="408" y="253" font-size="12">rdm_sampling_covariance()</text>
+  <text class="cf-sub"  x="408" y="273">only if the fit earns it</text>
+
+  <path class="cf-line" d="M618 259 H638" marker-end="url(#cf-arrow)"/>
+
+  <rect class="cf-box" x="644" y="228" width="160" height="62" rx="7"/>
+  <text class="cf-sub" x="656" y="250">standard errors, or</text>
+  <text class="cf-sub" x="656" y="267">a refusal naming</text>
+  <text class="cf-sub" x="656" y="284">the missing input</text>
+
+  <text class="cf-cap" x="16" y="312">One fitted geometry, many questions. Searchlights, regions, voxels and whole-brain supports are all “measurements”:</text>
+  <text class="cf-cap" x="16" y="330">every view above reports one number per measurement.</text>
+</svg>

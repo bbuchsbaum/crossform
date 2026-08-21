@@ -1,0 +1,1291 @@
+# crossform
+
+Ask a task-fMRI dataset four questions from one fit, and find out what
+*kind* of effect you found.
+
+![Effects, frame, and pairing compile into one geometry plan, which four
+view functions then read.](reference/figures/crossform-overview.svg)
+
+Effects, frame, and pairing compile into one geometry plan, which four
+view functions then read.
+
+You declare the condition effects, the measurements you want answers at,
+and which runs must generalize. That compiles once into a **geometry
+plan**, which records the quantity you are estimating before any brain
+data is read. Contrasts, RDMs, RSA, and crossnobis distances are queries
+against it.
+
+A **measurement** is a spatial unit: a searchlight, a region, a voxel,
+or the whole brain. Every result has one row per measurement.
+
+## Five lines to a first result
+
+``` r
+
+library(crossform)
+
+example <- example_fmri_effects()   # 4 conditions, 4 runs, 280 searchlights
+
+plan <- plan_geometry(
+  example$fit$relation,
+  at   = example$frame,
+  over = cross_partitions(
+    example$fit$relation,
+    independence     = "independent",
+    generalizes_over = "run"
+  )
+)
+
+effect <- contrast_energy(plan, example$contrast)
+plot(effect,
+  highlight       = example$truth$signal_measurements,
+  highlight_label = "planted signal"
+)
+```
+
+![Left: every searchlight in the coherent/configuration plane, on equal
+axes, with two arms — one along each axis. Right: total contrast energy
+along the searchlight index. In both panels the planted searchlights
+carry a black ring and a sign color, and everything else is plain
+gray.](reference/figures/readme-contrast-energy.png)
+
+Left: every searchlight in the coherent/configuration plane, on equal
+axes, with two arms — one along each axis. Right: total contrast energy
+along the searchlight index. In both panels the planted searchlights
+carry a black ring and a sign color, and everything else is plain gray.
+
+The fixture plants two animate-versus-inanimate blocks of 19 voxels
+each, at opposite ends of the volume, with the same per-voxel amplitude.
+In one the sign alternates between neighboring voxels, so the block’s
+average pattern nearly cancels. In the other every voxel shifts the same
+way. The analysis is not told where either is; `highlight` only colors
+the answer afterwards.
+
+The right panel is the whole map. The 104 largest energies in it are
+exactly the 104 searchlights that touch a planted block, and the largest
+energy anywhere else is `0.03`, against `4.10` at the peak. The rest
+lies *on* zero rather than above it, 45% of it below, because
+crossvalidated energy is centered at zero under the null and negatives
+are kept rather than clipped. That band is the noise floor itself. The
+left panel splits the same energy in two, and the two blocks separate:
+one arm climbs the vertical axis, the other runs out along the
+horizontal.
+
+Every object prints as itself.
+
+``` r
+
+effect
+#> <effect_contrast_view>
+#>   measurements: 280
+#>   contrast:     face 0.5, body 0.5, house -0.5, tool -0.5
+#>  measurement    signed   coherent configuration      total coherence_fraction
+#>            1 -0.106479  0.0070182    -6.660e-03  0.0003580                 NA
+#>            2 -0.014663 -0.0022348     1.516e-02  0.0129223                 NA
+#>            3  0.058211  0.0012974    -3.917e-03 -0.0026194                 NA
+#>            4  0.019986 -0.0005859    -6.015e-05 -0.0006461                 NA
+#>            5  0.029592 -0.0002906     1.334e-02  0.0130512                 NA
+#>            6 -0.003182 -0.0009076     4.846e-03  0.0039387                 NA
+#>   ... 274 more measurements
+#>   coherence_fraction: 143 of 280 valid; NA where coherent and configuration
+#>     are not a nonnegative partition
+
+peak <- which.max(effect$total)
+
+round(c(
+  searchlight   = peak,
+  signed        = effect$signed[peak],
+  total         = effect$total[peak],
+  coherent      = effect$coherent[peak],
+  configuration = effect$configuration[peak]
+), 3)
+#>   searchlight        signed         total      coherent configuration
+#>       144.000        -0.052         4.103        -0.001         4.104
+```
+
+The last line of that print is not boilerplate. `coherence_fraction` is
+`NA` in those first rows because the two components do not form a
+nonnegative partition there, and a share of a negative quantity is not a
+share of anything.
+
+One line in the first block deserves a second look.
+[`cross_partitions()`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md)
+pairs every partition with every other one, once. `generalizes_over`
+names the axis those partitions *are* — runs, sessions, tasks — and
+binds it into the plan’s identity, because cross-run and cross-session
+reproduction are different quantities at the same fold count; if your
+partitions are sessions, pass `"session"`.
+`independence = "independent"` declares that the partitions’ estimation
+errors are independent, which separate runs or sessions with separate
+noise satisfy; omit it and you keep a point estimate but earn neither
+cross-generalized nor analytic-uncertainty capabilities. See
+[`?cross_partitions`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md);
+one tier out,
+[`?pairing`](https://bbuchsbaum.github.io/crossform/reference/pairing.md)
+covers nested or directed designs.
+
+## Now change the question. No refit.
+
+`plan` holds an identity, not a matrix.
+
+``` r
+
+plan
+#> <effect_geometry_plan>
+#>   effects:      4 x 4
+#>   measurements: 280
+#>   features:     280
+#>   metric:       implicit identity
+#>   generalizes:  6 partition pairs over run, endpoints independent
+#>   execution:    query-first, in memory
+#>   state:        nothing computed yet
+#>   next:         contrast_energy(plan, weights), rdm(plan), rsa(plan)
+```
+
+Save it with the analysis record; it names the conditions, domain,
+frame, run pairs, metric, and units. Nothing is computed until a view
+asks, and `print(plan, detail = TRUE)` adds the compiler’s own account
+of how it will do it.
+
+``` r
+
+distances <- rdm(plan)
+plot(distances, measurement = peak)
+```
+
+![Signed squared distances at searchlight 144: the two animate
+conditions and the two inanimate conditions sit near zero apart, every
+animate-inanimate pair near four.](reference/figures/readme-rdm.png)
+
+Signed squared distances at searchlight 144: the two animate conditions
+and the two inanimate conditions sit near zero apart, every
+animate-inanimate pair near four.
+
+At searchlight 144, face and body are `-0.004` apart and house and tool
+`0.009`, while every animate-versus-inanimate pair is above `3.8`.
+Nothing asked for that block structure.
+
+``` r
+
+category <- rsa(plan, models = list(category = example$model_rdm))
+dim(category$coefficients)
+#> [1] 280   2
+```
+
+Linear RSA against a model RDM, from the same plan: an intercept and the
+model.
+
+``` r
+
+one_pair <- rdm(plan, pairs = rbind(c("face", "house")))
+dim(one_pair$values)
+#> [1] 280   1
+```
+
+One of the six pairs; the other five are never materialized. With 100
+conditions, three of the 4,950 pairs cost three pairs.
+
+[`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md)
+reports $`d_{ij} = G_{ii} + G_{jj} - 2G_{ij}`$: under cross-run pairing
+a signed crossvalidated squared Euclidean distance, and squared
+Mahalanobis (crossnobis) once you supply a fixed neural metric. It is
+deliberately not `1 - Pearson correlation`; see the
+[correlation-distance
+policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html),
+or
+[`vignette("correlation-distance-policy")`](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md)
+offline.
+
+## What kind of effect is it?
+
+That left panel is the part that is hard to get elsewhere. A
+searchlight’s reproducible energy splits in two:
+
+- **`coherent`** is the energy carried by the searchlight’s
+  frame-weighted average pattern, which is the familiar univariate
+  story;
+- **`configuration`** is the reproducible spatial pattern beyond that
+  mean;
+- `coherent + configuration = total`, exactly, at every measurement,
+  which is why the dashed guides are lines of constant total. The panel
+  is drawn on equal axes so those guides really do run at slope -1.
+
+So you can say how much of an effect survives once its regional mean is
+accounted for, without a second analysis and without discarding either
+part.
+
+The fastest way to see it is to ask the same question of three regions
+instead of 280 searchlights. Nothing changes but the frame.
+
+``` r
+
+truth  <- example$truth
+labels <- rep("elsewhere", example$domain$n_features)
+labels[truth$planted_features] <- "pattern block"
+labels[truth$mean_features]    <- "mean-shift block"
+
+region_plan <- plan_geometry(
+  example$fit$relation,
+  at   = compile_frame(regions(labels), example$domain),
+  over = cross_partitions(
+    example$fit$relation,
+    independence = "independent", generalizes_over = "run"
+  )
+)
+contrast_energy(region_plan, example$contrast)
+#> <effect_contrast_view>
+#>   measurements: 3
+#>   contrast:     face 0.5, body 0.5, house -0.5, tool -0.5
+#>       measurement  signed  coherent configuration    total coherence_fraction
+#>         elsewhere 0.01205 0.0001184      0.002417 0.002535            0.04669
+#>  mean-shift block 2.01677 4.0671067     -0.006716 4.060391                 NA
+#>     pattern block 0.51791 0.2678235      3.808338 4.076161            0.06570
+#>   coherence_fraction: 2 of 3 valid; NA where coherent and configuration are
+#>     not a nonnegative partition
+```
+
+The two blocks reproduce almost exactly the same total, `4.06` and
+`4.08`, and the split is opposite: the mean-shift block puts all of it
+in `coherent`, the pattern block puts 93% of it in `configuration`, and
+the rest of the brain reproduces `0.003`. That is the central claim, in
+three rows. The mean-shift block’s fraction is not reported because its
+configuration remainder came out very slightly negative, which is the
+honest answer for a block that has no pattern beyond its mean.
+
+Back at searchlight resolution: every one of the 52 searchlights
+touching the pattern block carries more configuration than coherent
+energy, and the largest coherent energy among them is `0.33` against
+`4.10` of configuration. The 52 touching the mean-shift block reach
+`4.01` of coherent energy while their configuration never exceeds
+`1.27`.
+
+`signed`, back in that first table, is a first moment: the ordinary
+contrast of the region-average pattern, in your effect’s units and sign.
+The energies are second moments, squared and crossvalidated. So `signed`
+sees only the coherent half — which is exactly what separates the two
+blocks.
+
+``` r
+
+round(as.data.frame(effect)[c(144, 137),
+  c("signed", "coherent", "configuration", "total")], 3)
+#>     signed coherent configuration total
+#> 144 -0.052   -0.001         4.104 4.103
+#> 137  2.003    4.011         0.004 4.015
+```
+
+Two searchlights, one from each block, reproducing the same energy.
+Searchlight 137 is loud in a signed map. Searchlight 144 — the strongest
+measurement in the whole volume — has a signed contrast of `-0.052`,
+smaller than the largest signed value anywhere outside the planted
+blocks (`0.154`), so a signed map ranks the best result in the volume
+below noise.
+
+Most toolboxes ask you to choose first: remove the regional mean and the
+coherent half is gone, keep it and the two are summed into one number.
+[Reading the
+results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html)
+([`vignette("interpreting-results")`](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md))
+covers the traps in the coherent share.
+
+## Your own data, the same five lines
+
+Everything above the blank line below is your data. Everything under it
+is the opener again, unchanged. It runs as written.
+
+``` r
+
+set.seed(1)
+conditions <- c("face", "house", "cat", "chair")
+
+mask  <- array(TRUE, c(8, 8, 6))                       # substitute your mask
+dom   <- volume_domain(mask, spacing = c(3, 3, 3))
+frame <- compile_frame(searchlights(radius = 4), dom)
+
+# Substitute your own: a trial-by-voxel beta series and its design table.
+# Twelve voxels here carry the same face-minus-house pattern in every run,
+# alternating in sign so the regional mean stays near zero.
+planted <- array(FALSE, dim(mask))
+planted[3:4, 3:5, 3:4] <- TRUE
+pattern <- rep(c(3, -3), length.out = sum(planted))
+
+design <- expand.grid(trial = 1:3, condition = conditions,
+                      run = paste0("run", 1:4), stringsAsFactors = FALSE)
+series <- matrix(rnorm(nrow(design) * sum(mask)), nrow(design), sum(mask))
+is_face  <- design$condition == "face"
+is_house <- design$condition == "house"
+series[is_face,  planted[mask]] <- series[is_face,  planted[mask]] +
+  rep(pattern, each = sum(is_face))
+series[is_house, planted[mask]] <- series[is_house, planted[mask]] -
+  rep(pattern, each = sum(is_house))
+
+by_run    <- split(seq_len(nrow(design)), design$run)
+indicator <- function(rows) {
+  x <- stats::model.matrix(~ 0 + factor(design$condition[rows], conditions))
+  `colnames<-`(x, conditions)
+}
+targets <- diag(length(conditions))
+dimnames(targets) <- list(conditions, conditions)
+
+own_fit <- lm_relation_fit(
+  lapply(by_run, function(rows) series[rows, , drop = FALSE]),
+  design = lapply(by_run, indicator), effects = targets, domain = dom
+)
+own_plan <- plan_geometry(own_fit$relation, at = frame, over = cross_partitions(
+  own_fit$relation, independence = "independent", generalizes_over = "run"
+))
+
+own_effect <- contrast_energy(own_plan, c(face = 1, house = -1, cat = 0, chair = 0))
+touching   <- which(Matrix::rowSums(frame$weights[, planted[mask], drop = FALSE]) > 0)
+plot(own_effect, highlight = touching, highlight_label = "planted signal")
+```
+
+[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
+fits the condition estimates from the trials rather than taking them as
+given, which is what keeps the residual error channel the standard
+errors below need. Did the searchlights that actually touch the planted
+voxels win?
+
+``` r
+
+ranked <- order(own_effect$total, decreasing = TRUE)
+
+c(
+  searchlights          = nrow(frame$index),
+  touching_signal       = length(touching),
+  top_energies_touching = sum(ranked[seq_along(touching)] %in% touching),
+  peak_energy           = round(max(own_effect$total), 2),
+  largest_elsewhere     = round(max(own_effect$total[-touching]), 2)
+)
+#>          searchlights       touching_signal top_energies_touching
+#>                384.00                 44.00                 44.00
+#>           peak_energy     largest_elsewhere
+#>                 27.68                  0.56
+```
+
+The 44 largest energies in the map are exactly the 44 searchlights that
+touch the planted voxels. All 44 are configuration-dominated, and 59% of
+the rest fall below zero — the null here has mean `-0.0002` and is
+skewed right, so more than half of it lands under the line.
+
+Already have condition means instead of trials?
+[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+takes them directly, one condition-by-voxel matrix per run with rows
+named by condition, and the other lines do not change:
+
+``` r
+
+means <- lapply(by_run, function(rows) {
+  t(vapply(conditions, function(condition) {
+    colMeans(series[rows[design$condition[rows] == condition], , drop = FALSE])
+  }, numeric(sum(mask))))
+})
+
+betas_only <- relation(means, effects = effect_space(conditions), domain = dom)
+betas_plan <- plan_geometry(betas_only, at = frame, over = cross_partitions(
+  betas_only, independence = "independent", generalizes_over = "run"
+))
+
+max(abs(own_effect$total -
+  contrast_energy(betas_plan, c(face = 1, house = -1, cat = 0, chair = 0))$total))
+#> [1] 1.065814e-14
+```
+
+Same estimates, same energies. What the averaged route cannot keep is
+the error channel, which the next section asks for.
+
+Swap `searchlights(radius = 4)` for `regions(labels)`,
+[`voxelwise()`](https://bbuchsbaum.github.io/crossform/reference/voxelwise.md),
+or
+[`whole_brain()`](https://bbuchsbaum.github.io/crossform/reference/whole_brain.md),
+and
+[`volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/volume_domain.md)
+for `abstract_domain(n_features)` when the features are not a volume.
+`neuroim2` users have the optional adapter —
+[`neuroim2_volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_volume_domain.md),
+[`neuroim2_searchlights()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_searchlights.md),
+and
+[`as_neurovol()`](https://bbuchsbaum.github.io/crossform/reference/as_neurovol.md),
+which keep stable full-volume indices and map results back without
+interpolation; see
+[`vignette("neuroim2-data")`](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.md).
+Starting from scan responses and an event table rather than betas? Use
+[`study()`](https://bbuchsbaum.github.io/crossform/reference/study.md),
+[`plan_relation()`](https://bbuchsbaum.github.io/crossform/reference/plan_relation.md),
+and
+[`estimate_relation()`](https://bbuchsbaum.github.io/crossform/reference/estimate_relation.md),
+the ingestion spine that
+[from-observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
+([`vignette("from-observations")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md))
+walks end to end.
+
+### Reading a map without ground truth
+
+`highlight` is optional, and on real data you will not have it — omit it
+and the picture still works. In the right panel the band around zero
+*is* the noise floor, because crossvalidated energy is centered there
+when nothing reproduces; candidates are the measurements standing clear
+of it.
+
+What the picture does not give you is a threshold or a p-value.
+`crossform` does no spatial and no group inference (see [Status and
+scope](#status-and-scope)), and a within-measurement standard error
+needs the residual channel, so fit with
+[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
+as above, or take the
+[from-observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
+route
+([`vignette("from-observations")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md)),
+rather than importing betas. [Reading a map without ground
+truth](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth)
+is the longer version.
+
+## Uncertainty, only when it is earned
+
+[`example_fmri_effects()`](https://bbuchsbaum.github.io/crossform/reference/example_fmri_effects.md)
+was built by
+[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md),
+so it kept its residual channel and can be asked for standard errors.
+
+``` r
+
+round(sqrt(sampling_covariance(
+  rdm_sampling_covariance(plan, example$fit, target = "null", at = peak)
+)), 4)
+#>  face - body face - house  face - tool body - house  body - tool house - tool
+#>       0.0142       0.0142       0.0142       0.0142       0.0142       0.0142
+```
+
+These are within-searchlight standard errors under a declared
+equal-partition, fixed-metric, separable error model, not a random-field
+model, a confidence interval, or group inference. The residual
+covariance behind them is estimated, not known, so
+[`print()`](https://rdrr.io/r/base/print.html) on the covariance object
+reports the residual degrees of freedom and the number of residual
+directions the searchlight actually spends variance on — and the call
+refuses outright when there are too few of the first for the second.
+
+Your own fit above earns them too, because
+[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
+kept its residuals. Ask the same of the condition-means relation beside
+it and the answer is an object that names what is missing and how to
+earn it.
+
+``` r
+
+catch_refusal(
+  rdm_sampling_covariance(betas_plan, betas_only, target = "null", at = 1L)
+)
+#> <effect_capability_refusal>
+#>   capability:  sampling_covariance
+#>   namespace:   evidence_sampling
+#>   reasons:
+#>     - missing_error_channel
+#>   remedies:
+#>     - Refit raw observations with `lm_relation_fit()`.
+#>   state:       refused; no partial result was produced
+```
+
+Beta matrices hold no residuals and no residual degrees of freedom, and
+the six run pairs share run estimates, so their spread is not a standard
+error either. `sampling_capabilities(plan, example$fit)` answers the
+admission question before you provoke it, and the [failure
+gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html)
+([`vignette("failure-gallery")`](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md))
+shows six realistic errors the package guards against.
+
+## Why it is different
+
+- **One fitted geometry, many questions.** A contrast map and an RDM at
+  the same searchlights come from the same estimates by construction,
+  and a second question costs a query rather than a refit.
+- **Generalization is part of what you estimated, not a fold count.**
+  The declared axis is bound into the plan’s identity, so the plan says
+  which quantity you ran; block size and storage change only the
+  execution record.
+- **The novelty is architectural.** Not RSA, crossnobis, or the analytic
+  covariance formula, which are established, but that contrast energy,
+  squared-distance RDMs, fixed linear RSA, and ordered cross-axis
+  hypotheses are all queries against one typed cross-partition form.
+  [What is novel in
+  crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
+  ([`vignette("novelty")`](https://bbuchsbaum.github.io/crossform/articles/novelty.md))
+  is the ledger separating what is demonstrated from what is still
+  gated.
+
+## What is core, and what is not
+
+Every line of R executed above is **core**. That is the whole point of
+the tier: an ordinary representational analysis finishes without
+reaching past it, and the [reference
+index](https://bbuchsbaum.github.io/crossform/reference/index.html) is
+grouped in the same order this README is.
+
+- **Core** (21 functions) —
+  [`example_fmri_effects()`](https://bbuchsbaum.github.io/crossform/reference/example_fmri_effects.md),
+  [`effect_space()`](https://bbuchsbaum.github.io/crossform/reference/effect_space.md),
+  [`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+  and
+  [`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md),
+  the two domain and four frame constructors with
+  [`compile_frame()`](https://bbuchsbaum.github.io/crossform/reference/compile_frame.md),
+  [`cross_partitions()`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md),
+  [`plan_geometry()`](https://bbuchsbaum.github.io/crossform/reference/plan_geometry.md),
+  the views
+  [`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md)
+  / [`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md) /
+  [`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md),
+  the three sampling-covariance functions,
+  [`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md),
+  and
+  [`compute_policy()`](https://bbuchsbaum.github.io/crossform/reference/compute_policy.md).
+  Everything this README executes is core-tier, and
+  `tests/testthat/test-readme-surface.R` holds it that way.
+- **Core (ingestion)** (20 more) —
+  [`study()`](https://bbuchsbaum.github.io/crossform/reference/study.md),
+  [`plan_relation()`](https://bbuchsbaum.github.io/crossform/reference/plan_relation.md),
+  [`estimate_relation()`](https://bbuchsbaum.github.io/crossform/reference/estimate_relation.md)
+  and the typed-facts spine, for arriving with scan responses and an
+  event table rather than betas. A user who starts from betas meets none
+  of it;
+  [`vignette("from-observations")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md)
+  is its narrative.
+- **Advanced** — explicit geometry queries and custom bilinear
+  operators, frame algebra and conservation certificates, fixed and
+  learned metrics,
+  [`crossnobis()`](https://bbuchsbaum.github.io/crossform/reference/crossnobis.md),
+  error-channel and residual readers, and numerical-agreement contracts.
+  Specialist tools. The core path never needs them, and the matched-pair
+  (ER-RSA) family inside this tier is explicitly provisional.
+- **Coupling and measurement — experimental, small-node only.**
+  [`measurement_form()`](https://bbuchsbaum.github.io/crossform/reference/measurement_form.md),
+  [`coupling()`](https://bbuchsbaum.github.io/crossform/reference/coupling.md),
+  the connectivity readings, and tomography relate two sets of
+  measurements to each other rather than scoring one. The API may
+  change. The tier is scale-gated and the package refuses brain-scale
+  claims here: a request whose dense payload exceeds the version 0.1
+  small-node limit of 256 MiB is refused outright rather than
+  approximated, with the remedy “use the support-local geometry plan;
+  brain-scale measurement tomography is not yet exported.”
+  [`vignette("evidence-pairing")`](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md)
+  is its narrative.
+- **Adapters** —
+  [`neuroim2_volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_volume_domain.md),
+  [`neuroim2_searchlights()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_searchlights.md),
+  [`as_neurovol()`](https://bbuchsbaum.github.io/crossform/reference/as_neurovol.md),
+  [`bids_study()`](https://bbuchsbaum.github.io/crossform/reference/bids_study.md),
+  [`fmridesign_design_model()`](https://bbuchsbaum.github.io/crossform/reference/fmridesign_design_model.md),
+  [`fmrireg_relation()`](https://bbuchsbaum.github.io/crossform/reference/fmrireg_relation.md).
+  Every one of those dependencies is optional, and the core is not
+  shaped by any of them.
+- **For extension packages** — five sanctioned entry points for handing
+  data, a design, and an error channel into the core; see
+  [`vignette("crossform-extending")`](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.md).
+  Not an end user’s surface.
+
+**Population (forthcoming).** A population layer — mass-preserving
+transport of per-subject conservative geometry — is specified in
+[`design/population-form-contract.md`](https://bbuchsbaum.github.io/crossform/design/population-form-contract.md)
+and under construction. Until it lands, `crossform` does no group
+inference at all.
+
+## Install
+
+The repository is not yet public and the package is on neither CRAN nor
+R-universe, so today the route is a local checkout. Build the vignettes
+while you install —
+[`?crossform`](https://bbuchsbaum.github.io/crossform/reference/crossform-package.md)
+and everything under “Where next” reaches them through
+[`vignette()`](https://rdrr.io/r/utils/vignette.html), and an install
+without them leaves those calls dead.
+
+``` r
+
+remotes::install_local(".", build_vignettes = TRUE)
+```
+
+Or the same thing without `remotes`, from a shell in the checkout:
+
+``` sh
+R CMD build .
+R CMD INSTALL crossform_*.tar.gz
+```
+
+Once published,
+`remotes::install_github("bbuchsbaum/crossform", build_vignettes = TRUE)`
+and the R-universe repository `https://bbuchsbaum.r-universe.dev` become
+the supported routes.
+
+## Where next
+
+Every article below is also an installed vignette, so
+`vignette("<name>")` works offline once you have installed with
+vignettes.
+
+- [Introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.html)
+  ·
+  [`vignette("introduction")`](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
+  — the entry point, from a ready relation to standard errors.
+- [Reading the
+  results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html)
+  ·
+  [`vignette("interpreting-results")`](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md)
+  — what each column means, and three interpretive traps.
+- [Coming from
+  rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html)
+  ·
+  [`vignette("from-rmvpa")`](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.md)
+  — how the familiar objects map onto this vocabulary.
+- [Fit condition effects from
+  observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
+  ·
+  [`vignette("from-observations")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md)
+  — scan responses, events, confounds, censoring.
+- [neuroim2
+  data](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.html)
+  ·
+  [`vignette("neuroim2-data")`](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.md)
+  — `NeuroVol` and `NeuroVec` in, brain maps out.
+- [Evidence
+  pairing](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html)
+  ·
+  [`vignette("evidence-pairing")`](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md)
+  — **experimental, small-node only**: results that relate two regions,
+  and the contracts each connectivity view requires.
+- [Extending
+  crossform](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.html)
+  ·
+  [`vignette("crossform-extending")`](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.md)
+  — the five sanctioned entry points for an extension or adapter
+  package, and what is closed to one.
+- [What is novel in
+  crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
+  ·
+  [`vignette("novelty")`](https://bbuchsbaum.github.io/crossform/articles/novelty.md)
+  — the claim ledger.
+- [Failure
+  gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html)
+  ·
+  [`vignette("failure-gallery")`](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md)
+  — six errors a conventional pipeline executes silently.
+- [Correlation-distance
+  policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html)
+  ·
+  [`vignette("correlation-distance-policy")`](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md)
+  — why
+  [`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md) is
+  not `1 - r`.
+- [`design/`](https://bbuchsbaum.github.io/crossform/design/)
+  (contracts) ·
+  [`exemplars/haxby2001/`](https://bbuchsbaum.github.io/crossform/exemplars/haxby2001/)
+  (public-data comparison) ·
+  [`benchmarks/`](https://bbuchsbaum.github.io/crossform/benchmarks/)
+  (runtime and memory records)
+
+## Status and scope
+
+`crossform` is experimental; exported names may still change. It runs
+sequentially, and it does not preprocess fMRI, register images, build
+hemodynamic response models, or perform group inference.
+
+**Demonstrated.** On the [Haxby 2001
+exemplar](https://bbuchsbaum.github.io/crossform/exemplars/haxby2001/)
+(eight stimulus categories over twelve runs, 577 ventral-temporal
+searchlights), `crossform` agrees with an independent reference loop to
+`1.33e-15` and with `rMVPA` to `8.88e-16` on the matched crossvalidated
+squared-Euclidean/crossnobis estimand; refitting the raw responses to
+retain the error channel reproduces the point RDM to `4.44e-16`. At 100
+conditions over 1,080 searchlights, one hundred selected pairs run in
+0.14 s and the fused full RDM in 1.94 s against 2.73 s for
+materialize-then-project — a ratio of 0.71, with a `4.4e-16` oracle (the
+materialized comparator is itself fast now that the packed-form kernel
+is native, so the query-first advantage is smaller than it was).
+
+On the same exemplar, the coherent/configuration decomposition runs on
+real data:
+[`06-coherent-configuration.R`](https://bbuchsbaum.github.io/crossform/exemplars/haxby2001/)
+reads face − house at all 577 VT searchlights and at one whole-VT region
+from a single plan, and `total = coherent + configuration` recomposes to
+`5.55e-17`. The total is positive at 576 of 577 searchlights, and over
+the 536 with a valid coherence fraction the coherent share has median
+0.53 (IQR 0.28–0.77): about half of the reproducible face/house energy
+in this subject’s VT is carried by the searchlight’s own weighted common
+spatial mode, which a demeaning analysis would discard and a total-only
+analysis would never see. The retained signed marginal supplies the
+direction the energies cannot: it is negative at 568 of 577
+searchlights, so the common mode runs house above face. One subject,
+condition means rather than GLM betas, an identity metric, and no
+inference — this demonstrates the decomposition, not a result about
+faces.
+
+Parity with the reference implementation of the RSA literature is also
+demonstrated. On a deterministic fixture (6 conditions, 4 runs, 40
+voxels, non-spherical residual covariance), the fixed-metric crossnobis
+RDM agrees with version-pinned Python `rsatoolbox` 0.3.2 to `3.8e-15`
+over 60 entries and the linear RSA coefficients to `8.6e-16` over 20
+terms, against a declared `1e-10` tolerance, with an independent
+all-pairs numpy oracle as a third check:
+[`exemplars/rsatoolbox-parity`](https://bbuchsbaum.github.io/crossform/exemplars/rsatoolbox-parity/),
+ratcheted by `tests/testthat/test-rsatoolbox-parity.R`. Four conventions
+were matched exactly rather than conceded — fold pairing, division by
+the channel count, the pooled precision estimator, and the
+cosine-normalized regression objective. From the same fit `crossform`
+additionally returns the signed contrast energy, the exact
+coherent/configuration/total partition, and analytic standard errors,
+none of which the external RDM carries. One simulated subject, the
+fixed-linear subset only, no group inference, no correlation distance,
+and no timing claim.
+
+**Not demonstrated.** Those results show numerical parity and an
+integrated uncertainty path. They do **not** show a matched-estimator
+speed advantage, and say nothing about correlation-distance RSA. A real
+rectangular cross-axis exemplar and an operational conservation example
+remain to be earned, as does any population or group-level claim;
+map-scale runtime and storage claims are qualified under
+[`benchmarks/`](https://bbuchsbaum.github.io/crossform/benchmarks/). The
+[claim
+ledger](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
+([`vignette("novelty")`](https://bbuchsbaum.github.io/crossform/articles/novelty.md))
+is the authority on which gates have landed.
+
+# Package index
+
+## Package overview
+
+What crossform is for, and the boundaries it will not cross.
+
+- [`crossform-package`](https://bbuchsbaum.github.io/crossform/reference/crossform-package.md)
+  [`crossform`](https://bbuchsbaum.github.io/crossform/reference/crossform-package.md)
+  : crossform: cross-generalized effect geometry for task fMRI
+
+## Core — the beta-first spine
+
+Start here. Condition effects, the measurements you want answers at, and
+the partitions that must generalize compile once into a geometry plan.
+Nothing below this heading is optional for an ordinary analysis, and
+nothing above the advanced sections is needed to complete one.
+
+- [`example_fmri_effects()`](https://bbuchsbaum.github.io/crossform/reference/example_fmri_effects.md)
+  : Generate a small task-fMRI relation with known spatial truth
+- [`effect_space()`](https://bbuchsbaum.github.io/crossform/reference/effect_space.md)
+  : Define an experimental coordinate space
+- [`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
+  : Construct a lazy experimental-neural relation
+- [`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
+  : Fit a partitioned linear-model relation with a residual error
+  channel
+- [`abstract_domain()`](https://bbuchsbaum.github.io/crossform/reference/abstract_domain.md)
+  : Construct an abstract neural feature domain
+- [`volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/volume_domain.md)
+  : Construct a native volumetric neural feature domain
+- [`searchlights()`](https://bbuchsbaum.github.io/crossform/reference/searchlights.md)
+  : Specify Euclidean searchlights
+- [`regions()`](https://bbuchsbaum.github.io/crossform/reference/regions.md)
+  : Specify region measurements
+- [`voxelwise()`](https://bbuchsbaum.github.io/crossform/reference/voxelwise.md)
+  : Specify point measurements
+- [`whole_brain()`](https://bbuchsbaum.github.io/crossform/reference/whole_brain.md)
+  : Specify a whole-brain additive measurement
+- [`compile_frame()`](https://bbuchsbaum.github.io/crossform/reference/compile_frame.md)
+  : Compile a spatial specification against a neural domain
+- [`cross_partitions()`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md)
+  : Pair every distinct partition once
+- [`plan_geometry()`](https://bbuchsbaum.github.io/crossform/reference/plan_geometry.md)
+  : Compile a reusable query-first geometry plan
+
+## Core — views, uncertainty, and refusals
+
+The plan is an identity, not a matrix. These read it: signed and
+decomposed contrast energy, squared crossvalidated distances, fixed
+linear RSA, the ledger reading that adds a conservative map up over a
+territory, the coherent share of a multiscale family against scale, the
+analytic sampling law, and the refusal a view returns when the evidence
+for it was never earned.
+
+- [`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md)
+  : Read a contrast as signed, coherent, configuration, and total
+  evidence
+- [`contribution()`](https://bbuchsbaum.github.io/crossform/reference/contribution.md)
+  : Add a conservative attribution map up over a territory
+- [`coherence_spectrum()`](https://bbuchsbaum.github.io/crossform/reference/coherence_spectrum.md)
+  : Read the coherent share of a conservative frame family against scale
+- [`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md) :
+  Read squared experimental distances from geometry
+- [`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md) :
+  Fit multiple-regression RSA as one compiled geometry query
+- [`plot(`*`<effect_contrast_view>`*`)`](https://bbuchsbaum.github.io/crossform/reference/plot_views.md)
+  [`plot(`*`<effect_rdm_view>`*`)`](https://bbuchsbaum.github.io/crossform/reference/plot_views.md)
+  [`plot(`*`<effect_rsa_view>`*`)`](https://bbuchsbaum.github.io/crossform/reference/plot_views.md)
+  [`plot(`*`<effect_crossnobis_view>`*`)`](https://bbuchsbaum.github.io/crossform/reference/plot_views.md)
+  [`plot(`*`<effect_sampling_covariance>`*`)`](https://bbuchsbaum.github.io/crossform/reference/plot_views.md)
+  : Plot geometry views
+- [`sampling_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/sampling_capabilities.md)
+  : Ask whether the analytic sampling law is available before provoking
+  it
+- [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
+  : Construct exact analytic sampling covariance for crossvalidated
+  distances
+- [`sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/sampling_covariance.md)
+  : Query an exact factorized sampling-covariance form
+- [`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md)
+  : Inspect a capability refusal
+- [`crossform_conditions`](https://bbuchsbaum.github.io/crossform/reference/crossform_conditions.md)
+  : Conditions raised by crossform
+- [`compute_policy()`](https://bbuchsbaum.github.io/crossform/reference/compute_policy.md)
+  : Construct the version 0.1 compute policy
+
+## Core (ingestion) — from observations to a fitted relation
+
+The typed-facts spine, for arriving with scan responses and an event
+table rather than fitted betas: study, observations, design, relation
+plan, receipts. A user who starts from betas meets none of it.
+[`vignette("from-observations")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md)
+is its single narrative.
+
+- [`observations()`](https://bbuchsbaum.github.io/crossform/reference/observations.md)
+  : Bind raw observation sources to indexes and a neural domain
+- [`observation_index()`](https://bbuchsbaum.github.io/crossform/reference/observation_index.md)
+  : Define one partition's observation axis
+- [`observation_events()`](https://bbuchsbaum.github.io/crossform/reference/observation_events.md)
+  : Declare a typed event record
+- [`observation_confounds()`](https://bbuchsbaum.github.io/crossform/reference/observation_confounds.md)
+  : Declare observation-level confounds and censor facts
+- [`partition_hierarchy()`](https://bbuchsbaum.github.io/crossform/reference/partition_hierarchy.md)
+  : Declare nested partition axes
+- [`study()`](https://bbuchsbaum.github.io/crossform/reference/study.md)
+  : Bind observations, events, confounds, clocks, and partition axes
+- [`study_axis()`](https://bbuchsbaum.github.io/crossform/reference/study_axis.md)
+  : Select a typed study axis
+- [`study_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/study_capabilities.md)
+  : Inspect factual study capabilities
+- [`condition_space()`](https://bbuchsbaum.github.io/crossform/reference/condition_space.md)
+  : Define a semantic condition space
+- [`effect_map()`](https://bbuchsbaum.github.io/crossform/reference/effect_map.md)
+  : Declare effects in a semantic condition vocabulary
+- [`coefficient_parameterization()`](https://bbuchsbaum.github.io/crossform/reference/coefficient_parameterization.md)
+  : Identify one concrete coefficient parameterization
+- [`lower_effect_map()`](https://bbuchsbaum.github.io/crossform/reference/lower_effect_map.md)
+  : Lower semantic effects into a concrete coefficient basis
+- [`raw_effect_map()`](https://bbuchsbaum.github.io/crossform/reference/raw_effect_map.md)
+  : Bind a raw coefficient-space target
+- [`design_model()`](https://bbuchsbaum.github.io/crossform/reference/design_model.md)
+  : Declare a semantic design model with compiled routes
+- [`raw_design_model()`](https://bbuchsbaum.github.io/crossform/reference/raw_design_model.md)
+  : Bind already compiled raw design matrices
+- [`observation_model()`](https://bbuchsbaum.github.io/crossform/reference/observation_model.md)
+  : Declare the first-moment observation model
+- [`plan_relation()`](https://bbuchsbaum.github.io/crossform/reference/plan_relation.md)
+  : Plan a first-moment experimental–neural relation
+- [`compiler_conformance()`](https://bbuchsbaum.github.io/crossform/reference/compiler_conformance.md)
+  : Inspect first-moment compiler conformance
+- [`relation_plan_receipts()`](https://bbuchsbaum.github.io/crossform/reference/relation_plan_receipts.md)
+  : Inspect portable design receipts
+- [`estimate_relation()`](https://bbuchsbaum.github.io/crossform/reference/estimate_relation.md)
+  : Estimate a planned relation family
+
+## Advanced — explicit queries and geometries
+
+Reaching past the view functions: materialize a geometry once and query
+it many times, or evaluate a query without materializing anything at
+all; custom bilinear operators, unequal axes, and explicit partition
+pairings and reductions.
+
+- [`materialize_geometry()`](https://bbuchsbaum.github.io/crossform/reference/materialize_geometry.md)
+  : Materialize a complete cross-generalized geometry
+- [`evaluate_geometry()`](https://bbuchsbaum.github.io/crossform/reference/evaluate_geometry.md)
+  : Evaluate a fixed query without materializing complete geometry
+- [`query_geometry()`](https://bbuchsbaum.github.io/crossform/reference/query_geometry.md)
+  : Apply a linear query to a complete geometry
+- [`geometry_component()`](https://bbuchsbaum.github.io/crossform/reference/geometry_component.md)
+  : Read one component of a complete geometry
+- [`geometry_spectrum()`](https://bbuchsbaum.github.io/crossform/reference/geometry_spectrum.md)
+  : Read the signed eigenvalue spectrum of cross-generalized geometry
+- [`bilinear_query()`](https://bbuchsbaum.github.io/crossform/reference/bilinear_query.md)
+  : Describe a bilinear geometry query
+- [`pair_query()`](https://bbuchsbaum.github.io/crossform/reference/pair_query.md)
+  : Describe an axis-bound pair query
+- [`pairing()`](https://bbuchsbaum.github.io/crossform/reference/pairing.md)
+  : Construct a partition pairing
+- [`aggregate_first()`](https://bbuchsbaum.github.io/crossform/reference/aggregate_first.md)
+  : Aggregate edge sufficient statistics before normalization
+- [`reduce_partitions()`](https://bbuchsbaum.github.io/crossform/reference/reduce_partitions.md)
+  : Reduce normalized and transformed partition edges
+
+## Advanced — frame algebra and conservation
+
+Diagonal and α-weighted frame families, and the certificate that a frame
+conserves the mass it claims to.
+
+- [`additive_frame()`](https://bbuchsbaum.github.io/crossform/reference/additive_frame.md)
+  : Describe an additive diagonal spatial frame
+- [`frame_family()`](https://bbuchsbaum.github.io/crossform/reference/frame_family.md)
+  : Combine conservative frames into one alpha-weighted family
+- [`frame_conservation()`](https://bbuchsbaum.github.io/crossform/reference/frame_conservation.md)
+  : Diagnose local-to-global conservation of a compiled frame
+
+## Advanced — the latent PSD layer
+
+Crossvalidated contributions are signed, and effective counts,
+cumulative curves and contribution fractions are invalid on them: the
+implied shares can leave `[0, 1]`, and clipping reintroduces the bias
+the cross-partition estimator removes. Those functionals are legal only
+on a declared nonnegative projection, which this builds and labels — a
+named projection from a closed set, with the mass it moved reported per
+measurement rather than absorbed.
+
+- [`latent_geometry()`](https://bbuchsbaum.github.io/crossform/reference/latent_geometry.md)
+  : Construct the latent PSD descriptive layer of a signed geometry
+
+## Advanced — metrics and crossnobis
+
+Fixed and learned neural metrics, the leakage guard on metric training,
+and the separately qualified crossnobis path.
+
+- [`neural_metric()`](https://bbuchsbaum.github.io/crossform/reference/neural_metric.md)
+  : Construct a support-local same-space neural metric
+- [`noise_precision()`](https://bbuchsbaum.github.io/crossform/reference/noise_precision.md)
+  : Construct a fixed neural noise-precision metric
+- [`identity_metric()`](https://bbuchsbaum.github.io/crossform/reference/identity_metric.md)
+  : Specify an on-demand identity metric
+- [`diagonal_precision()`](https://bbuchsbaum.github.io/crossform/reference/diagonal_precision.md)
+  : Specify on-demand diagonal residual-variance precision
+- [`shrinkage_precision()`](https://bbuchsbaum.github.io/crossform/reference/shrinkage_precision.md)
+  : Specify on-demand shrinkage-to-diagonal precision
+- [`metric_training_policy()`](https://bbuchsbaum.github.io/crossform/reference/metric_training_policy.md)
+  : Declare which residual partitions may train a metric
+- [`metric_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/metric_capabilities.md)
+  : Inspect exact neural-metric capabilities
+- [`plan_crossnobis()`](https://bbuchsbaum.github.io/crossform/reference/plan_crossnobis.md)
+  : Compile an on-demand learned-metric crossnobis plan
+- [`crossnobis()`](https://bbuchsbaum.github.io/crossform/reference/crossnobis.md)
+  : Evaluate a signed local crossnobis contrast
+
+## Advanced — extraction maps, error channels, and residuals
+
+Where the estimates and their error channel come from: the extraction
+map in `B = E Y`, whether a fit carries residuals at all, and the
+bounded residual read with its correct divisor.
+
+- [`lm_extractor()`](https://bbuchsbaum.github.io/crossform/reference/lm_extractor.md)
+  : Compile a supplied linear model into an effect extractor
+- [`relation_fit_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit_capabilities.md)
+  : Inspect statistical capabilities of a relation or relation fit
+- [`residual_block()`](https://bbuchsbaum.github.io/crossform/reference/residual_block.md)
+  : Read fitted residuals for a neural feature block
+- [`residual_df()`](https://bbuchsbaum.github.io/crossform/reference/residual_df.md)
+  : Read residual degrees of freedom from a fitted partition
+
+## Advanced — numerical evidence
+
+The reproducibility contract as a value, and the verifier that two runs
+agree under a named guarantee.
+
+- [`numerical_contract()`](https://bbuchsbaum.github.io/crossform/reference/numerical_contract.md)
+  : Define crossform's numerical reproducibility contract
+- [`numerical_agreement()`](https://bbuchsbaum.github.io/crossform/reference/numerical_agreement.md)
+  : Assess results under a named numerical guarantee
+
+## Advanced — matched-pair contrasts (provisional API)
+
+Matched encoding–retrieval pairs, eligible controls, and the balanced
+matched-minus-control operator. **Provisional, not settled public API:**
+this family is held open pending the rectangular ER-RSA exemplar, and
+whichever of these the delivered exemplar does not exercise becomes
+internal. Do not build against it yet.
+
+- [`match_coupling()`](https://bbuchsbaum.github.io/crossform/reference/match_coupling.md)
+  : Mark matched encoding-retrieval effect pairs
+- [`control_coupling()`](https://bbuchsbaum.github.io/crossform/reference/control_coupling.md)
+  : Mark eligible control pairs
+- [`coupling_contrast()`](https://bbuchsbaum.github.io/crossform/reference/coupling_contrast.md)
+  : Contrast matched and control pair couplings
+- [`match_control()`](https://bbuchsbaum.github.io/crossform/reference/match_control.md)
+  : Compile a matched-versus-control pair-space coefficient
+- [`pair_lm_query()`](https://bbuchsbaum.github.io/crossform/reference/pair_lm_query.md)
+  : Compile a weighted pair-space linear-model coefficient to an effect
+  query
+
+## Coupling and measurement (experimental, small-node only)
+
+**Experimental.** Measurement forms, coupling closures, and tomography —
+results that relate two sets of measurements to each other rather than
+scoring one. The API and the returned kinds may change. This tier is
+**scale-gated and the package refuses brain-scale claims here**: a
+request whose dense payload exceeds the version 0.1 small-node limit of
+256 MiB (268,435,456 bytes) is refused outright rather than
+approximated, with the remedy “use the support-local geometry plan;
+brain-scale measurement tomography is not yet exported.”
+[`vignette("evidence-pairing")`](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md)
+is the narrative.
+
+- [`measurement_frame()`](https://bbuchsbaum.github.io/crossform/reference/measurement_frame.md)
+  : Declare identified neural measurements
+- [`edge_frame()`](https://bbuchsbaum.github.io/crossform/reference/edge_frame.md)
+  : Declare requested neural measurement edges
+- [`measurement_form()`](https://bbuchsbaum.github.io/crossform/reference/measurement_form.md)
+  : Materialize requested measurement-space forms
+- [`measurement_components()`](https://bbuchsbaum.github.io/crossform/reference/measurement_components.md)
+  : Summarize a crossed node decomposition on one measurement edge
+- [`variation_query()`](https://bbuchsbaum.github.io/crossform/reference/variation_query.md)
+  : Declare a repeated-variation experimental query
+- [`coupling()`](https://bbuchsbaum.github.io/crossform/reference/coupling.md)
+  : Take the adjoint-side coupling closure of a geometry plan
+- [`effect_coupling()`](https://bbuchsbaum.github.io/crossform/reference/coupling_views.md)
+  [`covariance_coupling()`](https://bbuchsbaum.github.io/crossform/reference/coupling_views.md)
+  [`canonical_coupling()`](https://bbuchsbaum.github.io/crossform/reference/coupling_views.md)
+  [`geometry_alignment()`](https://bbuchsbaum.github.io/crossform/reference/coupling_views.md)
+  : Interpret completed measurement forms
+- [`effect_coupling_result`](https://bbuchsbaum.github.io/crossform/reference/effect_coupling_result.md)
+  : Coupling results and the readings they may carry
+- [`gaussian_covariance_model()`](https://bbuchsbaum.github.io/crossform/reference/gaussian_covariance_model.md)
+  : Declare a joint Gaussian covariance interpretation
+- [`connectivity()`](https://bbuchsbaum.github.io/crossform/reference/connectivity.md)
+  : Request a validated connectivity view
+- [`reconstruct_evidence()`](https://bbuchsbaum.github.io/crossform/reference/reconstruct_evidence.md)
+  : Reconstruct or project the global neural evidence operator
+
+## Population (experimental)
+
+**Experimental.** Carrying one participant’s conservative geometry onto
+a shared group node set. A transport is an *input*: crossform accepts a
+typed, sparse, provenance-bearing operator and refuses to learn one —
+image registration and functional-transport learning stay outside the
+package. The sink column is required and always materialized, so partial
+coverage is a number you can read rather than budget that quietly went
+missing, and `semantics` has no default because budget and density are
+two different estimands. A transport built from the response data must
+name the runs that built it.
+[`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md)
+assembles the group estimand from them: the transport, the budget
+normalization, and the fit’s evaluation order all enter its scientific
+identity, because each of them changes what the group number is rather
+than how it is computed.
+[`estimate_population()`](https://bbuchsbaum.github.io/crossform/reference/estimate_population.md)
+executes one through a bank of contrasts, reading the query before the
+transport so complete packed geometry is never allocated, and asserting
+each participant’s budget certificate at fit time.
+[`materialize_population()`](https://bbuchsbaum.github.io/crossform/reference/materialize_population.md)
+is its complete-form counterpart, for when the whole group form is
+wanted rather than a bank: it streams the packed coordinate axis in
+tiles, so the group stack stays linear in the tile and the dense
+participant-by-node-by-coordinate array is never built.
+`population_views` are the reader verbs over either result —
+[`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md),
+[`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md),
+[`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md) and
+[`contribution()`](https://bbuchsbaum.github.io/crossform/reference/contribution.md)
+again, reading the group coefficients that run already produced rather
+than executing a second one; a query the estimated basis cannot reach is
+refused with the re-estimation remedy instead of being projected onto
+it.
+[`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md)
+reports the two error bars section 7 requires to be kept apart: the
+between-subject scatter of the participants about the group fit, and —
+only where a group column is fed by exactly one native row, so the
+cross-node terms carry weight zero — the transported within-subject
+sampling variance. They are separate blocks with no field holding their
+sum, and the `t` is labelled uncalibrated whatever the recorded null
+simulation measured, because a real fit adds misspecification and
+transport heterogeneity that simulation did not contain.
+[`heterogeneity()`](https://bbuchsbaum.github.io/crossform/reference/heterogeneity.md)
+reads the other half of section 6’s decomposition: the N-by-N subject
+Gram of participants’ deviations from the group fit, its spectrum, the
+subject loadings on its modes and — at nodes you name — the geometry of
+those modes. It defaults to the cross-fitted estimator, because the
+plug-in one books every participant’s within-subject sampling noise as
+between-participant heterogeneity and inflates the trace by a measured
+62.7%; the plug-in route stays available for loading directions, named
+as such and carrying no effective mode count.
+[`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md)
+is the descriptive counterpart: how many participants stand behind a
+group value, at each group node and query and across the bank as a
+whole. It lives on the latent layer section 6.5 confines fractions to,
+prints the same “not for inference” sentence
+[`latent_geometry()`](https://bbuchsbaum.github.io/crossform/reference/latent_geometry.md)
+does, and refuses to carry a field that looks like an error bar — a cell
+at which nothing reproduces reports a fraction near 0.5, not near 0. See
+[`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
+
+- [`location_transport()`](https://bbuchsbaum.github.io/crossform/reference/location_transport.md)
+  : Declare a location transport onto a shared group node set
+- [`anatomical_transport()`](https://bbuchsbaum.github.io/crossform/reference/anatomical_transport.md)
+  : Build a hard nearest-centre transport from node coordinates
+- [`external_transport()`](https://bbuchsbaum.github.io/crossform/reference/external_transport.md)
+  : Admit a transport built outside crossform
+- [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
+  : Carry native node values onto the group nodes
+- [`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md)
+  : Plan a population form over transported conservative geometry
+- [`estimate_population()`](https://bbuchsbaum.github.io/crossform/reference/estimate_population.md)
+  : Estimate a planned population form through a bank of queries
+- [`materialize_population()`](https://bbuchsbaum.github.io/crossform/reference/materialize_population.md)
+  : Materialize a planned population form at every group node
+- [`contrast_energy(`*`<effect_population_result>`*`)`](https://bbuchsbaum.github.io/crossform/reference/population_views.md)
+  [`rdm(`*`<effect_population_result>`*`)`](https://bbuchsbaum.github.io/crossform/reference/population_views.md)
+  [`rsa(`*`<effect_population_result>`*`)`](https://bbuchsbaum.github.io/crossform/reference/population_views.md)
+  [`contribution(`*`<effect_population_result>`*`)`](https://bbuchsbaum.github.io/crossform/reference/population_views.md)
+  [`contribution(`*`<effect_population_view>`*`)`](https://bbuchsbaum.github.io/crossform/reference/population_views.md)
+  : Reader verbs on an estimated population form
+- [`heterogeneity()`](https://bbuchsbaum.github.io/crossform/reference/heterogeneity.md)
+  : Decompose a population form into consensus and heterogeneity
+- [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md)
+  : Read the group uncertainty layers of an estimated population form
+- [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md)
+  : Count how many participants a transported group value stands on
+
+## Adapters
+
+Morphisms into the typed core from another package’s vocabulary. Every
+dependency here is `Suggests:`, and the core is not shaped by any of
+them. The three `neuroim2` entries are de-facto core for volumetric work
+— every real imaging path begins and ends there.
+
+- [`neuroim2_volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_volume_domain.md)
+  : Construct a crossform domain from a neuroim2 volume mask
+- [`neuroim2_searchlights()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_searchlights.md)
+  : Compile neuroim2 searchlight indices into a crossform frame
+- [`as_neurovol()`](https://bbuchsbaum.github.io/crossform/reference/as_neurovol.md)
+  : Map a compact result vector back to a neuroim2 volume
+- [`bids_study()`](https://bbuchsbaum.github.io/crossform/reference/bids_study.md)
+  : Bind BIDS files into a generic study
+- [`fmridesign_design_model()`](https://bbuchsbaum.github.io/crossform/reference/fmridesign_design_model.md)
+  : Compile a semantic design model from fmridesign
+- [`fmrireg_relation()`](https://bbuchsbaum.github.io/crossform/reference/fmrireg_relation.md)
+  : Execute a relation plan with fmrireg
+
+## For extension packages
+
+The five sanctioned entry points an extension or adapter *package* uses
+to hand data, a design, and an error channel into the core, plus the
+version certificate every adapter is obliged to obtain before it touches
+the package it adapts. Not an end user’s surface, and deliberately
+small: everything else that once lived here is internal.
+[`vignette("crossform-extending")`](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.md)
+states what is open, what is closed, and what an extension may rely on
+remaining true.
+
+- [`file_matrix_source()`](https://bbuchsbaum.github.io/crossform/reference/file_matrix_source.md)
+  : Describe a read-only column-major matrix file
+- [`source_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/source_capabilities.md)
+  : Declare source execution capabilities
+- [`effect_extractor()`](https://bbuchsbaum.github.io/crossform/reference/effect_extractor.md)
+  : Construct an explicit linear effect extractor
+- [`relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit.md)
+  : Attach statistical error information to a relation
+- [`relation_block()`](https://bbuchsbaum.github.io/crossform/reference/relation_block.md)
+  : Read one experimental-neural relation block
+- [`adapter_version_certificate()`](https://bbuchsbaum.github.io/crossform/reference/adapter_version_certificate.md)
+  : Certify the installed version of an adapter's upstream package
+
+# Articles
+
+### Start here
+
+- [Where does a representational effect
+  generalize?](https://bbuchsbaum.github.io/crossform/articles/introduction.md):
+- [Fit condition effects from
+  observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.md):
+- [Bring your own neuroim2
+  data](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.md):
+
+### Advanced evidence forms
+
+Experimental. Results that relate two sets of measurements to each
+other, under a small-node scale gate.
+
+- [Measure effects within and between neural
+  nodes](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md):
+
+### Guides
+
+Reading the results, and mapping in from another package’s vocabulary.
+
+- [Reading contrast energies, RDMs, and
+  uncertainty](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md):
+
+  What each returned column means, how to read negatives and the
+  coherence fraction, the three interpretive traps that make a coherent
+  share look like a scientific finding when it is an artefact of the
+  frame, and how to read a real map when no ground truth marks the
+  answer.
+
+- [Coming from
+  rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.md):
+
+  A concept map from rMVPA’s dataset/design/model vocabulary to
+  crossform’s relation/frame/plan vocabulary, with an honest list of
+  what crossform does not do.
+
+### Conservative geometry
+
+The attribution instrument. A conservative frame partitions one fixed
+global budget instead of reporting a density per neighbourhood, so its
+map is a ledger that adds up over territories — and its per-scale totals
+are the analyst’s own weights, which is why the coherence spectrum, not
+the energy spectrum, is the finding.
+
+- [Conservative frames: attribution, not
+  detection](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md):
+
+  The second spatial instrument. A conservative frame partitions one
+  fixed global budget instead of reporting a density per neighbourhood,
+  so its map is a ledger you may add up over territories — and its
+  per-scale totals are the analyst’s own weights, which is why the
+  coherence spectrum, not the energy spectrum, is the finding.
+
+### Population (experimental)
+
+Experimental. Carrying each participant’s conservative ledger onto a
+shared group node set: the typed transport you supply and the package
+refuses to learn, the sink column that makes partial coverage a number
+you read rather than budget that went missing, the commutation that
+makes modelling-then-querying the same answer as
+querying-then-modelling, the cross-fitted subject Gram that separates
+consensus from disagreement, and the two error bars the layer keeps
+apart and labels uncalibrated.
+
+- [Population form: one participant's ledger, carried to a
+  group](https://bbuchsbaum.github.io/crossform/articles/population-form.md):
+
+  Experimental. A group analysis of conservative geometry is three typed
+  objects — a per-participant plan, a transport you supply, and a group
+  model — and one theorem: the query, the transport and the group fit
+  act on different axes, so modelling then querying is the same number
+  as querying then modelling. This article builds the objects on a
+  generated six-participant fixture, asserts the commutation and the
+  conservation identity, finds a planted odd participant with the
+  cross-fitted subject Gram, and reports the two error bars the layer
+  keeps apart — separately, and labelled uncalibrated.
+
+### Claims and policies
+
+What the package claims, what it refuses, and where the boundaries are
+drawn.
+
+- [What is novel in
+  crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.md):
+
+  The evidence-pairing calculus, the executable estimand contract, and
+  an audited ledger separating what is demonstrated from what is still
+  gated.
+
+- [Failure
+  gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md):
+
+  Six realistic analysis errors a conventional pipeline can execute
+  silently, and the classed refusals or absent transformations that stop
+  them.
+
+- [Correlation-distance
+  policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md):
+
+  Why rdm() means squared Euclidean or fixed-Mahalanobis distance and
+  never silently substitutes 1 - Pearson correlation.
+
+### For package authors
+
+The surface an extension package may build against, and what is closed
+to it.
+
+- [Extending crossform: the developer
+  protocol](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.md):
