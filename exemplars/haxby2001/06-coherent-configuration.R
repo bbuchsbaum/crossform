@@ -79,7 +79,15 @@ message("animate: ", paste(animate, collapse = ", "),
         " | zero-weighted: scrambledpix")
 
 ## ---- Domain and searchlight frame (identical to 02) ---------------------
-vt_vol <- neuroim2::read_vol(prep$mask_file)
+# `prep$mask_file` is an absolute path recorded when the object was built and
+# goes stale when the checkout moves; resolve against this checkout first.
+mask_file <- file.path(paths$subj, basename(prep$mask_file))
+if (!file.exists(mask_file)) mask_file <- prep$mask_file
+if (!file.exists(mask_file)) {
+  stop("VT mask not found at ", mask_file,
+       "; re-run 00-download.R and 01-prepare-data.R.")
+}
+vt_vol <- neuroim2::read_vol(mask_file)
 vt_mask <- neuroim2::LogicalNeuroVol(as.array(vt_vol) > 0,
                                      neuroim2::space(vt_vol))
 domain <- neuroim2_volume_domain(vt_mask, id = "haxby-subj1-vt")

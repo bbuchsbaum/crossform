@@ -3,7 +3,7 @@
 # that fixes their order and identity.
 
 test_that("edge normalizers are declarations with an explicit zero policy", {
-  plain <- inner_product()
+  plain <- crossform:::inner_product()
 
   expect_s3_class(plain, "effect_edge_normalizer")
   expect_identical(names(plain), c("schema_version", "kind", "zero_policy"))
@@ -23,12 +23,12 @@ test_that("edge normalizers are declarations with an explicit zero policy", {
 
   # The declaration computes nothing: identical declarations are identical
   # values, so they can key a plan signature.
-  expect_identical(inner_product(), inner_product())
-  expect_false(identical(inner_product(), crossform:::covariance()))
+  expect_identical(crossform:::inner_product(), crossform:::inner_product())
+  expect_false(identical(crossform:::inner_product(), crossform:::covariance()))
 })
 
 test_that("normalizer validation rejects every noncanonical shape", {
-  valid <- inner_product()
+  valid <- crossform:::inner_product()
   expect_identical(crossform:::.validate_edge_normalizer(valid), valid)
 
   reject <- function(mutate) {
@@ -156,7 +156,7 @@ test_that("the edge operation plan fixes the stage order and its lowering", {
   ))
   expect_identical(plan$schema_version, 1L)
   expect_identical(plan$lowering, "bilinear")
-  expect_identical(plan$normalizer, unclass(inner_product()))
+  expect_identical(plan$normalizer, unclass(crossform:::inner_product()))
   expect_identical(plan$transform,
     unclass(crossform:::.identity_edge_transform()))
   expect_identical(plan$reducer, unclass(reduce_partitions()))
@@ -165,7 +165,7 @@ test_that("the edge operation plan fixes the stage order and its lowering", {
   lowering <- function(normalizer, transform = NULL) {
     crossform:::.edge_operation_plan(normalizer, transform)$lowering
   }
-  expect_identical(lowering(inner_product()), "bilinear")
+  expect_identical(lowering(crossform:::inner_product()), "bilinear")
   expect_identical(lowering(crossform:::covariance()), "centered_bilinear")
   expect_identical(lowering(crossform:::cosine()), "normalized_bilinear")
   expect_identical(lowering(crossform:::correlation()), "normalized_bilinear")
@@ -176,14 +176,14 @@ test_that("the edge operation plan fixes the stage order and its lowering", {
     "required_edge_materialization"
   )
   expect_identical(
-    lowering(inner_product(), rank_edges()),
+    lowering(crossform:::inner_product(), rank_edges()),
     "required_edge_materialization"
   )
 
   # Fisher transformation is defined on correlations, so a non-correlation
   # normalizer is refused at plan time.
   expect_error(
-    crossform:::.edge_operation_plan(inner_product(), fisher_z("error")),
+    crossform:::.edge_operation_plan(crossform:::inner_product(), fisher_z("error")),
     "requires correlation-valued edge input"
   , class = "effect_input_error")
   expect_error(
@@ -211,7 +211,7 @@ test_that("every operation component enters the plan signature", {
     delta = crossform:::.edge_operation_plan(
       crossform:::correlation(), fisher_z("clip", 1e-3)
     ),
-    ties = crossform:::.edge_operation_plan(inner_product(), rank_edges("min")),
+    ties = crossform:::.edge_operation_plan(crossform:::inner_product(), rank_edges("min")),
     reducer = crossform:::.edge_operation_plan(reducer = aggregate_first())
   )
   signatures <- c(base = base$signature,

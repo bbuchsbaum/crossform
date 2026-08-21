@@ -66,8 +66,6 @@ them from BIDS TSV files, and \code{\link[=observation_confounds]{observation_co
 observation-level table.
 
 Other typed observation facts: 
-\code{\link{bids_confounds}()},
-\code{\link{bids_events}()},
 \code{\link{bids_study}()},
 \code{\link{observation_confounds}()},
 \code{\link{observation_index}()},

@@ -39,7 +39,6 @@ correlation spectrum the information is computed from.
 
 Other neural metrics: 
 \code{\link{diagonal_precision}()},
-\code{\link{effect_covariance}()},
 \code{\link{identity_metric}()},
 \code{\link{metric_capabilities}()},
 \code{\link{metric_training_policy}()},

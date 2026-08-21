@@ -98,7 +98,8 @@ quantities at the same fold count; if your partitions are sessions, pass
 estimation errors are independent, which separate runs or sessions with
 separate noise satisfy; omit it and you keep a point estimate but earn neither
 cross-generalized nor analytic-uncertainty capabilities. See
-`?cross_partitions`, and `?pairing` for nested or directed designs.
+`?cross_partitions`; one tier out, `?pairing` covers nested or directed
+designs.
 
 ## Now change the question. No refit.
 
@@ -342,12 +343,14 @@ error channel, which the next section asks for.
 
 Swap `searchlights(radius = 4)` for `regions(labels)`, `voxelwise()`, or
 `whole_brain()`, and `volume_domain()` for `abstract_domain(n_features)` when
-the features are not a volume. `neuroim2` users have
+the features are not a volume. `neuroim2` users have the optional adapter —
 `neuroim2_volume_domain()`, `neuroim2_searchlights()`, and `as_neurovol()`,
 which keep stable full-volume indices and map results back without
 interpolation; see `vignette("neuroim2-data")`. Starting from scan responses
 and an event table rather than betas? Use `study()`, `plan_relation()`, and
-`estimate_relation()`.
+`estimate_relation()`, the ingestion spine that
+[from-observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
+(`vignette("from-observations")`) walks end to end.
 
 ### Reading a map without ground truth
 
@@ -428,6 +431,53 @@ against.
   (`vignette("novelty")`) is the ledger separating what is demonstrated from
   what is still gated.
 
+## What is core, and what is not
+
+Every line of R executed above is **core**. That is the whole point of the
+tier: an ordinary representational analysis finishes without reaching past it,
+and the
+[reference index](https://bbuchsbaum.github.io/crossform/reference/index.html)
+is grouped in the same order this README is.
+
+- **Core** (21 functions) — `example_fmri_effects()`, `effect_space()`,
+  `relation()` and `lm_relation_fit()`, the two domain and four frame
+  constructors with `compile_frame()`, `cross_partitions()`,
+  `plan_geometry()`, the views `contrast_energy()` / `rdm()` / `rsa()`, the
+  three sampling-covariance functions, `catch_refusal()`, and
+  `compute_policy()`. Everything this README executes is core-tier, and
+  `tests/testthat/test-readme-surface.R` holds it that way.
+- **Core (ingestion)** (20 more) — `study()`, `plan_relation()`,
+  `estimate_relation()` and the typed-facts spine, for arriving with scan
+  responses and an event table rather than betas. A user who starts from
+  betas meets none of it; `vignette("from-observations")` is its narrative.
+- **Advanced** — explicit geometry queries and custom bilinear operators,
+  frame algebra and conservation certificates, fixed and learned metrics,
+  `crossnobis()`, error-channel and residual readers, and numerical-agreement
+  contracts. Specialist tools. The core path never needs them, and the
+  matched-pair (ER-RSA) family inside this tier is explicitly provisional.
+- **Coupling and measurement — experimental, small-node only.**
+  `measurement_form()`, `coupling()`, the connectivity readings, and
+  tomography relate two sets of measurements to each other rather than
+  scoring one. The API may change. The tier is scale-gated and the package
+  refuses brain-scale claims here: a request whose dense payload exceeds the
+  version 0.1 small-node limit of 256 MiB is refused outright rather than
+  approximated, with the remedy "use the support-local geometry plan;
+  brain-scale measurement tomography is not yet exported."
+  `vignette("evidence-pairing")` is its narrative.
+- **Adapters** — `neuroim2_volume_domain()`, `neuroim2_searchlights()`,
+  `as_neurovol()`, `bids_study()`, `fmridesign_design_model()`,
+  `fmrireg_relation()`. Every one of those dependencies is optional, and the
+  core is not shaped by any of them.
+- **For extension packages** — five sanctioned entry points for handing data,
+  a design, and an error channel into the core; see
+  `vignette("crossform-extending")`. Not an end user's surface.
+
+**Population (forthcoming).** A population layer — mass-preserving transport
+of per-subject conservative geometry — is specified in
+[`design/population-form-contract.md`](design/population-form-contract.md) and
+under construction. Until it lands, `crossform` does no group inference at
+all.
+
 ## Install
 
 The repository is not yet public and the package is on neither CRAN nor
@@ -460,7 +510,8 @@ works offline once you have installed with vignettes.
 - [Coming from rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html) · `vignette("from-rmvpa")` — how the familiar objects map onto this vocabulary.
 - [Fit condition effects from observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html) · `vignette("from-observations")` — scan responses, events, confounds, censoring.
 - [neuroim2 data](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.html) · `vignette("neuroim2-data")` — `NeuroVol` and `NeuroVec` in, brain maps out.
-- [Evidence pairing](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html) · `vignette("evidence-pairing")` — results that relate two regions, and the contracts each connectivity view requires.
+- [Evidence pairing](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html) · `vignette("evidence-pairing")` — **experimental, small-node only**: results that relate two regions, and the contracts each connectivity view requires.
+- [Extending crossform](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.html) · `vignette("crossform-extending")` — the five sanctioned entry points for an extension or adapter package, and what is closed to one.
 - [What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html) · `vignette("novelty")` — the claim ledger.
 - [Failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html) · `vignette("failure-gallery")` — six errors a conventional pipeline executes silently.
 - [Correlation-distance policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html) · `vignette("correlation-distance-policy")` — why `rdm()` is not `1 - r`.
@@ -478,8 +529,8 @@ stimulus categories over twelve runs, 577 ventral-temporal searchlights),
 `rMVPA` to `8.88e-16` on the matched crossvalidated squared-Euclidean/crossnobis
 estimand; refitting the raw responses to retain the error channel reproduces
 the point RDM to `4.44e-16`. At 100 conditions over 1,080 searchlights, one
-hundred selected pairs run in 0.13 s and the fused full RDM in 1.59 s against
-2.08 s for materialize-then-project — a ratio of 0.76, with a `4.4e-16`
+hundred selected pairs run in 0.14 s and the fused full RDM in 1.94 s against
+2.73 s for materialize-then-project — a ratio of 0.71, with a `4.4e-16`
 oracle (the materialized comparator is itself fast now that the packed-form
 kernel is native, so the query-first advantage is smaller than it was).
 
@@ -497,9 +548,27 @@ marginal supplies the direction the energies cannot: it is negative at 568 of
 condition means rather than GLM betas, an identity metric, and no inference —
 this demonstrates the decomposition, not a result about faces.
 
+Parity with the reference implementation of the RSA literature is also
+demonstrated. On a deterministic fixture (6 conditions, 4 runs, 40 voxels,
+non-spherical residual covariance), the fixed-metric crossnobis RDM agrees
+with version-pinned Python `rsatoolbox` 0.3.2 to `3.8e-15` over 60 entries and
+the linear RSA coefficients to `8.6e-16` over 20 terms, against a declared
+`1e-10` tolerance, with an independent all-pairs numpy oracle as a third
+check: [`exemplars/rsatoolbox-parity`](exemplars/rsatoolbox-parity/),
+ratcheted by `tests/testthat/test-rsatoolbox-parity.R`. Four conventions were
+matched exactly rather than conceded — fold pairing, division by the channel
+count, the pooled precision estimator, and the cosine-normalized regression
+objective. From the same fit `crossform` additionally returns the signed
+contrast energy, the exact coherent/configuration/total partition, and
+analytic standard errors, none of which the external RDM carries. One
+simulated subject, the fixed-linear subset only, no group inference, no
+correlation distance, and no timing claim.
+
 **Not demonstrated.** Those results show numerical parity and an integrated
 uncertainty path. They do **not** show a matched-estimator speed advantage,
-and say nothing about correlation-distance RSA. `rsatoolbox` parity, a real
-rectangular cross-axis exemplar, and an operational conservation example remain
-to be earned; map-scale runtime and storage claims are qualified under
-[`benchmarks/`](benchmarks/).
+and say nothing about correlation-distance RSA. A real rectangular cross-axis
+exemplar and an operational conservation example remain to be earned, as does
+any population or group-level claim; map-scale runtime and storage claims are
+qualified under [`benchmarks/`](benchmarks/). The
+[claim ledger](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
+(`vignette("novelty")`) is the authority on which gates have landed.

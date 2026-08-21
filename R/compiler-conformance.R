@@ -1,6 +1,59 @@
 # External first-moment compiler conformance -------------------------------
 
-.require_adapter_version <- function(package, supported) {
+#' Certify the installed version of an adapter's upstream package
+#'
+#' `vignette("crossform-extending")` places two obligations on an adapter
+#' author, and this is the first of them: certify against the *installed*
+#' version of the package you adapt, and record what you certified against.
+#' The obligation is part of the protocol, so the refusal that discharges it
+#' is too --- an adapter outside this package raises the same two refusals, in
+#' the same namespace, as the two adapters shipped here.
+#'
+#' Call it first, before touching the upstream package, and record the
+#' returned string in the provenance of whatever you build. A version other
+#' than the certified one is refused rather than attempted: an untested
+#' upstream release that still runs is the failure mode this exists to
+#' prevent.
+#'
+#' @param package Name of the upstream package the adapter is certified
+#'   against.
+#' @param supported The one version string the adapter has been tested with.
+#' @return The installed version of `package`, as a character string equal to
+#'   `supported`. Anything else refuses:
+#'   `installed_compiler_adapter` when `package` is not installed, and
+#'   `supported_compiler_version` when the installed version is not the
+#'   certified one. Both refusals carry the `relation_compiler` namespace and
+#'   name the certified version in their remedies.
+#' @family relation planning and fitting
+#' @seealso [compiler_conformance()], which checks the receipt an adapter
+#'   produced rather than the version that produced it, and
+#'   [catch_refusal()] to inspect either refusal.
+#' @examples
+#' # crossform certifies its own fmridesign adapter against exactly one
+#' # version; this is the call that enforces it.
+#' if (requireNamespace("fmridesign", quietly = TRUE)) {
+#'   installed <- as.character(utils::packageVersion("fmridesign"))
+#'   print(identical(
+#'     adapter_version_certificate("fmridesign", installed), installed
+#'   ))
+#' }
+#'
+#' # An uncertified version is refused, not attempted. The refusal names the
+#' # missing capability, so a caller can branch on the cause.
+#' refusal <- catch_refusal(
+#'   adapter_version_certificate("stats", "0.0.0-never-released")
+#' )
+#' refusal$capability
+#' refusal$remedies
+#'
+#' # A package that is not installed at all refuses differently.
+#' catch_refusal(
+#'   adapter_version_certificate("crossformNotAPackage", "1.0.0")
+#' )$capability
+#' @export
+adapter_version_certificate <- function(package, supported) {
+  .check_string(package, "package")
+  .check_string(supported, "supported")
   if (!requireNamespace(package, quietly = TRUE)) {
     .capability_refusal(
       sprintf("Adapter package `%s` is not installed.", package),

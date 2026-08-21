@@ -102,8 +102,12 @@
     .validate_geometry_plan(x, deep = FALSE)
     relation <- x$task$left_relation
     metric_schedule <- x$metric_schedule
-    metric_status <- if (!is.null(metric_schedule$metric) &&
-        isTRUE(metric_schedule$metric$capabilities$learned_frozen)) {
+    # Asked of the schedule, not of the plan class: a learned local schedule
+    # and a fixed metric materialized from a learned handle both owe the
+    # calibration layer a metric-uncertainty term.
+    metric_status <- if (
+      .metric_schedule_requires_metric_uncertainty(metric_schedule)
+    ) {
       "learned"
     } else {
       "fixed"
@@ -113,26 +117,12 @@
     plan_id <- x$scientific_plan_id
     frame_signature <- .additive_frame_signature(x$frame)
     pairing <- x$pairing
-  } else if (inherits(x, "effect_crossnobis_plan")) {
-    .validate_crossnobis_plan(x, deep = FALSE)
-    relation <- x$task$left_relation
-    metric_schedule <- x$metric_schedule
-    metric_status <- if (isTRUE(metric_schedule$capabilities$learned) ||
-        isTRUE(metric_schedule$capabilities$
-          calibration_requires_metric_uncertainty)) {
-      "learned"
-    } else {
-      "fixed"
-    }
-    metric_identity <- metric_schedule$signature
-    evidence_kind <- "crossnobis_plan"
-    plan_id <- x$scientific_plan_id
-    frame_signature <- .additive_frame_signature(x$frame)
-    pairing <- x$pairing
   } else {
     .input_error(paste0(
-      "Evidence sampling currently binds a compiled geometry or crossnobis ",
-      "plan, not an uncompiled matrix or relation."
+      "Evidence sampling binds a compiled geometry plan, not an uncompiled ",
+      "matrix or relation. A learned metric schedule compiles into a geometry ",
+      "plan like any other; the calibration layer refuses it by capability, ",
+      "not by class."
     ))
   }
   record <- .sampling_record("evidence", list(
@@ -147,6 +137,55 @@
     metric_status = metric_status
   ))
   list(record = record, relation = relation, pairing = pairing)
+}
+
+# `design/conservative-geometry-contract.md` 5.2 leaves this refusal owed to
+# D8: a whitened plan already refuses the residual sampling routes, but it
+# refuses them with the generic identity-binding message, which says the fit
+# and the plan disagree without saying that the composition is what separated
+# them or what a whitened calibration law would need. `composition =
+# "whitened"` makes the plan's relation the whitened one -- the transform is
+# applied at plan time, so the fit a caller holds describes the native relation
+# by construction. Naming that here is a better refusal, not a new capability:
+# the whitened estimand's sampling law is still not admitted.
+.require_composition_bound_error_channel <- function(evidence, relation,
+                                                     channel) {
+  if (!inherits(evidence, "effect_geometry_plan") ||
+      !identical(
+        .geometry_metric_schedule_composition(evidence$metric_schedule),
+        "whitened"
+      ) ||
+      !inherits(channel, "effect_relation_fit") ||
+      identical(
+        .relation_family_identity(channel$relation),
+        .relation_family_identity(relation)
+      )) {
+    return(invisible(TRUE))
+  }
+  .capability_refusal(paste0(
+    "Sampling covariance is unavailable for a whitened plan. ",
+    "`composition = \"whitened\"` makes the plan's relation the whitened one ",
+    "(B Q^(1/2), applied at plan time), so this fit's residual channel ",
+    "describes the native relation and is not identity-bound to the estimand ",
+    "the plan names. The whitened estimand needs its residual second moment ",
+    "transformed with it, Sigma~ = Q^(1/2) Sigma Q^(1/2), and ",
+    "evidence-sampling-v1 does not fix which estimand that names. This is a ",
+    "refusal, not an approximation."
+  ),
+    capability = "whitened_composition_sampling_law",
+    namespace = "evidence_sampling",
+    reasons = "whitened_composition_error_channel_not_bound",
+    remedies = c(
+      paste0(
+        "Compile the same estimand with the default `composition = ",
+        "\"native\"`, whose fixed-metric sampling law is admitted."
+      ),
+      paste0(
+        "Keep the whitened result as a signed point estimate, reported ",
+        "without an analytic sampling law."
+      )
+    )
+  )
 }
 
 .sampling_error_channel <- function(x, relation) {
@@ -386,6 +425,9 @@
   metric_role <- match.arg(metric_role)
   descriptor <- .sampling_evidence_descriptor(evidence)
   if (is.null(error_channel)) error_channel <- descriptor$relation
+  .require_composition_bound_error_channel(
+    evidence, descriptor$relation, error_channel
+  )
   channel <- .sampling_error_channel(error_channel, descriptor$relation)
   operation <- .validate_sampling_record(operation, "operation")
   materialization <- .validate_sampling_record(
@@ -701,7 +743,15 @@
 
 .require_sampling_covariance <- function(x) {
   .validate_evidence_sampling_plan(x, deep = FALSE)
-  if (identical(x$capabilities$sampling_covariance, "available")) {
+  ## `[[` rather than `$`: the capability is named after the entry point
+  ## `sampling_covariance()`, which lives a layer up in
+  ## evidence-sampling-product.R. `$sampling_covariance` puts that name in the
+  ## file's syntax tree, and the file-level call graph
+  ## (tests/testthat/test-architecture.R) reads it as a call upward, closing a
+  ## phantom plan -> product -> kernel -> plan cycle. The validator on the line
+  ## above has already checked `capabilities` against the full expected list,
+  ## so the element is present and exact extraction is total here.
+  if (identical(x$capabilities[["sampling_covariance"]], "available")) {
     return(invisible(TRUE))
   }
   reasons <- x$unavailable_reasons

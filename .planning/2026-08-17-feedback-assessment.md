@@ -1,0 +1,74 @@
+# Feedback assessment — 2026-08-17
+
+Two-part external review: (1) "Verdict" on the package vs its vision; (2) "Conservative
+Population Geometry" proposal. Every factual claim below was checked against the tree at
+`f6baa14` (branch `elite-pass`) by four independent read-only verifiers. This document is the
+digest; the plan skeleton at the end is what gets codified in mote.
+
+## Part 1 — what the report gets right (verified)
+
+| Claim | Status | Evidence |
+|---|---|---|
+| `effect_evidence_task` is a boundary-typed IR (open/closed × experimental/neural, L/R relations, bridges / neural queries / measurement frames, effect-form / measurement-form / scalar-field materialization, ordered stages) | TRUE | `R/evidence-task.R:436-597`; type law at `:418-434` |
+| Compiler emits a physical execution plan (fusion, metric lowering, tiling, memory, kernel id) with a *separate* scientific-plan identity | TRUE | `R/compiler.R:128-296`; two hashes (`estimand_id`/`scientific_plan_id` vs `signature`, `:254-259`, `:294`) |
+| Fixed-metric crossnobis = ordinary geometry query + `noise_precision()`; learned crossnobis has its own plan class + driver | TRUE | fixed: `R/crossnobis-driver.R:245` → `.run_geometry_compiler`; learned: `effect_crossnobis_plan` `R/crossnobis.R:364`, `.execute_learned_crossnobis` `R/crossnobis-driver.R:40`, kernel `R/kernel.R:666-783` |
+| Rectangular plans refuse fixed metrics; ER-RSA exemplar pending | TRUE | `R/geometry-plan.R:302-316`; `vignettes/novelty.Rmd:34,395,421` |
+| 256 MiB dense small-node ceiling; tomography gated; brain-scale coupling not claimed | TRUE | `R/evidence-api.R:10-31,930-933`; `R/tomography.R:115-122` |
+| Sequential only / no group path / no classifier / learned-metric uncertainty not calibrated | TRUE | `R/compute-policy.R:78-93`; `R/crossform-package.R:72`; `R/crossnobis.R:236-241` |
+| Drift from the v0.1 omission list (learned local covariance, connectivity/tomography, BIDS + adapters now exported) | TRUE in substance; the quote is `design/vision.md:202`, not `crossform-package-design.md` | NAMESPACE lines 214-216, 225, 234, 245-246, 282, 290, 306 |
+| rsatoolbox parity gate open; Haxby compares rMVPA + independent loop only | TRUE | `vignettes/novelty.Rmd:156-157,412-414`; `exemplars/haxby2001/04-compare.R` |
+| Query-first scale-gate numbers (0.13 s / 1.59 s / 2.08 s; 191 MiB / 83 MiB) | TRUE | `inst/extdata/certification/query-first-scale-gate-summary.csv`, `.rds$dimensions` |
+| 15-file value-layer SCC including `receipt.R` | TRUE (reproduced) | `design/architecture.md:238-258`; also an undocumented 3-file SCC `evidence-sampling{,-kernel,-product}.R` |
+| 105 exports | TRUE | NAMESPACE |
+
+## Part 1 — corrections and qualifications
+
+1. **S3 count.** The erratum the report quotes ("43 S3 methods") is itself stale: NAMESPACE registers **207** methods — 101 `print`, 95 `format`, 6 `as.data.frame`, 5 `plot`. ~100 printed classes. This *strengthens* the contract-zoo point.
+2. **"Several plan families are not lowered through `effect_evidence_task`" — mostly false.** Geometry, learned crossnobis and `measurement_form()` all construct the task (`R/geometry-plan.R:324`, `R/crossnobis.R:344`, `R/evidence-api.R:406-415`); the sampling plan wraps an already-compiled plan by `task_id`. Priority 3 ("make the task the sole IR") is already done. The real fork is at the **executor**: learned crossnobis bypasses `compiler.R` with its own driver — ≈370 code lines of plan+driver plus 703 in `metric-learning.R` against a 118-line kernel (≈9:1 planning-to-kernel). Priority 2 stands, retargeted: `plan_geometry(metric = shrinkage_precision(...))` should compile through `compiler.R` as a `support_streamed_scheduled_metric` lowering; `effect_crossnobis_plan` disappears; `crossnobis()` stays a validating view.
+3. **Result classes (Priority 4).** 17 user-facing classes. Ten carry genuinely distinct sealed fields/validators/readers; four leaf views (rdm/rsa/spectrum/crossnobis) are thin records over one `values+index+receipt` triple with distinct `as.data.frame` shapes; two are pure print-label subclasses (`effect_rdm_sampling_covariance`, `_batch`). Caution: `effect_coupling_result` already shows the *opposite* anti-pattern — seven scientifically distinct readings discriminated by a `$kind` string. The report's "use a `kind` field" should not be applied where readers differ. The zoo to shrink is the ~100 print/format value classes, not the result layer.
+4. **Export tiering.** Independent inventory: 36 core / 51 advanced / 18 developer; **34 exports have no vignette, README, or exemplar user (tests only)**; `noise_precision`, `residual_df` exemplar-only. The report's ~15-function core omits the ingestion spine (`study`, `observations`, `design_model`, `plan_relation`/`estimate_relation`, …); realistic core ≈ 25–30 with ingestion tiered separately. `as_neurovol` is a plain function, not a generic (`R/neuroim2-adapter.R:274`) — extension packages can't hook it. Precedent for demotion exists: 12 `\keyword{internal}` topics.
+5. **Superseded numbers.** Learned-crossnobis 52,416-feature run: report says 123.5 s / 949 MB; the shipped 2026-08-16 re-record says **59.98 s / 903 MB** (`crossnobis-scale-gate-summary.csv`). "1,822 expectations" → 4,112 under `R CMD check` (`certification-report.md:405-409`). Certification artifacts are digest-bound to the current `R/` tree (`sha256:67f21604…`) and are **not** stale (only `shard-admission.rds` lacks provenance, as documented).
+6. **IR hygiene.** `scalar_field` materialization is legislated but never constructed (dead arm); two identity schemas coexist (`evidence-pairing-v1` / legacy `effect-form-v1`).
+7. **Modularization.** Mission/vision speak of narrow *interfaces/modules* (`mission.md:13`, `vision.md:77`), not package splits. Agree with the report: separate the *narrative* (core / connect / adapters / population) now; split repos only if dependencies force it.
+8. **Population commutation (§14).** "Model forms then query = query subjects then model" holds for OLS or GLS with a *common* weight operator; per-node or per-coordinate weighting breaks the query↔regression commutation. Keep OLS default; weighted variants are explicit modes.
+
+Verdict on part 1: accepted. Diagnosis right, one mechanism misattributed (IR vs executor), counts stale in its source. Its program — subtraction + evidence, not expansion — is the program.
+
+## Part 2 — mathematics checked
+
+All identities are correct as stated: column-normalized weights ⇒ Σ_x M_x = I ⇒ Σ_x G_x = G_Ω and Σ_x t_x(H) = t_Ω(H); row-stochastic transport preserves subject totals; query ∘ transport ∘ OLS commute (all linear, common operator); geometry-space covariance rank ≤ N−1 ⇒ subject-Gram eigen-trick; global Gram by summing node inner products; sink node restores mass. The proposal's coherent formula `(B w)(B w)^T / Σw` is *exactly* the package's (`src/packed-form.cpp:194-219`; metric-general form `a a^T/(a^T K^{-1} a)`, `R/metric.R:866-965`).
+
+What already exists (verified): `"conservative"` = `W D(1/colSums W)` (`R/frame.R:413-419`); conservation tested at geometry level (`test-workflow.R:82-102`, 1e-13) and query level (`test-integrity-guards.R:92-125`); coherent explicitly does **not** conserve (asserted); `frame_conservation()` diagnostic (total only); coherence fraction masked (not clamped) where components aren't a nonnegative partition (`R/result.R:859-863`); sampling covariance works on conservative frames and can be transported to any linear functional of the pairwise distances (`sampling_covariance(..., "transport")`), though there is no named `contrast_energy` sampling route; `measurement_bridge()` between `"subject01:native"`/`"subject02:native"` exists as a value type (feature-space bridge, not node transport).
+
+## Part 2 — corrections and design constraints the plan must encode
+
+1. **The conservative *total* is a smoothed univariate ledger.** Because total = Σ_v w_xv b_v^{(L)} b_v^{(R)T} (`R/task.R:121-190`, `R/kernel.R:354-378`), the total contribution field at *any* scale is a spatial reallocation of the same per-voxel budget. Panels B/C at the total level carry no multivoxel content beyond a smoothed voxelwise product map. All multivoxel information sits in the coherent/configuration split (coherent involves cross-voxel products). Consequence for §4/§5 Panel D: with Σ_x G_{s,x} = G_Ω for every scale, the row sums E_{s,coh}+E_{s,cfg} = α_s·t_Ω(H) are fixed by the chosen α_s and uninformative. **The informative object is the coherence spectrum — coherent share as a function of scale (and location)** — not "how much effect at each scale". The flagship must be framed that way or a reviewer will dismiss Panel D as an artifact of α.
+2. **Coherent budgets are frame-relative.** Σ_x G^coh_x is not a global quantity; contribution fractions of the coherent field must be labeled as fractions of the frame's coherent mass, and only in the latent-PSD layer.
+3. **Metric constraint (measured).** Conservation survives identity and diagonal metrics (rel. err. 1.6e-16) and **fails for dense fixed metrics** (rel. err. −6.6% under `crossprod(A)/9 + I`) because the composition law is `D(√w) Q D(√w)` (`R/metric.R:783-864`); learned local precision breaks it by construction. `.metric_frame_conservation()` already refuses non-diagonal schedules. A conservative crossnobis needs the alternative composition `Q^{1/2} D(w) Q^{1/2}` (frame in whitened coordinates) — a different estimand, both valid; must be an explicit `composition=` choice, not a silent switch. Related latent inconsistency: the diagonal-metric route rebuilds the frame with `normalization = "none"` (`R/metric.R:590-606`), discarding the declared normalization from provenance even though the numbers survive.
+4. **Transport semantics.** Row-stochastic P preserves each subject's *budget*; a group node then receives mass proportional to how many native nodes map to it, so subjects with finer native frames weigh more per territory. Budget (sum) vs density (mean) semantics is a declared choice on the transport object; the sink node is required, not optional.
+5. **Transported coherent/configuration is a ledger of native-node coherence**, not the coherence of the group node's geometry (no group frame defines one). Label accordingly.
+6. **Signed vs latent layers** — agree; matches the existing coherence-fraction discipline. Cumulative-contribution curves and n_eff live in the latent PSD layer only. Transport and OLS are linear so unbiasedness of crossvalidated forms survives; PSD clipping must never be silent.
+7. **η_transport** must be cross-fitted (independent runs/task) and may be negative on held-out data; report as-is. Registration/functional-transport *learning* stays outside crossform: accept a typed, sparse, provenance-bearing transport.
+8. **Gram trick** needs a Frobenius-consistent packed codec — `symmetric_packed` (√2 off-diagonals) already is.
+9. **What does not exist:** frame families / multi-frame combination API (`rbind(...)/F` into `additive_frame(..., "conservative")` works end to end but is undocumented, and `additive_frame` drops `$index`/`$specification`); per-row metadata beyond `index$measurement` (radius lives frame-wide on `$specification`); any aggregation `contribution(by = region/network)`; any population, transport or group code (only the archived sketch `design/archive/searchlight-conversation-ledger.md:982-1053`, whose Q^C + Q^H consensus/heterogeneity split the proposal's V(P) and Gram modes generalize); the Haxby exemplar downloads **one** of six subjects and runs `normalization = "local"` throughout.
+10. **Dataset for the population slice is a decision.** Haxby subjects are in native space with per-subject VT masks — searchlight-level anatomical transport needs external registration. Slice 1 can use region-level nodes (VT/regions per subject → group ROI nodes, trivial transport) on all six Haxby subjects; slice 2 (searchlight transport with sink mass) wants an fMRIPrep-normalized multi-subject OpenNeuro dataset.
+
+Verdict on part 2: accepted as the next scientific contribution, with the reframing in (1) — the conservation theorem earns its keep through the coherence spectrum and through population transport, not through total-energy scale panels.
+
+## How the two parts fit
+
+Part 1's program is *subtract, unify the executor, then earn evidence*. Part 2 supplies the content of two of part 1's five demonstrations (#4 conservative frame, #5 population form) and shows they are one construction. Ordering: subtraction and executor unification first (they change the public shape everything else is written against), conservative-geometry science second (population consumes it), population form third, external evidence gates alongside.
+
+## Plan skeleton (to be codified in mote)
+
+**WS-A Subtraction release** — tier the 105 exports (core / advanced / developer); de-export the 18 developer constructors and the tests-only remainder behind `\keyword{internal}` + a small developer protocol; make `as_neurovol` a generic; merge pure-label result classes; consolidate print/format across value classes (target: well under 100 printed classes); regroup `_pkgdown.yml` and README into core / connect (experimental) / adapters / population narrative; correct the certification erratum (207 S3, 60 s / 903 MB, 4,112 expectations).
+
+**WS-B Executor unification** — learned metric as a compiler lowering; delete `effect_crossnobis_plan`; `crossnobis()` as view; fix diagonal-metric frame-normalization provenance; remove dead `scalar_field` arm or construct it; retire the legacy identity schema; (optional) admit fixed metrics on rectangular plans.
+
+**WS-C Value-layer untangling** — break the receipt→memory-plan→… cycle (receipts record, never found); break the 3-file sampling cycle; add an SCC bound to `test-architecture.R`.
+
+**WS-D Conservative geometry** — frame families with per-row metadata (family, scale, center, label) and multiscale conservative construction with α weights; `contribution(by=)` aggregation; coherence spectrum; explicit `composition = c("native","whitened")` metric law with conservation certificate; latent-PSD layer object; contract doc "detection vs attribution"; Haxby subj1 conservative exemplar with panels A–D reframed.
+
+**WS-E Population form** — typed transport object (sparse, row-stochastic, sink, budget/density flag, provenance); `plan_population()`; OLS with one QR; query-before-transport vs transport-before-query chosen by compiler; views `contrast_energy/rdm/rsa/contribution/heterogeneity`; subject-Gram heterogeneity; slice 1 on six Haxby subjects at region level; slice 2 on a normalized dataset with searchlight transport and η_transport.
+
+**WS-F External evidence gates** — rsatoolbox parity + strict-extension demo; rectangular ER-RSA exemplar; Linux/Windows runs; certification refresh after every R/ change.

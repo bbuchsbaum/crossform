@@ -36,6 +36,9 @@ articles:
   - neuroim2-data
 
 - title: Advanced evidence forms
+  desc: >
+    Experimental. Results that relate two sets of measurements to each other,
+    under a small-node scale gate.
   contents:
   - evidence-pairing
 
@@ -45,6 +48,28 @@ articles:
   - interpreting-results
   - from-rmvpa
 
+- title: Conservative geometry
+  desc: >
+    The attribution instrument. A conservative frame partitions one fixed
+    global budget instead of reporting a density per neighbourhood, so its map
+    is a ledger that adds up over territories — and its per-scale totals are
+    the analyst's own weights, which is why the coherence spectrum, not the
+    energy spectrum, is the finding.
+  contents:
+  - conservative-frames
+
+- title: Population (experimental)
+  desc: >
+    Experimental. Carrying each participant's conservative ledger onto a
+    shared group node set: the typed transport you supply and the package
+    refuses to learn, the sink column that makes partial coverage a number
+    you read rather than budget that went missing, the commutation that makes
+    modelling-then-querying the same answer as querying-then-modelling, the
+    cross-fitted subject Gram that separates consensus from disagreement, and
+    the two error bars the layer keeps apart and labels uncalibrated.
+  contents:
+  - population-form
+
 - title: Claims and policies
   desc: What the package claims, what it refuses, and where the boundaries are drawn.
   contents:
@@ -52,17 +77,69 @@ articles:
   - failure-gallery
   - correlation-distance-policy
 
+- title: For package authors
+  desc: The surface an extension package may build against, and what is closed to it.
+  contents:
+  - crossform-extending
+
 reference:
 - title: Package overview
   desc: What crossform is for, and the boundaries it will not cross.
   contents:
   - crossform-package
 
-- title: From observations to a fitted relation
-  desc: Typed facts, condition-space effects, relation plans, design receipts, and optional compiler adapters.
+- title: "Core — the beta-first spine"
+  desc: >
+    Start here. Condition effects, the measurements you want answers at, and
+    the partitions that must generalize compile once into a geometry plan.
+    Nothing below this heading is optional for an ordinary analysis, and
+    nothing above the advanced sections is needed to complete one.
   contents:
-  - observation_index
+  - example_fmri_effects
+  - effect_space
+  - relation
+  - lm_relation_fit
+  - abstract_domain
+  - volume_domain
+  - searchlights
+  - regions
+  - voxelwise
+  - whole_brain
+  - compile_frame
+  - cross_partitions
+  - plan_geometry
+
+- title: "Core — views, uncertainty, and refusals"
+  desc: >
+    The plan is an identity, not a matrix. These read it: signed and
+    decomposed contrast energy, squared crossvalidated distances, fixed
+    linear RSA, the ledger reading that adds a conservative map up over a
+    territory, the coherent share of a multiscale family against scale, the
+    analytic sampling law, and the refusal a view returns when the evidence
+    for it was never earned.
+  contents:
+  - contrast_energy
+  - contribution
+  - coherence_spectrum
+  - rdm
+  - rsa
+  - plot_views
+  - sampling_capabilities
+  - rdm_sampling_covariance
+  - sampling_covariance
+  - catch_refusal
+  - crossform_conditions
+  - compute_policy
+
+- title: "Core (ingestion) — from observations to a fitted relation"
+  desc: >
+    The typed-facts spine, for arriving with scan responses and an event
+    table rather than fitted betas: study, observations, design, relation
+    plan, receipts. A user who starts from betas meets none of it.
+    `vignette("from-observations")` is its single narrative.
+  contents:
   - observations
+  - observation_index
   - observation_events
   - observation_confounds
   - partition_hierarchy
@@ -73,118 +150,216 @@ reference:
   - effect_map
   - coefficient_parameterization
   - lower_effect_map
+  - raw_effect_map
   - design_model
   - raw_design_model
-  - raw_effect_map
   - observation_model
   - plan_relation
-  - relation_plan_receipts
   - compiler_conformance
+  - relation_plan_receipts
   - estimate_relation
-  - bids_events
-  - bids_confounds
-  - bids_study
-  - fmridesign_design_model
-  - fmrireg_relation
 
-- title: Start a representational analysis
-  desc: The small public surface for relations, spatial measurements, generalization, and scientific views.
+- title: "Advanced — explicit queries and geometries"
+  desc: >
+    Reaching past the view functions: materialize a geometry once and query
+    it many times, or evaluate a query without materializing anything at
+    all; custom bilinear operators, unequal axes, and explicit partition
+    pairings and reductions.
   contents:
-  - example_fmri_effects
-  - effect_space
-  - abstract_domain
-  - volume_domain
-  - compile_frame
-  - additive_frame
-  - searchlights
-  - regions
-  - voxelwise
-  - whole_brain
-  - frame_conservation
-  - catch_refusal
-  - crossform_conditions
-  - relation
-  - lm_relation_fit
-  - cross_partitions
-  - plan_geometry
   - materialize_geometry
   - evaluate_geometry
-  - contrast_energy
-  - rdm
-  - rsa
-  - plot_views
+  - query_geometry
   - geometry_component
   - geometry_spectrum
-  - rdm_sampling_covariance
-  - sampling_capabilities
-  - sampling_covariance
-  - relation_fit_capabilities
+  - bilinear_query
+  - pair_query
+  - pairing
+  - aggregate_first
+  - reduce_partitions
 
-- title: Metrics and crossnobis
-  desc: Fixed or learned neural metrics and the separately qualified crossnobis path.
+- title: "Advanced — frame algebra and conservation"
+  desc: >
+    Diagonal and α-weighted frame families, and the certificate that a frame
+    conserves the mass it claims to.
+  contents:
+  - additive_frame
+  - frame_family
+  - frame_conservation
+
+- title: "Advanced — the latent PSD layer"
+  desc: >
+    Crossvalidated contributions are signed, and effective counts, cumulative
+    curves and contribution fractions are invalid on them: the implied shares
+    can leave `[0, 1]`, and clipping reintroduces the bias the cross-partition
+    estimator removes. Those functionals are legal only on a declared
+    nonnegative projection, which this builds and labels — a named projection
+    from a closed set, with the mass it moved reported per measurement rather
+    than absorbed.
+  contents:
+  - latent_geometry
+
+- title: "Advanced — metrics and crossnobis"
+  desc: >
+    Fixed and learned neural metrics, the leakage guard on metric training,
+    and the separately qualified crossnobis path.
   contents:
   - neural_metric
+  - noise_precision
   - identity_metric
   - diagonal_precision
-  - noise_precision
   - shrinkage_precision
   - metric_training_policy
   - metric_capabilities
   - plan_crossnobis
   - crossnobis
 
-- title: Ordered effect-form queries
-  desc: Advanced fixed queries, unequal axes, and explicit partition reductions.
+- title: "Advanced — extraction maps, error channels, and residuals"
+  desc: >
+    Where the estimates and their error channel come from: the extraction
+    map in `B = E Y`, whether a fit carries residuals at all, and the
+    bounded residual read with its correct divisor.
   contents:
-  - bilinear_query
-  - pair_query
-  - coupling_contrast
-  - pair_lm_query
-  - match_coupling
-  - match_control
-  - query_geometry
-  - variation_query
-  - control_coupling
-  - pairing
-  - inner_product
-  - reduce_partitions
-  - aggregate_first
+  - lm_extractor
+  - relation_fit_capabilities
+  - residual_block
+  - residual_df
 
-- title: Measurement forms and coupling
-  desc: Prespecified small-node measurements, ordered edges, and interpretation-gated coupling views.
+- title: "Advanced — numerical evidence"
+  desc: >
+    The reproducibility contract as a value, and the verifier that two runs
+    agree under a named guarantee.
   contents:
-  - measurement_space
+  - numerical_contract
+  - numerical_agreement
+
+- title: "Advanced — matched-pair contrasts (provisional API)"
+  desc: >
+    Matched encoding–retrieval pairs, eligible controls, and the balanced
+    matched-minus-control operator. **Provisional, not settled public API:**
+    this family is held open pending the rectangular ER-RSA exemplar, and
+    whichever of these the delivered exemplar does not exercise becomes
+    internal. Do not build against it yet.
+  contents:
+  - match_coupling
+  - control_coupling
+  - coupling_contrast
+  - match_control
+  - pair_lm_query
+
+- title: "Coupling and measurement (experimental, small-node only)"
+  desc: >
+    **Experimental.** Measurement forms, coupling closures, and tomography —
+    results that relate two sets of measurements to each other rather than
+    scoring one. The API and the returned kinds may change. This tier is
+    **scale-gated and the package refuses brain-scale claims here**: a
+    request whose dense payload exceeds the version 0.1 small-node limit of
+    256 MiB (268,435,456 bytes) is refused outright rather than approximated,
+    with the remedy "use the support-local geometry plan; brain-scale
+    measurement tomography is not yet exported."
+    `vignette("evidence-pairing")` is the narrative.
+  contents:
   - measurement_frame
   - edge_frame
   - measurement_form
-  - coupling
   - measurement_components
-  - connectivity
+  - variation_query
+  - coupling
   - coupling_views
+  - effect_coupling_result
   - gaussian_covariance_model
+  - connectivity
   - reconstruct_evidence
-  - measurement_bridge
-  - reverse_bridge
 
-- title: Sources, extractors, residuals, and execution
-  desc: Infrastructure for lazy sources, fitted error channels, and bounded execution.
+- title: "Population (experimental)"
+  desc: >
+    **Experimental.** Carrying one participant's conservative geometry onto a
+    shared group node set. A transport is an *input*: crossform accepts a
+    typed, sparse, provenance-bearing operator and refuses to learn one —
+    image registration and functional-transport learning stay outside the
+    package. The sink column is required and always materialized, so partial
+    coverage is a number you can read rather than budget that quietly went
+    missing, and `semantics` has no default because budget and density are
+    two different estimands. A transport built from the response data must
+    name the runs that built it. `plan_population()` assembles the group
+    estimand from them: the transport, the budget normalization, and the fit's
+    evaluation order all enter its scientific identity, because each of them
+    changes what the group number is rather than how it is computed.
+    `estimate_population()` executes one through a bank of contrasts, reading
+    the query before the transport so complete packed geometry is never
+    allocated, and asserting each participant's budget certificate at fit
+    time. `materialize_population()` is its complete-form counterpart, for
+    when the whole group form is wanted rather than a bank: it streams the
+    packed coordinate axis in tiles, so the group stack stays linear in the
+    tile and the dense participant-by-node-by-coordinate array is never
+    built. `population_views` are the reader verbs over either result —
+    `contrast_energy()`, `rdm()`, `rsa()` and `contribution()` again, reading
+    the group coefficients that run already produced rather than executing a
+    second one; a query the estimated basis cannot reach is refused with the
+    re-estimation remedy instead of being projected onto it.
+    `population_uncertainty()` reports the two error bars section 7 requires
+    to be kept apart: the between-subject scatter of the participants about
+    the group fit, and — only where a group column is fed by exactly one
+    native row, so the cross-node terms carry weight zero — the transported
+    within-subject sampling variance. They are separate blocks with no field
+    holding their sum, and the `t` is labelled uncalibrated whatever the
+    recorded null simulation measured, because a real fit adds
+    misspecification and transport heterogeneity that simulation did not
+    contain. `heterogeneity()` reads the other half of section 6's
+    decomposition: the N-by-N subject Gram of participants' deviations from
+    the group fit, its spectrum, the subject loadings on its modes and — at
+    nodes you name — the geometry of those modes. It defaults to the
+    cross-fitted estimator, because the plug-in one books every participant's
+    within-subject sampling noise as between-participant heterogeneity and
+    inflates the trace by a measured 62.7%; the plug-in route stays available
+    for loading directions, named as such and carrying no effective mode
+    count. `population_prevalence()` is the descriptive counterpart: how many
+    participants stand behind a group value, at each group node and query and
+    across the bank as a whole. It lives on the latent layer section 6.5
+    confines fractions to, prints the same "not for inference" sentence
+    `latent_geometry()` does, and refuses to carry a field that looks like an
+    error bar — a cell at which nothing reproduces reports a fraction near
+    0.5, not near 0. See
+    [`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md).
   contents:
-  - effect_extractor
-  - lm_extractor
-  - relation_fit
-  - relation_block
-  - residual_block
-  - residual_pair_statistics
-  - effect_covariance
-  - residual_df
-  - file_matrix_source
-  - source_capabilities
-  - compute_policy
+  - location_transport
+  - anatomical_transport
+  - external_transport
+  - transport_values
+  - plan_population
+  - estimate_population
+  - materialize_population
+  - population_views
+  - heterogeneity
+  - population_uncertainty
+  - population_prevalence
 
-- title: Adapters and numerical evidence
+- title: Adapters
+  desc: >
+    Morphisms into the typed core from another package's vocabulary. Every
+    dependency here is `Suggests:`, and the core is not shaped by any of
+    them. The three `neuroim2` entries are de-facto core for volumetric
+    work — every real imaging path begins and ends there.
   contents:
   - neuroim2_volume_domain
   - neuroim2_searchlights
   - as_neurovol
-  - numerical_contract
-  - numerical_agreement
+  - bids_study
+  - fmridesign_design_model
+  - fmrireg_relation
+
+- title: For extension packages
+  desc: >
+    The five sanctioned entry points an extension or adapter *package* uses
+    to hand data, a design, and an error channel into the core, plus the
+    version certificate every adapter is obliged to obtain before it touches
+    the package it adapts. Not an end user's surface, and deliberately small:
+    everything else that once lived here is internal.
+    `vignette("crossform-extending")` states what is open, what is closed, and
+    what an extension may rely on remaining true.
+  contents:
+  - file_matrix_source
+  - source_capabilities
+  - effect_extractor
+  - relation_fit
+  - relation_block
+  - adapter_version_certificate

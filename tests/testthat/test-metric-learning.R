@@ -216,7 +216,7 @@ test_that("all-partitions and disjoint training are distinct estimators", {
 
 test_that("workspace-invariant statistics yield identical metric schedules", {
   narrow_setup <- metric_learning_setup("narrow")
-  wide_statistics <- residual_pair_statistics(
+  wide_statistics <- crossform:::residual_pair_statistics(
     narrow_setup$fixture$fit, narrow_setup$fixture$frame,
     workspace_bytes = narrow_setup$budgets$wider
   )
@@ -240,7 +240,7 @@ test_that("workspace-invariant statistics yield identical metric schedules", {
 
 test_that("metric schedules refuse leakage and identity mutations", {
   setup <- metric_learning_setup()
-  only_two <- residual_pair_statistics(
+  only_two <- crossform:::residual_pair_statistics(
     setup$fixture$fit, setup$fixture$frame,
     partitions = c("run1", "run2"),
     workspace_bytes = setup$budgets$wider

@@ -8,7 +8,8 @@ volume_domain(
   mask,
   spacing = c(1, 1, 1),
   id = "native-volume",
-  coordinate_units = "mm"
+  coordinate_units = "mm",
+  metadata = list()
 )
 }
 \arguments{
@@ -20,19 +21,39 @@ entries are included.}
 \item{id}{Stable domain identity.}
 
 \item{coordinate_units}{One physical coordinate unit or one per axis.}
+
+\item{metadata}{Optional uniquely named list of extra facts about where the
+geometry came from, recorded alongside the grid facts the constructor
+derives. See \emph{Provider metadata}.}
 }
 \value{
 An \code{effect_domain} with \verb{$kind} \code{"volume"}, \verb{$feature_ids} giving
 the stable full-volume indices of the included voxels, \verb{$coordinates}
 holding their physical positions, \verb{$metadata} carrying \code{dim}, \code{spacing},
-\code{voxel} indices and the logical \code{mask}, plus the usual
-\verb{$geometry_signature} and \verb{$reference}.
+\code{voxel} indices and the logical \code{mask} followed by anything \code{metadata}
+added, plus the usual \verb{$geometry_signature} and \verb{$reference}.
 }
 \description{
 Use this when features are the in-mask voxels of a 3D volume. The compact
 feature order follows the full-volume index order of the mask, so results
 can always be written back to the original array positions.
 }
+\section{Provider metadata}{
+
+A domain built by an adapter usually knows something about the geometry
+that the array itself does not carry --- the native header it came from,
+the file, the transform it was resampled under. \code{metadata} is where that
+goes, and it is not decoration: the domain's \verb{$geometry_signature} covers
+it, so two domains that agree on every voxel but disagree about their
+provenance are correctly \emph{different} domains, and anything holding a
+compact result vector against one of them refuses the other.
+
+That is the point. \code{neuroim2_volume_domain()} records the hash of the full
+\code{neuroim2} space this way, which is what makes writing a result back to
+voxels safe. The grid facts the constructor derives itself --- \code{dim},
+\code{spacing}, \code{voxel}, \code{mask} --- cannot be overridden.
+}
+
 \examples{
 # A 5 x 5 x 3 volume with one voxel excluded from the mask.
 mask <- array(TRUE, c(5L, 5L, 3L))
@@ -47,6 +68,14 @@ nrow(compile_frame(searchlights(4), domain)$weights)
 # feature_ids are full-volume indices, which is how compact results are
 # written back into the original array.
 utils::head(domain$feature_ids, 3)
+
+# A provider records where the geometry came from, and the record is part
+# of what the domain is: the same voxels under a different provenance are a
+# different domain, not the same one.
+stamped <- volume_domain(mask, spacing = c(3, 3, 3), id = "example-volume",
+  metadata = list(source_file = "sub-01_mask.nii.gz"))
+stamped$metadata$source_file
+identical(stamped$reference, domain$reference)
 }
 \seealso{
 \code{\link[=abstract_domain]{abstract_domain()}} for non-volumetric features,
@@ -60,8 +89,8 @@ Other neural domains and frames:
 \code{\link{compile_frame}()},
 \code{\link{edge_frame}()},
 \code{\link{frame_conservation}()},
+\code{\link{frame_family}()},
 \code{\link{measurement_frame}()},
-\code{\link{measurement_space}()},
 \code{\link{neuroim2_searchlights}()},
 \code{\link{neuroim2_volume_domain}()},
 \code{\link{regions}()},

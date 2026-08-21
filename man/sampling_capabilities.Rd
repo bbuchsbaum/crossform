@@ -60,7 +60,6 @@ happened.
 Other sampling uncertainty: 
 \code{\link{rdm_sampling_covariance}()},
 \code{\link{reconstruct_evidence}()},
-\code{\link{residual_pair_statistics}()},
 \code{\link{sampling_covariance}()}
 }
 \concept{sampling uncertainty}

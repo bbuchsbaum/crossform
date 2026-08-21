@@ -442,13 +442,20 @@ relation <- function(sources, extract = NULL, effects = NULL,
 #' rownames(relation_block(point, 1L, seq_len(5L)))
 #' @export
 relation_block <- function(x, partition, features) {
-  if (inherits(x, "effect_relation_fit")) {
-    .validate_relation_fit(x, deep = FALSE)
-    x <- x$relation
-  }
+  x <- .as_read_relation(x)
   .relation_block_with_reader(x, partition, features,
     function(partition, features) x$sources[[partition]]$read(features))
 }
+
+# A relation reader may be handed something that *carries* a relation rather
+# than a relation. Unwrapping it is the carrier's business, not the relation's:
+# a fit is a relation plus an error channel, so `relation.R` cannot know how to
+# check one without calling up into `relation-fit.R`. It asks instead, and the
+# file that owns each carrier registers how to answer. The default is the
+# identity, so a plain relation passes through untouched.
+.as_read_relation <- function(x) UseMethod(".as_read_relation")
+
+.as_read_relation.default <- function(x) x
 
 .relation_block_with_reader <- function(x, partition, features, read_response,
                                         validate = TRUE) {

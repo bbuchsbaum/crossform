@@ -45,9 +45,9 @@ test_that("same-space metric capabilities gate exact lowering classes", {
 
 test_that("metric and bridge roles cannot be confused", {
   domain <- abstract_domain(2, id = "metric-vs-bridge")
-  bridge <- measurement_bridge(
+  bridge <- crossform:::measurement_bridge(
     diag(2), diag(2), domain, domain,
-    measurement_space(2, "shared:metric-vs-bridge")
+    crossform:::measurement_space(2, "shared:metric-vs-bridge")
   )
 
   expect_error(metric_capabilities(bridge), "bridge.*not.*metric",
@@ -283,4 +283,117 @@ test_that("mutated metric identities fail at the deep boundary", {
 
   expect_error(crossform:::.validate_neural_metric(metric, deep = TRUE),
     "identity", class = "effect_contract_error")
+})
+
+test_that("a folded diagonal metric keeps the declared normalization", {
+  domain <- abstract_domain(4, id = "metric-fold-provenance")
+  precision <- noise_precision(diag(c(0.5, 2, 1.25, 3)), domain)
+  labels <- c("a", "a", "b", "b")
+
+  conservative <- compile_frame(
+    regions(labels, normalization = "conservative"), domain
+  )
+  schedule <- crossform:::.geometry_metric_schedule(conservative, precision)
+  folded <- crossform:::.metric_additive_frame(conservative, schedule)
+
+  # The composed weights are no longer column-normalized, so the frame cannot
+  # claim "conservative" without lying about the operator it carries. The
+  # declared normalization survives as provenance instead.
+  expect_identical(folded$normalization, "none")
+  expect_true(folded$metric_folded$folded)
+  expect_identical(folded$metric_folded$declared_normalization, "conservative")
+  expect_identical(folded$metric_folded$metric_kind, "native_diagonal")
+  expect_identical(folded$metric_folded$composition, "diagonal_metric_fold")
+  expect_identical(folded$metric_folded$metric_signature, precision$signature)
+  expect_equal(folded$metric_folded$reference_mass, c(0.5, 2, 1.25, 3),
+    tolerance = 0)
+
+  # Conservation is unchanged by the fold: the conserving per-feature mass is
+  # the metric diagonal, because the global comparator is read under the same
+  # metric.
+  report <- frame_conservation(folded)
+  expect_true(report$conserved)
+  expect_true(report$metric_folded)
+  expect_identical(report$declared_normalization, "conservative")
+  expect_identical(report$normalization, "none")
+  expect_equal(report$max_deviation, 0, tolerance = 1e-12)
+
+  certificate <- crossform:::.metric_frame_conservation(folded)
+  expect_true(certificate$identity_conservation)
+  expect_true(certificate$metric_folded)
+  expect_identical(certificate$declared_normalization, "conservative")
+  expect_match(certificate$reason, "folded metric diagonal")
+
+  # A local frame records "local" and is no more conserved after the fold
+  # than before it.
+  local_frame <- compile_frame(regions(labels), domain)
+  local_folded <- crossform:::.metric_additive_frame(
+    local_frame, crossform:::.geometry_metric_schedule(local_frame, precision)
+  )
+  expect_identical(local_folded$metric_folded$declared_normalization, "local")
+  expect_true(local_folded$metric_folded$folded)
+  expect_false(frame_conservation(local_folded)$conserved)
+  expect_identical(
+    frame_conservation(local_folded)$declared_normalization, "local"
+  )
+
+  # The implicit identity schedule folds nothing, so the frame is returned
+  # untouched and carries no fold provenance.
+  untouched <- crossform:::.metric_additive_frame(
+    conservative, crossform:::.geometry_metric_schedule(conservative)
+  )
+  expect_null(untouched$metric_folded)
+  expect_identical(untouched$normalization, "conservative")
+
+  # This is why the declared normalization is provenance rather than a claim
+  # on `$normalization`: the frame validator checks the column-mass law
+  # against the weights it is handed, so a folded frame that declared
+  # "conservative" would be refused outright.
+  mislabeled <- folded
+  mislabeled$normalization <- "conservative"
+  expect_error(crossform:::.validate_frame_for_compile(mislabeled),
+    "columns must sum to one", class = "effect_input_error")
+
+  forged <- folded
+  forged$metric_folded$declared_normalization <- "invented"
+  expect_error(crossform:::.validate_frame_for_compile(forged),
+    "metric-fold provenance", class = "effect_input_error")
+})
+
+test_that("a folded diagonal metric conserves local totals globally", {
+  domain <- abstract_domain(5, coordinates = cbind(0:4, 0),
+    id = "metric-fold-conservation")
+  effects <- list(
+    run1 = rbind(a = c(1, 0, 2, 1, -1), b = c(0, 1, 1, 0, 2)),
+    run2 = rbind(a = c(1.1, 0.1, 1.9, 0.8, -1.2), b = c(0.1, 0.9, 1.2, 0.2, 1.8))
+  )
+  rel <- relation(effects, domain = domain)
+  over <- cross_partitions(rel, independence = "independent")
+  precision <- noise_precision(diag(c(0.5, 2, 1.25, 3, 0.75)), domain)
+  query <- bilinear_query(tcrossprod(c(1, -1)))
+
+  local_plan <- plan_geometry(
+    rel, compile_frame(searchlights(1.01, normalization = "conservative"),
+      domain), over, metric = precision
+  )
+  global_plan <- plan_geometry(
+    rel, compile_frame(whole_brain(normalization = "none"), domain), over,
+    metric = precision
+  )
+  # Pin the route: this conservation law is the one the metric-folded frame
+  # implements, so the test must fail if the plan stops using that lowering.
+  expect_identical(
+    crossform:::.compile_geometry_execution_plan(
+      local_plan, query = query, component = "total"
+    )$lowering,
+    "additive_metric_query_fused_contraction"
+  )
+
+  local_view <- evaluate_geometry(local_plan, query = query,
+    component = "total")
+  global_view <- evaluate_geometry(global_plan, query = query,
+    component = "total")
+
+  expect_equal(sum(local_view$values), unname(drop(global_view$values)),
+    tolerance = 1e-12)
 })

@@ -13,8 +13,19 @@ frame_conservation(x, tolerance = 1e-10)
 }
 \value{
 An \code{effect_frame_conservation} list reporting \code{conserved}, the
-covered \code{component} (\code{"total"}), the frame \code{normalization}, the maximum
-per-feature mass deviation from one, and the per-feature mass vector.
+covered \code{component} (\code{"total"}), the frame \code{normalization}, its
+\code{declared_normalization} together with \code{metric_folded} (whether a
+diagonal metric has been folded into the weights) and the \code{composition}
+law in force (\code{"none"} for a declared frame, \code{"diagonal_metric_fold"} for
+a folded one), the maximum
+per-feature deviation from the conserving \code{reference_mass}, and the
+per-feature mass vector. \code{reference_mass} is one for a declared frame and
+the folded metric diagonal for a metric-folded one, because that frame's
+global comparator is read under the same metric. A \code{\link[=frame_family]{frame_family()}}
+additionally reports \code{members}, one row per family member giving its
+\code{alpha}, its measurement count, and the deviation of its own per-feature
+mass from that \code{alpha} -- the block-by-block half of the law, which the
+whole family conserving does not imply.
 }
 \description{
 Under a conservative frame every domain feature carries total weight mass
@@ -53,8 +64,8 @@ Other neural domains and frames:
 \code{\link{as_neurovol}()},
 \code{\link{compile_frame}()},
 \code{\link{edge_frame}()},
+\code{\link{frame_family}()},
 \code{\link{measurement_frame}()},
-\code{\link{measurement_space}()},
 \code{\link{neuroim2_searchlights}()},
 \code{\link{neuroim2_volume_domain}()},
 \code{\link{regions}()},

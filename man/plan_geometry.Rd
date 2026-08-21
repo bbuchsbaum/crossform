@@ -10,11 +10,16 @@ plan_geometry(
   over,
   compute = compute_policy(),
   metric = NULL,
-  right = NULL
+  composition = c("native", "whitened"),
+  right = NULL,
+  training = metric_training_policy("exclude_evaluation"),
+  residual_workspace_bytes = NULL
 )
 }
 \arguments{
-\item{x}{An \code{effect_relation} supplying the left experimental axis.}
+\item{x}{An \code{effect_relation} supplying the left experimental axis, or an
+\code{effect_relation_fit} when \code{metric} is a learned recipe, which needs the
+fit's residual channel.}
 
 \item{at}{A compiled additive \code{effect_frame}.}
 
@@ -24,11 +29,31 @@ endpoints identify partitions of \code{right}.}
 
 \item{compute}{A sequential \code{compute_policy()}.}
 
-\item{metric}{Optional fixed \code{neural_metric()}. A domain-wide metric is
-restricted to each frame support on demand; a support-local metric is
-accepted only for a matching one-node frame. Learned metric recipes are
-added by the statistical fitting layer rather than stored per node.
-Fixed metrics are not yet admitted on rectangular plans.}
+\item{metric}{Optional fixed \code{neural_metric()}, or an on-demand metric
+recipe such as \code{\link[=shrinkage_precision]{shrinkage_precision()}}. A domain-wide fixed metric is
+restricted to each frame support on demand; a support-local fixed metric
+is accepted only for a matching one-node frame. A recipe compiles a
+learned local schedule instead: nothing is materialized before the frame,
+and each support derives its own local operator from frozen residual
+sufficient statistics. Fixed metrics and recipes are not yet admitted on
+rectangular plans.}
+
+\item{composition}{How the metric composes with the frame, and therefore
+which estimand the plan names. \code{"native"} (the default, and the only
+behaviour before this argument existed) weights features and then measures
+them in the metric geometry, \eqn{K_x = D(\sqrt{w_x})\,Q\,D(\sqrt{w_x})}.
+\code{"whitened"} measures the frame in whitened coordinates instead,
+\eqn{K_x = Q^{1/2}D(w_x)Q^{1/2}}, which conserves exactly under a
+conservative frame for any positive-definite \code{Q} where the native
+composition of a dense \code{Q} does not. The two are \strong{different estimands,
+not two implementations of one}: under whitening a node weights whitened
+coordinates, which are spatially delocalized whenever \code{Q} is dense, so a
+node's support is no longer its support. Never switch to \code{"whitened"} to
+repair a failed conservation check. It is admitted for a fixed
+positive-definite domain-wide metric only, uses the symmetric
+positive-definite root \eqn{Q^{1/2}}, and carries both the composition and
+that root convention into \verb{$scientific_plan_id}. See
+\code{design/conservative-geometry-contract.md} section 5.}
 
 \item{right}{Optional second \code{effect_relation} supplying a distinct right
 experimental axis. Supplying it compiles a rectangular cross-axis plan:
@@ -36,6 +61,16 @@ the resulting form has one row axis per left effect and one column axis
 per right effect, is read with axis-bound \code{\link[=pair_query]{pair_query()}}s through
 \code{\link[=evaluate_geometry]{evaluate_geometry()}}, and materializes to a rectangular effect form.
 Encoding-retrieval similarity is the canonical use.}
+
+\item{training}{A \code{\link[=metric_training_policy]{metric_training_policy()}} declaring which residual
+partitions may train a learned \code{metric}. Ignored for fixed metrics.}
+
+\item{residual_workspace_bytes}{Positive cache budget used while
+accumulating canonical residual pair sufficient statistics for a learned
+\code{metric}. It changes cache capacity, never the canonical numerical tile
+shape, and so enters \verb{$signature} but not \verb{$scientific_plan_id}. Defaults
+to \code{compute$workspace_bytes}, or 512 MiB when the policy declares none.
+Admitted only with a recipe.}
 }
 \value{
 An \code{effect_geometry_plan} recording the compiled \verb{$task},
@@ -46,11 +81,10 @@ changes the execution receipt, not this identity.
 }
 \description{
 \code{plan_geometry()} validates the relation, spatial frame, pairing, source
-capabilities, and compute policy without reading relation blocks. The plan
-can answer fixed queries with \code{\link[=evaluate_geometry]{evaluate_geometry()}} or be explicitly
-materialized with \code{\link[=materialize_geometry]{materialize_geometry()}}. Complete packed geometry is
-therefore an optional materialization, not the object that every analysis
-must allocate.
+capabilities, and compute policy. The plan can answer fixed queries with
+\code{\link[=evaluate_geometry]{evaluate_geometry()}} or be explicitly materialized with
+\code{\link[=materialize_geometry]{materialize_geometry()}}. Complete packed geometry is therefore an optional
+materialization, not the object that every analysis must allocate.
 }
 \section{Structure}{
 
@@ -74,6 +108,35 @@ record; block size, storage, and machine do not change it.
 The rest of \verb{$task}, the \verb{$metric_schedule}, and every other element not
 listed here are the lowered form the executor consumes: internal, and
 free to change.
+}
+
+\section{Reads at plan time}{
+
+With a fixed metric or the implicit identity metric under the native
+composition, compilation reads no relation block: everything it checks is a
+declaration.
+
+There are two deliberate exceptions. \code{composition = "whitened"} is the
+second: whitening is a global congruence, so the transform
+\eqn{\tilde B = BQ^{1/2}} is performed once here and every view of the plan
+reads the whitened coordinates it produced. Deferring it would repeat one
+domain-wide congruence per contrast. The relation is read one feature block
+at a time and accumulated, so the source is never fully resident, but the
+result is: \verb{$execution_hints} records the resident bytes, and a declared
+\code{compute_policy(workspace_bytes = )} is enforced against them before the
+first read. Every refusal that does not need the data --- the metric's
+domain, its support, its definiteness, the budget --- fires first.
+
+A learned metric recipe is the other, and it is deliberate too. The
+schedule freezes canonical residual sufficient statistics, so
+\code{plan_geometry()} accumulates them in one streamed pass over the fit's
+residual channel before it returns. Deferring that pass to execution would
+re-accumulate the same statistics for every contrast and lose the plan
+reuse the frozen schedule exists to provide. The refusals that do not need
+the data still fire first: a training-partition shortage and a workspace
+budget overflow are both diagnosed before the first residual read. The
+accumulation is recorded in \verb{$execution_hints}, so it is visible in the
+plan signature rather than only in the execution receipt.
 }
 
 \examples{
@@ -109,14 +172,16 @@ query and \code{\link[=materialize_geometry]{materialize_geometry()}} for comple
 Other geometry plans and views: 
 \code{\link{aggregate_first}()},
 \code{\link{bilinear_query}()},
+\code{\link{coherence_spectrum}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
+\code{\link{contribution}()},
 \code{\link{crossnobis}()},
 \code{\link{evaluate_geometry}()},
 \code{\link{example_fmri_effects}()},
 \code{\link{geometry_component}()},
 \code{\link{geometry_spectrum}()},
-\code{\link{inner_product}()},
+\code{\link{latent_geometry}()},
 \code{\link{materialize_geometry}()},
 \code{\link{plan_crossnobis}()},
 \code{\link{plot_views}},

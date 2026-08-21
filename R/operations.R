@@ -30,16 +30,15 @@
 #' @seealso [reduce_partitions()] and [aggregate_first()] for the partition
 #'   stage that follows normalization; [connectivity()] for the normalized
 #'   views that are gated behind explicit capabilities.
-#' @family geometry plans and views
 #' @examples
 #' # The normalizer only names the stage; nothing is computed here.
-#' normalizer <- inner_product()
+#' normalizer <- crossform:::inner_product()
 #' normalizer$kind
 #'
 #' # Because no denominator is involved, there is no zero-norm case to
 #' # resolve at execution time.
 #' normalizer$zero_policy
-#' @export
+#' @keywords internal
 inner_product <- function() .new_edge_normalizer("inner_product")
 
 # These constructors remain private vocabulary for validating stored research
@@ -120,6 +119,21 @@ rank_edges <- function(ties = c("average", "first", "last", "min", "max")) {
       order = order),
     class = "effect_partition_reducer"
   )
+}
+
+# The reducer's validator, beside the reducer. It was written in
+# `R/pairing.R`, one file above, so the record and the only statement of what
+# makes it canonical sat on opposite sides of a cycle: operations called up to
+# pairing to check a value pairing had called down to operations to build.
+.validate_partition_reducer <- function(reducer) {
+  expected <- c("kind", "weight_convention", "order")
+  if (!.sealed_fields(reducer, "effect_partition_reducer", expected) ||
+      !identical(reducer$kind, "weighted_sum") ||
+      !identical(reducer$weight_convention, "normalized_unit_mass") ||
+      !reducer$order %in% c("edge_first", "aggregate_first")) {
+    .input_error("Partition reducer fields are missing or noncanonical.")
+  }
+  invisible(reducer)
 }
 
 #' Reduce normalized and transformed partition edges

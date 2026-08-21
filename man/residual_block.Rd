@@ -42,6 +42,7 @@ round(colSums(residuals^2) / residual_df(example$fit, "run1"), 3)
 \code{\link[=noise_precision]{noise_precision()}}, which learns a metric from these blocks.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

@@ -61,7 +61,10 @@ behavior falsifies a stated guarantee.
    - Derive `metric_status` from `metric$estimation`/`capabilities$learned_frozen`
      instead of hard-coding `"fixed"` (`R/evidence-sampling.R:113`).
    - Replace the `inherits(x, "effect_crossnobis_plan")` type test with a
-     capability check (`R/evidence-sampling-product.R:371-378`).
+     capability check (`R/evidence-sampling-product.R:371-378`). *Done: the
+     class and both of its type tests were retired (B3, 2026-08-20); the
+     sampling layer now asks
+     `.metric_schedule_requires_metric_uncertainty()`.*
    - Preserve `frozen`/`training_signature` through support restriction
      (`R/evidence-sampling-product.R:86-96`) so the misleading
      "requires frozen training provenance" message can't fire on a metric

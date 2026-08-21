@@ -41,6 +41,7 @@ rownames(relation_block(point, 1L, seq_len(5L)))
 \code{\link[=residual_block]{residual_block()}} for the matching residual read.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

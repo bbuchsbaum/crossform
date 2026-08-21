@@ -1,7 +1,7 @@
 # `crossform` source layering
 
 Status: enforced by `tests/testthat/test-architecture.R`
-Date: 2026-08-16
+Date: 2026-08-17
 Companion to: [crossform-package-design.md](crossform-package-design.md)
 
 ## Why this document exists
@@ -26,10 +26,10 @@ Six layers. **A file may call downward or sideways. It may never call upward.**
 | # | Layer | Files |
 |---|-------|-------|
 | 1 | **primitives** | `primitives.R`, `message-helpers.R`, `conditions.R`, `check.R`, `RcppExports.R` |
-| 2 | **values** | `domain.R`, `frame.R`, `pairing.R`, `relation.R`, `effect-space.R`, `effect-map.R`, `metric.R`, `metric-learning.R`, `source.R`, `capabilities.R`, `study.R`, `study-facts.R`, `design-model.R`, `observation-model.R`, `extractor.R`, `scope.R`, `support-index.R`, `numerics.R`, `query-structured.R`, `pair-query.R`, `operations.R`, `receipt.R`, `reliability.R`, `validation-memo.R`, `measurement.R`, `measurement-storage.R`, `relation-fit.R`, `residual-statistics.R`, `bridge.R`, `compute-policy.R`, `memory-plan.R`, `crossform-package.R` |
-| 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `crossnobis.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
-| 4 | **compiler / execution, and the records execution produces** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R`, `crossnobis-driver.R`, `result.R` |
-| 5 | **results / views** | `views.R`, `geometry-entry.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
+| 2 | **values** | `domain.R`, `frame.R`, `pairing.R`, `relation.R`, `relation-session.R`, `effect-space.R`, `effect-map.R`, `metric.R`, `metric-learning.R`, `source.R`, `capabilities.R`, `study.R`, `study-facts.R`, `design-model.R`, `observation-model.R`, `extractor.R`, `scope.R`, `support-index.R`, `numerics.R`, `query-structured.R`, `pair-query.R`, `operations.R`, `receipt.R`, `reliability.R`, `validation-memo.R`, `measurement.R`, `measurement-storage.R`, `relation-fit.R`, `residual-statistics.R`, `bridge.R`, `transport.R`, `compute-policy.R`, `memory-plan.R`, `crossform-package.R` |
+| 3 | **plans** | `geometry-plan.R`, `relation-plan.R`, `population-plan.R`, `crossnobis.R`, `evidence-task.R`, `evidence-sampling.R`, `evidence-sampling-kernel.R`, `evidence-sampling-product.R`, `compiler-conformance.R` |
+| 4 | **compiler / execution, and the records execution produces** | `compiler.R`, `execution-driver.R`, `kernel.R`, `task.R`, `storage.R`, `measurement-kernel.R`, `crossnobis-driver.R`, `population-driver.R`, `result.R` |
+| 5 | **results / views** | `views.R`, `population-views.R`, `population-heterogeneity.R`, `geometry-entry.R`, `latent.R`, `coupling-views.R`, `tomography.R`, `measurement-result.R`, `measurement-decomposition.R`, `format-results.R`, `print-methods.R`, `plot-methods.R` |
 | 6 | **adapters and facade** | `adapter-bids.R`, `adapter-fmridesign.R`, `adapter-fmrireg.R`, `neuroim2-adapter.R`, `bridge.R` consumers, `benchmark.R`, `example-data.R`, `evidence-api.R` |
 
 The package deliberately has **no `Collate:` field**. R sources are loaded in
@@ -101,6 +101,13 @@ responsibilities live apart:
 - `R/geometry-plan.R` (layer 3) is pure data: the metric schedule, the plan's
   estimand identity, `plan_geometry()`, and the plan validator. It calls
   nothing in layer 4.
+- `R/population-plan.R` (layer 3) is the group-level estimand: `plan_population()`,
+  its scientific identity, and its validator. It sits beside `geometry-plan.R`
+  rather than above it — a population plan *quotes* per-participant plan
+  identities and transport signatures, and reads a frame's conservation
+  report, but constructs no geometry plan and executes nothing. Its only
+  sideways edge is to `geometry-plan.R` for the subject-plan validator; the
+  transports it consumes are layer-2 values (`transport.R`).
 - `R/evidence-task.R` (layer 3) owns effect-task construction and identity —
   `.compile_effect_evidence_task()`, `.effect_task_semantic()`,
   `.effect_task_id()`, `.effect_task_base_id()`, `.validate_compiled_effect_task()`.
@@ -118,6 +125,66 @@ responsibilities live apart:
   inline closures. `on.exit()` is registered in that one frame, so the source
   session still closes exactly once whether the run completes, errors, or is
   interrupted.
+- `R/population-driver.R` (layer 4) is the group-level runtime:
+  `estimate_population()` and the `effect_population_result` record. It sits
+  beside `crossnobis-driver.R` and for the same reason — a driver that reads a
+  plan through a fixed query calls `.run_geometry_compiler()` sideways rather
+  than reaching up to `evaluate_geometry()`, which is the layer-5 entry point
+  for the same call. Its other downward edges are to `transport.R` (layer 2)
+  for the contraction, `population-plan.R` (layer 3) for the plan validator,
+  and `evidence-sampling-product.R` (layer 3) for the query-bank parser and
+  the per-subject covariance passthrough. It builds no plan and defines no
+  view: `print`, `format` and `as.data.frame` for its record live in layer 5
+  with every other presentation of a result.
+- `R/population-views.R` (layer 5) is the reader half of that split: the
+  `effect_population_result` methods of `contrast_energy()`, `rdm()`, `rsa()`
+  and `contribution()`, and the `effect_population_view` record they return.
+  It executes nothing — every value it produces is a fixed linear combination
+  of coefficients the driver already computed, which is what
+  `population-form-v1` §3's commutation makes exact — so its edges all point
+  down or sideways: `population-driver.R` (layer 4) for the result validator
+  and the §8.1 ledger names, `views.R` (layer 5, sideways) for D4's
+  aggregation machinery and the RSA design helpers, and `query-structured.R`
+  (layer 2) for the pair enumeration. It sits beside `views.R` rather than
+  inside it because the two files answer to two different contracts, and a
+  single file answering to both is a file nobody can change safely.
+- `R/population-heterogeneity.R` (layer 5) is the other reader over the same
+  estimand: `heterogeneity()`, the `N`-by-`N` subject Gram of
+  `population-form-v1` §§5-6, its spectrum, its subject loadings, and the
+  `effect_population_heterogeneity` record. Unlike `population-views.R` it
+  *does* execute — a Gram is not a linear combination of coefficients the
+  driver already computed, and the cross-fitted estimator has to read every
+  participant twice — so it streams through `population-driver.R`'s own tile
+  helper rather than opening a second path over the same source. Its edges:
+  `population-driver.R` (layer 4) for that helper, the group index, the packed
+  coordinate table and the standard receipt; `population-plan.R` and
+  `geometry-plan.R` (layer 3) for the restricted-pairing re-plan the two
+  cross-fit halves need; `pairing.R` and `transport.R` (layer 2); `latent.R`
+  (layer 5, sideways) for the PSD projection and its moved-mass accounting;
+  and `print-methods.R` / `format-results.R` (layer 5, sideways) for the
+  printing primitives. It defines its own `print`, `format` and
+  `as.data.frame` — the `latent.R` lane rather than the `population-views.R`
+  one — so that neither printing file has to refer back into it and the file
+  call graph stays acyclic.
+- `R/population-prevalence.R` (layer 5) is the descriptive reader:
+  `population_prevalence()`, the fractions over participants that
+  `population-form-v1` §6.5 confines to the latent layer, and the
+  `effect_population_prevalence` record. Like `population-views.R` it executes
+  nothing — every number is a count over the `$values` array
+  `estimate_population()` already produced — and like
+  `population-heterogeneity.R` it answers to a discipline rather than to the
+  view algebra, which is why it is neither file. Its edges:
+  `population-driver.R` (layer 4) for the result validator, the group index
+  and the §8.1 ledger names; `check.R`, `conditions.R`, `message-helpers.R`
+  and `primitives.R` (layer 1) for the guards, the refusals and the packed
+  codec the query-bank Gram is measured in; and `print-methods.R` (layer 5,
+  sideways) for the printing primitives and for §8.1's required frame and
+  transport lines. It also reads `.latent_reading_line` from `latent.R`, the
+  one sentence both descriptive layers print; that is a constant rather than a
+  call, so it adds no edge to the file graph, and it is named here because the
+  coupling is real even where the call graph cannot see it. It defines its own
+  `print`, `format` and `as.data.frame` for the same reason
+  `population-heterogeneity.R` does.
 
 Three declaration files moved down to layer 2 at the same time, because that
 is what they always were: `R/compute-policy.R` (was `execution.R`),
@@ -131,11 +198,14 @@ Two files joined layer 4 in the pass that emptied the register:
   `R/crossnobis.R` on exactly the precedent above. `crossnobis.R` was a plan
   file that also ran its own plan, reaching up into `.run_geometry_compiler()`
   and `.support_streamed_scheduled_crossnobis()`. What is left in
-  `crossnobis.R` is the plan — `noise_precision()`, `plan_crossnobis()`, the
-  validator, the print method — and what moved is everything that executes:
-  the planned receipt, the learned-metric runtime, and the exported
-  `crossnobis()` entry that dispatches between the learned route and the
-  ordinary geometry compiler.
+  `crossnobis.R` is the plan — `noise_precision()`, `plan_crossnobis()`, and
+  the metric- and pairing-role checks — and what moved is everything that
+  executes: the exported `crossnobis()` entry that reads a contrast off a
+  compiled plan. The second runtime this file also carried at the time of the
+  split — a planned receipt, a private learned-metric driver, and a dispatch
+  on an `effect_crossnobis_plan` class — was retired (B3, 2026-08-20) once the
+  learned local metric became an ordinary compiler lowering (B2); there is now
+  one runtime, `.run_geometry_compiler()`, on both routes.
 - `R/result.R` holds the sealed result records — `effect_form`,
   `effect_geometry`, `effect_view`, `effect_contrast_view` — and their
   validators. It was classified as a view, which made the executor's
@@ -234,25 +304,275 @@ changed target because the code they named moved:
 | `crossnobis.R -> compiler.R` became `crossnobis.R -> execution-driver.R` | the runner crossnobis calls moved out of the compiler |
 | `compiler.R -> result.R`/`views.R` became `execution-driver.R -> result.R`/`views.R` | result construction moved with the executor |
 
+## Untangling layer 2
+
+No file has an upward edge, and once that was true the remaining structural
+question was a different one: not which calls run the wrong way between layers,
+but which of the *values* is the more primitive, so that mutual recursion
+inside layer 2 has a direction to be given. Two passes answered it. The first
+took the receipt out of the cycle; the second wrote the order down and moved
+everything that disobeyed it.
+
+### The receipt left the tangle
+
+The fifteen-file component was, in part, an accident of one call. `receipt.R`
+entered it through a single outgoing edge — `receipt.R -> memory-plan.R`, for
+`memory_plan()`. `.validate_memory_plan_for_receipt()` rebuilt a memory plan
+from the plan's own categories and compared the derived totals, which is a real
+integrity check: it is what refuses a receipt whose `modeled_workspace_bytes`
+was edited after the fact. But it made the receipt a caller of the vocabulary
+it is supposed to be a record *of*.
+
+The record — its scalar validation, its byte arithmetic, and the classed object
+itself — now lives in `.workspace_plan_record()` in the primitive layer
+(`R/primitives.R`). `memory_plan()` is the named-argument face of that record;
+the receipt rebuilds through the same primitive. The check is unchanged, with
+identical arithmetic and identical errors, but it is now reachable from both
+files without joining them.
+
+One edge was worth six files. `capabilities.R`, `measurement.R`,
+`memory-plan.R`, `metric.R`, and `scope.R` were in the cycle only by way of
+`receipt.R`, so removing it dropped the component from 15 to 9.
+
+The three in-edges that were left — `relation.R`, `relation-fit.R`, and
+`study-facts.R` calling `source_capabilities()` and
+`.validate_source_capabilities()` — have since been retargeted rather than
+kept, because they were pointing at the wrong file. A receipt is where a
+capability is finally *written down*; it is not where a capability is
+*defined*. Three value files have to state what their sources can do long
+before any receipt exists, and making them ask the receipt for the vocabulary
+inverted the record and the thing recorded. `source_capabilities()` and its
+validator now live in `R/capabilities.R`, the file already named for them and
+already holding the admission check `.relation_source_capabilities()` that
+consumes them; `receipt.R` calls *down* to the same validator to canonicalize
+the sources it stores. `tests/testthat/test-architecture.R` fails on any new
+edge from `receipt.R` into the value files, and — because a legitimate
+downward edge such as `receipt.R -> capabilities.R` cannot be told from an
+illegitimate one by a name list — also fails if anything the receipt calls can
+reach the receipt again by any route.
+
+### The value order
+
+Removing the receipt left one tangle, in layer 2 and entirely within it: nine
+mutually recursive value files (`effect-map.R`, `effect-space.R`,
+`extractor.R`, `operations.R`, `pairing.R`, `relation-fit.R`, `relation.R`,
+`source.R`, `study-facts.R`). That was not a layering violation — a file may
+call sideways — so there was no direction to restore, only a knot to untie,
+and untying it meant first deciding which of `relation`, `source`, and
+`effect-space` is the more primitive value.
+
+That decision is recorded here. **Within layer 2 the value vocabulary has an
+order, lowest first:**
+
+| # | Band | Files |
+|---|------|-------|
+| 1 | **spaces and domains** | `effect-space.R`, `domain.R` |
+| 2 | **maps and extractors** | `effect-map.R`, `extractor.R` |
+| 3 | **sources and what they can do** | `source.R`, `capabilities.R` |
+| 4 | **relations** | `relation.R` |
+| 5 | **fits, and sessions over a relation's sources** | `relation-fit.R`, `relation-session.R` |
+| 6 | **queries, pairings, frames, metrics** | `operations.R`, `pairing.R`, `frame.R`, `query-structured.R`, `pair-query.R`, `metric.R` |
+| 7 | **study facts, and what quotes them** | `study-facts.R`, then `study.R`, `design-model.R`, `reliability.R`, `residual-statistics.R` |
+| 8 | **records of an execution** | `receipt.R` |
+
+and above them, in layer 3, the evidence tasks and plans that quote all of it.
+
+The order is not enforced numerically — a value file may still call sideways,
+and bands 2 and 3 are genuinely incomparable (nothing connects `extractor.R`
+and `source.R` in either direction). What it buys is a criterion: when two
+value files call each other, the one lower in this table is the one that keeps
+the shared function. Each arrow below is the edge that actually exists in
+`Rscript benchmarks/call-graph-scc.R`.
+
+**Spaces are below everything.** `effect-space.R` calls nothing in the package
+above layer 1 — not one edge — and six files in five bands above it call in:
+`effect-map.R -> effect-space.R` (`effect_space`, `.as_effect_space`,
+`.validate_effect_space`, `.validate_effect_provenance`,
+`.validate_effect_names`), `extractor.R -> effect-space.R` (`effect_space`,
+`.as_effect_space`), `relation.R -> effect-space.R` (the first four of those
+plus `.same_effect_space`), and `relation-fit.R`, `metric.R`, and
+`study-facts.R -> effect-space.R` (`.validate_effect_provenance`). A space is
+what every other value is *expressed in*, so nothing it names may be something
+built out of it.
+
+**Maps and extractors are below relations.** `relation.R -> extractor.R`
+(`effect_extractor`, `.validate_effect_extractor`) and
+`relation-fit.R -> extractor.R` (`.compile_lm_estimator`,
+`.resolve_observation_whitener`). A relation carries a per-partition extractor;
+an extractor knows nothing about partitions. There is no edge back.
+
+**Sources are below relations.** `relation.R -> source.R`
+(`.source_descriptor`, `.validate_source_descriptor`,
+`.with_source_descriptor`), `relation-fit.R -> source.R`
+(`.validate_source_features`), `study-facts.R -> source.R`
+(`.validate_source_descriptor`). A relation *is* a set of partition-keyed
+sources plus the extractors that read them, so it names sources; a source is a
+descriptor, a handle, and a read, and has no idea what a partition is. Since
+the session split below, `source.R` calls nothing in the package outside
+layer 1.
+
+**Capabilities sit with sources.** `capabilities.R` calls nothing above layer
+1, and `relation.R`, `relation-fit.R`, `study-facts.R`, and `receipt.R` all
+call into it. What a source can do is a fact about the source.
+
+**Fits are above relations.** `relation-fit.R -> relation.R` (`relation`,
+`.validate_relation`, `.relation_family_identity`). A fit is a relation plus an
+error channel; the reverse reading — a relation that knows what a fit is — is
+what produced the one back-edge in this band, and it is gone (see below).
+
+**Pairings are above relations and above operations.**
+`pairing.R -> relation.R` (`.validate_relation`) and
+`pairing.R -> operations.R` (`.new_partition_reducer`). A pairing says which
+partitions of which relations are compared and how the results are reduced, so
+it names both.
+
+**Study facts are above the vocabulary.** `study-facts.R` calls `relation.R`,
+`source.R`, `capabilities.R`, and `effect-space.R`, and nothing in bands 1–6
+calls `study-facts.R` — the layer-2 files that do (`study.R`,
+`design-model.R`, `reliability.R`, `residual-statistics.R`) sit above it in
+turn. Facts about a study are stated in the vocabulary; the vocabulary does
+not consult the facts.
+
+**The receipt is above everything it records**, which is the previous section.
+
+#### What untying it took
+
+Nine files, seven changes, no behaviour change. Four were functions defined in
+the wrong band, each one holding a cycle open by itself:
+
+| Function | From | To | Why |
+|---|---|---|---|
+| `.validate_effect_names()` | `extractor.R` | `effect-space.R` | The rule for what counts as a legal set of coordinate names belongs to the space, not to the first consumer that happened to need it. Written in `extractor.R`, it made `effect_space()` — the value an extractor is declared *against* — call up into its own consumer. `kernel.R`, `task.R`, `memory-plan.R`, `design-model.R` and `effect-map.R` need the same rule, and none of them is an extractor. |
+| `.validate_nonempty_id()` | `effect-map.R` | `check.R` (layer 1) | A two-line wrapper over `.check_string()` with no effect-map content in it, called from five files. It made `study.R`, `study-facts.R`, `design-model.R` and `observation-model.R` appear to depend on effect maps in order to spell a string. |
+| `.validate_partition_reducer()` | `pairing.R` | `operations.R` | The record `.new_partition_reducer()` and the only statement of what makes it canonical sat on opposite sides of a two-file cycle: `operations.R` called up to `pairing.R` to check a value `pairing.R` had called down to `operations.R` to build. |
+| `source_capabilities()`, `.validate_source_capabilities()` | `receipt.R` | `capabilities.R` | See the previous section. |
+
+One was a file that was two files:
+
+- **`R/relation-session.R`** (new, layer 2, band 5). Two hundred lines —
+  `.open_relation_source_session()`, `.close_source_session()`,
+  `.open_two_sided_source_session()`, `.open_effect_task_source_session()` —
+  moved out of `source.R`. A source session is not source vocabulary: it is
+  what a *relation* does with its sources, opening one handle per distinct
+  descriptor, reading feature blocks through it, and closing each exactly once.
+  While it sat in `source.R` its single `.validate_relation()` call ran against
+  the order — the file defining a source reached up to the file defining a
+  relation over sources — and that one edge held `source.R` inside the tangle.
+  Now `relation-session.R -> source.R` and `relation-session.R -> relation.R`
+  both run downward. Nothing moved but the text: the functions, their
+  arguments, and their errors are unchanged, and the tests that reach them
+  through `crossform:::` did not move either.
+
+One was a genuine dependency inversion, resolved with a hook:
+
+- `relation_block()` accepts an `effect_relation` *or* an
+  `effect_relation_fit`, and unwrapped the second by calling
+  `.validate_relation_fit()` — `relation.R -> relation-fit.R`, straight against
+  band 4 → 5. Knowing how to check a fit is the fit's business. `relation.R`
+  now declares `.as_read_relation()`, a generic whose default is the identity,
+  and `relation-fit.R` defines `.as_read_relation.effect_relation_fit()`,
+  which runs exactly the validation that used to run in `relation.R` and
+  returns `x$relation`. The caller sees no difference — the same message, with
+  the same condition class, for a fit whose fields are wrong — and the arrow
+  now points down. The generic is internal and is only ever called from inside
+  the namespace, so it needs no `S3method()` line in `NAMESPACE`; dispatch
+  finds the method in the package environment.
+
+The last was not a call at all. Three of the component's file-to-file edges
+came from local names shadowing package functions, which the call-graph rule
+cannot tell from a reference — the same defect as the `geometry_alignment`
+local that the `evidence-api.R` split turned up:
+
+| Apparent edge | Actually |
+|---|---|
+| `extractor.R -> relation-fit.R` | `.compile_lm_estimator()` assigned locals named `effect_covariance` and `residual_df`, which are also two exported accessors on a fit |
+| `extractor.R -> study-facts.R` | `.resolve_observation_whitener()` took a parameter named `observations`, which is also the exported study fact |
+| `relation-fit.R -> operations.R` | `.error_capabilities()` assigned a logical named `covariance`, which is also the edge normalizer `covariance()` |
+
+They are now `coordinate_covariance`, `residual_degrees`, `n_observations`,
+and `has_covariance`. A fourth shadow — `.open_relation_source_session()`'s
+`relation` parameter — needed no rename, because that function moved to
+`relation-session.R`, where a dependency on `relation.R` is real and points
+down. Renaming the other four is worth doing on its own terms and not only for
+the graph: a reader of `effect_covariance <- tcrossprod(...)` cannot tell the
+local from the accessor of the same name, and neither can a reader of the
+call graph.
+
 ## What remains
 
-No file has an upward edge. The largest strongly connected component is down
-from the 26 files it held before the layer-4 split, to 17 after it, to **15**
-now: the compiler, both executors, the kernels, the plans, the results, and
-the views are all outside it.
+**One later move, recorded here because it followed the same criterion.**
+`.normalize_frame()` --- the law that turns a membership pattern into a
+`"local"` or `"conservative"` operator --- moved from `frame.R` to `scope.R`
+when the adapter-protocol ticket taught `additive_frame()` to build a frame
+from a provider's own neighborhoods. `frame.R -> scope.R` already existed
+(`compile_frame()` calls `additive_frame()`), so leaving the law in `frame.R`
+would have inverted that edge and reopened a two-file component. The criterion
+in "The value order" settles it without reference to the cycle: the function
+is a statement about a weights matrix and about nothing else, so it belongs
+with the frame *value* in `scope.R`, not with the frame *specifications* in
+`frame.R`. Nothing moved but the text, and `compile_frame()` calls it
+downward exactly as before.
 
-What is left is one genuine tangle, in layer 2 and entirely within it:
+**Layer 2 contains no cycle at all.** Not a smaller one — none. The value
+vocabulary is a directed acyclic graph, and the order above is the topological
+sort of it.
+
+The largest strongly connected component anywhere in the package is down from
+the 26 files it held before the layer-4 split, to 17 after it, to 15, to 9
+after the receipt left, to **1** now: every file in `R/` is in a component of
+its own. The last multi-file component outside layer 2 was the sampling trio
+(`evidence-sampling.R`, `evidence-sampling-kernel.R`,
+`evidence-sampling-product.R`), and it went the same way as three of the nine
+above — it was never a call. `.require_sampling_covariance()` read its
+capability with `$sampling_covariance`, which puts the name of an entry point
+one layer up into the file's syntax tree; extracting with
+`[["sampling_covariance"]]` says the same thing and closes the phantom
+plan → product → kernel → plan cycle.
+
+### The evidence-sampling triple
+
+The edges among the three files, counted by symbol
+(`SCC_FOCUS=… Rscript benchmarks/call-graph-scc.R`). Before:
 
 ```
-capabilities.R  effect-map.R   effect-space.R  extractor.R  measurement.R
-memory-plan.R   metric.R       operations.R    pairing.R    receipt.R
-relation-fit.R  relation.R     scope.R         source.R     study-facts.R
+evidence-sampling.R          -> evidence-sampling-product.R    1   phantom
+evidence-sampling-product.R  -> evidence-sampling.R            9
+evidence-sampling-product.R  -> evidence-sampling-kernel.R     5
+evidence-sampling-kernel.R   -> evidence-sampling.R            2
 ```
 
-These fifteen value files are mutually recursive. That is a different problem
-from the one this document was written about — it is not a layering violation,
-because a file may call sideways, and there is no direction to restore, only a
-knot to untie. Untangling it means deciding which of `relation`, `source`,
-`metric`, and `receipt` is the more primitive value, and that is a design
-question about the vocabulary rather than a refactor. It is the honest next
-piece of architecture work, and no pass so far has attempted it.
+After — the same 16 real edges, minus the phantom, and now a DAG:
+
+```
+evidence-sampling-product.R  -> evidence-sampling.R            9
+evidence-sampling-product.R  -> evidence-sampling-kernel.R     5
+evidence-sampling-kernel.R   -> evidence-sampling.R            2
+```
+
+Nothing moved. The one edge that closed the loop was never a call, and the
+remaining three run one way: product depends on kernel, kernel depends on
+plan. That is the data flow read backwards — a plan is compiled in
+`evidence-sampling.R`, the kernel builds the covariance form from it, and the
+product specializes both to a relation fit — so each file can now be read
+knowing only the files below it.
+
+The order is layer 3's internal order, so the layering test cannot see it: all
+three files are on the same layer and are free to call sideways. It is held
+instead by `test_that("the evidence-sampling triple is a DAG")` in
+`tests/testthat/test-architecture.R`, which takes the transitive closure of
+the induced three-file subgraph and fails if any of the three reaches itself.
+A mutual pair fails it as surely as the full loop, and the failure prints the
+induced edges rather than the file names, so it names the call to move.
+
+Note the measurement's one bias, since two of the phantoms above came from it
+and 44 like them remain: the extractor counts every symbol a file mentions
+that resolves to a definition elsewhere, including the field name in `x$f`. It
+therefore over-reports. That is the safe direction — a graph it calls acyclic
+is acyclic — but a component it reports is worth reading before it is
+believed.
+
+That is the whole file-level dependency structure: six layers, an order inside
+layer 2, and no loop anywhere. What the next pass should defend is not a
+number but the shape — see `tests/testthat/test-architecture.R`, which now
+fails on an upward edge, on a stale register entry, and on any route from the
+receipt back to itself.

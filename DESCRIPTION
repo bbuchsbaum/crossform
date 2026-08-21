@@ -20,6 +20,8 @@ URL: https://bbuchsbaum.github.io/crossform/,
 BugReports: https://github.com/bbuchsbaum/crossform/issues
 Encoding: UTF-8
 Language: en-US
+Depends:
+    R (>= 3.6.0)
 Imports:
     digest,
     graphics,

@@ -47,7 +47,6 @@ residual-derived recipes, \code{\link[=metric_capabilities]{metric_capabilities(
 
 Other neural metrics: 
 \code{\link{diagonal_precision}()},
-\code{\link{effect_covariance}()},
 \code{\link{gaussian_covariance_model}()},
 \code{\link{metric_capabilities}()},
 \code{\link{metric_training_policy}()},

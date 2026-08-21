@@ -1,5 +1,197 @@
 # Capability-gated views over completed measurement forms ------------------
 
+#' Coupling results and the readings they may carry
+#'
+#' Every view over a completed `effect_measurement_form` returns one
+#' `effect_coupling_result`. There are no subclasses: the seven readings
+#' below are distinguished by the `$kind` string, which is a **closed**
+#' enumeration. A result of any kind carries the same fourteen fields, is
+#' validated the same way, and prints the same way, so code that reads one
+#' kind reads them all; only the shape of `$values` differs, and it differs
+#' two ways rather than seven.
+#'
+#' Every kind carries `$values`, `$edge_index` naming the edges those values
+#' are keyed to, `$source_plan` and `$source_receipt` identifying the forms it
+#' was read from, `$normalization_axis` and `$summary_axis` stating what was
+#' divided out and what was summarized over, `$stage_order` listing the
+#' pipeline that produced it, `$units` and `$terminology` stating what the
+#' numbers may be called, `$edge_completeness`, and a `$signature` over all of
+#' it. `$regularization` and `$partition_policy` are present exactly when the
+#' kind applied one; they are `NULL` otherwise, never silently defaulted.
+#'
+#' @section Kinds:
+#' `$kind` is one of the following seven values and no others. Constructing a
+#' result with an unlisted kind, or with a `$values` shape that disagrees with
+#' its kind, is a contract error rather than an accepted record.
+#'
+#' Two kinds report **blocks**: `$values` is a named list holding one numeric
+#' matrix per edge, in `$edge_index$edge_id` order.
+#' \itemize{
+#'   \item `"effect_coupling"` -- the raw measurement block, with no
+#'     covariance claim attached. `$normalization_axis` is `"none"` and
+#'     `$units` is `NULL`, because nothing has been divided out and nothing is
+#'     claimed about what the numbers mean.
+#'   \item `"covariance_coupling"` -- the same blocks, now certified as
+#'     repeated-sample covariance: the form established repeated variation of
+#'     effective rank above one and symmetric positive self-blocks.
+#' }
+#'
+#' Five kinds report a **table**: `$values` is a data frame keyed by `edge_id`
+#' whose remaining columns are fixed by the kind.
+#' \itemize{
+#'   \item `"pearson_correlation"` -- columns `edge_id`, `correlation`. One
+#'     signed scalar per edge, requiring rank-one measurement axes.
+#'   \item `"partitioned_pearson_coupling"` -- columns `edge_id`, `value`,
+#'     `transform`. A weighted reduction across several source forms; carries
+#'     a `$partition_policy` recording the weights, the placement, and the
+#'     edge transform, and `$units` is `"correlation"` or `"fisher_z"`
+#'     according to that transform.
+#'   \item `"canonical_coupling"` -- columns `edge_id`, `mode`,
+#'     `canonical_correlation`. Several rows per edge, one per canonical mode
+#'     in descending order; carries the `$regularization` whose ridge changed
+#'     the values.
+#'   \item `"geometry_alignment"` -- columns `edge_id`, `geometry_alignment`.
+#'     Static linear CKA/RV-like alignment, normalized over form entries
+#'     rather than over experimental samples.
+#'   \item `"gaussian_mutual_information"` -- columns `edge_id`,
+#'     `information`, `units`. Carries the `$regularization` used for the
+#'     underlying canonical spectrum, and a `$terminology` naming the
+#'     signature of the [gaussian_covariance_model()] declaration it rests on.
+#' }
+#'
+#' @seealso [effect_coupling()], [covariance_coupling()],
+#'   [canonical_coupling()], [geometry_alignment()], and [connectivity()],
+#'   which produce these results, and [gaussian_covariance_model()] for the
+#'   declaration Gaussian information requires.
+#' @family coupling and connectivity views
+#' @name effect_coupling_result
+NULL
+
+# The closed set of readings an `effect_coupling_result` may carry.
+#
+# One class, seven kinds -- and this table is what makes that honest rather
+# than lazy. Every kind builds the same fourteen sealed fields under the same
+# signature scheme, is checked by the same validator, and is read by the same
+# two readers (`format()` and `print()`), neither of which branches on `kind`:
+# they report it as a recorded string, the way they report `$terminology` and
+# `$units`. What genuinely varies is the shape of `$values`, and that varies
+# two ways, not seven -- a named list holding one matrix per edge
+# ("edge_blocks"), or one data frame keyed by `edge_id` ("edge_table").
+# Splitting the class per kind would mint seven types to express a two-way
+# distinction.
+#
+# `columns` is the exact `names(values)` an edge_table kind must produce, so
+# the column shape a caller reads is a checked contract rather than whatever
+# the view happened to `data.frame()` together. `regularization` and
+# `partition_policy` record whether that optional field must be present, so a
+# view cannot drop the ridge or the weights that changed its numbers.
+#
+# See `?effect_coupling_result` for the user-facing statement of this table
+# and design/decisions/2026-08-17-coupling-result-kinds.md for why it is one
+# class.
+.coupling_kinds <- list(
+  effect_coupling = list(
+    shape = "edge_blocks",
+    columns = NULL,
+    regularization = FALSE,
+    partition_policy = FALSE
+  ),
+  covariance_coupling = list(
+    shape = "edge_blocks",
+    columns = NULL,
+    regularization = FALSE,
+    partition_policy = FALSE
+  ),
+  pearson_correlation = list(
+    shape = "edge_table",
+    columns = c("edge_id", "correlation"),
+    regularization = FALSE,
+    partition_policy = FALSE
+  ),
+  partitioned_pearson_coupling = list(
+    shape = "edge_table",
+    columns = c("edge_id", "value", "transform"),
+    regularization = FALSE,
+    partition_policy = TRUE
+  ),
+  canonical_coupling = list(
+    shape = "edge_table",
+    columns = c("edge_id", "mode", "canonical_correlation"),
+    regularization = TRUE,
+    partition_policy = FALSE
+  ),
+  geometry_alignment = list(
+    shape = "edge_table",
+    columns = c("edge_id", "geometry_alignment"),
+    regularization = FALSE,
+    partition_policy = FALSE
+  ),
+  gaussian_mutual_information = list(
+    shape = "edge_table",
+    columns = c("edge_id", "information", "units"),
+    regularization = TRUE,
+    partition_policy = FALSE
+  )
+)
+
+.coupling_kind_contract <- function(kind) {
+  if (!.is_string(kind) || !kind %in% names(.coupling_kinds)) {
+    .input_error(sprintf(
+      "Coupling-view kind must be one of %s; received %s.",
+      .msg_names(names(.coupling_kinds)),
+      if (.is_string(kind)) .msg_names(kind) else
+        paste0("a ", class(kind)[[1L]], " value")
+    ))
+  }
+  .coupling_kinds[[kind]]
+}
+
+# The one branch any reader of `$values` needs. Two shapes, not seven kinds.
+.coupling_value_shape <- function(x) {
+  .coupling_kind_contract(x$kind)$shape
+}
+
+# Checks the parts of the kind contract that are cheap enough to re-run on
+# every validation: the shape of `$values`, its exact column names when it is
+# a table, and whether the fields that record what changed the numbers are
+# present. The finite-value sweep stays in the constructor; the signature
+# already protects the values themselves from drifting after construction.
+.check_coupling_kind_contract <- function(kind, values, regularization,
+                                          partition_policy) {
+  contract <- .coupling_kind_contract(kind)
+  if (contract$shape == "edge_table") {
+    if (!is.data.frame(values) || !identical(names(values),
+        contract$columns)) {
+      .contract_error(sprintf(
+        "Coupling kind %s reports the columns %s; received %s.",
+        .msg_names(kind), .msg_names(contract$columns),
+        if (is.data.frame(values)) .msg_names(names(values)) else
+          "a non-table value"
+      ))
+    }
+  } else if (is.data.frame(values) || !is.list(values)) {
+    .contract_error(sprintf(
+      "Coupling kind %s reports one matrix block per edge, not a table.",
+      .msg_names(kind)
+    ))
+  }
+  if (contract$regularization != !is.null(regularization)) {
+    .contract_error(sprintf(
+      "Coupling kind %s %s record the regularization it applied.",
+      .msg_names(kind),
+      if (contract$regularization) "must" else "must not"
+    ))
+  }
+  if (contract$partition_policy != !is.null(partition_policy)) {
+    .contract_error(sprintf(
+      "Coupling kind %s %s record a partition policy.",
+      .msg_names(kind),
+      if (contract$partition_policy) "must" else "must not"
+    ))
+  }
+  invisible(kind)
+}
+
 .coupling_result_signature <- function(fields) {
   .sha256_signature(c(
     list(schema_version = 1L), fields
@@ -20,8 +212,8 @@
   if (!is.null(partition_policy)) {
     .validate_coupling_partition_policy(partition_policy)
   }
-  if (!.is_string(kind) ||
-      !.is_string(normalization_axis, allow_empty = TRUE) ||
+  .coupling_kind_contract(kind)
+  if (!.is_string(normalization_axis, allow_empty = TRUE) ||
       !normalization_axis %in% c("none", "experimental_samples", "neural_features", "partition_pairs", "form_entries") ||
       !.is_string(summary_axis, allow_empty = TRUE) ||
       !summary_axis %in% c("measurement_coordinates", "form_entries", "canonical_modes") ||
@@ -50,6 +242,9 @@
       "Coupling-view values do not match their completed edge set."
     )
   }
+  .check_coupling_kind_contract(
+    kind, values, regularization, partition_policy
+  )
   fields <- list(
     kind = kind,
     values = values,
@@ -82,6 +277,9 @@
   if (!.sealed_fields(x, "effect_coupling_result", expected)) {
     .input_error("Coupling result is missing or noncanonical.")
   }
+  .check_coupling_kind_contract(
+    x$kind, x$values, x$regularization, x$partition_policy
+  )
   fields <- x[setdiff(names(x), "signature")]
   .check_signature(
     x$signature, .coupling_result_signature(fields),

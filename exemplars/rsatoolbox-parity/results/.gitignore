@@ -1,0 +1,9 @@
+# The cross-language exchange payload is regenerated deterministically by
+# 01-fixture.R (fixed seed), so it is not versioned. The summary artifacts
+# beside it -- agreement.csv, the two per-package result tables, and the
+# extension tables -- are the evidence and stay tracked.
+betas.csv
+residuals.csv
+precision.csv
+covariance.csv
+fixture.rds

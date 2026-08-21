@@ -16,10 +16,9 @@
 #'   identity into every bridge built on it.
 #' @seealso [measurement_bridge()], which requires both legs to have this many
 #'   rows.
-#' @family neural domains and frames
 #' @examples
 #' # A named 2-coordinate common space shared by two native neural domains.
-#' common <- measurement_space(
+#' common <- crossform:::measurement_space(
 #'   2, id = "study:common-modes:v1",
 #'   provenance = list(source = "group template modes")
 #' )
@@ -29,12 +28,12 @@
 #' # so a stored bridge can be checked against the space it claims.
 #' identical(
 #'   common$signature,
-#'   measurement_space(
+#'   crossform:::measurement_space(
 #'     2, id = "study:common-modes:v1",
 #'     provenance = list(source = "group template modes")
 #'   )$signature
 #' )
-#' @export
+#' @keywords internal
 measurement_space <- function(n_measurements, id, provenance = list()) {
   if (!.is_number(n_measurements) || n_measurements < 1L ||
       n_measurements %% 1 != 0 || n_measurements > .Machine$integer.max) {
@@ -71,24 +70,33 @@ measurement_space <- function(n_measurements, id, provenance = list()) {
 #' The induced cross-space operator is `t(left_leg) %*% right_leg`. Only the
 #' factorized fixed legs are public; an arbitrary dense cross operator is not.
 #'
+#' `reverse = TRUE` declares the same two legs with their sides exchanged, so a
+#' bridge built left-to-right can be reused when the same two domains appear in
+#' the opposite order; the induced operator is the transpose of the forward
+#' one, and the common space and provenance are preserved exactly.
+#' `reverse_bridge()` is the internal shorthand that applies that exchange to an
+#' already-built bridge.
+#'
 #' @param left_leg,right_leg Finite common-coordinate-by-neural-feature
 #'   matrices.
 #' @param left_domain,right_domain Exact neural domain values or references.
 #' @param common_space A named `measurement_space()` shared by both legs.
 #' @param provenance Portable provenance for the fixed legs.
+#' @param reverse One flag. `TRUE` exchanges the two sides of the declaration
+#'   before the bridge is built.
+#' @param bridge For `reverse_bridge()`, a factorized bridge whose two sides
+#'   are to be exchanged.
 #' @return An `effect_measurement_bridge` holding `$left_leg`, `$right_leg`,
 #'   the two `$left_domain`/`$right_domain` references, the shared
 #'   `$common_space`, and a `$signature` binding all of them.
-#' @seealso [reverse_bridge()] to exchange the two sides, and
-#'   [measurement_space()] for the shared coordinates.
-#' @family coupling and connectivity views
+#' @seealso [measurement_space()] for the shared coordinates.
 #' @examples
 #' # Two participants measured in different native feature spaces, related
 #' # through two shared modes rather than a dense 3-by-4 operator.
 #' left_domain <- abstract_domain(3, id = "subject01:native")
 #' right_domain <- abstract_domain(4, id = "subject02:native")
-#' common <- measurement_space(2, id = "study:common-modes:v1")
-#' bridge <- measurement_bridge(
+#' common <- crossform:::measurement_space(2, id = "study:common-modes:v1")
+#' bridge <- crossform:::measurement_bridge(
 #'   left_leg = rbind(c(1, 0, 0), c(0, 1, 0)),
 #'   right_leg = rbind(c(1, 0, 0, 0), c(0, 0, 1, 0)),
 #'   left_domain = left_domain, right_domain = right_domain,
@@ -99,19 +107,41 @@ measurement_space <- function(n_measurements, id, provenance = list()) {
 #' # The induced cross-space operator is never stored; it is exactly this.
 #' t(bridge$left_leg) %*% bridge$right_leg
 #'
+#' # Declaring the same legs reversed transposes that operator exactly, and
+#' # `reverse_bridge()` reaches the same value from the built bridge.
+#' reversed <- crossform:::measurement_bridge(
+#'   bridge$left_leg, bridge$right_leg, left_domain, right_domain, common,
+#'   reverse = TRUE
+#' )
+#' identical(reversed, crossform:::reverse_bridge(bridge))
+#' all.equal(
+#'   t(bridge$left_leg) %*% bridge$right_leg,
+#'   t(t(reversed$left_leg) %*% reversed$right_leg)
+#' )
+#'
 #' # Leg widths must match their declared domains, so a mismatch is caught
 #' # before any neural value is read.
 #' mismatch <- try(
-#'   measurement_bridge(
+#'   crossform:::measurement_bridge(
 #'     rbind(c(1, 0, 0), c(0, 1, 0)), rbind(c(1, 0, 0), c(0, 1, 0)),
 #'     left_domain, right_domain, common
 #'   ),
 #'   silent = TRUE
 #' )
 #' conditionMessage(attr(mismatch, "condition"))
-#' @export
+#' @keywords internal
 measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
-                               common_space, provenance = list()) {
+                               common_space, provenance = list(),
+                               reverse = FALSE) {
+  if (!.is_flag(reverse)) {
+    .input_error("`reverse` must be one non-missing flag.")
+  }
+  if (reverse) {
+    return(measurement_bridge(
+      right_leg, left_leg, right_domain, left_domain,
+      common_space, provenance
+    ))
+  }
   if (!.is_finite_matrix(left_leg) || !.is_finite_matrix(right_leg) ||
       any(dim(left_leg) < 1L) || any(dim(right_leg) < 1L)) {
     .input_error("Bridge legs must be finite nonempty numeric matrices.")
@@ -201,45 +231,16 @@ measurement_bridge <- function(left_leg, right_leg, left_domain, right_domain,
   )
 }
 
-#' Reverse a factorized measurement bridge
-#'
-#' `reverse_bridge()` exchanges the two sides of a fixed bridge, so a bridge
-#' built left-to-right can be reused when the same two domains appear in the
-#' opposite order. The common space and provenance are preserved exactly.
-#'
-#' @param bridge A factorized `measurement_bridge()`.
-#' @return An `effect_measurement_bridge` with `$left_leg`/`$right_leg` and
-#'   `$left_domain`/`$right_domain` exchanged; its induced operator is the
-#'   transpose of the original.
-#' @seealso [measurement_bridge()].
-#' @family coupling and connectivity views
-#' @examples
-#' left_domain <- abstract_domain(3, id = "subject01:native")
-#' right_domain <- abstract_domain(4, id = "subject02:native")
-#' bridge <- measurement_bridge(
-#'   rbind(c(1, 0, 0), c(0, 1, 0)), rbind(c(1, 0, 0, 0), c(0, 0, 1, 0)),
-#'   left_domain, right_domain,
-#'   measurement_space(2, id = "study:common-modes:v1")
-#' )
-#' reversed <- reverse_bridge(bridge)
-#' reversed$left_domain$id
-#'
-#' # Reversing transposes the induced cross-space operator exactly.
-#' all.equal(
-#'   t(bridge$left_leg) %*% bridge$right_leg,
-#'   t(t(reversed$left_leg) %*% reversed$right_leg)
-#' )
-#'
-#' # Reversing twice returns the original bridge, signature included.
-#' identical(reverse_bridge(reversed), bridge)
-#' @export
+#' @rdname measurement_bridge
+#' @keywords internal
 reverse_bridge <- function(bridge) {
   bridge <- .validate_factorized_measurement_bridge(bridge)
   measurement_bridge(
-    bridge$right_leg, bridge$left_leg,
-    bridge$right_domain, bridge$left_domain,
+    bridge$left_leg, bridge$right_leg,
+    bridge$left_domain, bridge$right_domain,
     bridge$common_space,
-    provenance = bridge$provenance
+    provenance = bridge$provenance,
+    reverse = TRUE
   )
 }
 

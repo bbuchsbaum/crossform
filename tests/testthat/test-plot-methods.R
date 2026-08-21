@@ -8,7 +8,7 @@
 local({
   registered <- get(".__S3MethodsTable__.", envir = asNamespace("base"))
   classes <- c("effect_contrast_view", "effect_rdm_view", "effect_rsa_view",
-    "effect_crossnobis_view", "effect_rdm_sampling_covariance")
+    "effect_crossnobis_view", "effect_sampling_covariance")
   for (class in classes) {
     method <- paste0("plot.", class)
     if (exists(method, envir = registered, inherits = FALSE)) next

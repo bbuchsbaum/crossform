@@ -21,12 +21,12 @@ test_that("fixed-width residual reads pad before residualization", {
 test_that("residual pair statistics are bitwise invariant to workspace", {
   fixture <- residual_statistics_fixture()
   budgets <- residual_statistics_budgets(fixture)
-  narrow <- residual_pair_statistics(
+  narrow <- crossform:::residual_pair_statistics(
     fixture$fit, fixture$frame, workspace_bytes = budgets$minimum
   )
   narrow_reads <- fixture$reads()
   fixture$reset_reads()
-  wide <- residual_pair_statistics(
+  wide <- crossform:::residual_pair_statistics(
     fixture$fit, fixture$frame, partitions = c("run3", "run1", "run2"),
     workspace_bytes = budgets$wider
   )
@@ -59,7 +59,7 @@ test_that("residual pair statistics are bitwise invariant to workspace", {
 test_that("canonical pair statistics agree with a direct residual oracle", {
   fixture <- residual_statistics_fixture()
   budget <- residual_statistics_budgets(fixture)$wider
-  statistics <- residual_pair_statistics(
+  statistics <- crossform:::residual_pair_statistics(
     fixture$fit, fixture$frame, workspace_bytes = budget
   )
 
@@ -79,7 +79,7 @@ test_that("canonical pair statistics agree with a direct residual oracle", {
 test_that("atomic statistics combine without rereading residuals", {
   fixture <- residual_statistics_fixture()
   budget <- residual_statistics_budgets(fixture)$wider
-  statistics <- residual_pair_statistics(
+  statistics <- crossform:::residual_pair_statistics(
     fixture$fit, fixture$frame, workspace_bytes = budget
   )
   fixture$reset_reads()
@@ -112,10 +112,10 @@ test_that("atomic statistics combine without rereading residuals", {
 test_that("derived local precision inherits workspace bitwise invariance", {
   fixture <- residual_statistics_fixture()
   budgets <- residual_statistics_budgets(fixture)
-  narrow <- residual_pair_statistics(
+  narrow <- crossform:::residual_pair_statistics(
     fixture$fit, fixture$frame, workspace_bytes = budgets$minimum
   )
-  wide <- residual_pair_statistics(
+  wide <- crossform:::residual_pair_statistics(
     fixture$fit, fixture$frame, workspace_bytes = budgets$wider
   )
   support <- crossform:::.support_index_support(
@@ -141,7 +141,7 @@ test_that("residual pair preflight refuses before reading", {
   fixture <- residual_statistics_fixture()
   minimum <- residual_statistics_budgets(fixture)$minimum
   expect_error(
-    residual_pair_statistics(
+    crossform:::residual_pair_statistics(
       fixture$fit, fixture$frame, workspace_bytes = minimum - 1
     ),
     "requires at least.*workspace budget"
@@ -154,14 +154,14 @@ test_that("residual pair statistics require an explicit error and support channe
   pure <- relation_fit(fixture$fit$relation)
   unsupported <- compile_frame(voxelwise(), fixture$domain)
 
-  refusal <- catch_refusal(residual_pair_statistics(pure, fixture$frame))
+  refusal <- catch_refusal(crossform:::residual_pair_statistics(pure, fixture$frame))
   expect_s3_class(refusal, "effect_capability_refusal")
   expect_identical(refusal$capability, "learned_metric_input")
   expect_identical(refusal$namespace, "relation_fit")
   expect_identical(refusal$reasons, "missing_error_channel")
   expect_match(conditionMessage(refusal), "learned_metric_input")
   expect_error(
-    residual_pair_statistics(fixture$fit, unsupported),
+    crossform:::residual_pair_statistics(fixture$fit, unsupported),
     "explicit support index"
   , class = "effect_input_error")
 })

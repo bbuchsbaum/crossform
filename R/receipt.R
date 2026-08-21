@@ -1,83 +1,5 @@
 # Source and execution provenance -------------------------------------------
 
-#' Declare source execution capabilities
-#'
-#' `source_capabilities()` states what an out-of-memory relation source can
-#' actually do, so the compiler can choose a bounded execution route and
-#' record the source revision in the receipt. Declare it when supplying a
-#' custom source such as [file_matrix_source()].
-#'
-#' @param block_read Whether bounded feature-block reads are supported.
-#' @param reopenable Whether a fresh read-only handle can be opened safely.
-#' @param thread_safe Whether concurrent reads through one handle are supported.
-#' @param stable_revision A strong immutable source revision or checksum.
-#' @return An `effect_source_capabilities` value with the three logical flags
-#'   `$block_read`, `$reopenable`, `$thread_safe`, and the
-#'   `$stable_revision` identifier bound into the execution receipt.
-#' @seealso [file_matrix_source()], which carries these capabilities, and
-#'   [compute_policy()], which is checked against them before execution.
-#' @family relation planning and fitting
-#' @examples
-#' # A block-readable, reopenable source identified by a content checksum.
-#' revision <- paste0("sha256:", paste(rep("a", 64), collapse = ""))
-#' capabilities <- source_capabilities(
-#'   block_read = TRUE, reopenable = TRUE, stable_revision = revision
-#' )
-#' capabilities$block_read
-#' capabilities$thread_safe
-#'
-#' # The revision must be a strong identifier: a mutable label such as a file
-#' # modification time is refused, because receipts must stay verifiable.
-#' weak <- try(
-#'   source_capabilities(TRUE, stable_revision = "2026-08-15"), silent = TRUE
-#' )
-#' conditionMessage(attr(weak, "condition"))
-#' @export
-source_capabilities <- function(block_read, reopenable = FALSE,
-                                thread_safe = FALSE, stable_revision) {
-  flags <- list(
-    block_read = block_read,
-    reopenable = reopenable,
-    thread_safe = thread_safe
-  )
-  if (!all(vapply(flags, function(x) {
-    is.logical(x) && length(x) == 1L && !is.na(x)
-  }, logical(1)))) {
-    .input_error("Source capability flags must each be TRUE or FALSE.")
-  }
-  if (!.strong_sha256(stable_revision)) {
-    .input_error(paste0(
-      "`stable_revision` must be a sha256 identifier with 64 hexadecimal ",
-      "digits."
-    ))
-  }
-  value <- structure(
-    c(flags, list(stable_revision = stable_revision)),
-    class = "effect_source_capabilities"
-  )
-  .validate_source_capabilities(value)
-}
-
-.validate_source_capabilities <- function(value) {
-  expected <- c("block_read", "reopenable", "thread_safe", "stable_revision")
-  if (!inherits(value, "effect_source_capabilities") ||
-      !identical(names(value), expected)) {
-    .input_error("Source capabilities are missing required canonical fields.")
-  }
-  flags <- value[c("block_read", "reopenable", "thread_safe")]
-  if (!all(vapply(flags, function(x) {
-    is.logical(x) && length(x) == 1L && !is.na(x)
-  }, logical(1)))) {
-    .input_error("Source capability flags must each be TRUE or FALSE.")
-  }
-  if (!.strong_sha256(value$stable_revision)) {
-    .input_error(
-      "Source capability revision must be one strong sha256 identifier."
-    )
-  }
-  structure(as.list(value), class = "effect_source_capabilities")
-}
-
 #' Record the execution that produced a geometry or view
 #'
 #' A receipt separates scientific-plan identity, numerical execution policy,
@@ -324,34 +246,23 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
   value
 }
 
+# A receipt records a canonical memory plan, so it re-derives one from the
+# plan's own categories and refuses a plan whose totals do not follow from
+# them. The rebuild deliberately goes through `.workspace_plan_record()` in
+# R/primitives.R rather than through `memory_plan()`: a receipt is a record of
+# values, not a dependency of the vocabulary that produces them, and calling
+# the constructor would put receipt.R back inside the layer-2 value cycle that
+# design/architecture.md tracks. The arithmetic is identical either way --
+# `memory_plan()` is the named-argument face of the same record.
 .validate_memory_plan_for_receipt <- function(memory) {
   if (!inherits(memory, "effect_memory_plan") || !is.numeric(memory$categories)) {
     .input_error("`memory` must be a crossform memory plan.")
   }
-  expected_categories <- c(
-    "frame", "resident_source", "source_handles", "source_block",
-    "relation_block", "atom_block", "local_state", "output", "contraction",
-    "replacement_copy", "serialization_overlap", "reorder_buffer",
-    "checkpoint_buffer"
-  )
-  if (!identical(names(memory$categories), expected_categories)) {
+  if (!identical(names(memory$categories), .workspace_plan_category_names())) {
     .input_error("Memory-plan categories are missing or noncanonical.")
   }
-  c <- memory$categories
-  rebuilt <- memory_plan(
-    frame_bytes = c[["frame"]],
-    resident_source_bytes = c[["resident_source"]],
-    source_handle_bytes = c[["source_handles"]],
-    source_block_bytes = c[["source_block"]],
-    relation_block_bytes = c[["relation_block"]],
-    atom_block_bytes = c[["atom_block"]],
-    local_state_bytes = c[["local_state"]],
-    output_bytes = c[["output"]],
-    contraction_bytes = c[["contraction"]],
-    replacement_copy_bytes = c[["replacement_copy"]],
-    serialization_overlap_bytes = c[["serialization_overlap"]],
-    reorder_buffer_bytes = c[["reorder_buffer"]],
-    checkpoint_buffer_bytes = c[["checkpoint_buffer"]],
+  rebuilt <- .workspace_plan_record(
+    categories = memory$categories,
     workers = memory$workers,
     n_active = memory$n_active,
     safety_factor = memory$safety_factor,

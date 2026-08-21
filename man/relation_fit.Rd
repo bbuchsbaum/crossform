@@ -46,6 +46,7 @@ identical(fit$relation, point)
 channel, and \code{\link[=relation_fit_capabilities]{relation_fit_capabilities()}} to inspect the result.
 
 Other relation planning and fitting: 
+\code{\link{adapter_version_certificate}()},
 \code{\link{compiler_conformance}()},
 \code{\link{effect_extractor}()},
 \code{\link{estimate_relation}()},

@@ -51,7 +51,7 @@ test_that("learned crossnobis plans execute one exact support-streamed kernel", 
     c(condition = 1, drift = 0), recipe, training
   )
 
-  expect_s3_class(plan, "effect_crossnobis_plan")
+  expect_s3_class(plan, "effect_geometry_plan")
   expect_s3_class(observed, "effect_crossnobis_view")
   expect_equal(observed$values, expected, tolerance = 5e-10)
   expect_identical(observed$receipt$completion_status, "complete")
@@ -59,11 +59,15 @@ test_that("learned crossnobis plans execute one exact support-streamed kernel", 
     "support-streamed-scheduled-metric-v1")
   expect_identical(observed$metadata$execution_plan$lowering,
     "support_streamed_scheduled_metric_query_contraction")
-  expect_false(observed$metadata$diagnostics$pair_atoms_materialized)
-  expect_false(observed$metadata$diagnostics$pair_frame_materialized)
-  expect_false(observed$metadata$diagnostics$metric_factor_table_retained)
+  # Kernel diagnostics now sit under the component they describe, where every
+  # other geometry route puts them.
+  expect_false(observed$metadata$diagnostics$total$pair_atoms_materialized)
+  expect_false(observed$metadata$diagnostics$total$pair_frame_materialized)
+  expect_false(
+    observed$metadata$diagnostics$total$metric_factor_table_retained
+  )
   expect_identical(
-    observed$metadata$diagnostics$metric_handles_derived,
+    observed$metadata$diagnostics$total$metric_handles_derived,
     nrow(setup$fixture$frame$weights) * nrow(setup$over)
   )
   expect_true(all(vapply(
@@ -104,19 +108,27 @@ test_that("residual provenance policies share execution but retain identity", {
   disjoint_value <- crossnobis(disjoint, c(condition = 1, drift = 0))
   all_value <- crossnobis(all_runs, c(condition = 1, drift = 0))
 
+  # The same assertions, read off the geometry plan: both policies compile one
+  # plan class and lower to one kernel, and differ only in identity.
   expect_identical(class(disjoint), class(all_runs))
   expect_identical(disjoint$lowering, all_runs$lowering)
-  expect_identical(disjoint$kernel_version, all_runs$kernel_version)
+  expect_identical(disjoint$lowering,
+    "derive_then_support_streamed_pair_contraction")
+  expect_identical(disjoint_value$receipt$kernel_version,
+    all_value$receipt$kernel_version)
+  expect_identical(disjoint_value$metadata$execution_plan$lowering,
+    all_value$metadata$execution_plan$lowering)
   expect_false(identical(disjoint$signature, all_runs$signature))
   expect_false(identical(
     disjoint$metric_schedule$signature,
     all_runs$metric_schedule$signature
   ))
   expect_identical(
-    disjoint$metric_schedule$records$edge_1$training_partitions, "run3"
+    disjoint$metric_schedule$schedule$records$edge_1$training_partitions,
+    "run3"
   )
   expect_identical(
-    all_runs$metric_schedule$records$edge_1$training_partitions,
+    all_runs$metric_schedule$schedule$records$edge_1$training_partitions,
     c("run1", "run2", "run3")
   )
   expect_equal(

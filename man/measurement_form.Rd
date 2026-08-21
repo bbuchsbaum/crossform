@@ -119,12 +119,11 @@ Other coupling and connectivity views:
 \code{\link{coupling}()},
 \code{\link{coupling_contrast}()},
 \code{\link{coupling_views}},
+\code{\link{effect_coupling_result}},
 \code{\link{match_control}()},
 \code{\link{match_coupling}()},
-\code{\link{measurement_bridge}()},
 \code{\link{measurement_components}()},
 \code{\link{pair_lm_query}()},
-\code{\link{pair_query}()},
-\code{\link{reverse_bridge}()}
+\code{\link{pair_query}()}
 }
 \concept{coupling and connectivity views}

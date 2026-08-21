@@ -37,6 +37,25 @@ expect_prints_invisibly <- function(object) {
   invisible(result)
 }
 
+# The methods a user's `print(x)` actually reaches.
+#
+# Most of them are no longer objects named `print.<class>` in the namespace:
+# `.pf_records` holds one descriptor per sealed record and `.onLoad()`
+# registers one shared printer per entry, so the honest inventory is the S3
+# methods table rather than `ls(asNamespace("crossform"))`. Reading the table
+# is also the stricter question --- a `print.effect_x` that was defined but
+# never registered used to satisfy these tests and would never have run.
+crossform_s3_methods <- function(generic) {
+  table <- get(".__S3MethodsTable__.", envir = baseenv())
+  names <- grep(paste0("^", generic, "[.]effect_"), ls(table), value = TRUE)
+  methods <- lapply(names, get, envir = table)
+  names(methods) <- names
+  own <- vapply(methods, function(method) {
+    identical(topenv(environment(method)), asNamespace("crossform"))
+  }, logical(1))
+  methods[own]
+}
+
 # Fixtures -------------------------------------------------------------------
 #
 # Built once per file. Everything here is reachable through the public API.
@@ -52,7 +71,8 @@ print_fixture <- local({
     pairing <- cross_partitions(relation, independence = "independent")
     plan <- plan_geometry(relation, example$frame, pairing)
     geometry <- materialize_geometry(plan)
-    covariance <- rdm_sampling_covariance(plan, example$fit, target = "null", at = 1L)
+    covariance <- rdm_sampling_covariance(plan, example$fit,
+      target = "null", at = 1L)
     cached <<- list(
       example = example,
       relation = relation,
@@ -353,7 +373,7 @@ test_that("results, receipts, and sampling records print compactly", {
     list(fixture$covariance$plan, "effect_evidence_sampling_plan"),
     list(fixture$covariance$plan$evidence, "effect_sampling_record"),
     list(fixture$geometry$receipt$memory, "effect_memory_plan"),
-    list(residual_pair_statistics(fixture$example$fit, fixture$example$frame),
+    list(crossform:::residual_pair_statistics(fixture$example$fit, fixture$example$frame),
       "effect_residual_pair_statistics")
   )
   for (case in cases) {
@@ -373,12 +393,31 @@ test_that("an execution receipt prints no platform-dependent identity", {
   expect_match(paste(output, collapse = "\n"), "status:\\s+complete")
 })
 
-test_that("the base sampling covariance class has its own compact print", {
+test_that("one sampling covariance class prints in the basis it carries", {
   fixture <- print_fixture()
-  base <- fixture$covariance
-  class(base) <- "effect_sampling_covariance"
-  expect_compact_print(base, "effect_sampling_covariance")
-  expect_compact_format(base, "effect_sampling_covariance")
+  rdm_basis <- fixture$covariance
+  expect_identical(rdm_basis$basis, "rdm")
+  expect_identical(class(rdm_basis), "effect_sampling_covariance")
+
+  # The general evidence basis is what the kernel builds before the RDM
+  # product path claims it, and it is the rendering the compact contract
+  # covers: one screen, one `<class>` header, nothing over 80 columns.
+  general <- rdm_basis
+  general$basis <- "evidence"
+  expect_compact_print(general, "effect_sampling_covariance")
+  expect_compact_format(general, "effect_sampling_covariance")
+  expect_match(
+    paste(utils::capture.output(print(general)), collapse = "\n"),
+    "basis:\\s+evidence"
+  )
+
+  # The RDM basis renders under the same class and says which basis it is,
+  # rather than announcing a subclass that no longer exists.
+  rdm_output <- utils::capture.output(print(rdm_basis))
+  expect_identical(rdm_output[[1L]], "<effect_sampling_covariance>")
+  expect_match(paste(rdm_output, collapse = "\n"), "basis:\\s+rdm")
+  expect_match(format(rdm_basis), "^<effect_sampling_covariance: ")
+  expect_prints_invisibly(rdm_basis)
 })
 
 # Study facts ----------------------------------------------------------------
@@ -452,7 +491,7 @@ test_that("measurement forms and coupling results print compactly", {
     list(fixture$form$receipt, "effect_measurement_receipt"),
     list(fixture$form$diagnostics, "effect_measurement_diagnostics"),
     list(fixture$coupling, "effect_coupling_result"),
-    list(measurement_space(3L, id = "print:measurements:v1"),
+    list(crossform:::measurement_space(3L, id = "print:measurements:v1"),
       "effect_measurement_space")
   )
   for (case in cases) {
@@ -485,12 +524,14 @@ test_that("a measurement form states its claims and its next call", {
 
 test_that("crossnobis and raw-design objects print compactly", {
   fixture <- print_fixture()
-  frozen <- plan_crossnobis(fixture$example$fit, at = fixture$example$frame,
-    over = fixture$pairing)$metric_schedule
+  learned_schedule <- plan_crossnobis(fixture$example$fit,
+    at = fixture$example$frame, over = fixture$pairing)$metric_schedule
+  frozen <- learned_schedule$schedule
   design <- matrix(stats::rnorm(12L), 6L, 2L,
     dimnames = list(NULL, c("c1", "c2")))
   raw <- raw_design_model(list(a = design), list(a = seq_len(6L)), "qr")
   cases <- list(
+    list(learned_schedule, "effect_metric_schedule"),
     list(frozen, "effect_frozen_metric_schedule"),
     list(raw, "effect_raw_design_model")
   )
@@ -503,6 +544,13 @@ test_that("crossnobis and raw-design objects print compactly", {
     paste(utils::capture.output(print(frozen)), collapse = "\n"),
     "frozen"
   )
+  # The geometry-level schedule names the frozen record it derives from,
+  # never an implicit identity metric.
+  learned_lines <- paste(
+    utils::capture.output(print(learned_schedule)), collapse = "\n"
+  )
+  expect_match(learned_lines, "derived on demand")
+  expect_no_match(learned_lines, "implicit identity")
   expect_match(
     paste(utils::capture.output(print(raw)), collapse = "\n"),
     "not claimed"
@@ -618,6 +666,88 @@ test_that("the weight formatter caps long contrasts and handles odd input", {
   expect_identical(format_weights(c(a = 1 / 3)), "a 0.3333")
 })
 
+# Coupling result kinds ------------------------------------------------------
+#
+# `$values` is a named list of matrix blocks for two kinds and a data frame
+# for the other five, and only some kinds carry a regularization record. The
+# print method has to branch on both, so every kind is exercised here.
+
+test_that("every coupling kind reports its true value shape", {
+  fixture <- coupling_fixture()
+  form <- fixture$form
+  ridge <- crossform:::.measurement_regularization("ridge", 0.05, 0.02)
+  results <- list(
+    effect_coupling = effect_coupling(form),
+    covariance_coupling = covariance_coupling(form),
+    pearson_correlation = crossform:::.pearson_coupling(form),
+    partitioned_pearson_coupling =
+      crossform:::.partitioned_pearson_coupling(list(form, form)),
+    canonical_coupling = canonical_coupling(form, ridge = 0.05),
+    geometry_alignment = geometry_alignment(form),
+    gaussian_mutual_information = crossform:::.gaussian_information(
+      form, ridge, gaussian_covariance_model())
+  )
+  expect_setequal(names(results), names(crossform:::.coupling_kinds))
+  for (name in names(results)) {
+    result <- results[[name]]
+    expect_identical(result$kind, name)
+    output <- expect_compact_print(result, "effect_coupling_result")
+    values <- grep("^  values:", output, value = TRUE)
+    expect_length(values, 1L)
+    # The reported shape must match the object, not the column count of a
+    # data frame read through length().
+    if (identical(crossform:::.coupling_value_shape(result), "edge_blocks")) {
+      expect_match(values, paste0(length(result$values), " blocks"),
+        fixed = TRUE)
+    } else {
+      expect_match(values, paste0(nrow(result$values), " rows x ",
+        ncol(result$values), " columns"), fixed = TRUE)
+    }
+  }
+})
+
+test_that("printing a coupling result never warns and never prints NA", {
+  fixture <- coupling_fixture()
+  form <- fixture$form
+  ridge <- crossform:::.measurement_regularization("ridge", 0.05, 0.02)
+  results <- list(
+    canonical_coupling(form, ridge = 0.05),
+    crossform:::.gaussian_information(form, ridge,
+      gaussian_covariance_model()),
+    geometry_alignment(form),
+    effect_coupling(form)
+  )
+  for (result in results) {
+    expect_silent(output <- utils::capture.output(print(result)))
+    regularization <- grep("^  regularization:", output, value = TRUE)
+    expect_length(regularization, 1L)
+    expect_false(grepl("NA", regularization, fixed = TRUE))
+  }
+  ridge_line <- grep("^  regularization:",
+    utils::capture.output(print(canonical_coupling(form, ridge = 0.05))),
+    value = TRUE)
+  expect_match(ridge_line, "ridge 0.05", fixed = TRUE)
+  # Unequal lambdas are reported per side rather than collapsed.
+  asymmetric <- grep("^  regularization:",
+    utils::capture.output(print(crossform:::.gaussian_information(
+      form, ridge, gaussian_covariance_model()))), value = TRUE)
+  expect_match(asymmetric, "ridge (left 0.05, right 0.02)", fixed = TRUE)
+})
+
+test_that("the number formatter never emits a coercion warning", {
+  format_number <- crossform:::.pf_num
+  expect_identical(format_number(NULL), "none")
+  # format() pads to a common number of decimals within one vector.
+  expect_identical(format_number(c(1, 2.5)), "1.0, 2.5")
+  expect_identical(format_number(2.5), "2.5")
+  # A genuine NA is still shown as NA.
+  expect_match(format_number(c(1, NA)), "NA")
+  # A non-numeric vector degrades to text instead of warning.
+  expect_silent(text <- format_number(c("ridge", "none")))
+  expect_identical(text, "ridge, none")
+  expect_silent(format_number(list(kind = "ridge", lambda = 0.05)))
+})
+
 # Small value records --------------------------------------------------------
 
 test_that("small value records print compactly", {
@@ -638,13 +768,11 @@ test_that("small value records print compactly", {
 
 test_that("every print method in the package returns its input invisibly", {
   namespace <- asNamespace("crossform")
-  source_text <- function(name) {
-    paste(deparse(body(get(name, envir = namespace))), collapse = " ")
-  }
+  body_text <- function(method) paste(deparse(body(method)), collapse = " ")
   # A method returns invisibly either directly or through the one shared
   # preview helper it delegates to.
-  returns_invisibly <- function(name) {
-    text <- source_text(name)
+  returns_invisibly <- function(method) {
+    text <- body_text(method)
     if (grepl("invisible", text, fixed = TRUE)) {
       return(TRUE)
     }
@@ -653,18 +781,18 @@ test_that("every print method in the package returns its input invisibly", {
     called <- called[vapply(called, exists, logical(1),
       envir = namespace, inherits = FALSE)]
     any(vapply(called, function(helper) {
-      grepl("invisible", source_text(helper), fixed = TRUE)
+      grepl("invisible", body_text(get(helper, envir = namespace)),
+        fixed = TRUE)
     }, logical(1)))
   }
-  methods <- ls(namespace, pattern = "^print[.]effect_")
+  methods <- crossform_s3_methods("print")
   expect_gt(length(methods), 80L)
-  expect_setequal(methods[!vapply(methods, returns_invisibly, logical(1))],
-    character())
+  expect_setequal(names(methods)[!vapply(methods, returns_invisibly,
+    logical(1))], character())
 })
 
 test_that("the package registers a print method for every documented class", {
-  namespace <- asNamespace("crossform")
-  printed <- sub("^print[.]", "", ls(namespace, pattern = "^print[.]effect_"))
+  printed <- sub("^print[.]", "", names(crossform_s3_methods("print")))
   # Regression guard: the classes a first-hour user is most likely to hold.
   expected <- c(
     "effect_relation", "effect_domain", "effect_frame", "effect_frame_spec",
@@ -682,6 +810,64 @@ test_that("the package registers a print method for every documented class", {
     "effect_metric_capabilities", "effect_measurement_capabilities"
   )
   expect_setequal(setdiff(expected, printed), character())
+})
+
+# The record registry --------------------------------------------------------
+
+test_that("every descriptor in the registry is actually registered", {
+  namespace <- asNamespace("crossform")
+  records <- get(".pf_records", envir = namespace)
+  expect_gt(length(records), 80L)
+  printed <- names(crossform_s3_methods("print"))
+  formatted <- names(crossform_s3_methods("format"))
+
+  wants_print <- vapply(records, function(descriptor) {
+    !is.null(descriptor$fields) || identical(descriptor$emit, "capabilities")
+  }, logical(1))
+  wants_format <- vapply(records, function(descriptor) {
+    !is.null(descriptor$inline)
+  }, logical(1))
+
+  expect_setequal(
+    setdiff(paste0("print.", names(records)[wants_print]), printed),
+    character())
+  expect_setequal(
+    setdiff(paste0("format.", names(records)[wants_format]), formatted),
+    character())
+})
+
+test_that("a described class has no second, hand-written method", {
+  # A descriptor and a `print.<class>` definition for the same class would
+  # both be registered, and which one won would depend on load order.
+  namespace <- asNamespace("crossform")
+  records <- get(".pf_records", envir = namespace)
+  for (generic in c("print", "format")) {
+    pattern <- paste0("^", generic, "[.]effect_")
+    hand_written <- sub(paste0("^", generic, "[.]"), "",
+      ls(namespace, pattern = pattern))
+    described <- names(records)[vapply(records, function(descriptor) {
+      if (generic == "print") {
+        !is.null(descriptor$fields) || identical(descriptor$emit, "capabilities")
+      } else {
+        !is.null(descriptor$inline)
+      }
+    }, logical(1))]
+    expect_setequal(intersect(hand_written, described), character())
+  }
+})
+
+test_that("the shared printer emits the class it was registered under", {
+  # The header used to be a string literal repeated inside each method, and
+  # `expect_compact_print()` checked all hundred-odd of them. The engine takes
+  # it from the registered name instead, so the two cannot disagree.
+  printer <- get(".pf_record_printer", envir = asNamespace("crossform"))
+  method <- printer("effect_registered_name", list(fields = function(x) {
+    list(only = "field")
+  }))
+  output <- utils::capture.output(
+    value <- withVisible(method(structure(list(), class = "something_else"))))
+  expect_identical(output, c("<effect_registered_name>", "  only: field"))
+  expect_false(value$visible)
 })
 
 # Compiler vocabulary stays behind detail = TRUE ------------------------------

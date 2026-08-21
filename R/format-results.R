@@ -123,16 +123,6 @@ format.effect_geometry_plan <- function(x, detail = FALSE, ...) {
 }
 
 #' @export
-format.effect_crossnobis_plan <- function(x, ...) {
-  .validate_crossnobis_plan(x, deep = FALSE)
-  .format_counted_result(
-    "effect_crossnobis_plan", nrow(x$frame$weights),
-    paste0(x$metric_schedule$recipe$kind, ", ",
-      x$metric_schedule$training_policy$kind)
-  )
-}
-
-#' @export
 format.effect_geometry <- function(x, ...) {
   .validate_effect_geometry(x, probe = FALSE)
   .format_counted_result(
@@ -149,15 +139,6 @@ format.effect_relation_fit <- function(x, ...) {
     "effect_relation_fit", length(x$relation$partitions),
     paste0(length(x$relation$effects), " effects, ",
       x$relation$n_features, " features")
-  )
-}
-
-#' @export
-format.effect_rdm_sampling_covariance <- function(x, ...) {
-  .validate_sampling_covariance(x, deep = FALSE)
-  .format_counted_result(
-    "effect_rdm_sampling_covariance", x$dimension,
-    paste0(x$plan$target$policy, ", factorized")
   )
 }
 
@@ -228,47 +209,6 @@ print.effect_relation_fit <- function(x, ...) {
 }
 
 #' @export
-print.effect_rdm_sampling_covariance <- function(x, ...) {
-  .validate_sampling_covariance(x, deep = FALSE)
-  cat("<effect_rdm_sampling_covariance>\n", sep = "")
-  cat("  distances:    ", x$dimension, "\n", sep = "")
-  cat("  measurement:  ", x$source$node, "\n", sep = "")
-  cat("  partitions:   ", x$partitions, " (dependent pair products)\n",
-    sep = "")
-  cat("  target:       ", x$plan$target$target, " / ",
-    x$plan$target$policy, "\n", sep = "")
-  cat("  metric:       fixed\n", sep = "")
-  cat("  residual:     ", .pf_residual_noise(x$source), "\n", sep = "")
-  cat("  storage:      exact factorized covariance\n", sep = "")
-  cat("  spatial law:  local marginal only\n", sep = "")
-  if (!is.null(x$source$execution)) {
-    cat("  execution:    ", x$source$execution$route, " / ",
-      x$source$execution$residual_strategy, "\n", sep = "")
-  }
-  invisible(x)
-}
-
-#' @export
-print.effect_rdm_sampling_covariance_batch <- function(x, ...) {
-  if (!length(x) || !inherits(x[[1L]], "effect_rdm_sampling_covariance")) {
-    .input_error("`x` must come from `rdm_sampling_covariance()`.")
-  }
-  first <- x[[1L]]
-  execution <- first$source$execution
-  cat("<effect_rdm_sampling_covariance_batch>\n", sep = "")
-  cat("  measurements: ", length(x), "\n", sep = "")
-  cat("  distances:    ", first$dimension, "\n", sep = "")
-  if (!is.null(execution)) {
-    cat("  execution:    ", execution$route, " / ",
-      execution$residual_strategy, "\n", sep = "")
-    cat("  shared residual statistics: ",
-      if (isTRUE(execution$shared_residual_statistics)) "yes" else "no",
-      "\n", sep = "")
-  }
-  invisible(x)
-}
-
-#' @export
 as.data.frame.effect_view <- function(x, row.names = NULL, optional = FALSE,
                                       ...) {
   .validate_effect_view(x)
@@ -279,6 +219,54 @@ as.data.frame.effect_view <- function(x, row.names = NULL, optional = FALSE,
 print.effect_view <- function(x, ...) {
   .validate_effect_view(x)
   .format_result_preview(x, "effect_view", ...)
+  .pf_aggregation_note(x)
+  invisible(x)
+}
+
+# An aggregated view prints as one row per territory, and nothing in that table
+# says the rows are group sums rather than measurements -- or that a coherent
+# budget belongs to one frame and cannot be compared across frames
+# (`design/conservative-geometry-contract.md` section 4). `contribution()` and
+# `coherence_spectrum()` are the only things that set `$metadata$aggregation`,
+# so the note appears exactly on the objects it describes and no other print
+# changes at all.
+.pf_aggregation_note <- function(x) {
+  record <- x$metadata$aggregation
+  if (!is.list(record)) return(invisible(NULL))
+  .pf_note(sprintf(
+    "aggregated_by: `%s`; %s over %s, summed by row",
+    record$aggregated_by, .msg_count(record$groups, "group"),
+    .msg_count(record$measurements, "measurement")
+  ))
+  # A spectrum's two numeric columns are read in opposite directions, and the
+  # table alone does not say which is which: `total` per group is alpha times
+  # the whole-domain total by construction (section 3.1), so it reports the
+  # family weighting, while the share cancels alpha exactly (section 3.2) and
+  # is the scale-resolved finding. Printing the table without saying so is how
+  # the panel the contract forbids gets read off it.
+  if (identical(record$reduction, "coherence_spectrum")) {
+    .pf_note(paste0(
+      "coherence_spectrum: `total` per group is alpha times the whole-domain ",
+      "total by construction, so that column is the family weighting and not ",
+      "a finding; `coherence_fraction` is exactly invariant to alpha and is ",
+      "the scale-resolved quantity to read"
+    ))
+  }
+  if (isTRUE(record$frame_relative)) {
+    .pf_note(sprintf(paste0(
+      "frame_relative: TRUE -- %s %s a share of this frame's own mass, not of ",
+      "a global one, and %s not comparable across frames"
+    ), .msg_names(record$frame_relative_components),
+      if (length(record$frame_relative_components) == 1L) "is" else "are",
+      if (length(record$frame_relative_components) == 1L) "is" else "are"))
+  }
+  if (length(record$masked)) {
+    .pf_note(sprintf(paste0(
+      "masked: %s NA over groups; a local weighted mean is a density, and ",
+      "densities do not add over a territory"
+    ), .msg_names(record$masked)))
+  }
+  invisible(NULL)
 }
 
 #' @export
@@ -353,6 +341,7 @@ print.effect_contrast_view <- function(x, ...) {
     "configuration are not a nonnegative partition"
   ), sum(valid), length(valid)),
     width = .pf_line_width, prefix = "    ", initial = "  "), sep = "\n")
+  .pf_aggregation_note(x)
   invisible(x)
 }
 
@@ -412,4 +401,190 @@ as.data.frame.effect_spectrum_view <- function(x, row.names = NULL,
 #' @export
 print.effect_spectrum_view <- function(x, ...) {
   .format_result_preview(x, "effect_spectrum_view", ...)
+}
+
+# Population results -----------------------------------------------------------
+#
+# The coefficient table in long form: one row per group node, query and term,
+# with the group node index --- the sink included, marked, and carrying the
+# units its column is reported in --- leading it exactly as a measurement index
+# leads every other result table. Long rather than wide because the result has
+# three axes and a wide table has to fold two of them into column names, which
+# stops being readable at the second query.
+#
+# A complete-form result is the same table with the readout axis renamed: one
+# row per group node, term and packed coordinate, and the coordinate's own
+# `row`, `column` and `scale` carried beside it so a reader can rebuild the
+# symmetric form --- or check the `sqrt(2)` --- without consulting the codec.
+# The axis order differs from the query-bank case because the arrays do
+# (`node x term x coordinate` against `node x query x term`), and the long
+# table follows the array rather than imposing an order on it.
+
+#' @export
+as.data.frame.effect_population_result <- function(x, row.names = NULL,
+                                                   optional = FALSE, ...) {
+  .validate_population_result(x)
+  if (identical(x$basis, "complete_form")) {
+    shape <- dim(x$coefficient_forms)
+    labels <- dimnames(x$coefficient_forms)
+    nodes <- shape[[1L]]
+    coordinates <- x$coordinates[
+      rep(seq_len(shape[[3L]]), each = nodes * shape[[2L]]), , drop = FALSE
+    ]
+    return(data.frame(
+      .result_index_data_frame(x$index)[
+        rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), , drop = FALSE
+      ],
+      term = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+      coordinate = coordinates$coordinate,
+      row = coordinates$row,
+      column = coordinates$column,
+      scale = coordinates$scale,
+      estimate = as.numeric(x$coefficient_forms),
+      check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+    ))
+  }
+  shape <- dim(x$coefficients)
+  labels <- dimnames(x$coefficients)
+  nodes <- shape[[1L]]
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), ,
+      drop = FALSE
+    ],
+    query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+    term = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    estimate = as.numeric(x$coefficients),
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+# Population views ------------------------------------------------------------
+#
+# One row per group node and view column, with the group node index -- the
+# sink included, marked, and carrying its units -- leading it exactly as it
+# leads the population result's own table. The transported component is named
+# by its `population-form-v1` section 8.1 ledger name and by nothing else:
+# there is no `component` column and no cell reading `coherent`, because a
+# transported coherent ledger is not the group node's coherent part and a
+# column header is where that confusion would start.
+
+#' @export
+as.data.frame.effect_population_view <- function(x, row.names = NULL,
+                                                 optional = FALSE, ...) {
+  .validate_population_view(x)
+  nodes <- nrow(x$values)
+  columns <- x$columns[rep(seq_len(nrow(x$columns)), each = nodes), ,
+    drop = FALSE]
+  names(columns)[names(columns) == "column"] <- "view_column"
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = ncol(x$values)), , drop = FALSE
+    ],
+    view = x$view,
+    ledger = x$ledger,
+    term = x$term,
+    columns,
+    estimate = as.numeric(x$values),
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+# Population uncertainty -------------------------------------------------------
+#
+# One layer per call, never both. The between-subject block is indexed by group
+# node, query and model term; the within-subject block is indexed by group
+# node, query and *participant* and has no term axis at all. There is no join
+# key between them and no arithmetic that would produce one, so a single table
+# would have to invent a column to hold both --- and a reader who found them in
+# one frame would add them. `layer` is therefore an argument and not a
+# convenience.
+
+.population_uncertainty_between_frame <- function(x) {
+  shape <- dim(x$between$estimate)
+  labels <- dimnames(x$between$estimate)
+  nodes <- shape[[1L]]
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), , drop = FALSE
+    ],
+    layer = "between_subject",
+    ledger = x$ledger,
+    query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+    term = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    estimate = as.numeric(x$between$estimate),
+    se = as.numeric(x$between$se),
+    residual_df = x$between$residual_df,
+    t = as.numeric(x$between$t),
+    level = x$between$level,
+    lower = as.numeric(x$between$lower),
+    upper = as.numeric(x$between$upper),
+    calibration = x$between$calibration,
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+.population_uncertainty_within_frame <- function(x) {
+  within <- x$within
+  if (is.null(within) || is.null(within$admitted)) {
+    refusal <- if (is.null(within)) NULL else within$refusal
+    .capability_refusal(paste0(
+      "This result carries no within-subject layer. Either ",
+      "`estimate_population()` was not given `uncertainty`, or the layer was ",
+      "refused before any group column was examined; ",
+      "`population_uncertainty(x)$within$refusal$reasons` names which."
+    ),
+      capability = if (is.null(refusal)) {
+        "transported_sampling_covariance"
+      } else {
+        refusal$capability
+      },
+      namespace = "population_uncertainty",
+      reasons = if (is.null(refusal)) {
+        "within_layer_absent"
+      } else {
+        refusal$reasons
+      },
+      remedies = if (is.null(refusal)) {
+        paste0("Pass `uncertainty = ` to `estimate_population()`, one ",
+          "`rdm_sampling_covariance()` per participant.")
+      } else {
+        refusal$remedies
+      })
+  }
+  shape <- dim(within$variance)
+  labels <- dimnames(within$variance)
+  nodes <- shape[[1L]]
+  admitted <- within$admitted[, rep(seq_len(shape[[3L]]),
+    each = shape[[2L]]), drop = FALSE]
+  data.frame(
+    .result_index_data_frame(x$index)[
+      rep(seq_len(nodes), times = shape[[2L]] * shape[[3L]]), , drop = FALSE
+    ],
+    layer = "within_subject",
+    ledger = x$ledger,
+    query = rep(rep(labels[[2L]], each = nodes), times = shape[[3L]]),
+    subject = rep(labels[[3L]], each = nodes * shape[[2L]]),
+    admitted = as.logical(admitted),
+    source_node = as.character(within$source_node[, rep(
+      seq_len(shape[[3L]]), each = shape[[2L]]), drop = FALSE]),
+    coefficient = as.numeric(within$coefficient[, rep(
+      seq_len(shape[[3L]]), each = shape[[2L]]), drop = FALSE]),
+    variance = as.numeric(within$variance),
+    se = sqrt(as.numeric(within$variance)),
+    calibration = "uncalibrated",
+    check.names = FALSE, row.names = NULL, stringsAsFactors = FALSE
+  )
+}
+
+#' @export
+as.data.frame.effect_population_uncertainty <- function(
+    x, row.names = NULL, optional = FALSE, ...,
+    layer = c("between", "within")) {
+  .validate_population_uncertainty(x)
+  layer <- match.arg(layer)
+  if (identical(layer, "between")) {
+    return(.population_uncertainty_between_frame(x))
+  }
+  .population_uncertainty_within_frame(x)
 }

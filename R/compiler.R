@@ -90,7 +90,7 @@
 # parent plan. It constructs no plan of its own.
 
 .geometry_execution_signature <- function(fields) {
-  .sha256_signature(list(
+  digested <- list(
     schema_version = 1L,
     parent = fields$parent_signature,
     scientific_plan_id = fields$scientific_plan_id,
@@ -107,12 +107,22 @@
     memory = unclass(fields$memory),
     lowering = fields$lowering,
     kernel_version = fields$kernel_version
-  ))
+  )
+  # Carried through from the parent plan, and absent from the digest when the
+  # parent has none, so an execution plan compiled from a fixed-metric or
+  # identity plan keeps the signature it has always had.
+  if (!is.null(fields$execution_hints)) {
+    digested$execution_hints <- unclass(fields$execution_hints)
+  }
+  .sha256_signature(digested)
 }
 
 .geometry_kernel_version <- function(support_streamed, explicit_metric,
-                                     query_fused, structured_query) {
-  if (isTRUE(support_streamed)) {
+                                     query_fused, structured_query,
+                                     learned = FALSE) {
+  if (isTRUE(learned)) {
+    "support-streamed-scheduled-metric-v1"
+  } else if (isTRUE(support_streamed)) {
     "support-streamed-metric-v1"
   } else if (isTRUE(explicit_metric)) {
     "additive-fixed-metric-v1"
@@ -125,6 +135,70 @@
   }
 }
 
+# What the scheduled-metric kernel can read. It forms `c %*% B` per endpoint
+# and contracts one scalar per declared edge under a locally derived metric:
+# there is no coherent component to decompose, no endpoint marginal to retain,
+# and no packed geometry to materialize. Every other component is a refusal
+# rather than a slower route, because no route exists.
+.scheduled_metric_refusal <- function(message, reason) {
+  .capability_refusal(message,
+    capability = "scheduled_metric_component",
+    namespace = "geometry_views",
+    reasons = reason,
+    remedies = paste0(
+      "Read this plan with `crossnobis(plan, weights)`, which is the signed ",
+      "total the scheduled local metric admits, or compile the same frame ",
+      "with a fixed `noise_precision()` metric for the decomposed views."
+    )
+  )
+}
+
+# The signed weights an executor is handed must reproduce the compiled query
+# exactly, so a hint can never smuggle a different estimand past the plan
+# identity. Shared by the contrast component and the learned-metric total.
+.check_signed_outer_product <- function(physical_query, signed_query) {
+  expected_query <- matrix(
+    .svec_symmetric(tcrossprod(signed_query)), ncol = 1L
+  )
+  if (!identical(dim(physical_query), dim(expected_query)) ||
+      !isTRUE(all.equal(
+        unname(physical_query), expected_query, tolerance = 0
+      ))) {
+    .input_error(
+      "A contrast plan's energy query must equal the signed outer product."
+    )
+  }
+  invisible(TRUE)
+}
+
+# Signed weights are estimand-bearing on a contrast view, where the sign
+# survives into the result, and executor-facing on a learned total, where it
+# does not.
+.view_signed_query <- function(component, signed_query) {
+  if (identical(component, "contrast")) signed_query else NULL
+}
+
+# One statement of which lowering executes a plan, consumed by the compiler
+# that emits it and the validator that re-derives it.
+.geometry_lowering_string <- function(support_streamed, explicit_metric,
+                                      query_fused, learned = FALSE) {
+  if (isTRUE(learned)) {
+    "support_streamed_scheduled_metric_query_contraction"
+  } else if (support_streamed && query_fused) {
+    "support_streamed_metric_query_contraction"
+  } else if (support_streamed) {
+    "support_streamed_metric_form_contraction"
+  } else if (explicit_metric && query_fused) {
+    "additive_metric_query_fused_contraction"
+  } else if (explicit_metric) {
+    "additive_metric_form_contraction"
+  } else if (query_fused) {
+    "additive_query_fused_contraction"
+  } else {
+    "additive_form_contraction"
+  }
+}
+
 .compile_geometry_execution_plan <- function(
     plan, query = NULL, component = NULL,
     storage = c("memory", "block"), storage_path = NULL,
@@ -132,6 +206,23 @@
   .validate_geometry_plan(plan)
   storage <- match.arg(storage)
   rectangular <- identical(plan$codec, "rectangular")
+  learned <- identical(
+    plan$metric_schedule$kind, "learned_local_before_frame"
+  )
+  if (learned && (storage != "memory" || !is.null(storage_path))) {
+    .scheduled_metric_refusal(paste0(
+      "A learned local metric is derived per support during execution, so ",
+      "its lowering returns one in-memory signed value per measurement and ",
+      "creates no geometry store."
+    ), "scheduled_metric_block_storage_not_admitted")
+  }
+  if (learned && is.null(query)) {
+    .scheduled_metric_refusal(paste0(
+      "Complete packed geometry cannot be materialized under a learned ",
+      "local metric: the scheduled kernel contracts one signed scalar per ",
+      "measurement and never forms the packed effect geometry."
+    ), "scheduled_metric_full_materialization_not_admitted")
+  }
   if (!is.null(query)) {
     physical_query <- .compiler_query(
       query, plan$task$left_relation$effect_space,
@@ -142,6 +233,13 @@
       c("total", "coherent", "configuration", "contrast"))
     if (rectangular && identical(component, "contrast")) {
       .input_error("Signed contrast execution requires a self-form plan.")
+    }
+    if (learned && !identical(component, "total")) {
+      .scheduled_metric_refusal(sprintf(paste0(
+        "A learned local metric admits the signed total only; the `%s` ",
+        "component would require the coherent decomposition or the endpoint ",
+        "marginals, and neither is formed by the scheduled kernel."
+      ), component), "scheduled_metric_component_not_admitted")
     }
     if (storage != "memory" || !is.null(storage_path)) {
       .input_error(paste0(
@@ -165,17 +263,7 @@
   if (identical(component, "contrast")) {
     effects <- plan$task$left_relation$effect_space$coordinates
     signed_query <- .align_contrast(signed_query, effects)
-    expected_query <- matrix(
-      .svec_symmetric(tcrossprod(signed_query)), ncol = 1L
-    )
-    if (!identical(dim(physical_query), dim(expected_query)) ||
-        !isTRUE(all.equal(
-          unname(physical_query), expected_query, tolerance = 0
-        ))) {
-      .input_error(
-        "A contrast plan's energy query must equal the signed outer product."
-      )
-    }
+    .check_signed_outer_product(physical_query, signed_query)
     requirements <- list(
       total = TRUE,
       coherent = TRUE,
@@ -183,7 +271,24 @@
       materialization = "direct_contrast"
     )
   } else {
-    if (!is.null(signed_query)) {
+    if (learned) {
+      # The scheduled kernel needs the signed vector `c`, not the packed
+      # `svec(c c^T)` the estimand is named by: it contracts `c B_a` against
+      # `c B_b` through a local solve rather than applying a packed operator.
+      # The hint cannot alter the estimand, because it must reproduce the
+      # compiled query exactly -- the same equality a contrast plan enforces.
+      if (is.null(signed_query)) {
+        .scheduled_metric_refusal(paste0(
+          "A learned local metric is contracted one signed contrast at a ",
+          "time, so its execution needs the signed weights and not only the ",
+          "packed query operator."
+        ), "scheduled_metric_requires_signed_contrast")
+      }
+      signed_query <- .align_contrast(
+        signed_query, plan$task$left_relation$effect_space$coordinates
+      )
+      .check_signed_outer_product(physical_query, signed_query)
+    } else if (!is.null(signed_query)) {
       .input_error(
         "Signed query weights are valid only for contrast execution."
       )
@@ -214,7 +319,7 @@
       "output; query-first execution remains bounded and is preferred."
     ))
   }
-  selected <- if (support_streamed) {
+  selected <- if (support_streamed || learned) {
     .support_metric_memory_plan(
       plan$task$left_relation, plan$frame, plan$metric_schedule,
       plan$compute, output_width, storage, requirements
@@ -236,21 +341,11 @@
   }
   query_fused <- !is.null(physical_query)
   structured_query <- query_fused && .is_pair_difference_query(physical_query)
-  lowering <- if (support_streamed && query_fused) {
-    "support_streamed_metric_query_contraction"
-  } else if (support_streamed) {
-    "support_streamed_metric_form_contraction"
-  } else if (explicit_metric && query_fused) {
-    "additive_metric_query_fused_contraction"
-  } else if (explicit_metric) {
-    "additive_metric_form_contraction"
-  } else if (query_fused) {
-    "additive_query_fused_contraction"
-  } else {
-    "additive_form_contraction"
-  }
+  lowering <- .geometry_lowering_string(
+    support_streamed, explicit_metric, query_fused, learned
+  )
   kernel_version <- .geometry_kernel_version(
-    support_streamed, explicit_metric, query_fused, structured_query
+    support_streamed, explicit_metric, query_fused, structured_query, learned
   )
   scientific_plan_id <- if (is.null(physical_query)) {
     # Full materialization executes the plan's own estimand.
@@ -258,9 +353,13 @@
   } else {
     # A fused query is an execution strategy for a view of the parent
     # estimand; its identity derives from the parent id plus the view
-    # semantics, exactly as the projected route derives it.
+    # semantics, exactly as the projected route derives it. The learned
+    # route's signed hint is deliberately excluded: `total` of `c c^T` is one
+    # estimand whether or not the executor was handed `c`, and folding the
+    # sign in would make `c` and `-c` name two different estimands.
     .geometry_view_scientific_id(
-      plan$scientific_plan_id, component, physical_query, signed_query
+      plan$scientific_plan_id, component, physical_query,
+      .view_signed_query(component, signed_query)
     )
   }
   fields <- list(
@@ -281,7 +380,8 @@
     row_tile = selected$row_tile,
     coordinate_tile = selected$coordinate_tile,
     memory = selected$memory,
-    task_count = if (support_streamed) {
+    execution_hints = plan$execution_hints,
+    task_count = if (support_streamed || learned) {
       as.double(plan$measurements)
     } else {
       ceiling(plan$task$left_relation$n_features / selected$feature_block)
@@ -301,8 +401,8 @@
     "metric_schedule",
     "compute", "storage", "storage_path", "query", "component",
     "signed_query", "requirements", "output_width", "feature_block", "row_tile",
-    "coordinate_tile", "memory", "task_count", "lowering", "query_fused",
-    "kernel_version", "scientific_plan_id", "signature")
+    "coordinate_tile", "memory", "execution_hints", "task_count", "lowering",
+    "query_fused", "kernel_version", "scientific_plan_id", "signature")
   if (!.sealed_fields(x, "effect_geometry_execution_plan", expected) ||
       !.strong_sha256(x$parent_signature) ||
       !.strong_sha256(sub("^geometry-", "", x$estimand_id)) ||
@@ -340,7 +440,11 @@
   if (!isTRUE(x$task$same_relation)) {
     expected_requirements$marginals <- FALSE
   }
-  if (identical(x$component, "contrast")) {
+  learned <- identical(
+    x$metric_schedule$kind, "learned_local_before_frame"
+  )
+  if (identical(x$component, "contrast") ||
+      (learned && !is.null(x$signed_query))) {
     expected_query <- matrix(
       .svec_symmetric(tcrossprod(x$signed_query)), ncol = 1L
     )
@@ -351,6 +455,27 @@
       )
     }
   }
+  if (learned && (!isTRUE(x$query_fused) ||
+      !identical(x$component, "total") || is.null(x$signed_query) ||
+      !identical(x$storage, "memory") || !identical(x$output_width, 1L))) {
+    .contract_error(paste0(
+      "A scheduled local metric executes one signed in-memory total; this ",
+      "execution plan claims another component."
+    ))
+  }
+  # Two schedules do work at plan time and record it: a learned recipe freezes
+  # residual sufficient statistics, and a whitened composition forms the
+  # whitened effect coordinates. Both carry hints through to the execution
+  # plan; every other schedule carries none.
+  whitened <- identical(
+    x$metric_schedule$kind, "whitened_metric_before_frame"
+  )
+  if (!identical(learned || whitened, !is.null(x$execution_hints))) {
+    .contract_error(paste0(
+      "Execution hints are carried only by a learned metric schedule or a ",
+      "whitened composition."
+    ))
+  }
   explicit_metric <- identical(
     x$metric_schedule$kind, "fixed_metric_before_frame"
   )
@@ -358,33 +483,25 @@
     x$metric_schedule$lowering, "support_streamed_pair_contraction"
   ) || (explicit_metric &&
     (isTRUE(x$requirements$coherent) || isTRUE(x$requirements$marginals)))
-  expected_lowering <- if (support_streamed && x$query_fused) {
-    "support_streamed_metric_query_contraction"
-  } else if (support_streamed) {
-    "support_streamed_metric_form_contraction"
-  } else if (explicit_metric && x$query_fused) {
-    "additive_metric_query_fused_contraction"
-  } else if (explicit_metric) {
-    "additive_metric_form_contraction"
-  } else if (x$query_fused) {
-    "additive_query_fused_contraction"
-  } else {
-    "additive_form_contraction"
-  }
+  expected_lowering <- .geometry_lowering_string(
+    support_streamed, explicit_metric, x$query_fused, learned
+  )
   expected_kernel <- .geometry_kernel_version(
     support_streamed, explicit_metric, x$query_fused,
-    x$query_fused && .is_pair_difference_query(x$query)
+    x$query_fused && .is_pair_difference_query(x$query), learned
   )
   expected_id <- if (is.null(x$query)) {
     x$estimand_id
   } else {
     .geometry_view_scientific_id(
-      x$estimand_id, x$component, x$query, x$signed_query
+      x$estimand_id, x$component, x$query,
+      .view_signed_query(x$component, x$signed_query)
     )
   }
   # The claimed estimand id is bound two ways: to the stored task through the
   # query-stripped base task id, and to the parent plan through the parent
-  # signature, which digests exactly (estimand id, compute, payload bytes).
+  # signature, which digests exactly (estimand id, compute, payload bytes,
+  # and the plan's execution hints when it has any).
   expected_estimand_id <- .sha256_signature(list(
     schema_version = 1L,
     evidence_task = .effect_task_base_id(x$task),
@@ -406,7 +523,8 @@
       if (same) q else q + q_right,
       length(unique(c(relation$partitions, if (same) NULL else
         right_relation$partitions)))
-    )
+    ),
+    x$execution_hints
   )
   fields <- x[names(x) != "signature"]
   if (!identical(x$requirements, expected_requirements) ||

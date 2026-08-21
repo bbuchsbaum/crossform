@@ -9,33 +9,65 @@ neuroim2_searchlights(
   radius,
   domain = NULL,
   normalization = "local",
-  nonzero = TRUE
+  nonzero = TRUE,
+  weights = NULL
 )
 }
 \arguments{
 \item{mask}{A three-dimensional neuroim2 \code{NeuroVol} mask.}
 
-\item{radius}{Positive spherical radius in millimeters.}
+\item{radius}{Positive spherical radius in millimeters. Several radii
+request a multiscale family, one member frame per radius.}
 
 \item{domain}{An exact domain from \code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}}. When omitted,
 it is constructed from \code{mask}.}
 
-\item{normalization}{One of \code{none}, \code{local}, or \code{conservative}.}
+\item{normalization}{One of \code{none}, \code{local}, or \code{conservative}. Several
+radii admit only \code{conservative}.}
 
 \item{nonzero}{Passed to \code{neuroim2::searchlight_indices()}; version 0.1
 requires \code{TRUE} so every member belongs to the compact domain.}
+
+\item{weights}{Family weights for a multiscale request: one positive weight
+per radius, summing to one, matched to the radii in order or by the
+\code{"radius-<r>"} names. \code{NULL} (the default) weights the radii equally. A
+single radius is one frame with no budget to divide, so \code{weights} is
+refused there rather than ignored.}
 }
 \value{
 An \code{effect_frame} whose \verb{$weights} are the sparse
 measurement-by-feature operator, with \verb{$index$measurement} holding the
 full-volume center indices, \verb{$normalization}, a \verb{$specification}
 recording the radius and the pinned \code{upstream_commit}, and a
-\verb{$support_index}.
+\verb{$support_index}. Several radii return a \code{\link[=frame_family]{frame_family()}} instead: its
+\verb{$index} carries one row per measurement with that row's \code{family},
+\code{node}, \code{scale}, \code{center}, and \code{alpha}.
 }
 \description{
 The function calls only \code{neuroim2::searchlight_indices()} and maps its stable
 full-volume indices to the ordered compact feature columns of \code{domain}.
 }
+\details{
+Several radii request one conservative frame per radius, stacked into a
+multiscale \code{\link[=frame_family]{frame_family()}}; see \emph{Multiscale families}.
+}
+\section{Multiscale families}{
+
+\code{neuroim2_searchlights(mask, c(4, 8), normalization = "conservative")}
+builds one conservative frame per radius from the same neuroim2
+neighborhoods, names them \code{"radius-4"} and \code{"radius-8"}, and stacks them
+with \code{\link[=frame_family]{frame_family()}} under family weights \code{weights} (equal by default).
+Only conservative normalization is admitted, for the reason \code{\link[=searchlights]{searchlights()}}
+gives: locally normalized values are not contributions to any total, so a
+family of them has no budget for \code{weights} to divide.
+
+Per-scale totals of such a family are \eqn{\alpha_s G_\Omega}{alpha_s *
+G_Omega} by construction, so a total-energy-by-scale panel reports the
+analyst's own \code{weights}, not the data. Only the coherent share of each
+block's fixed budget varies informatively with scale
+(\code{design/conservative-geometry-contract.md} sections 3.1 and 3.2).
+}
+
 \examples{
 if (requireNamespace("neuroim2", quietly = TRUE) &&
     utils::packageVersion("neuroim2") >= "0.19.0") {
@@ -55,6 +87,15 @@ if (requireNamespace("neuroim2", quietly = TRUE) &&
   # The pinned upstream geometry is part of the frame's specification.
   print(frame$specification$upstream_commit)
 
+  # Several radii stack into a conservative family, one member per radius.
+  family <- neuroim2_searchlights(mask, c(4, 6), domain = domain,
+    normalization = "conservative", weights = c(0.4, 0.6))
+  print(unique(family$index[, c("family", "scale", "alpha")]))
+
+  # Each block carries exactly its weight, so per-scale energy is the
+  # `weights` vector and only the coherent share is a finding.
+  print(frame_conservation(family)$members)
+
   # A mask whose geometry differs from the declared domain is refused.
   moved <- neuroim2::LogicalNeuroVol(
     values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(2, 2, 4))
@@ -64,7 +105,8 @@ if (requireNamespace("neuroim2", quietly = TRUE) &&
 }
 \seealso{
 \code{\link[=searchlights]{searchlights()}} plus \code{\link[=compile_frame]{compile_frame()}} for the built-in
-neighborhood builder, \code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}} for the domain, and
+neighborhood builder, \code{\link[=frame_family]{frame_family()}} for the family several radii
+compile to, \code{\link[=neuroim2_volume_domain]{neuroim2_volume_domain()}} for the domain, and
 \code{\link[=frame_conservation]{frame_conservation()}} to check the normalization you chose.
 
 Other neural domains and frames: 
@@ -74,8 +116,8 @@ Other neural domains and frames:
 \code{\link{compile_frame}()},
 \code{\link{edge_frame}()},
 \code{\link{frame_conservation}()},
+\code{\link{frame_family}()},
 \code{\link{measurement_frame}()},
-\code{\link{measurement_space}()},
 \code{\link{neuroim2_volume_domain}()},
 \code{\link{regions}()},
 \code{\link{searchlights}()},

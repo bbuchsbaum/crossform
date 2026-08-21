@@ -46,27 +46,20 @@ utils::write.table(
 
 # Naming the retain column is required: no censor policy is inferred from
 # the motion columns, however large they are.
-record <- bids_confounds(c(`run-1` = path), censor = "retained")
+record <- crossform:::bids_confounds(c(`run-1` = path), censor = "retained")
 record$censor_column
 sum(record$data$retained)
 
 # Naming a column that is absent or not logical refuses explicitly.
 catch_refusal(
-  bids_confounds(c(`run-1` = path), censor = "framewise_displacement")
+  crossform:::bids_confounds(
+    c(`run-1` = path), censor = "framewise_displacement"
+  )
 )$capability
 unlink(path)
 }
 \seealso{
 \code{\link[=observation_confounds]{observation_confounds()}} for the generic contract,
 \code{\link[=bids_events]{bids_events()}} for the event side, and \code{\link[=bids_study]{bids_study()}} to bind both.
-
-Other typed observation facts: 
-\code{\link{bids_events}()},
-\code{\link{bids_study}()},
-\code{\link{observation_confounds}()},
-\code{\link{observation_events}()},
-\code{\link{observation_index}()},
-\code{\link{observations}()},
-\code{\link{partition_hierarchy}()}
 }
-\concept{typed observation facts}
+\keyword{internal}

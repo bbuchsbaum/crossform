@@ -102,11 +102,27 @@ abstract_domain <- function(n_features, coordinates = NULL,
 #' @param spacing Three positive finite voxel spacings.
 #' @param id Stable domain identity.
 #' @param coordinate_units One physical coordinate unit or one per axis.
+#' @param metadata Optional uniquely named list of extra facts about where the
+#'   geometry came from, recorded alongside the grid facts the constructor
+#'   derives. See *Provider metadata*.
 #' @return An `effect_domain` with `$kind` `"volume"`, `$feature_ids` giving
 #'   the stable full-volume indices of the included voxels, `$coordinates`
 #'   holding their physical positions, `$metadata` carrying `dim`, `spacing`,
-#'   `voxel` indices and the logical `mask`, plus the usual
-#'   `$geometry_signature` and `$reference`.
+#'   `voxel` indices and the logical `mask` followed by anything `metadata`
+#'   added, plus the usual `$geometry_signature` and `$reference`.
+#' @section Provider metadata:
+#' A domain built by an adapter usually knows something about the geometry
+#' that the array itself does not carry --- the native header it came from,
+#' the file, the transform it was resampled under. `metadata` is where that
+#' goes, and it is not decoration: the domain's `$geometry_signature` covers
+#' it, so two domains that agree on every voxel but disagree about their
+#' provenance are correctly *different* domains, and anything holding a
+#' compact result vector against one of them refuses the other.
+#'
+#' That is the point. `neuroim2_volume_domain()` records the hash of the full
+#' `neuroim2` space this way, which is what makes writing a result back to
+#' voxels safe. The grid facts the constructor derives itself --- `dim`,
+#' `spacing`, `voxel`, `mask` --- cannot be overridden.
 #' @family neural domains and frames
 #' @seealso [abstract_domain()] for non-volumetric features,
 #'   [neuroim2_volume_domain()] to build the same object from a `NeuroVol`, and
@@ -125,9 +141,17 @@ abstract_domain <- function(n_features, coordinates = NULL,
 #' # feature_ids are full-volume indices, which is how compact results are
 #' # written back into the original array.
 #' utils::head(domain$feature_ids, 3)
+#'
+#' # A provider records where the geometry came from, and the record is part
+#' # of what the domain is: the same voxels under a different provenance are a
+#' # different domain, not the same one.
+#' stamped <- volume_domain(mask, spacing = c(3, 3, 3), id = "example-volume",
+#'   metadata = list(source_file = "sub-01_mask.nii.gz"))
+#' stamped$metadata$source_file
+#' identical(stamped$reference, domain$reference)
 #' @export
 volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
-                          coordinate_units = "mm") {
+                          coordinate_units = "mm", metadata = list()) {
   if (missing(mask)) {
     .input_error(paste0(
       "`mask` is required: pass a three-dimensional logical or numeric array ",
@@ -164,13 +188,33 @@ volume_domain <- function(mask, spacing = c(1, 1, 1), id = "native-volume",
       arg = "spacing", received = .msg_value(spacing),
       expected = "three positive finite voxel sizes")
   }
+  grid_facts <- c("dim", "spacing", "voxel", "mask")
+  if (!is.list(metadata) || (length(metadata) &&
+      (is.null(names(metadata)) || anyNA(names(metadata)) ||
+       any(!nzchar(names(metadata))) || anyDuplicated(names(metadata))))) {
+    .input_error(sprintf(paste0(
+      "`metadata` must be a uniquely named list of extra facts about where ",
+      "this geometry came from; received %s."
+    ), .msg_value(metadata)),
+      arg = "metadata", received = .msg_value(metadata),
+      expected = "a uniquely named list")
+  }
+  overridden <- intersect(names(metadata), grid_facts)
+  if (length(overridden)) {
+    .input_error(sprintf(paste0(
+      "`metadata` may not restate the grid facts this constructor derives ",
+      "from `mask` and `spacing` (%s); received %s."
+    ), paste(grid_facts, collapse = ", "), .msg_names(overridden)),
+      arg = "metadata", received = .msg_names(overridden),
+      expected = "names outside the derived grid facts")
+  }
   .domain_id(id)
   voxel <- arrayInd(which(included), dim(mask), useNames = FALSE)
   physical <- sweep(voxel - 1, 2L, spacing, `*`)
   coordinate_units <- .domain_coordinate_units(coordinate_units, physical)
   .new_domain(id, "volume", which(included), physical, coordinate_units,
-    metadata = list(dim = as.integer(dim(mask)), spacing = spacing,
-      voxel = voxel, mask = included))
+    metadata = c(list(dim = as.integer(dim(mask)), spacing = spacing,
+      voxel = voxel, mask = included), metadata))
 }
 
 .new_domain <- function(id, kind, feature_ids, coordinates, coordinate_units,

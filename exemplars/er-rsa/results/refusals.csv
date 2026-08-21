@@ -1,0 +1,4 @@
+"situation","class","capability","message"
+"match_control() with both nuisance families on category-blocked cells","effect_input_error/effect_error",NA,"Pair-space design is rank deficient; revise predictors or nuisances."
+"a fixed noise metric on the rectangular plan","effect_capability_refusal","rectangular_fixed_metric","Fixed neural metrics are not yet admitted on rectangular cross-axis plans; crossform 0.1 compiles rectangular forms on the implicit identity metric only."
+"rdm() on a rectangular cross-axis plan","effect_capability_refusal","symmetric_self_form","RDM requires a symmetric self form; this plan is rectangular (36 x 30 effects across two relations)."

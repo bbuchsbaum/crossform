@@ -279,17 +279,6 @@ cross_partitions <- function(partitions, independence = NULL,
   .new_partition_reducer("edge_first")
 }
 
-.validate_partition_reducer <- function(reducer) {
-  expected <- c("kind", "weight_convention", "order")
-  if (!.sealed_fields(reducer, "effect_partition_reducer", expected) ||
-      !identical(reducer$kind, "weighted_sum") ||
-      !identical(reducer$weight_convention, "normalized_unit_mass") ||
-      !reducer$order %in% c("edge_first", "aggregate_first")) {
-    .input_error("Partition reducer fields are missing or noncanonical.")
-  }
-  invisible(reducer)
-}
-
 .ordered_partition_edges <- function(over, left_partitions, right_partitions,
                                      same_relation = FALSE) {
   .validate_pairing(over)

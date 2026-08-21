@@ -7,9 +7,10 @@
 crossnobis(x, weights)
 }
 \arguments{
-\item{x}{Either an \code{effect_geometry_plan} carrying an explicit fixed
-\code{noise_precision()} metric, or an \code{effect_crossnobis_plan} carrying a
-provenance-frozen on-demand metric schedule.}
+\item{x}{An \code{effect_geometry_plan} carrying either an explicit fixed
+\code{noise_precision()} metric, or a provenance-frozen learned metric
+schedule compiled from a recipe by \code{\link[=plan_crossnobis]{plan_crossnobis()}} or
+\code{plan_geometry(metric = )}.}
 
 \item{weights}{One finite contrast weight per experimental effect.}
 }
@@ -92,13 +93,15 @@ as.data.frame(result)
 Other geometry plans and views: 
 \code{\link{aggregate_first}()},
 \code{\link{bilinear_query}()},
+\code{\link{coherence_spectrum}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
+\code{\link{contribution}()},
 \code{\link{evaluate_geometry}()},
 \code{\link{example_fmri_effects}()},
 \code{\link{geometry_component}()},
 \code{\link{geometry_spectrum}()},
-\code{\link{inner_product}()},
+\code{\link{latent_geometry}()},
 \code{\link{materialize_geometry}()},
 \code{\link{plan_crossnobis}()},
 \code{\link{plan_geometry}()},

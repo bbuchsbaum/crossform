@@ -1,4 +1,42 @@
 # Canonical experimental-coordinate identity --------------------------------
+#
+# Layer 2 (values), and the bottom of the value order: an effect space is the
+# vocabulary every other value is expressed in, and it calls nothing in the
+# package above layer 1.
+
+# What counts as a legal set of effect-coordinate names, and the default
+# `effect1..effectN` when the caller supplies none. This is the name rule for
+# the space itself, so the space owns it. It was written in `R/extractor.R`
+# because an extractor was the first thing that needed it, which made
+# `effect_space()` -- the value an extractor is declared against -- call up
+# into its own consumer; `kernel.R`, `task.R`, `memory-plan.R`,
+# `design-model.R` and `effect-map.R` all need the same rule and none of them
+# is an extractor.
+.validate_effect_names <- function(effects, expected) {
+  if (is.null(effects)) effects <- paste0("effect", seq_len(expected))
+  if (!is.character(effects)) {
+    .input_error(sprintf(
+      "Effect coordinates must be a character vector; received %s.",
+      .msg_value(effects)))
+  }
+  if (length(effects) != expected) {
+    .input_error(sprintf(
+      "Effect coordinates must name %s; received %s (%s).",
+      .msg_count(expected, "coordinate"),
+      .msg_count(length(effects), "name"), .msg_names(effects)))
+  }
+  if (anyNA(effects) || any(!nzchar(effects)) || anyDuplicated(effects)) {
+    .input_error(sprintf(
+      "Effect coordinates must have unique nonempty names%s.",
+      if (anyDuplicated(effects)) {
+        sprintf("; %s appears more than once",
+          .msg_names(unique(effects[duplicated(effects)])))
+      } else {
+        "; some are missing or empty"
+      }))
+  }
+  effects
+}
 
 #' Define an experimental coordinate space
 #'

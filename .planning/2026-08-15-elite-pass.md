@@ -43,7 +43,9 @@ Branch `elite-pass`, 14 commits ahead of `main` (11 from this pass, 3 from a con
 added an Rcpp fused pair-query / packed-form kernel). Every pass commit landed with
 `R CMD check --as-cran` at 0 ERROR / 0 WARNING (the only WARNING now is the local Homebrew-clang
 `-Wfixed-enum-extension` from R's own headers, introduced with the compiled code) and a green suite
-(2,402 -> ~4,840 expectations).
+(2,402 -> ~4,840 expectations under `testthat::test_local()`; the certified
+figure is `PASS 4112` under `R CMD check --as-cran`, which skips 10 blocks —
+see `design/certification-report.md`, "Recorded certification metrics").
 
 Fresh-eyes first-hour acceptance: run 1 revelation 8 / friction 6 -> run 2 9 / 8 -> run 3 **9 / 8,
 ACCEPT** ("every executable claim is true; every remaining defect was a documentation promise" —

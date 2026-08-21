@@ -369,7 +369,7 @@ test_that("the Fisher transform equals the oracle under both boundary policies",
   # Fisher is defined on correlations, so an uncentered inner product input
   # is refused at plan time rather than transformed anyway.
   expect_error(
-    crossform:::.edge_operation_plan(inner_product(), fisher_z("error")),
+    crossform:::.edge_operation_plan(crossform:::inner_product(), fisher_z("error")),
     "requires correlation-valued edge input"
   , class = "effect_input_error")
 })
@@ -382,9 +382,9 @@ test_that("a measurement bridge factorizes the neural query exactly", {
   fixture <- effect_form_law_fixture()
   left_leg <- matrix(rnorm(2L * fixture$p), 2L, fixture$p)
   right_leg <- matrix(rnorm(2L * fixture$p), 2L, fixture$p)
-  bridge <- measurement_bridge(
+  bridge <- crossform:::measurement_bridge(
     left_leg, right_leg, fixture$domain, fixture$domain,
-    measurement_space(2L, id = "laws:effect-form-common:v1")
+    crossform:::measurement_space(2L, id = "laws:effect-form-common:v1")
   )
   applied <- crossform:::.apply_measurement_bridge(
     list(run1 = fixture$left_values$run1),
@@ -441,11 +441,11 @@ test_that("distinct neural spaces require a bridge, as the oracle demands", {
     "require an explicit"
   , class = "effect_contract_error")
 
-  bridge <- measurement_bridge(
+  bridge <- crossform:::measurement_bridge(
     matrix(rnorm(2L * fixture$p), 2L, fixture$p),
     matrix(rnorm(2L * 4L), 2L, 4L),
     fixture$domain, other_domain,
-    measurement_space(2L, id = "laws:other-common:v1")
+    crossform:::measurement_space(2L, id = "laws:other-common:v1")
   )
   expect_silent(oracle_require_bridge(
     fixture$domain$id, other_domain$id, bridge

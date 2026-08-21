@@ -27,11 +27,11 @@ bridge_task_relation <- function(partitions, effects, domain, reads = NULL,
 bridge_fixture <- function(lazy = FALSE) {
   left_domain <- abstract_domain(3, id = "left-neural:v1")
   right_domain <- abstract_domain(4, id = "right-neural:v1")
-  common <- measurement_space(2, "common-measurement:v1",
+  common <- crossform:::measurement_space(2, "common-measurement:v1",
     provenance = list(method = "fixed-reference"))
   left_leg <- matrix(c(1, 0, 2, 0, 1, -1), 2, 3, byrow = TRUE)
   right_leg <- matrix(c(1, 2, 0, -1, 0, 1, 3, 2), 2, 4, byrow = TRUE)
-  bridge <- measurement_bridge(
+  bridge <- crossform:::measurement_bridge(
     left_leg, right_leg, left_domain, right_domain, common,
     provenance = list(revision = "bridge:v1", learned = FALSE)
   )
@@ -104,7 +104,7 @@ test_that("bridge reversal transposes the induced form", {
   set.seed(11)
   left <- matrix(rnorm(2 * 3), 2, 3)
   right <- matrix(rnorm(3 * 4), 3, 4)
-  reversed <- reverse_bridge(fixture$bridge)
+  reversed <- crossform:::reverse_bridge(fixture$bridge)
   forward <- left %*% t(fixture$left_leg) %*%
     t(right %*% t(fixture$right_leg))
   backward <- right %*% t(reversed$left_leg) %*%
@@ -114,21 +114,21 @@ test_that("bridge reversal transposes the induced form", {
   expect_identical(reversed$left_domain, fixture$bridge$right_domain)
   expect_identical(reversed$right_domain, fixture$bridge$left_domain)
   expect_identical(reversed$common_space, fixture$common)
-  expect_identical(reverse_bridge(reversed), fixture$bridge)
+  expect_identical(crossform:::reverse_bridge(reversed), fixture$bridge)
 })
 
 test_that("bridge legs have canonical numerical identity", {
   fixture <- bridge_fixture()
   named_integer_left <- matrix(as.integer(fixture$left_leg), 2, 3,
     dimnames = list(c("m1", "m2"), c("x", "y", "z")))
-  canonical <- measurement_bridge(
+  canonical <- crossform:::measurement_bridge(
     named_integer_left, fixture$right_leg,
     fixture$left_domain, fixture$right_domain, fixture$common,
     provenance = list(revision = "bridge:v1", learned = FALSE)
   )
 
   expect_identical(canonical, fixture$bridge)
-  expect_error(measurement_space(1.5, "bad"), "n_measurements",
+  expect_error(crossform:::measurement_space(1.5, "bad"), "n_measurements",
     class = "effect_input_error")
 })
 
@@ -151,7 +151,7 @@ test_that("distinct neural spaces require an explicit bridge before reads", {
 test_that("bridge incompatibilities fail before lazy source reads", {
   fixture <- bridge_fixture(lazy = TRUE)
   wrong_left <- abstract_domain(3, feature_ids = 3:1, id = "left-neural:v1")
-  wrong <- measurement_bridge(
+  wrong <- crossform:::measurement_bridge(
     fixture$left_leg, fixture$right_leg,
     wrong_left, fixture$right_domain, fixture$common
   )
@@ -160,12 +160,12 @@ test_that("bridge incompatibilities fail before lazy source reads", {
   ), "left neural-space", class = "effect_contract_error")
   expect_identical(fixture$reads$count, 0L)
 
-  expect_error(measurement_bridge(
+  expect_error(crossform:::measurement_bridge(
     fixture$left_leg[-1, , drop = FALSE], fixture$right_leg,
     fixture$left_domain, fixture$right_domain, fixture$common
   ), "common measurement dimension", class = "effect_input_error")
   forged <- fixture$bridge
-  forged$common_space <- measurement_space(2, "other-common:v1")
+  forged$common_space <- crossform:::measurement_space(2, "other-common:v1")
   expect_error(crossform:::.validate_measurement_bridge(
     forged, fixture$left, fixture$right
   ), "identity is inconsistent", class = "effect_contract_error")
@@ -177,7 +177,7 @@ test_that("bridge identity participates in compiled task identity", {
   first <- crossform:::.compile_effect_task(
     fixture$left, fixture$over, fixture$right, bridge = fixture$bridge
   )
-  changed_bridge <- measurement_bridge(
+  changed_bridge <- crossform:::measurement_bridge(
     fixture$left_leg * 2, fixture$right_leg,
     fixture$left_domain, fixture$right_domain, fixture$common,
     provenance = list(revision = "bridge:v2")

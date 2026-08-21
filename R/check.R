@@ -103,6 +103,17 @@
   x
 }
 
+# One nonempty identifier, unnamed. Identifiers reach the package as elements
+# of named vectors often enough that the `unname()` is part of the contract:
+# an id that carried its own name would put that name into a signature.
+# It lived in `R/effect-map.R` because a map was the first record with ids in
+# it, which made `study-facts.R`, `study.R`, `design-model.R` and
+# `observation-model.R` all appear to depend on effect maps to spell a string.
+.validate_nonempty_id <- function(value, name) {
+  .check_string(value, name, what = "one nonempty identifier")
+  unname(value)
+}
+
 # One TRUE or FALSE. NA is not a flag: a guard that admitted it would push the
 # three-valued logic downstream into an `if` that errors far from the cause.
 .check_flag <- function(x, arg, what = "TRUE or FALSE") {
@@ -224,4 +235,41 @@
       received = .msg_signature(actual), expected = .msg_signature(expected))
   }
   invisible(TRUE)
+}
+
+# Unmatched arguments on a dispatched verb -------------------------------------
+#
+# A plain function refuses an argument it does not have; a generic's method
+# does not, because the generic's `...` absorbs anything that failed to match
+# and the method drops it. That difference is not neutral here. Several of
+# this package's arguments exist *only* to be refused --- `remove_univariate`,
+# `normalize`, `component` on a population view --- and their whole value is
+# that a caller who reaches for one gets the reasoned refusal. Under `...` a
+# misspelling turns the refusal into silence and hands back a number that
+# answers a different question.
+#
+# So every method that takes `...` purely to match its generic calls this
+# first. `...length()` is checked before the names are taken, so the ordinary
+# call forces no promise: only the failing call pays.
+.check_no_extra_arguments <- function(verb, ...) {
+  if (!...length()) return(invisible(NULL))
+  given <- names(list(...))
+  given <- if (is.null(given)) character() else given[nzchar(given)]
+  .input_error(sprintf(paste0(
+    "`%s()` does not take %s. Its arguments exist to be read *and* to be ",
+    "refused --- a misspelt `normalize` or `remove_univariate` that vanished ",
+    "into `...` would return a number answering a different question --- so ",
+    "an unmatched argument is an error rather than a silent omission."
+  ), verb, if (length(given)) {
+    .msg_names(given)
+  } else {
+    .msg_count(...length(), "unnamed extra argument")
+  }),
+    arg = if (length(given)) given[[1L]] else NULL,
+    received = if (length(given)) {
+      .msg_names(given)
+    } else {
+      .msg_count(...length(), "unnamed extra argument")
+    },
+    expected = sprintf("only the declared arguments of `%s()`", verb))
 }

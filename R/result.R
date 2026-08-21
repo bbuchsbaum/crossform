@@ -415,7 +415,11 @@ effect_view <- function(values, query, component, receipt, index = NULL,
   .check_matrix(values, "values", what = "a finite numeric matrix")
   component <- match.arg(component, c("total", "coherent", "configuration"))
   if (is.null(index)) index <- seq_len(nrow(values))
-  if (length(index) != nrow(values)) {
+  # `NROW()` rather than `length()`, because an index may be a per-measurement
+  # table rather than a bare identifier vector: `contribution()` returns one
+  # row per group carrying the group key and its row count, and
+  # `.result_index_data_frame()` has always accepted a data frame here.
+  if (NROW(index) != nrow(values)) {
     .input_error("`index` must have one entry per measurement.")
   }
   if (!is.list(metadata)) {
@@ -532,7 +536,7 @@ effect_view <- function(values, query, component, receipt, index = NULL,
       "Effect-view compatibility space is inconsistent with its axes."
     )
   }
-  if (!.is_finite_matrix(x$values) || length(x$index) != nrow(x$values) ||
+  if (!.is_finite_matrix(x$values) || NROW(x$index) != nrow(x$values) ||
       anyNA(x$index)) {
     .input_error("Effect-view values or measurement index are invalid.")
   }
@@ -847,32 +851,58 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
 # It is a record, not a view computation: it lived in R/views.R, which forced
 # the executor to call up into a view file on the query-first contrast path.
 # The derivation that produces its inputs stays in `contrast_energy()`.
+#
+# `metadata` is the same compact semantic record an `effect_view` carries, and
+# it is here for one reason: `$frame$normalization` is what says whether the
+# per-measurement values are shares of a conserved budget or densities that
+# must never be summed. `contribution()` cannot ask the frame -- a view holds
+# no frame -- so a contrast view that does not carry it cannot be aggregated
+# safely. It defaults to an empty list so every existing caller is unchanged.
 .new_effect_contrast_view <- function(total, coherent, marginals, weights,
-                                      index, receipt) {
+                                      index, receipt, metadata = list()) {
   total <- drop(total)
   coherent <- drop(coherent)
-  configuration <- total - coherent
   signed <- lapply(marginals, function(value) drop(value %*% weights))
   if (identical(attr(marginals, "semantics"), "undirected_endpoint")) {
     signed <- signed$endpoint
   }
-  fraction_valid <- is.finite(total) & total > 0 & coherent >= 0 &
-    configuration >= 0
-  coherence_fraction <- rep(NA_real_, length(total))
-  coherence_fraction[fraction_valid] <- coherent[fraction_valid] /
-    total[fraction_valid]
+  .effect_contrast_view_record(signed, coherent, total - coherent, total,
+    weights, index, receipt, metadata)
+}
 
+# The mask of `design/conservative-geometry-contract.md` section 4, normative
+# consequence 3: a coherence fraction is reported only where the raw
+# cross-generalized components form a nonnegative partition, and is `NA`
+# elsewhere. It is never clamped. This is the single definition, so the
+# aggregated fraction `contribution()` reports is masked by exactly the rule
+# the per-node fraction is masked by -- computed from the aggregated
+# components, because a fraction of sums is not a sum of fractions.
+.coherence_fraction <- function(total, coherent, configuration) {
+  valid <- is.finite(total) & total > 0 & coherent >= 0 & configuration >= 0
+  fraction <- rep(NA_real_, length(total))
+  fraction[valid] <- coherent[valid] / total[valid]
+  list(fraction = fraction, valid = valid)
+}
+
+# The record itself, taking the four aligned series directly. `contribution()`
+# aggregates the series and rebuilds the record; it must not go back through
+# marginals, which it has already reduced.
+.effect_contrast_view_record <- function(signed, coherent, configuration,
+                                         total, weights, index, receipt,
+                                         metadata = list()) {
+  masked <- .coherence_fraction(total, coherent, configuration)
   structure(
     list(
       signed = signed,
       coherent = coherent,
       configuration = configuration,
       total = total,
-      coherence_fraction = coherence_fraction,
-      coherence_fraction_valid = fraction_valid,
+      coherence_fraction = masked$fraction,
+      coherence_fraction_valid = masked$valid,
       weights = weights,
       index = index,
-      receipt = receipt
+      receipt = receipt,
+      metadata = if (is.null(metadata)) list() else metadata
     ),
     class = "effect_contrast_view"
   )

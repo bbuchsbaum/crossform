@@ -39,7 +39,7 @@ content-addressed \verb{$signature} bound into every plan that uses it.
 }
 \description{
 A neural metric is the PSD same-space role of the evidence-pairing operator
-\code{K}. It is distinct from a cross-space \code{measurement_bridge()}. The stored
+\code{K}. It is distinct from a cross-space measurement bridge. The stored
 matrix has width equal to its local support, never the full neural domain
 unless the metric is genuinely global. Supplying \code{inverse} retains a
 mathematically equivalent inverse action, such as the covariance from which
@@ -74,7 +74,6 @@ what a metric admits, and \code{\link[=plan_geometry]{plan_geometry()}} to compi
 
 Other neural metrics: 
 \code{\link{diagonal_precision}()},
-\code{\link{effect_covariance}()},
 \code{\link{gaussian_covariance_model}()},
 \code{\link{identity_metric}()},
 \code{\link{metric_capabilities}()},

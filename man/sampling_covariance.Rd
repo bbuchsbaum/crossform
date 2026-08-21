@@ -9,14 +9,18 @@ sampling_covariance(
   operation = c("diagonal", "selected_entries", "apply", "quadratic_form", "transport",
     "materialize"),
   query = NULL,
-  max_bytes = 512 * 1024^2
+  max_bytes = 512 * 1024^2,
+  queries = NULL,
+  scope = c("measurement", "cross_measurement")
 )
 }
 \arguments{
 \item{x}{An object from \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}, or a batch of those
 objects. A batch returns one result per measurement.}
 
-\item{operation}{One exact covariance operation.}
+\item{operation}{One exact covariance operation. With \code{queries} supplied
+and \code{operation} omitted, the query-bank covariance form itself is
+returned instead of an operation on it.}
 
 \item{query}{Operation-specific argument: a two-column integer matrix for
 \code{selected_entries}, an evidence-coordinate vector for \code{apply} or
@@ -24,12 +28,23 @@ objects. A batch returns one result per measurement.}
 
 \item{max_bytes}{Positive payload/workspace budget used only for explicit
 dense materialization.}
+
+\item{queries}{Optional bank of contrast-energy queries: a \code{K}-by-\code{q}
+matrix of contrast rows, a list of contrast vectors, or one contrast
+vector. Each contrast must sum to zero. See the section below.}
+
+\item{scope}{Whether a query bank is read at one measurement
+(\code{"measurement"}, the only admitted scope) or jointly across measurements
+(\code{"cross_measurement"}, which refuses).}
 }
 \value{
 A named variance vector (\code{"diagonal"}), selected covariance vector,
 covariance action, scalar quadratic form, transported covariance, or
 explicitly materialized covariance matrix, according to \code{operation}.
-Names come from the distance labels carried by \code{x}.
+Names come from the distance labels carried by \code{x}, or from the query
+labels once \code{queries} names a bank. With \code{queries} and no \code{operation},
+an \code{effect_sampling_covariance} with \code{basis = "query_bank"}, or a batch
+of them named by measurement.
 }
 \description{
 Applies exact linear covariance operations without materializing the full
@@ -52,6 +67,55 @@ Wishart finite-sample correction described under
 \eqn{P_{\mathrm{eff}}}{P_eff} for the measurement you queried; \code{print(x)} shows
 both.
 }
+\section{Banks of contrast-energy queries}{
+
+\code{queries} names a bank of \eqn{K}{K} contrasts and moves the covariance into
+the coordinates of their signed contrast energies -- the same estimand
+\code{\link[=contrast_energy]{contrast_energy()}} reports as \verb{$total}. Supply a \code{K}-by-\code{q} matrix of
+contrast rows, a list of contrast vectors, or one contrast vector; named
+weights are aligned to the relation's effect order exactly as
+\code{\link[=contrast_energy]{contrast_energy()}} aligns them, and row or list names become the query
+labels.
+
+\code{sampling_covariance(x, queries = )} returns an \code{effect_sampling_covariance}
+with \code{basis = "query_bank"}: the same factorized class, over \code{K}
+coordinates instead of the pairwise distances, carrying the aligned bank on
+\verb{$source$queries} and the distance lowering it used on
+\verb{$source$query_lowering}. Adding an \code{operation} applies that operation in
+the new basis, so
+\code{sampling_covariance(x, "materialize", queries = bank)} is the \code{K}-by-\code{K}
+covariance of the bank at one measurement, and the same call on a batch
+returns one \code{K}-by-\code{K} matrix per measurement, named by the measurement it
+belongs to (\code{values[[measurement]]}).
+
+This is exactly the \code{"transport"} of the distance-basis covariance through
+the operator that lowers each query onto the distances, and it is tested
+against that route rather than derived in parallel: a centred contrast
+satisfies
+\eqn{cc^\top=-\sum_{i<j}c_ic_j(e_i-e_j)(e_i-e_j)^\top}{c c' = -sum_{i<j} c_i c_j (e_i - e_j)(e_i - e_j)'},
+so \verb{c'Gc} is a linear functional of the pairwise distances. A contrast whose
+weights do not sum to zero is refused rather than approximated: the
+crossvalidated distances are invariant to a shift
+\eqn{G\to G+a\mathbf{1}^\top+\mathbf{1}a^\top}{G -> G + a1' + 1a'} of the
+geometry and an uncentred energy is not, so the distance basis carries no
+information about it. Every refusal of the underlying law is inherited
+unchanged: a learned metric or a whitened plan is refused by
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} before a bank can be attached to it.
+}
+
+\section{What a query bank does not give you}{
+
+Each covariance is local to one measurement. \code{scope = "cross_measurement"}
+refuses with capability \code{"cross_node_sampling_covariance"} and names what is
+missing: an explicit spatial model, being the cross-support residual second
+moment and the frame overlap it induces. A conservative frame does not
+supply one either. Conservation is a law about estimates, not about their
+uncertainty, so overlapping rows are strongly positively correlated, per-row
+variances do not add to the variance of a conserved budget, and the
+per-measurement blocks returned here must not be assembled into a joint
+covariance.
+}
+
 \examples{
 # Three conditions in three runs, with a fixed identity noise metric.
 set.seed(11)
@@ -96,15 +160,35 @@ round(sampling_covariance(
 
 # Materialization is explicit, never a silent fallback.
 round(sampling_covariance(uncertainty, "materialize"), 6)
+
+# A bank of contrast-energy queries moves the same covariance into the
+# coordinates of the energies `contrast_energy()` reports.
+bank <- rbind(
+  animacy = c(face = 1, house = -1, tool = 0),
+  tools = c(face = -0.5, house = -0.5, tool = 1)
+)
+energies <- sampling_covariance(uncertainty, queries = bank)
+energies$basis
+round(sampling_covariance(energies, "materialize"), 6)
+
+# It is the transport of the distance covariance through the operator that
+# lowers each query onto the distances, and reports itself as such.
+round(energies$source$query_lowering, 3)
+
+# Cross-measurement covariance is refused, not approximated.
+catch_refusal(
+  sampling_covariance(uncertainty, queries = bank,
+    scope = "cross_measurement")
+)$capability
 }
 \seealso{
-\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} to build \code{x}, and
-\code{\link[=sampling_capabilities]{sampling_capabilities()}} to check the law is available first.
+\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} to build \code{x},
+\code{\link[=sampling_capabilities]{sampling_capabilities()}} to check the law is available first, and
+\code{\link[=contrast_energy]{contrast_energy()}} for the point estimates a query bank describes.
 
 Other sampling uncertainty: 
 \code{\link{rdm_sampling_covariance}()},
 \code{\link{reconstruct_evidence}()},
-\code{\link{residual_pair_statistics}()},
 \code{\link{sampling_capabilities}()}
 }
 \concept{sampling uncertainty}

@@ -5,8 +5,27 @@
     .input_error(sprintf("`%s` must contain one or more file paths.", what))
   }
   if (is.null(partitions)) partitions <- names(files)
-  partitions <- .validate_partition_names(partitions, length(files),
-    "partitions")
+  # The adapter's own argument check, spelled out rather than borrowed from
+  # the study-facts validator it used to call: what an adapter needs here is
+  # an ordinary guard on a character vector, and an external adapter writes
+  # exactly these three lines. The partition *column* it eventually builds is
+  # checked again, for real, by `observation_events()`.
+  if (!.is_strings(partitions, unique = TRUE) || length(partitions) < 1L) {
+    .input_error(sprintf(
+      "`partitions` must contain unique nonempty identifiers%s.",
+      if (is.character(partitions) && anyDuplicated(partitions)) {
+        sprintf("; %s appears more than once",
+          .msg_names(unique(partitions[duplicated(partitions)])))
+      } else {
+        sprintf("; received %s", .msg_value(partitions))
+      }))
+  }
+  if (length(partitions) != length(files)) {
+    .input_error(sprintf("`partitions` must supply %s; received %s.",
+      .msg_count(length(files), "name"),
+      .msg_count(length(partitions), "name")))
+  }
+  partitions <- unname(partitions)
   if (!is.null(names(files)) && any(nzchar(names(files))) &&
       !identical(names(files), partitions)) {
     .input_error("Named BIDS files must follow the declared partition order.")
@@ -44,7 +63,6 @@
 #'   original BIDS column plus the private `.bids_partition` and
 #'   `.bids_event_id` key columns, and whose `$provenance` records each file's
 #'   basename and content revision.
-#' @family typed observation facts
 #' @seealso [observation_events()] for the generic contract,
 #'   [bids_confounds()] for the confound side, and [bids_study()] to bind both
 #'   into a study.
@@ -60,12 +78,12 @@
 #'
 #' # Partition identity is declared by the caller, never parsed from the
 #' # filename, and every original column survives the import.
-#' record <- bids_events(c(`run-1` = path))
+#' record <- crossform:::bids_events(c(`run-1` = path))
 #' record$timing
 #' names(record$data)
 #' record$data$.bids_event_id
 #' unlink(path)
-#' @export
+#' @keywords internal
 bids_events <- function(files, partitions = names(files), units = "seconds") {
   files <- .bids_partition_files(files, partitions, "files")
   tables <- lapply(names(files), function(partition) {
@@ -121,7 +139,6 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
 #'   original confound column plus the private `.bids_partition` and
 #'   `.bids_observation_id` key columns, with `$censor_column` set only when
 #'   `censor` was supplied.
-#' @family typed observation facts
 #' @seealso [observation_confounds()] for the generic contract,
 #'   [bids_events()] for the event side, and [bids_study()] to bind both.
 #' @examples
@@ -137,16 +154,18 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
 #'
 #' # Naming the retain column is required: no censor policy is inferred from
 #' # the motion columns, however large they are.
-#' record <- bids_confounds(c(`run-1` = path), censor = "retained")
+#' record <- crossform:::bids_confounds(c(`run-1` = path), censor = "retained")
 #' record$censor_column
 #' sum(record$data$retained)
 #'
 #' # Naming a column that is absent or not logical refuses explicitly.
 #' catch_refusal(
-#'   bids_confounds(c(`run-1` = path), censor = "framewise_displacement")
+#'   crossform:::bids_confounds(
+#'     c(`run-1` = path), censor = "framewise_displacement"
+#'   )
 #' )$capability
 #' unlink(path)
-#' @export
+#' @keywords internal
 bids_confounds <- function(files, partitions = names(files),
                            observation_ids = NULL, censor = NULL) {
   files <- .bids_partition_files(files, partitions, "files")
@@ -258,7 +277,12 @@ bids_study <- function(observations, event_files, confound_files = NULL,
                        partitions = observations$partitions,
                        observation_ids = NULL, censor = NULL,
                        hierarchy = NULL, units = "seconds") {
-  observations <- .validate_observations(observations)
+  # Only the class is checked here. The record itself is validated by
+  # `study()` below, which refuses a malformed `observations` in exactly the
+  # words it always did -- one frame later, and without the adapter having to
+  # reach for the validator that call already runs on intake.
+  .check_class(observations, "effect_observations", "observations",
+    from = "observations()")
   if (!identical(partitions, observations$partitions)) {
     .input_error(
       "BIDS `partitions` must equal the observation partition axis in order."

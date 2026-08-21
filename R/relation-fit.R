@@ -144,19 +144,19 @@
   separable <- present && identical(model$kind, "separable_glm")
   residuals <- present &&
     inherits(model$residual_source, "effect_residual_source")
-  covariance <- present && is.matrix(model$effect_covariance)
+  has_covariance <- present && is.matrix(model$effect_covariance)
   degrees <- present && is.integer(model$residual_df) &&
     length(model$residual_df) == 1L && !is.na(model$residual_df) &&
     model$residual_df >= 1L
   structure(list(
     error_model = present,
     residual_blocks = residuals,
-    effect_covariance = covariance,
+    effect_covariance = has_covariance,
     residual_df = degrees,
     separable_error = separable,
     learned_metric_input = residuals,
     within_participant_calibration = separable && residuals &&
-      covariance && degrees
+      has_covariance && degrees
   ), class = "effect_error_capabilities")
 }
 
@@ -285,6 +285,16 @@ relation_fit <- function(relation, error_models = NULL, provenance = list()) {
   }
   .record_validated(x, "relation_fit", deep)
   invisible(x)
+}
+
+# `relation_block()` accepts a fit as well as a relation. What that means is
+# stated here, in the file that owns the fit: check the fit's own fields, then
+# hand back the relation inside it. The generic belongs to `relation.R`, so
+# the convenience reads the same to a caller and costs the relation no
+# knowledge of what a fit is.
+.as_read_relation.effect_relation_fit <- function(x) {
+  .validate_relation_fit(x, deep = FALSE)
+  x$relation
 }
 
 .partition_values <- function(value, partitions, what, allow_null = FALSE) {
@@ -769,7 +779,6 @@ residual_block <- function(x, partition, features) {
 #' @return A symmetric effect-by-effect matrix, with rows and columns named by
 #'   the relation's effect coordinates, excluding the neural residual
 #'   covariance factor.
-#' @family neural metrics
 #' @seealso [residual_df()] and [residual_block()] for the other two pieces of
 #'   the error channel, and [rdm_sampling_covariance()], which combines them.
 #' @examples
@@ -777,14 +786,14 @@ residual_block <- function(x, partition, features) {
 #'
 #' # Four condition means estimated from eight trials each: the design factor
 #' # is diagonal with entries 1/8, because the conditions are orthogonal.
-#' covariance <- effect_covariance(example$fit, "run1")
+#' covariance <- crossform:::effect_covariance(example$fit, "run1")
 #' round(covariance, 4)
 #'
 #' # Scaling it by a residual variance gives an effect standard error.
 #' residuals <- residual_block(example$fit, "run1", 1L)
 #' variance <- sum(residuals^2) / residual_df(example$fit, "run1")
 #' round(sqrt(diag(covariance) * variance), 3)
-#' @export
+#' @keywords internal
 effect_covariance <- function(x, partition) {
   if (inherits(x, "effect_relation")) {
     .require_relation_fit_capability(x, "effect_covariance")

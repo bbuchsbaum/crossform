@@ -1,0 +1,12 @@
+"query","max_abs_difference"
+"level_match",2.22044604925031e-16
+"level_control_all",1.66533453693773e-16
+"level_control_category",5.55111512312578e-17
+"level_baseline",3.33066907387547e-16
+"contrast_all",6.66133814775094e-16
+"contrast_category",1.38777878078145e-17
+"match_control_all",2.22044604925031e-16
+"match_control_category",2.22044604925031e-16
+"lm_match",3.33066907387547e-16
+"lm_match_depth",2.63677968348475e-16
+"total - (coherent + configuration)",2.22044604925031e-16

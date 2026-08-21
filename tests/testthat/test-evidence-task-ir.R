@@ -36,7 +36,7 @@ test_that("effect compilation is an exact adapter over the evidence-task IR", {
   expect_s3_class(evidence, "effect_evidence_task")
   expect_identical(crossform:::.as_compiled_effect_task(evidence), legacy)
   expect_identical(evidence$task_id, legacy$task_id)
-  expect_identical(evidence$identity_schema, "effect-form-v1")
+  expect_identical(evidence$identity_schema, "evidence-pairing-v1")
   expect_identical(evidence$experimental_boundary$state, "open")
   expect_identical(evidence$neural_boundary$state, "closed")
   expect_identical(evidence$materialization$kind, "effect_form")
@@ -80,28 +80,37 @@ test_that("all four identified spaces and axis-labelled stages are explicit", {
   expect_false(any(c("storage", "tile", "workers", "route") %in% names(task)))
 })
 
-test_that("legacy scientific identity is byte-for-byte the certified semantic", {
+# The bridged effect-form route once carried its own flatter identity semantic
+# under an `effect-form-v1` schema. It is now named by the one evidence-pairing
+# semantic like every other route; `test-identity-schema.R` records the id
+# migration that consolidation caused.
+test_that("scientific identity is the one evidence-pairing semantic", {
   domain <- abstract_domain(3, id = "neural:shared:v1")
   effects <- effect_space(c("a", "b"), basis_id = "conditions:v1")
   rel <- evidence_ir_relation(c("r1", "r2"), effects, domain)
   over <- cross_partitions(rel)
   task <- crossform:::.compile_effect_evidence_task(rel, over)
-  expected_semantic <- crossform:::.effect_task_semantic(
+  expected_semantic <- crossform:::.evidence_task_general_semantic(
     task$left_relation_id,
     task$right_relation_id,
-    effects,
-    effects,
+    task$spaces,
     task$ordered_partition_products,
-    task$neural_boundary$bridge,
-    inner_product(),
-    crossform:::.identity_edge_transform(),
-    crossform:::.partition_reducer(),
-    list(kind = "complete_form", query = NULL)
+    task$experimental_boundary,
+    task$neural_boundary,
+    task$stages,
+    task$materialization
   )
 
+  expect_identical(task$identity_schema, "evidence-pairing-v1")
   expect_identical(task$semantic, expected_semantic)
   expect_identical(task$task_id,
     crossform:::.effect_task_id(expected_semantic))
+  # Both boundary signatures are in the name, which is what the retired
+  # semantic could not express: it named the bridge and nothing else.
+  expect_identical(expected_semantic$experimental_boundary,
+    task$experimental_boundary$signature)
+  expect_identical(expected_semantic$neural_boundary,
+    task$neural_boundary$signature)
 })
 
 test_that("closed experimental and open neural boundaries form measurement IR", {
@@ -167,6 +176,11 @@ test_that("the neural boundary can close with an identified pair query", {
 
   expect_identical(task$neural_boundary$closure_kind, "query")
   expect_identical(task$neural_boundary$query$operator, k)
+  # This is an effect form with an open experimental boundary, so only the
+  # bridge closure keeps it out of the legacy compiled adapter, which has a
+  # `$bridge` field and no query-closed counterpart.
+  expect_error(crossform:::.as_compiled_effect_task(task),
+    "legacy adapter", class = "effect_input_error")
   reversed <- crossform:::.reverse_evidence_task(task)
   expect_identical(reversed$neural_boundary$query$operator, t(k))
   expect_identical(reversed$neural_boundary$query$left_domain,
@@ -189,8 +203,8 @@ test_that("typed boundary mismatches fail before any source read", {
   bridge <- crossform:::.identity_measurement_bridge(rel, rel)
   neural <- crossform:::.closed_neural_boundary(bridge, rel, rel)
   stages <- crossform:::.evidence_stage_plan()
-  materialization <- crossform:::.evidence_materialization("scalar_field",
-    "query_only")
+  materialization <- crossform:::.evidence_materialization("effect_form",
+    "complete_form")
 
   expect_error(crossform:::.new_evidence_task(
     rel, rel, TRUE, edges,
@@ -267,9 +281,24 @@ test_that("materialization states are enforced rather than inferred by shape", {
       "measurement_form", "complete_form"
     )
   ), "incompatible with its open boundaries", class = "effect_contract_error")
-  expect_error(crossform:::.evidence_materialization(
-    "scalar_field", "complete_form"
-  ), "necessarily", class = "effect_input_error")
+
+  # Exactly one boundary is open, and which one names the kind. The retired
+  # `scalar_field` arm was the only reader of `closed/closed`, so both
+  # surviving kinds now refuse a task with no open boundary at all.
+  closed_experimental <- crossform:::.closed_experimental_boundary(
+    pair_query(diag(2), effects, effects)
+  )
+  for (kind in c("effect_form", "measurement_form")) {
+    expect_error(crossform:::.new_evidence_task(
+      rel, rel, TRUE, edges, closed_experimental, neural,
+      crossform:::.evidence_stage_plan(),
+      crossform:::.evidence_materialization(kind, "complete_form")
+    ), "incompatible with its open boundaries", class = "effect_contract_error")
+  }
+  expect_identical(
+    eval(formals(crossform:::.evidence_materialization)$kind),
+    c("effect_form", "measurement_form")
+  )
 })
 
 test_that("evidence-task validation detects semantic mutation", {

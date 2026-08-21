@@ -2,12 +2,20 @@
 % Please edit documentation in R/views.R
 \name{contrast_energy}
 \alias{contrast_energy}
+\alias{contrast_energy.default}
 \title{Read a contrast as signed, coherent, configuration, and total evidence}
 \usage{
-contrast_energy(x, weights, remove_univariate = FALSE)
+contrast_energy(x, ...)
+
+\method{contrast_energy}{default}(x, weights, remove_univariate = FALSE, ...)
 }
 \arguments{
 \item{x}{An \code{effect_geometry_plan} or complete \code{effect_geometry}.}
+
+\item{...}{Passed to the method. The generic dispatches on \code{x}: a geometry
+plan or a complete geometry is read by the default method documented
+here, and an \code{effect_population_result} from \code{\link[=estimate_population]{estimate_population()}} by
+the group-level method in \link{population_views}.}
 
 \item{weights}{One finite contrast weight per experimental effect. Named
 weights are reordered to the relation's declared effect order and must
@@ -99,13 +107,15 @@ noise-precision metric.
 Other geometry plans and views: 
 \code{\link{aggregate_first}()},
 \code{\link{bilinear_query}()},
+\code{\link{coherence_spectrum}()},
 \code{\link{compute_policy}()},
+\code{\link{contribution}()},
 \code{\link{crossnobis}()},
 \code{\link{evaluate_geometry}()},
 \code{\link{example_fmri_effects}()},
 \code{\link{geometry_component}()},
 \code{\link{geometry_spectrum}()},
-\code{\link{inner_product}()},
+\code{\link{latent_geometry}()},
 \code{\link{materialize_geometry}()},
 \code{\link{plan_crossnobis}()},
 \code{\link{plan_geometry}()},

@@ -37,7 +37,7 @@ utils::write.table(
 
 # Partition identity is declared by the caller, never parsed from the
 # filename, and every original column survives the import.
-record <- bids_events(c(`run-1` = path))
+record <- crossform:::bids_events(c(`run-1` = path))
 record$timing
 names(record$data)
 record$data$.bids_event_id
@@ -47,14 +47,5 @@ unlink(path)
 \code{\link[=observation_events]{observation_events()}} for the generic contract,
 \code{\link[=bids_confounds]{bids_confounds()}} for the confound side, and \code{\link[=bids_study]{bids_study()}} to bind both
 into a study.
-
-Other typed observation facts: 
-\code{\link{bids_confounds}()},
-\code{\link{bids_study}()},
-\code{\link{observation_confounds}()},
-\code{\link{observation_events}()},
-\code{\link{observation_index}()},
-\code{\link{observations}()},
-\code{\link{partition_hierarchy}()}
 }
-\concept{typed observation facts}
+\keyword{internal}

@@ -609,11 +609,11 @@ test_that("same-shaped but differently identified boundaries are rejected", {
 
 test_that("a factorized bridge supplies K = L_left' L_right exactly", {
   fixture <- pairing_law_fixture()
-  bridge <- measurement_bridge(
+  bridge <- crossform:::measurement_bridge(
     fixture$left_leg,
     fixture$right_leg[seq_len(2L), , drop = FALSE],
     fixture$left_domain, fixture$right_domain,
-    measurement_space(2L, id = "laws:common-modes:v1")
+    crossform:::measurement_space(2L, id = "laws:common-modes:v1")
   )
   bridged <- crossform:::.apply_measurement_bridge(
     list(left_run = fixture$left_values),
@@ -638,7 +638,7 @@ test_that("a factorized bridge supplies K = L_left' L_right exactly", {
   )
 
   # Reversal exchanges the legs and transposes the induced operator.
-  reversed <- reverse_bridge(bridge)
+  reversed <- crossform:::reverse_bridge(bridge)
   expect_equal(
     t(reversed$left_leg) %*% reversed$right_leg, t(neural_query),
     tolerance = pairing_law_tolerance

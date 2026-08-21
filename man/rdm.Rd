@@ -2,18 +2,27 @@
 % Please edit documentation in R/views.R
 \name{rdm}
 \alias{rdm}
+\alias{rdm.default}
 \title{Read squared experimental distances from geometry}
 \usage{
-rdm(
+rdm(x, ...)
+
+\method{rdm}{default}(
   x,
   component = c("total", "coherent", "configuration"),
   pairs = NULL,
-  normalize = NULL
+  normalize = NULL,
+  ...
 )
 }
 \arguments{
 \item{x}{An \code{effect_geometry_plan} or a complete effect form carrying the
 symmetric self-form capability.}
+
+\item{...}{Passed to the method. The generic dispatches on \code{x}: a geometry
+plan or a complete effect form is read by the default method documented
+here, and an \code{effect_population_result} from \code{\link[=estimate_population]{estimate_population()}} by
+the group-level method in \link{population_views}.}
 
 \item{component}{One of \code{total}, \code{coherent}, or \code{configuration}.}
 
@@ -117,14 +126,16 @@ refusal$capability
 Other geometry plans and views: 
 \code{\link{aggregate_first}()},
 \code{\link{bilinear_query}()},
+\code{\link{coherence_spectrum}()},
 \code{\link{compute_policy}()},
 \code{\link{contrast_energy}()},
+\code{\link{contribution}()},
 \code{\link{crossnobis}()},
 \code{\link{evaluate_geometry}()},
 \code{\link{example_fmri_effects}()},
 \code{\link{geometry_component}()},
 \code{\link{geometry_spectrum}()},
-\code{\link{inner_product}()},
+\code{\link{latent_geometry}()},
 \code{\link{materialize_geometry}()},
 \code{\link{plan_crossnobis}()},
 \code{\link{plan_geometry}()},

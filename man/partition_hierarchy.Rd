@@ -48,8 +48,6 @@ try(partition_hierarchy(crossed))
 \code{\link[=study_axis]{study_axis()}} to select one axis from it.
 
 Other typed observation facts: 
-\code{\link{bids_confounds}()},
-\code{\link{bids_events}()},
 \code{\link{bids_study}()},
 \code{\link{observation_confounds}()},
 \code{\link{observation_events}()},

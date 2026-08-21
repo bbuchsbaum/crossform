@@ -45,6 +45,11 @@ so the scope and its arguments travel with the operator.
 
 Any element not listed here, including \verb{$support_index} and the
 representation flags, is internal and may change.
+
+One specification is not one operator: a multiscale \code{\link[=searchlights]{searchlights()}}
+request compiles to a \code{\link[=frame_family]{frame_family()}}, whose \verb{$index} carries the extra
+per-row \code{family}, \code{node}, \code{scale}, \code{center}, and \code{alpha} columns and whose
+\verb{$specification} records every member rather than one scope.
 }
 
 \examples{
@@ -75,8 +80,8 @@ Other neural domains and frames:
 \code{\link{as_neurovol}()},
 \code{\link{edge_frame}()},
 \code{\link{frame_conservation}()},
+\code{\link{frame_family}()},
 \code{\link{measurement_frame}()},
-\code{\link{measurement_space}()},
 \code{\link{neuroim2_searchlights}()},
 \code{\link{neuroim2_volume_domain}()},
 \code{\link{regions}()},

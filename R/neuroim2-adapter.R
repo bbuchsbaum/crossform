@@ -58,28 +58,22 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
   if (!inherits(mask, "NeuroVol") || length(dim(mask)) != 3L) {
     .input_error("`mask` must be a three-dimensional neuroim2 NeuroVol.")
   }
-  values <- as.array(mask)
-  included <- is.finite(values) & values != 0
-  if (!any(included)) .input_error("`mask` must include at least one feature.")
-  feature_ids <- which(included)
-  grid <- neuroim2::index_to_grid(mask, feature_ids)
-  spacing <- as.numeric(neuroim2::spacing(mask))[1:3]
-  physical <- sweep(grid - 1, 2L, spacing, `*`)
-  spatial_metadata <- serialize(neuroim2::space(mask), NULL, version = 3)
-  domain <- abstract_domain(
-    length(feature_ids), coordinates = physical, feature_ids = feature_ids,
-    id = id, coordinate_units = "mm"
+  # Below the two questions only neuroim2 can answer -- what is in the mask,
+  # and what is its physical spacing -- this is the ordinary volume domain any
+  # provider builds, so the ordinary public constructor builds it. What the
+  # adapter adds is the one fact `volume_domain()` cannot derive from an
+  # array: the identity of the full neuroim2 space these voxels are addressed
+  # in, which is what makes writing a result back to them safe later.
+  volume_domain(
+    array(as.vector(mask), dim = dim(mask)),
+    spacing = as.numeric(neuroim2::spacing(mask))[1:3],
+    id = id, coordinate_units = "mm",
+    metadata = list(
+      neuroim2_space_sha256 = .sha256_string(
+        serialize(neuroim2::space(mask), NULL, version = 3)
+      )
+    )
   )
-  domain$kind <- "volume"
-  domain$metadata <- list(
-    dim = as.integer(dim(mask)),
-    spacing = spacing,
-    voxel = unname(grid),
-    mask = included,
-    neuroim2_space_sha256 = .sha256_string(spatial_metadata)
-  )
-  .new_domain(domain$id, domain$kind, domain$feature_ids, domain$coordinates,
-    domain$coordinate_units, domain$metadata)
 }
 
 # Both entry points in this file take a `NeuroVol` mask and an optional
@@ -90,15 +84,22 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 # side by side rather than saying they differ.
 .neuroim2_domain_for_mask <- function(mask, domain) {
   if (is.null(domain)) domain <- neuroim2_volume_domain(mask)
-  .validate_domain(domain)
+  .check_class(domain, "effect_domain", "domain",
+    from = "neuroim2_volume_domain()")
   if (!identical(domain$kind, "volume")) {
     .input_error(sprintf(paste0(
-      "`domain` must be a volume domain from `neuroim2_volume_domain()` or ",
-      "`volume_domain()`; received a `%s` domain."
+      "`domain` must be a volume domain from `neuroim2_volume_domain()`; ",
+      "received a `%s` domain."
     ), domain$kind))
   }
+  # The comparison is against a whole domain rebuilt from the mask, not
+  # against its reference, and that is deliberate: a domain identical to one
+  # this constructor would have built is a *valid* domain, so the agreement
+  # test and the validity test are the same test, and both are reachable from
+  # outside the package. A domain whose recorded identity disagreed with its
+  # own fields fails here for the same reason a domain from another mask does.
   mask_domain <- neuroim2_volume_domain(mask, id = domain$id)
-  if (!.same_domain_reference(domain$reference, mask_domain$reference)) {
+  if (!identical(domain, mask_domain)) {
     .contract_error(sprintf(paste0(
       "`mask` and `domain` have different volume geometry, so a compact ",
       "index in one does not name the same voxel in the other. The mask is ",
@@ -123,21 +124,48 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 #' The function calls only `neuroim2::searchlight_indices()` and maps its stable
 #' full-volume indices to the ordered compact feature columns of `domain`.
 #'
+#' Several radii request one conservative frame per radius, stacked into a
+#' multiscale [frame_family()]; see *Multiscale families*.
+#'
 #' @param mask A three-dimensional neuroim2 `NeuroVol` mask.
-#' @param radius Positive spherical radius in millimeters.
+#' @param radius Positive spherical radius in millimeters. Several radii
+#'   request a multiscale family, one member frame per radius.
 #' @param domain An exact domain from [neuroim2_volume_domain()]. When omitted,
 #'   it is constructed from `mask`.
-#' @param normalization One of `none`, `local`, or `conservative`.
+#' @param normalization One of `none`, `local`, or `conservative`. Several
+#'   radii admit only `conservative`.
 #' @param nonzero Passed to `neuroim2::searchlight_indices()`; version 0.1
 #'   requires `TRUE` so every member belongs to the compact domain.
+#' @param weights Family weights for a multiscale request: one positive weight
+#'   per radius, summing to one, matched to the radii in order or by the
+#'   `"radius-<r>"` names. `NULL` (the default) weights the radii equally. A
+#'   single radius is one frame with no budget to divide, so `weights` is
+#'   refused there rather than ignored.
 #' @return An `effect_frame` whose `$weights` are the sparse
 #'   measurement-by-feature operator, with `$index$measurement` holding the
 #'   full-volume center indices, `$normalization`, a `$specification`
 #'   recording the radius and the pinned `upstream_commit`, and a
-#'   `$support_index`.
+#'   `$support_index`. Several radii return a [frame_family()] instead: its
+#'   `$index` carries one row per measurement with that row's `family`,
+#'   `node`, `scale`, `center`, and `alpha`.
+#' @section Multiscale families:
+#' `neuroim2_searchlights(mask, c(4, 8), normalization = "conservative")`
+#' builds one conservative frame per radius from the same neuroim2
+#' neighborhoods, names them `"radius-4"` and `"radius-8"`, and stacks them
+#' with [frame_family()] under family weights `weights` (equal by default).
+#' Only conservative normalization is admitted, for the reason [searchlights()]
+#' gives: locally normalized values are not contributions to any total, so a
+#' family of them has no budget for `weights` to divide.
+#'
+#' Per-scale totals of such a family are \eqn{\alpha_s G_\Omega}{alpha_s *
+#' G_Omega} by construction, so a total-energy-by-scale panel reports the
+#' analyst's own `weights`, not the data. Only the coherent share of each
+#' block's fixed budget varies informatively with scale
+#' (`design/conservative-geometry-contract.md` sections 3.1 and 3.2).
 #' @family neural domains and frames
 #' @seealso [searchlights()] plus [compile_frame()] for the built-in
-#'   neighborhood builder, [neuroim2_volume_domain()] for the domain, and
+#'   neighborhood builder, [frame_family()] for the family several radii
+#'   compile to, [neuroim2_volume_domain()] for the domain, and
 #'   [frame_conservation()] to check the normalization you chose.
 #' @examples
 #' if (requireNamespace("neuroim2", quietly = TRUE) &&
@@ -158,6 +186,15 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 #'   # The pinned upstream geometry is part of the frame's specification.
 #'   print(frame$specification$upstream_commit)
 #'
+#'   # Several radii stack into a conservative family, one member per radius.
+#'   family <- neuroim2_searchlights(mask, c(4, 6), domain = domain,
+#'     normalization = "conservative", weights = c(0.4, 0.6))
+#'   print(unique(family$index[, c("family", "scale", "alpha")]))
+#'
+#'   # Each block carries exactly its weight, so per-scale energy is the
+#'   # `weights` vector and only the coherent share is a finding.
+#'   print(frame_conservation(family)$members)
+#'
 #'   # A mask whose geometry differs from the declared domain is refused.
 #'   moved <- neuroim2::LogicalNeuroVol(
 #'     values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(2, 2, 4))
@@ -166,7 +203,8 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
 #' }
 #' @export
 neuroim2_searchlights <- function(mask, radius, domain = NULL,
-                                  normalization = "local", nonzero = TRUE) {
+                                  normalization = "local", nonzero = TRUE,
+                                  weights = NULL) {
   if (missing(mask) || missing(radius)) {
     .input_error(paste0(
       "`mask` and `radius` are both required: pass the `NeuroVol` mask and a ",
@@ -178,7 +216,39 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
   if (!.is_flag(nonzero) || !nonzero) {
     .input_error("crossform neuroim2 searchlights require `nonzero = TRUE`.")
   }
+  # A multiscale request is validated by the constructor that owns the rule --
+  # `searchlights()` -- so both spatial providers refuse the same things in the
+  # same words, and the returned specification carries the scale names and the
+  # applied weights. Only the neighborhoods differ between the two providers.
+  multiscale <- length(radius) != 1L || !is.null(weights)
+  request <- if (multiscale) {
+    searchlights(radius, normalization, weights)
+  } else {
+    NULL
+  }
   domain <- .neuroim2_domain_for_mask(mask, domain)
+  if (multiscale) {
+    members <- lapply(request$radius, function(one) {
+      .neuroim2_searchlight_frame(mask, one, domain, "conservative")
+    })
+    names(members) <- names(request$weights)
+    family <- do.call(frame_family,
+      c(members, list(alpha = request$weights)))
+    family$specification$request <- list(
+      kind = "neuroim2_searchlight_family",
+      radius = request$radius, weights = request$weights, units = "mm",
+      nonzero = TRUE, upstream_commit = "77b1ddb"
+    )
+    return(family)
+  }
+  .neuroim2_searchlight_frame(mask, radius, domain, normalization)
+}
+
+# One neuroim2 neighborhood frame at one radius, over a domain that has
+# already been checked against the mask. Split out of `neuroim2_searchlights()`
+# so a multiscale request builds its members without re-resolving the domain
+# or re-running the adapter's argument checks once per radius.
+.neuroim2_searchlight_frame <- function(mask, radius, domain, normalization) {
   neighborhoods <- neuroim2::searchlight_indices(mask, radius,
     nonzero = TRUE)
   centers <- attr(neighborhoods, "center_indices", exact = TRUE)
@@ -202,83 +272,54 @@ neuroim2_searchlights <- function(mask, radius, domain = NULL,
       "Every neuroim2 searchlight must contain at least one domain feature."
     )
   }
-  support_index <- .support_index_from_members(
-    members, domain, centers,
+  # The provider's whole contribution is `members`: which compact features
+  # each neighborhood covers, and what produced them. The normalization law,
+  # the membership operator, and the support bookkeeping belong to the frame
+  # constructor, so they are asked for rather than reimplemented here.
+  additive_frame(
+    members = members, measurements = centers,
+    normalization = normalization, domain = domain,
     construction = list(
       kind = "euclidean_ball",
       provider = "neuroim2_searchlight_indices",
       radius = as.numeric(radius),
       coordinate_units = domain$coordinate_units,
       upstream_commit = "77b1ddb"
-    )
+    ),
+    specification = list(kind = "neuroim2_searchlights",
+      radius = as.numeric(radius), units = "mm", nonzero = TRUE,
+      upstream_commit = "77b1ddb")
   )
-  weights <- .support_index_membership(support_index)
-  weights <- .normalize_frame(weights, normalization)
-  result <- additive_frame(weights, normalization = normalization,
-    domain = domain)
-  result$index <- data.frame(measurement = centers, stringsAsFactors = FALSE)
-  result$domain_kind <- domain$kind
-  result$specification <- list(kind = "neuroim2_searchlights",
-    radius = as.numeric(radius), units = "mm", nonzero = TRUE,
-    upstream_commit = "77b1ddb")
-  result$support_index <- support_index
-  result
 }
 
-#' Map a compact result vector back to a neuroim2 volume
-#'
-#' The compact values are inserted at the exact full-volume indices carried by
-#' a crossform volume domain. Features outside the domain receive `fill`.
-#' This is an output adapter only; it performs no interpolation, smoothing, or
-#' coordinate reinterpretation.
-#'
-#' @param values One finite numeric value per compact domain *feature* (voxel),
-#'   in `domain$feature_ids` order. crossform result views carry one value per
-#'   *measurement* instead, which coincides with the features only for a
-#'   voxelwise or searchlight frame. For a coarser frame, expand first with the
-#'   frame's membership pattern —
-#'   `as.numeric(Matrix::crossprod(frame$weights != 0, values))` — as shown in
-#'   the "Measurements are not features" section of
-#'   `vignette("neuroim2-data")`.
-#' @param mask The three-dimensional neuroim2 `NeuroVol` whose geometry defined
-#'   `domain`.
-#' @param domain The exact domain from [neuroim2_volume_domain()].
-#' @param fill Finite value written outside the compact domain.
-#' @param label Optional result-volume label.
-#' @return A neuroim2 `NeuroVol` on the same space as `mask`, carrying `values`
-#'   at `domain$feature_ids` and `fill` everywhere else.
-#' @family neural domains and frames
-#' @seealso [neuroim2_volume_domain()] for the domain whose `feature_ids` fix
-#'   the output positions, and [geometry_component()] for one source of the
-#'   compact vector.
-#' @examples
-#' if (requireNamespace("neuroim2", quietly = TRUE) &&
-#'     utils::packageVersion("neuroim2") >= "0.19.0") {
-#'   values <- array(FALSE, c(5L, 5L, 4L))
-#'   values[2:4, 2:4, 2:3] <- TRUE
-#'   mask <- neuroim2::LogicalNeuroVol(
-#'     values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(3, 3, 3))
-#'   )
-#'   domain <- neuroim2_volume_domain(mask)
-#'
-#'   # One number per compact feature, in domain feature order.
-#'   statistic <- seq_len(domain$n_features) / domain$n_features
-#'   volume <- as_neurovol(statistic, mask, domain, label = "example statistic")
-#'
-#'   # Values land at exactly the mask indices; everything else stays `fill`.
-#'   print(dim(volume))
-#'   print(identical(as.numeric(volume[domain$feature_ids]), statistic))
-#'   print(all(is.na(as.array(volume)[!values])))
-#' }
-#' @export
-as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
-                        label = "crossform result") {
-  if (missing(values) || missing(mask)) {
-    .input_error(paste0(
-      "`values` and `mask` are both required: `as_neurovol()` writes one ",
-      "number per compact domain feature onto the space of the `NeuroVol` ",
-      "mask the domain was built from."
-    ))
+# `as_neurovol()` is the package's only output adapter, and it is a generic so
+# that a package holding its own result type can teach crossform to write that
+# type out without crossform importing it. Dispatch is the only thing the
+# generic does: a method written for another class may legitimately need no
+# mask, so the argument checks belong to crossform's own methods rather than to
+# the generic.
+.as_neurovol_required_arguments <- function() {
+  .input_error(paste0(
+    "`values` and `mask` are both required: `as_neurovol()` writes one ",
+    "number per compact domain feature onto the space of the `NeuroVol` ",
+    "mask the domain was built from."
+  ))
+}
+
+# The single body behind both shipped methods. `as_neurovol.default()` is not a
+# refusal stub: a bare numeric vector is exactly what this function accepted
+# before it became generic, and a classed numeric vector reached the same code,
+# so the default keeps writing anything numeric and refuses everything else
+# with the message it has always raised -- in the same order, so a mask that
+# disagrees with its domain is still reported before a type complaint.
+.as_neurovol_compact <- function(values, mask, domain, fill, label, ...) {
+  dots <- list(...)
+  if (length(dots)) {
+    .input_error(sprintf(paste0(
+      "`as_neurovol()` writes a compact numeric vector and takes only ",
+      "`values`, `mask`, `domain`, `fill`, and `label`; received %s. A ",
+      "method registered for another class may take more; this one does not."
+    ), .msg_count(length(dots), "further argument")))
   }
   .require_neuroim2_searchlight_indices()
   domain <- .neuroim2_domain_for_mask(mask, domain)
@@ -325,4 +366,98 @@ as_neurovol <- function(values, mask, domain = NULL, fill = NA_real_,
   payload <- array(as.double(fill), dim = dim(mask))
   payload[domain$feature_ids] <- as.double(values)
   neuroim2::NeuroVol(payload, neuroim2::space(mask), label = label)
+}
+
+#' Map a compact result vector back to a neuroim2 volume
+#'
+#' The compact values are inserted at the exact full-volume indices carried by
+#' a crossform volume domain. Features outside the domain receive `fill`.
+#' This is an output adapter only; it performs no interpolation, smoothing, or
+#' coordinate reinterpretation.
+#'
+#' @details
+#' `as_neurovol()` is an S3 generic dispatching on `values`, so a package that
+#' owns its own result type can write that type out without crossform having to
+#' know about it. Register a method the ordinary way --- `S3method(as_neurovol,
+#' my_result)` in your NAMESPACE --- and it receives `mask`, `domain`, `fill`,
+#' and `label` unchanged; it is expected to return a `NeuroVol` on the space of
+#' `mask`. The generic validates nothing itself, so a method is free to require
+#' different arguments, or none beyond the object.
+#'
+#' crossform ships the numeric-vector method described here. The default method
+#' behaves identically, so any numeric vector still writes out whether or not it
+#' carries a class, and anything that is not a numeric vector is refused.
+#'
+#' @param values One finite numeric value per compact domain *feature* (voxel),
+#'   in `domain$feature_ids` order. crossform result views carry one value per
+#'   *measurement* instead, which coincides with the features only for a
+#'   voxelwise or searchlight frame. For a coarser frame, expand first with the
+#'   frame's membership pattern —
+#'   `as.numeric(Matrix::crossprod(frame$weights != 0, values))` — as shown in
+#'   the "Measurements are not features" section of
+#'   `vignette("neuroim2-data")`.
+#' @param mask The three-dimensional neuroim2 `NeuroVol` whose geometry defined
+#'   `domain`.
+#' @param domain The exact domain from [neuroim2_volume_domain()].
+#' @param fill Finite value written outside the compact domain.
+#' @param label Optional result-volume label.
+#' @param ... Arguments passed on to methods. The methods crossform ships take
+#'   no further arguments and refuse any.
+#' @return A neuroim2 `NeuroVol` on the same space as `mask`, carrying `values`
+#'   at `domain$feature_ids` and `fill` everywhere else.
+#' @family neural domains and frames
+#' @seealso [neuroim2_volume_domain()] for the domain whose `feature_ids` fix
+#'   the output positions, and [geometry_component()] for one source of the
+#'   compact vector.
+#' @examples
+#' if (requireNamespace("neuroim2", quietly = TRUE) &&
+#'     utils::packageVersion("neuroim2") >= "0.19.0") {
+#'   values <- array(FALSE, c(5L, 5L, 4L))
+#'   values[2:4, 2:4, 2:3] <- TRUE
+#'   mask <- neuroim2::LogicalNeuroVol(
+#'     values, neuroim2::NeuroSpace(c(5L, 5L, 4L), spacing = c(3, 3, 3))
+#'   )
+#'   domain <- neuroim2_volume_domain(mask)
+#'
+#'   # One number per compact feature, in domain feature order.
+#'   statistic <- seq_len(domain$n_features) / domain$n_features
+#'   volume <- as_neurovol(statistic, mask, domain, label = "example statistic")
+#'
+#'   # Values land at exactly the mask indices; everything else stays `fill`.
+#'   print(dim(volume))
+#'   print(identical(as.numeric(volume[domain$feature_ids]), statistic))
+#'   print(all(is.na(as.array(volume)[!values])))
+#'
+#'   # The generic is the extension point: a package with its own result type
+#'   # registers a method for it and delegates the writing back here.
+#'   as_neurovol.crossform_example_map <- function(values, mask, ...) {
+#'     as_neurovol(values$statistic, mask, ...)
+#'   }
+#'   boxed <- structure(list(statistic = statistic),
+#'     class = "crossform_example_map")
+#'   print(identical(
+#'     as.numeric(as_neurovol(boxed, mask, domain)[domain$feature_ids]),
+#'     statistic
+#'   ))
+#' }
+#' @export
+as_neurovol <- function(values, ...) {
+  if (missing(values)) .as_neurovol_required_arguments()
+  UseMethod("as_neurovol")
+}
+
+#' @rdname as_neurovol
+#' @export
+as_neurovol.numeric <- function(values, mask, domain = NULL, fill = NA_real_,
+                                label = "crossform result", ...) {
+  if (missing(mask)) .as_neurovol_required_arguments()
+  .as_neurovol_compact(values, mask, domain, fill, label, ...)
+}
+
+#' @rdname as_neurovol
+#' @export
+as_neurovol.default <- function(values, mask, domain = NULL, fill = NA_real_,
+                                label = "crossform result", ...) {
+  if (missing(mask)) .as_neurovol_required_arguments()
+  .as_neurovol_compact(values, mask, domain, fill, label, ...)
 }

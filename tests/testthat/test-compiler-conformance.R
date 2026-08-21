@@ -9,7 +9,7 @@ test_that("portable relation receipts satisfy the conformance court", {
 })
 
 test_that("compiler version admission fails with a named capability", {
-  refusal <- catch_refusal(crossform:::.require_adapter_version(
+  refusal <- catch_refusal(adapter_version_certificate(
     "fmridesign", "999.0.0"
   ))
   expect_s3_class(refusal, "effect_capability_refusal")

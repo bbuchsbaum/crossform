@@ -52,9 +52,9 @@ supports.}
 for shared residual pair statistics.}
 }
 \value{
-An \code{effect_rdm_sampling_covariance} for one measurement, or an
-\code{effect_rdm_sampling_covariance_batch} list of those objects when \code{at}
-names several measurements. Each object is queryable by
+An \code{effect_sampling_covariance} with \code{basis = "rdm"} for one
+measurement, or an \code{effect_sampling_covariance_batch} list of those
+objects when \code{at} names several measurements. Each object is queryable by
 \code{\link[=sampling_covariance]{sampling_covariance()}}. It contains within-measurement uncertainty only;
 it does not imply covariance between spatial locations. Its \verb{$source}
 records \code{residual_df} (\eqn{\nu}{nu}), \code{residual_effective_dimension}
@@ -196,13 +196,14 @@ high dimensional data", \emph{Journal of the Japan Statistical Society}
 \eqn{\mathrm{tr}(\Sigma^2)}{tr(Sigma^2)} used here.
 }
 \seealso{
-\code{\link[=sampling_covariance]{sampling_covariance()}} to query the result,
-\code{\link[=sampling_capabilities]{sampling_capabilities()}} to ask whether the law is available before
-provoking a refusal, and \code{\link[=rdm]{rdm()}} for the point estimates it describes.
+\code{\link[=sampling_covariance]{sampling_covariance()}} to query the result, including
+\verb{queries = } for the covariance of a bank of \code{\link[=contrast_energy]{contrast_energy()}} queries
+at one measurement, \code{\link[=sampling_capabilities]{sampling_capabilities()}} to ask whether the law is
+available before provoking a refusal, and \code{\link[=rdm]{rdm()}} for the point estimates
+it describes.
 
 Other sampling uncertainty: 
 \code{\link{reconstruct_evidence}()},
-\code{\link{residual_pair_statistics}()},
 \code{\link{sampling_capabilities}()},
 \code{\link{sampling_covariance}()}
 }

@@ -1,5 +1,51 @@
 # fmrireg execution adapter ------------------------------------------------
 
+# What an external executor has to build for itself, built here from the
+# published surface only: the plan's documented `$study` and `$retained_rows`,
+# the receipts `relation_plan_receipts()` returned, and
+# `source_capabilities()`, one of the five sanctioned developer entry points.
+#
+# A censored plan does not read the rows it dropped, so the source an executor
+# hands to `relation()` is the planned source -- the study's reader restricted
+# to the rows the plan retained -- and not the study's own. That restriction is
+# a *different* source from the one the study declared, which is why the
+# capabilities below are re-declared rather than copied: the derived source is
+# not reopenable, is not thread safe, and its revision has to bind the row
+# selection and the design receipt that produced it, or two plans over one
+# study would claim the same content.
+#
+# The recipe is the one `estimate_relation()` uses, deliberately, so that the
+# two executions of a plan agree about what they read as well as what they
+# compute.
+.fmrireg_planned_sources <- function(plan, receipts) {
+  observations <- plan$study$observations
+  named <- function(values) stats::setNames(values, plan$partitions)
+  sources <- named(lapply(plan$partitions, function(partition) {
+    source <- observations$sources[[partition]]
+    rows <- plan$retained_rows[[partition]]
+    force(source)
+    force(rows)
+    function(features) source$read(features)[rows, , drop = FALSE]
+  }))
+  dimensions <- named(lapply(plan$partitions, function(partition) {
+    c(length(plan$retained_rows[[partition]]), observations$n_features)
+  }))
+  capabilities <- named(lapply(plan$partitions, function(partition) {
+    declared <- observations$capabilities[[partition]]
+    source_capabilities(
+      block_read = declared$block_read,
+      reopenable = FALSE,
+      thread_safe = FALSE,
+      stable_revision = .sha256_signature(list(
+        source_revision = declared$stable_revision,
+        retained_rows = plan$retained_rows[[partition]],
+        design_receipt_id = receipts[[partition]]$design_receipt_id
+      ))
+    )
+  }))
+  list(sources = sources, dimensions = dimensions, capabilities = capabilities)
+}
+
 #' Execute a relation plan with fmrireg
 #'
 #' This installed-consumer adapter independently executes the OLS point
@@ -59,8 +105,14 @@
 #' }
 #' @export
 fmrireg_relation <- function(x) {
-  version <- .require_adapter_version("fmrireg", "0.1.2")
-  plan <- .validate_relation_plan(x)
+  version <- adapter_version_certificate("fmrireg", "0.1.2")
+  # `relation_plan_receipts()` is the public verb that makes a plan prove
+  # itself: it runs the plan validator -- rebuilding the plan from its own
+  # inputs and refusing anything that does not come back identical -- and
+  # hands over the validated per-partition receipts this adapter then reads.
+  # The plan that survives that call is `x`, unchanged, by definition.
+  receipts <- relation_plan_receipts(x)
+  plan <- x
   if (!identical(plan$observation_model$kind, "ols")) {
     .capability_refusal(
       "The certified fmrireg adapter supports OLS relation plans only.",
@@ -76,10 +128,10 @@ fmrireg_relation <- function(x) {
       )
     )
   }
-  planned <- .planned_observation_sources(plan)
+  planned <- .fmrireg_planned_sources(plan, receipts)
   extractors <- lapply(plan$partitions, function(partition) {
-    design <- plan$design_receipts[[partition]]$design
-    target <- plan$design_receipts[[partition]]$lowered_target
+    design <- receipts[[partition]]$design
+    target <- receipts[[partition]]$lowered_target
     coefficient_operator <- fmrireg::fmri_ols_fit(
       diag(nrow(design)), design
     )$beta
@@ -108,7 +160,7 @@ fmrireg_relation <- function(x) {
       adapter_package = "fmrireg",
       adapter_version = version,
       design_receipt_ids = vapply(
-        plan$design_receipts, `[[`, character(1), "design_receipt_id"
+        receipts, `[[`, character(1), "design_receipt_id"
       )
     )
   )

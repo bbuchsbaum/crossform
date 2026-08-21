@@ -38,7 +38,8 @@ test_that("the README fixed-metric uncertainty journey runs end to end", {
   distance_variance <- sampling_covariance(distance_covariance)
 
   expect_s3_class(distance_estimate, "effect_rdm_view")
-  expect_s3_class(distance_covariance, "effect_rdm_sampling_covariance")
+  expect_s3_class(distance_covariance, "effect_sampling_covariance")
+  expect_identical(distance_covariance$basis, "rdm")
   expect_identical(names(distance_variance),
     colnames(distance_estimate$values))
   expect_true(all(is.finite(distance_variance)))

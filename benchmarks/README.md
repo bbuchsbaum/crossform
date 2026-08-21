@@ -3,8 +3,8 @@
 **Re-certifying after a source edit:** `benchmarks/RECERTIFY.md` is the exact
 command sequence — temp library install, runners in order, promotion, and the
 verifying test run — with the traps that cost time to rediscover. This file
-explains what each gate asserts; that one explains how to make the recorded
-evidence bind again.
+names the map-scale verbs those gates certify and explains what each gate
+asserts; that one explains how to make the recorded evidence bind again.
 
 ## Provenance binding
 
@@ -68,6 +68,47 @@ and skip with a message when it has not.
 Tests resolve an artifact in this order: a fresh unpromoted run in
 `benchmark-results/`, then `system.file("extdata", "certification", ...)`,
 then the checkout's `inst/extdata/certification/`.
+
+## Map-scale admission coverage
+
+A recorded gate is evidence for a **map-scale compute verb**: an export that,
+given a compiled plan and neural values, produces a scientific result at many
+spatial measurements. Constructors, printers, inspectors, and adapters do not
+count. A verb is certified only when its row's artifact is in the promote
+table, is under the 64 KiB shipped cap, and still binds.
+
+The machine-readable coverage list is `benchmarks/admission-coverage.R`.
+`promote-artifacts.R` derives the shipped set from it.
+`tests/testthat/test-admission-coverage.R` fails if a certified row is missing
+from the promote table, or if a shipped `.rds` has no listed role.
+
+| Verb | Artifact | Role |
+|---|---|---|
+| `rdm()`, `contrast_energy()` | `public-map-scale-gate.rds` | certified |
+| query-first `rdm()`, `rsa()`, `contrast_energy()` | `query-first-scale-gate.rds` | certified |
+| fused pair-query cumulative allocation | `native-pair-allocation.rds` | certified internal Rcpp admission court |
+| `evaluate_geometry()` | query-first gate | covered |
+| `materialize_geometry()` | public-map and query-first late/comparator paths | covered |
+| `crossnobis()` | `crossnobis-scale-gate.rds` | certified |
+| `rdm_sampling_covariance()` | `sampling-covariance-scale.rds` | certified |
+| `plan_relation()`, `estimate_relation()`, `fmrireg_relation()` | `first-moment-vertical-slice.rds` | certified |
+| sequential memory contraction | `small-dense-memory-cold.rds`, `medium-sparse-memory-cold.rds`, `medium-sparse-block-cold.rds`, `medium-sparse-memory-warm.rds` | certified |
+| `measurement_form()` | `measurement-profile.rds` | certified; profile retains BLAS and declines another Rcpp kernel |
+| shard executor | `shard-admission.rds` | refused (unbound) |
+
+Local-only records stay in `benchmark-results/` and are never promoted:
+
+| Record | Why it stays local |
+|---|---|
+| `sampling-covariance-validation.rds` (1.0 MB) | 10,000-rep Monte Carlo; exceeds the shipped cap |
+| `learned-metric-policy-validation.rds` (239 KB) | 500-rep statistical recovery; exceeds the shipped cap |
+| `population-null-coverage.rds` (1.8 KB) | 2,000-rep null coverage of a *reader* verb, not a map-scale gate; the committed receipt is its summary CSV |
+
+Out of scope: `compile_frame()`, `plan_geometry()`, `relation()`, `pairing()`,
+print and plot methods, `sampling_capabilities()`, neuroim2 adapters, and
+every other constructor or inspector. They do not need a 576-node gate.
+
+The sections below say what each retained gate asserts.
 
 ## Public geometry map gate
 
@@ -221,6 +262,22 @@ This fixture qualifies execution and storage only. Its training-only arm has
 shrinkage estimator is load-bearing. Statistical recovery and residual-reuse
 policy claims belong to the separate 500-replication validation above.
 
+## Native pair-query allocation court
+
+Measure the cumulative R allocation of the fused structured pair-query kernel
+against its retained two-pass R oracle on the same deterministic work:
+
+```sh
+Rscript benchmarks/run-native-pair-allocation.R . benchmark-results 5
+```
+
+Both routes are warmed before measurement and every call receives a fresh
+`Rprofmem` log. The court checks numerical parity before interpreting memory,
+alternates route order across repetitions, and requires the native median
+cumulative allocation to be at most 70 percent of the oracle median. This is a
+cumulative-allocation claim about one kernel. It is deliberately separate from
+the query-first gate's fresh-worker peak-R-heap claim and from process RSS.
+
 ## Query-first scale gate (Gate 5)
 
 Certify that selected RDM edges, the full RDM, and fixed linear RSA
@@ -251,3 +308,54 @@ route in 2.08 s (fused/materialized ratio 0.76 against a 1.2 ceiling — the
 native packed-form kernel made the materialized comparator fast, so this
 margin is now thin and worth watching), a 277 MB (264 MiB) maximum
 fresh-worker incremental R heap, and oracle error 4.4e-16.
+
+## Population null coverage
+
+Statistical validation for `population_uncertainty()`'s between-subject
+standard error:
+
+```sh
+Rscript benchmarks/run-population-null-coverage.R 2000 benchmark-results
+```
+
+The runner simulates transported per-subject query values directly and pushes
+them through the shipped group layer -- `.population_ols()`, the unscaled
+covariance recorded at fit time, and the standard error, `t` and interval
+`population_uncertainty()` reports. It does not run the subject geometry
+kernels; a wiring check the runner refuses to proceed without fits a real
+six-participant population through the public verbs and requires the fast path
+to reproduce `population_uncertainty()`'s standard errors bit for bit (measured
+difference `0`, and `3.5e-18` against base R's `lm()`).
+
+Two arms, 2,000 replications each, at `N` in 6, 8, 12 and 24. Under a correctly
+specified group model the nominal 95% interval covered the null term in 0.9485
+to 0.9520 of replications and the null `t` was indistinguishable from `t_df`
+(KS at most 0.0209, `p >= 0.34`). Under covariate-linked heteroskedasticity --
+the transport-heterogeneity analogue -- coverage fell to 0.9230 at `N = 6` and
+0.8850 at `N = 24`, so a nominal 5% test rejected a true null 11.5% of the time
+at the largest sample, and the degradation *grows* with `N` because the bias is
+in the standard error rather than in the sample size.
+
+That second arm is why the shipped `t` is labelled `uncalibrated` in every
+field, on every printed line, and in the Rd, whatever the first arm says.
+`benchmarks/POPULATION-NULL-COVERAGE.md` is the full record and the declared
+ratchet bounds.
+
+## Call-graph components
+
+`benchmarks/call-graph-scc.R` is analysis rather than a gate: it records no
+artifact, binds no provenance, and nothing skips on it. It rebuilds the
+file-level call graph of `R/` using the same extraction rule as
+`tests/testthat/test-architecture.R` — top-level `name <- function(...)`
+definitions, then every symbol a file references that resolves to a definition
+in another file — and reports the strongly connected components with Tarjan.
+
+```sh
+Rscript benchmarks/call-graph-scc.R
+SCC_FOCUS=receipt.R Rscript benchmarks/call-graph-scc.R
+```
+
+It prints the largest component's size and membership, every component of more
+than one file, and the edges into and out of `SCC_FOCUS` (default `receipt.R`).
+This is what produces the numbers `design/architecture.md` quotes under "What
+remains", so re-run it before changing them.
