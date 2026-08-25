@@ -1,0 +1,86 @@
+name: rsatoolbox-parity
+
+# Re-run the external parity pipeline end to end, in both languages.
+#
+# This workflow exists because the in-package ratchet
+# (tests/testthat/test-rsatoolbox-parity.R) could not previously fire in CI at
+# all. `^exemplars$` is Rbuildignored and there is no copy under inst/, so
+# under R-CMD-check the exemplar results are absent and every assertion in
+# that file hits its `skip_if` guard. The result was a test that read as
+# enforcement but never ran, and a README sentence that said so.
+#
+# Here the checkout *is* the source tree, so the exemplar is present. The job
+# rebuilds the pinned Python environment from the fully-pinned
+# requirements.txt, regenerates both arms, and fails if any recorded number
+# moves or any manifest digest goes stale.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'R/**'
+      - 'src/**'
+      - 'exemplars/rsatoolbox-parity/**'
+      - 'tests/testthat/test-rsatoolbox-parity.R'
+      - '.github/workflows/rsatoolbox-parity.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R_KEEP_PKG_SOURCE: yes
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+          extra-repositories: https://bbuchsbaum.r-universe.dev
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::pkgload
+            any::testthat
+            any::digest
+            any::Rcpp
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Build the pinned rsatoolbox environment
+        working-directory: exemplars/rsatoolbox-parity
+        run: |
+          uv venv -p 3.12 rsaenv
+          uv pip install --python rsaenv/bin/python -r requirements.txt
+          rsaenv/bin/python -c "import rsatoolbox, numpy, scipy; print('ok')"
+
+      - name: Run both arms and compare
+        working-directory: exemplars/rsatoolbox-parity
+        run: |
+          Rscript 01-fixture.R
+          rsaenv/bin/python 02-rsatoolbox.py
+          Rscript 03-compare.R
+          Rscript 04-extension.R
+
+      - name: The recorded agreement must not have moved
+        run: |
+          git --no-pager diff --stat -- exemplars/rsatoolbox-parity/results
+          git diff --quiet -- \
+            exemplars/rsatoolbox-parity/results/agreement.csv \
+            exemplars/rsatoolbox-parity/results/coverage.csv \
+            exemplars/rsatoolbox-parity/results/crossform-rdm.csv \
+            exemplars/rsatoolbox-parity/results/crossform-distances.csv \
+            exemplars/rsatoolbox-parity/results/crossform-correlation.csv \
+            exemplars/rsatoolbox-parity/results/crossform-similarity.csv
+
+      - name: The in-package ratchet, from a source checkout
+        run: Rscript -e 'pkgload::load_all("."); stopifnot(nrow(as.data.frame(testthat::test_local(filter = "rsatoolbox", reporter = "silent", stop_on_failure = TRUE))) > 0)'
+
+      - name: Certification artifacts still bind
+        run: Rscript benchmarks/check-certification-binding.R

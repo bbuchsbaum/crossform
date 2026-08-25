@@ -12,8 +12,8 @@
 ## This script is that gate. It recomputes the aggregate source digest with
 ## `benchmarks/provenance.R` — the same digest the artifacts record — and
 ## exits nonzero, naming every artifact and its re-certifying runner, when any
-## shipped `.rds` under `inst/extdata/certification/` records a different
-## digest. Artifacts that record no source digest at all (the shard-admission
+## shipped `.rds` -- or the shipped external-parity `.csv` receipt -- under
+## `inst/extdata/certification/` records a different digest. Artifacts that record no source digest at all (the shard-admission
 ## record, whose unbound state is designed and documented) are reported and
 ## tolerated.
 ##
@@ -50,6 +50,41 @@ for (path in shipped) {
   }
 }
 
+## The external-parity receipt is a CSV, not an RDS, because it is produced by
+## a two-language pipeline rather than an R runner. It was therefore invisible
+## to the `\\.rds$` glob above and was the one shipped certification artifact
+## with no binding at all. It records the digest in a column instead of a
+## provenance list.
+## Only standalone receipts are listed here. The other shipped CSVs are
+## human-readable companions to an `.rds` that already binds, so checking them
+## would double-count; this list is the set that has no `.rds` behind it. A
+## receipt named here that loses its digest column is a hard failure, not a
+## tolerated `unbound`, because silence is exactly how this gap arose.
+csv_receipts <- file.path(root, "inst", "extdata", "certification",
+  c("common-geometry-external-parity.csv"))
+for (path in csv_receipts) {
+  name <- basename(path)
+  if (!file.exists(path)) {
+    stale <- c(stale, sprintf("%s (missing)", name))
+    next
+  }
+  receipt <- utils::read.csv(path, stringsAsFactors = FALSE)
+  if (!"crossform_source_digest" %in% names(receipt)) {
+    stale <- c(stale, sprintf(
+      "%s (no crossform_source_digest column; regenerate with 05-manifest.R)",
+      name))
+    next
+  }
+  recorded <- unique(receipt$crossform_source_digest)
+  if (length(recorded) != 1L) {
+    stale <- c(stale, sprintf("%s (mixed source digests in one receipt)", name))
+  } else if (!identical(recorded, current)) {
+    stale <- c(stale, sprintf(
+      "%s (recorded %s; re-run exemplars/rsatoolbox-parity/run-all.sh)", name,
+      substr(sub("^sha256:", "", recorded), 1L, 12L)))
+  }
+}
+
 if (length(unbound)) {
   cat("unbound by design (no recorded digest):\n",
     paste0("  - ", unbound, collapse = "\n"), "\n", sep = "")
@@ -61,5 +96,5 @@ if (length(stale)) {
     "promote with benchmarks/promote-artifacts.R.\n", sep = "")
   quit(status = 1L)
 }
-cat("all ", length(shipped) - length(unbound),
+cat("all ", length(shipped) - length(unbound) + length(csv_receipts),
   " digest-bound artifacts bind to the current tree\n", sep = "")

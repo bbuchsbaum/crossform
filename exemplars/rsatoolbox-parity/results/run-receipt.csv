@@ -1,0 +1,12 @@
+key,value
+recorded_at,2026-08-25T01:27:04.612828+00:00
+python_implementation,CPython
+python_version,3.12.11
+platform,macOS-14.3-arm64-arm-64bit
+machine,arm64
+h5py_version,3.16.0
+numpy_version,2.5.2
+pandas_version,3.0.5
+rsatoolbox_version,0.3.2
+scikit-learn_version,1.9.0
+scipy_version,1.18.1

@@ -52,8 +52,15 @@ test_that("the package parity receipt is generated from the source exemplar", {
     receipt[names(source)],
     source
   )
-  expect_true(all(receipt$fixture_id == "rsatoolbox-fixed-linear-v1"))
+  expect_true(all(receipt$fixture_id == "rsatoolbox-standard-workflow-v2"))
   expect_true(all(receipt$rsatoolbox_version == "0.3.2"))
   expect_true(all(receipt$passes))
   expect_lte(max(receipt$max_abs_diff), 1e-12)
+
+  # The receipt binds to the crossform source that produced it. It was
+  # previously the one shipped certification artifact with no binding at all,
+  # because benchmarks/check-certification-binding.R globbed `\\.rds$` only.
+  expect_true("crossform_source_digest" %in% names(receipt))
+  expect_match(receipt$crossform_source_digest[[1L]], "^sha256:[0-9a-f]{64}$")
+  expect_identical(length(unique(receipt$crossform_source_digest)), 1L)
 })
