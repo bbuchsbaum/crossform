@@ -6,7 +6,7 @@
 "whole_brain","category","tau_a",0.342857142857143
 "whole_brain","category","rho_a",0.482142857142857
 "whole_brain","category","cosine_cov",0.870263201172704
-"whole_brain","category","corr_cov",0.800494572501627
+"whole_brain","category","corr_cov",0.800494572501626
 "whole_brain","animacy","cosine",0.906407464657531
 "whole_brain","animacy","corr",0.790510009888721
 "whole_brain","animacy","spearman",0.804166446371264
@@ -23,7 +23,7 @@
 "whole_brain","graded","rho_a",0.685714285714286
 "whole_brain","graded","cosine_cov",0.770177593224593
 "whole_brain","graded","corr_cov",0.701113510665875
-"roiA","category","cosine",0.906065817072718
+"roiA","category","cosine",0.906065817072717
 "roiA","category","corr",0.689493056180806
 "roiA","category","spearman",0.694365074829414
 "roiA","category","kendall",0.58554004376912
@@ -64,13 +64,13 @@
 "roiB","animacy","cosine_cov",0.297880328976307
 "roiB","animacy","corr_cov",0.107632486989765
 "roiB","graded","cosine",0.881123118303957
-"roiB","graded","corr",0.747831986049656
+"roiB","graded","corr",0.747831986049657
 "roiB","graded","spearman",0.606767390905829
 "roiB","graded","kendall",0.497500756583465
 "roiB","graded","tau_a",0.447619047619048
 "roiB","graded","rho_a",0.5875
 "roiB","graded","cosine_cov",0.785509913438448
-"roiB","graded","corr_cov",0.72788511811569
+"roiB","graded","corr_cov",0.727885118115691
 "roiC","category","cosine",0.503246476130279
 "roiC","category","corr",0.25300698193815
 "roiC","category","spearman",0.231455024943138
@@ -86,8 +86,8 @@
 "roiC","animacy","tau_a",-0.0380952380952381
 "roiC","animacy","rho_a",-0.0535714285714286
 "roiC","animacy","cosine_cov",0.073803180721445
-"roiC","animacy","corr_cov",-0.0322810322077734
-"roiC","graded","cosine",0.0933844134925587
+"roiC","animacy","corr_cov",-0.0322810322077735
+"roiC","graded","cosine",0.0933844134925588
 "roiC","graded","corr",-0.361826924278092
 "roiC","graded","spearman",-0.284018778721877
 "roiC","graded","kendall",-0.243457817051483

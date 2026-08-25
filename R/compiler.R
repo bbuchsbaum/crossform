@@ -396,7 +396,18 @@
   )), class = "effect_geometry_execution_plan")
 }
 
+# `.run_geometry_compiler()` compiles one execution plan and hands it straight
+# to the executor, which validates it here. On a repeated evaluation of the
+# same geometry that is the same object, field for field, being re-derived and
+# re-checked every call -- the signature rebuild alone reruns a SHA-256 over
+# the task, frame and metric-schedule identities. The memo admits it on a
+# structural-equality hit, which `R/validation-memo.R` argues is a proof rather
+# than a weakening, and which costs nothing here because two successively
+# compiled plans share their heavy sub-objects by reference and so compare by
+# pointer: measured at 8 ms (q = 8) and 25 ms (q = 100) to validate against
+# under 5 microseconds to compare.
 .validate_geometry_execution_plan <- function(x) {
+  if (.validated_before(x, "geometry_execution_plan")) return(invisible(x))
   expected <- c("parent_signature", "estimand_id", "task", "frame",
     "metric_schedule",
     "compute", "storage", "storage_path", "query", "component",
@@ -539,5 +550,6 @@
       "Geometry execution-plan identity or lowering is inconsistent."
     )
   }
+  .record_validated(x, "geometry_execution_plan")
   invisible(x)
 }

@@ -485,10 +485,27 @@ relation_block <- function(x, partition, features) {
       "Response source returned an invalid observation-by-feature block."
     )
   }
-  value <- x$extractors[[partition]]$map %*% response
-  if (any(!is.finite(value))) {
-    .input_error(paste0("Effect extraction produced non-finite relation values.",
-          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation."))
+  # A relation built from effect blocks carries an identity extractor, and
+  # multiplying by it computes nothing: at q = 100 over 1000 features that is
+  # a 20 MFLOP product per partition, plus a second finiteness sweep of a
+  # result already known finite. The identity is proven here rather than
+  # inferred from the recorded estimator, and anything else takes the product.
+  # `is.double()` is part of the test, not a detail: a relation block is a
+  # double matrix, and when the response arrives as integers the product is
+  # what widened them. Skipping it would hand integer storage to a kernel that
+  # requires reals, so an integer response takes the product.
+  extractor <- x$extractors[[partition]]
+  value <- if (is.double(response) &&
+      identical(extractor$estimator, "identity") &&
+      identical(unname(extractor$map), diag(nrow(extractor$map)))) {
+    response
+  } else {
+    product <- extractor$map %*% response
+    if (any(!is.finite(product))) {
+      .input_error(paste0("Effect extraction produced non-finite relation values.",
+            " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation."))
+    }
+    product
   }
   dimnames(value) <- list(x$effect_space$coordinates, NULL)
   value

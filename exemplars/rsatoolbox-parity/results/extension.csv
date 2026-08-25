@@ -23,7 +23,7 @@
 "regions","roiC","total",0.0233743681419669
 "regions","roiC","coherence_fraction",0.133582927012163
 "regions","roiC","crossnobis",0.0233743681419669
-"whole","whole_brain","rdm_total[cond1_faceA|cond2_faceB]",0.00344663554276556
+"whole","whole_brain","rdm_total[cond1_faceA|cond2_faceB]",0.00344663554276559
 "whole","whole_brain","rdm_coherent[cond1_faceA|cond2_faceB]",0.00627874313220954
 "whole","whole_brain","rdm_configuration[cond1_faceA|cond2_faceB]",-0.00283210758944399
 "whole","whole_brain","rdm_total[cond1_faceA|cond3_houseA]",0.265029169445236
@@ -50,13 +50,13 @@
 "whole","whole_brain","rdm_total[cond2_faceB|cond6_toolB]",0.226377334644218
 "whole","whole_brain","rdm_coherent[cond2_faceB|cond6_toolB]",0.0301568765664558
 "whole","whole_brain","rdm_configuration[cond2_faceB|cond6_toolB]",0.196220458077762
-"whole","whole_brain","rdm_total[cond3_houseA|cond4_houseB]",-0.00442132114250717
+"whole","whole_brain","rdm_total[cond3_houseA|cond4_houseB]",-0.00442132114250714
 "whole","whole_brain","rdm_coherent[cond3_houseA|cond4_houseB]",-0.00114279934399629
 "whole","whole_brain","rdm_configuration[cond3_houseA|cond4_houseB]",-0.00327852179851088
 "whole","whole_brain","rdm_total[cond3_houseA|cond5_toolA]",0.0757968836762863
 "whole","whole_brain","rdm_coherent[cond3_houseA|cond5_toolA]",0.0176016748582035
 "whole","whole_brain","rdm_configuration[cond3_houseA|cond5_toolA]",0.0581952088180828
-"whole","whole_brain","rdm_total[cond3_houseA|cond6_toolB]",0.0926978555723801
+"whole","whole_brain","rdm_total[cond3_houseA|cond6_toolB]",0.0926978555723802
 "whole","whole_brain","rdm_coherent[cond3_houseA|cond6_toolB]",0.0170562297382397
 "whole","whole_brain","rdm_configuration[cond3_houseA|cond6_toolB]",0.0756416258341404
 "whole","whole_brain","rdm_total[cond4_houseB|cond5_toolA]",0.18060281680054
@@ -95,7 +95,7 @@
 "regions","roiA","rdm_total[cond2_faceB|cond6_toolB]",0.689236106345509
 "regions","roiA","rdm_coherent[cond2_faceB|cond6_toolB]",0.269129408478084
 "regions","roiA","rdm_configuration[cond2_faceB|cond6_toolB]",0.420106697867425
-"regions","roiA","rdm_total[cond3_houseA|cond4_houseB]",-0.0413308226563718
+"regions","roiA","rdm_total[cond3_houseA|cond4_houseB]",-0.0413308226563719
 "regions","roiA","rdm_coherent[cond3_houseA|cond4_houseB]",-0.00226620446333455
 "regions","roiA","rdm_configuration[cond3_houseA|cond4_houseB]",-0.0390646181930373
 "regions","roiA","rdm_total[cond3_houseA|cond5_toolA]",0.395223983862729
@@ -110,7 +110,7 @@
 "regions","roiA","rdm_total[cond4_houseB|cond6_toolB]",0.548611922365155
 "regions","roiA","rdm_coherent[cond4_houseB|cond6_toolB]",0.0117574019596933
 "regions","roiA","rdm_configuration[cond4_houseB|cond6_toolB]",0.536854520405461
-"regions","roiA","rdm_total[cond5_toolA|cond6_toolB]",0.0088698888203805
+"regions","roiA","rdm_total[cond5_toolA|cond6_toolB]",0.00886988882038053
 "regions","roiA","rdm_coherent[cond5_toolA|cond6_toolB]",-0.00121722340899586
 "regions","roiA","rdm_configuration[cond5_toolA|cond6_toolB]",0.0100871122293764
 "regions","roiB","rdm_total[cond1_faceA|cond2_faceB]",0.0864502169134829
@@ -185,13 +185,13 @@
 "regions","roiC","rdm_total[cond2_faceB|cond6_toolB]",0.0310324439932757
 "regions","roiC","rdm_coherent[cond2_faceB|cond6_toolB]",-0.00315694411248342
 "regions","roiC","rdm_configuration[cond2_faceB|cond6_toolB]",0.0341893881057591
-"regions","roiC","rdm_total[cond3_houseA|cond4_houseB]",0.00876093070256252
+"regions","roiC","rdm_total[cond3_houseA|cond4_houseB]",0.0087609307025625
 "regions","roiC","rdm_coherent[cond3_houseA|cond4_houseB]",-0.00442624674649344
 "regions","roiC","rdm_configuration[cond3_houseA|cond4_houseB]",0.013187177449056
 "regions","roiC","rdm_total[cond3_houseA|cond5_toolA]",0.000180659258863212
 "regions","roiC","rdm_coherent[cond3_houseA|cond5_toolA]",-0.0046005472936309
 "regions","roiC","rdm_configuration[cond3_houseA|cond5_toolA]",0.00478120655249411
-"regions","roiC","rdm_total[cond3_houseA|cond6_toolB]",-0.00217543998146082
+"regions","roiC","rdm_total[cond3_houseA|cond6_toolB]",-0.00217543998146079
 "regions","roiC","rdm_coherent[cond3_houseA|cond6_toolB]",0.00560259204247729
 "regions","roiC","rdm_configuration[cond3_houseA|cond6_toolB]",-0.00777803202393811
 "regions","roiC","rdm_total[cond4_houseB|cond5_toolA]",0.113269040753047
@@ -200,7 +200,7 @@
 "regions","roiC","rdm_total[cond4_houseB|cond6_toolB]",0.06069250528122
 "regions","roiC","rdm_coherent[cond4_houseB|cond6_toolB]",0.0345576086669089
 "regions","roiC","rdm_configuration[cond4_houseB|cond6_toolB]",0.026134896614311
-"regions","roiC","rdm_total[cond5_toolA|cond6_toolB]",0.00831489695804844
+"regions","roiC","rdm_total[cond5_toolA|cond6_toolB]",0.00831489695804845
 "regions","roiC","rdm_coherent[cond5_toolA|cond6_toolB]",0.00283625616761809
 "regions","roiC","rdm_configuration[cond5_toolA|cond6_toolB]",0.00547864079043034
 "whole","whole_brain","rsa[(Intercept)]",0.01045537475328

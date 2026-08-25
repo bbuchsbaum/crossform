@@ -17,3 +17,7 @@
     .Call(`_crossform_coherent_effect_form_atoms_cpp`, left_first, right_first, left_index, right_index, edge_weight, mass, row_start, n_rows, packed)
 }
 
+.support_metric_gram_pairs_cpp <- function(row_ptr, column_index, frame_weight, metric_value, metric_row, blocks, edge_left, edge_right, edge_weight, pair_left, pair_right, path) {
+    .Call(`_crossform_support_metric_gram_pairs_cpp`, row_ptr, column_index, frame_weight, metric_value, metric_row, blocks, edge_left, edge_right, edge_weight, pair_left, pair_right, path)
+}
+

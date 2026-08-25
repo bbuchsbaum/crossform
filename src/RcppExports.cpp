@@ -72,12 +72,34 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// support_metric_gram_pairs_cpp
+Rcpp::List support_metric_gram_pairs_cpp(const Rcpp::IntegerVector& row_ptr, const Rcpp::IntegerVector& column_index, const Rcpp::NumericVector& frame_weight, const Rcpp::NumericMatrix& metric_value, const Rcpp::IntegerVector& metric_row, const Rcpp::List& blocks, const Rcpp::IntegerVector& edge_left, const Rcpp::IntegerVector& edge_right, const Rcpp::NumericVector& edge_weight, const Rcpp::IntegerVector& pair_left, const Rcpp::IntegerVector& pair_right, int path);
+RcppExport SEXP _crossform_support_metric_gram_pairs_cpp(SEXP row_ptrSEXP, SEXP column_indexSEXP, SEXP frame_weightSEXP, SEXP metric_valueSEXP, SEXP metric_rowSEXP, SEXP blocksSEXP, SEXP edge_leftSEXP, SEXP edge_rightSEXP, SEXP edge_weightSEXP, SEXP pair_leftSEXP, SEXP pair_rightSEXP, SEXP pathSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type row_ptr(row_ptrSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type column_index(column_indexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type frame_weight(frame_weightSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix& >::type metric_value(metric_valueSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type metric_row(metric_rowSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type blocks(blocksSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type edge_left(edge_leftSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type edge_right(edge_rightSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type edge_weight(edge_weightSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type pair_left(pair_leftSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type pair_right(pair_rightSEXP);
+    Rcpp::traits::input_parameter< int >::type path(pathSEXP);
+    rcpp_result_gen = Rcpp::wrap(support_metric_gram_pairs_cpp(row_ptr, column_index, frame_weight, metric_value, metric_row, blocks, edge_left, edge_right, edge_weight, pair_left, pair_right, path));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_crossform_fused_pair_difference_atoms_cpp", (DL_FUNC) &_crossform_fused_pair_difference_atoms_cpp, 7},
     {"_crossform_local_residual_gather_cpp", (DL_FUNC) &_crossform_local_residual_gather_cpp, 4},
     {"_crossform_packed_effect_form_atoms_cpp", (DL_FUNC) &_crossform_packed_effect_form_atoms_cpp, 6},
     {"_crossform_coherent_effect_form_atoms_cpp", (DL_FUNC) &_crossform_coherent_effect_form_atoms_cpp, 9},
+    {"_crossform_support_metric_gram_pairs_cpp", (DL_FUNC) &_crossform_support_metric_gram_pairs_cpp, 12},
     {NULL, NULL, 0}
 };
 

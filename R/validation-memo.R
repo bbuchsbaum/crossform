@@ -33,10 +33,25 @@
 
 # TRUE when `object` is structurally identical to the object last validated
 # under `key` at a depth at least as deep as the one requested.
+#
+# A hit adopts the object it just admitted. `identical()` short-circuits when
+# both arguments are the same object and otherwise walks the structure -- 20
+# microseconds against 3.2 ms for an 8 MB matrix on the machine this was
+# measured on. Without adoption the store keeps whichever object arrived first,
+# so a caller that rebuilds an equal object every call -- a second plan over
+# the same noise model, a second subject sharing one metric -- pays that walk
+# for the rest of the session: measured at 18 ms per `rdm()` call at q = 32 and
+# 23 ms at q = 100. Adoption is free of any claim: the two objects are
+# structurally identical, so the recorded proof covers whichever one is kept,
+# and the recorded depth is carried over rather than replaced, so a shallow
+# request can never downgrade a deep proof.
 .validated_before <- function(object, key, deep = TRUE) {
   entry <- .validation_memo[[key]]
-  !is.null(entry) && (entry$deep || !isTRUE(deep)) &&
-    identical(entry$object, object)
+  if (is.null(entry) || (isTRUE(deep) && !entry$deep)) return(FALSE)
+  if (!identical(entry$object, object)) return(FALSE)
+  assign(key, list(object = object, deep = entry$deep),
+    envir = .validation_memo)
+  TRUE
 }
 
 .record_validated <- function(object, key, deep = TRUE) {

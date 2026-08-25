@@ -20,9 +20,7 @@
 }
 
 .execution_blas_record <- function() {
-  vendor <- tryCatch(unname(extSoftVersion()[["BLAS"]]), error = function(e) NULL)
-  if (is.null(vendor) || !.is_string(vendor)) vendor <- "unknown"
-  list(vendor = vendor, requested_threads = 1L,
+  list(vendor = .session_blas_vendor(), requested_threads = 1L,
     observed_threads = NA_integer_)
 }
 
@@ -190,16 +188,46 @@
   invisible(NULL)
 }
 
+# The support-streamed kernels report one started and one completed event per
+# spatial measurement, so this closure runs twice per node -- hundreds of
+# thousands of times on a map. Folding each event straight into
+# `observed_state$value` copied the whole observation record every time. The
+# counters live here instead and are folded back once, when the record is read;
+# `observed_state$flush` is what does that, and `.execute_geometry_plan()` calls
+# it before handing the record to the guard. The record a reader sees is
+# identical either way -- the same counts, arrived at by the same additions in
+# the same order.
 .report_execution_event <- function(observed_state) {
   force(observed_state)
+  counts <- c(planned = 0, started = 0, completed = 0, failed = 0, retried = 0)
+  features_completed <- 0
+  observed_state$flush <- function() {
+    observed <- observed_state$value
+    observed$task_counts <- observed$task_counts + counts
+    observed$features_completed <- observed$features_completed +
+      features_completed
+    observed_state$value <- observed
+    counts[] <<- 0
+    features_completed <<- 0
+    invisible(NULL)
+  }
   function(event, features) {
-    observed_state$value$task_counts[[event]] <-
-      observed_state$value$task_counts[[event]] + 1
+    counts[[event]] <<- counts[[event]] + 1
     if (identical(event, "completed")) {
-      observed_state$value$features_completed <-
-        observed_state$value$features_completed + length(features)
+      features_completed <<- features_completed + length(features)
     }
     invisible(NULL)
+  }
+}
+
+# Reading the observation record settles any counters the event reporter is
+# still holding, so a caller never sees a partial count -- including on the
+# failure and interrupt paths, where the guard reads the record from `on.exit`.
+.execution_observations <- function(observed_state) {
+  force(observed_state)
+  function() {
+    if (is.function(observed_state$flush)) observed_state$flush()
+    observed_state$value
   }
 }
 
@@ -673,7 +701,7 @@
     receipt = planned_receipt,
     reporter = .execution_reporter(reporter, final_receipt),
     cleanup = .execution_storage_cleanup(geometry_storage, completed),
-    observations = function() observed_state$value,
+    observations = .execution_observations(observed_state),
     receipt_sink = function(receipt) final_receipt$value <- receipt
   )
   value$receipt <- final_receipt$value
