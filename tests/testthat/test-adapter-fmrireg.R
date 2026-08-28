@@ -1,6 +1,6 @@
 test_that("fmrireg independently reproduces the planned OLS point relation", {
-  skip_if_not_installed("fmrireg", "0.1.2")
-  if (!identical(as.character(utils::packageVersion("fmrireg")), "0.1.2")) {
+  skip_if_not_installed("fmrireg", "0.2.0")
+  if (!identical(as.character(utils::packageVersion("fmrireg")), "0.2.0")) {
     skip("The installed fmrireg version is outside the certified court.")
   }
   fixture <- relation_plan_fixture("svd", "treatment", "ols")
@@ -22,8 +22,8 @@ test_that("fmrireg independently reproduces the planned OLS point relation", {
 })
 
 test_that("fmrireg refuses observation models outside its certified slice", {
-  skip_if_not_installed("fmrireg", "0.1.2")
-  if (!identical(as.character(utils::packageVersion("fmrireg")), "0.1.2")) {
+  skip_if_not_installed("fmrireg", "0.2.0")
+  if (!identical(as.character(utils::packageVersion("fmrireg")), "0.2.0")) {
     skip("The installed fmrireg version is outside the certified court.")
   }
   fixture <- relation_plan_fixture("qr", "cell", "fixed_gls")
