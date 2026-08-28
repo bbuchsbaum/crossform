@@ -29,6 +29,15 @@
 // within-partition term from a larger between-partition one, and would need an
 // accuracy argument this reduction does not.
 //
+// With no declared metric the local operator is not absent, it is diagonal:
+// the frame weights ARE the operator, K = diag(w), because composing the
+// identity metric with the frame gives K_ij = delta_ij r_i r_j = delta_ij w_i.
+// (It is not the rank-one r r'.) `diagonal` selects that reading, and then
+// L_a K is a column scaling rather than a product, which removes the whole
+// first stage. The weight multiplies once, on the left factor, which is the
+// association the additive route it replaces already uses: it accumulates
+// sum_v w_v (dl_v)(dr_v), one weight per feature per term.
+//
 // T = H + H' holds because a crossform metric is stored exactly symmetric:
 // `neural_metric()` returns `(value + t(value))/2` after admitting it within
 // its declared tolerance (R/metric.R, `.canonical_symmetric_metric()`), and the
@@ -91,7 +100,8 @@ Rcpp::List support_metric_gram_pairs_cpp(
     const Rcpp::NumericVector& edge_weight,
     const Rcpp::IntegerVector& pair_left,
     const Rcpp::IntegerVector& pair_right,
-    int path) {
+    int path,
+    bool diagonal) {
   const int n_nodes = row_ptr.size() - 1;
   const int n_partitions = blocks.size();
   const int n_pairs = pair_left.size();
@@ -124,13 +134,15 @@ Rcpp::List support_metric_gram_pairs_cpp(
     Rcpp::stop("Partition blocks must have at least two effects.");
   }
 
-  if (metric_row.size() != n_features || n_metric < 1 ||
-      metric_value.ncol() != n_metric) {
-    Rcpp::stop("The metric row map must cover every declared feature.");
-  }
-  for (int f = 0; f < n_features; ++f) {
-    if (metric_row[f] < 0 || metric_row[f] >= n_metric) {
-      Rcpp::stop("A metric row index falls outside the metric operator.");
+  if (!diagonal) {
+    if (metric_row.size() != n_features || n_metric < 1 ||
+        metric_value.ncol() != n_metric) {
+      Rcpp::stop("The metric row map must cover every declared feature.");
+    }
+    for (int f = 0; f < n_features; ++f) {
+      if (metric_row[f] < 0 || metric_row[f] >= n_metric) {
+        Rcpp::stop("A metric row index falls outside the metric operator.");
+      }
     }
   }
   if (column_index.size() != frame_weight.size() ||
@@ -241,9 +253,9 @@ Rcpp::List support_metric_gram_pairs_cpp(
     static_cast<std::size_t>(stage_rows) * max_support
   );
   std::vector<double> metric_block(
-    static_cast<std::size_t>(max_support) * max_support
+    diagonal ? 0u : static_cast<std::size_t>(max_support) * max_support
   );
-  std::vector<double> whitened(whitened_size);
+  std::vector<double> whitened(diagonal ? 0u : whitened_size);
   std::vector<double> partner(path == kPaired ? whitened_size : 0u);
   std::vector<double> staged(static_cast<std::size_t>(node_block) * gram_size);
   std::vector<double> root_weight(max_support);
@@ -251,10 +263,12 @@ Rcpp::List support_metric_gram_pairs_cpp(
   for (R_xlen_t k = 0; k < column_index.size(); ++k) {
     support_column[k] = column_index[k];
   }
-  std::vector<int> metric_of_feature(n_features);
-  for (int f = 0; f < n_features; ++f) metric_of_feature[f] = metric_row[f];
+  std::vector<int> metric_of_feature(diagonal ? 0 : n_features);
+  for (int f = 0; f < static_cast<int>(metric_of_feature.size()); ++f) {
+    metric_of_feature[f] = metric_row[f];
+  }
 
-  const double* metric_data = &metric_value[0];
+  const double* metric_data = diagonal ? NULL : &metric_value[0];
   double* out_data = &out[0];
 
   for (int node = 0; node < n_nodes; ++node) {
@@ -267,21 +281,21 @@ Rcpp::List support_metric_gram_pairs_cpp(
     const double* weight = &frame_weight[start];
 
     double node_mass = 0.0;
-    for (int i = 0; i < m; ++i) {
-      node_mass += weight[i];
-      root_weight[i] = std::sqrt(weight[i]);
-    }
+    for (int i = 0; i < m; ++i) node_mass += weight[i];
     mass[node] = node_mass;
 
-    // K = metric[support, support] composed with the frame weight roots.
-    for (int j = 0; j < m; ++j) {
-      const std::size_t column =
-        static_cast<std::size_t>(metric_of_feature[support[j]]) * n_metric;
-      const double scale_j = root_weight[j];
-      double* target = &metric_block[static_cast<std::size_t>(j) * m];
-      for (int i = 0; i < m; ++i) {
-        target[i] = metric_data[column + metric_of_feature[support[i]]] *
-          root_weight[i] * scale_j;
+    if (!diagonal) {
+      for (int i = 0; i < m; ++i) root_weight[i] = std::sqrt(weight[i]);
+      // K = metric[support, support] composed with the frame weight roots.
+      for (int j = 0; j < m; ++j) {
+        const std::size_t column =
+          static_cast<std::size_t>(metric_of_feature[support[j]]) * n_metric;
+        const double scale_j = root_weight[j];
+        double* target = &metric_block[static_cast<std::size_t>(j) * m];
+        for (int i = 0; i < m; ++i) {
+          target[i] = metric_data[column + metric_of_feature[support[i]]] *
+            root_weight[i] * scale_j;
+        }
       }
     }
 
@@ -293,15 +307,31 @@ Rcpp::List support_metric_gram_pairs_cpp(
           sizeof(double) * static_cast<std::size_t>(stage_rows)
         );
       }
-      // Y = [L_0; ..; L_{A-1}] K, one product over every partition at once.
-      F77_CALL(dgemm)(&kNoTranspose, &kNoTranspose, &whitened_rows, &m, &m,
-        &kOne, gathered.data(), &stage_rows, metric_block.data(), &m,
-        &kZero, whitened.data(), &whitened_rows FCONE FCONE);
+      const double* left_factor;
+      int left_stride;
+      if (diagonal) {
+        // L_a K is a column scaling. It is applied in place to the gathered
+        // left slabs, which the collapse then reads at the staging stride.
+        for (int j = 0; j < m; ++j) {
+          double* column = &gathered[static_cast<std::size_t>(j) * stage_rows];
+          const double scale = weight[j];
+          for (int i = 0; i < whitened_rows; ++i) column[i] *= scale;
+        }
+        left_factor = gathered.data();
+        left_stride = stage_rows;
+      } else {
+        // Y = [L_0; ..; L_{A-1}] K, one product over every partition at once.
+        F77_CALL(dgemm)(&kNoTranspose, &kNoTranspose, &whitened_rows, &m, &m,
+          &kOne, gathered.data(), &stage_rows, metric_block.data(), &m,
+          &kZero, whitened.data(), &whitened_rows FCONE FCONE);
+        left_factor = whitened.data();
+        left_stride = whitened_rows;
+      }
       // H = sum_a Y_a C_a'.
       for (int a = 0; a < left_slots; ++a) {
         const double beta = (a == 0) ? kZero : kOne;
         F77_CALL(dgemm)(&kNoTranspose, &kTranspose, &q, &q, &m, &kOne,
-          &whitened[static_cast<std::size_t>(a) * q], &whitened_rows,
+          left_factor + static_cast<std::size_t>(a) * q, &left_stride,
           &gathered[left_offset + static_cast<std::size_t>(a) * q],
           &stage_rows, &beta, gram, &q FCONE FCONE);
       }
@@ -321,15 +351,28 @@ Rcpp::List support_metric_gram_pairs_cpp(
             sizeof(double) * static_cast<std::size_t>(q));
         }
       }
-      for (int a = 0; a < left_slots; ++a) {
-        const std::size_t strip = static_cast<std::size_t>(a) * m * q;
-        F77_CALL(dgemm)(&kNoTranspose, &kNoTranspose, &q, &m, &m, &kOne,
-          &gathered[strip], &q, metric_block.data(), &m,
-          &kZero, &whitened[strip], &q FCONE FCONE);
+      const double* left_factor;
+      if (diagonal) {
+        for (int a = 0; a < left_slots; ++a) {
+          for (int u = 0; u < m; ++u) {
+            double* column = &gathered[(static_cast<std::size_t>(a) * m + u) * q];
+            const double scale = weight[u];
+            for (int i = 0; i < q; ++i) column[i] *= scale;
+          }
+        }
+        left_factor = gathered.data();
+      } else {
+        for (int a = 0; a < left_slots; ++a) {
+          const std::size_t strip = static_cast<std::size_t>(a) * m * q;
+          F77_CALL(dgemm)(&kNoTranspose, &kNoTranspose, &q, &m, &m, &kOne,
+            &gathered[strip], &q, metric_block.data(), &m,
+            &kZero, &whitened[strip], &q FCONE FCONE);
+        }
+        left_factor = whitened.data();
       }
       const int inner = left_slots * m;
       F77_CALL(dsyr2k)(&kLower, &kNoTranspose, &q, &inner, &kOne,
-        whitened.data(), &q, partner.data(), &q, &kZero, gram, &q
+        left_factor, &q, partner.data(), &q, &kZero, gram, &q
         FCONE FCONE);
     }
 

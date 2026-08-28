@@ -213,7 +213,7 @@ test_that("the coherent component keeps the reference route", {
 # through a plan. Partition endpoints are zero-based and ascending; a pair of
 # effect index vectors selects the reported columns.
 gram_route_arguments <- function(fixture, metric = fixture$metric$value,
-                                 pairs = NULL, path = 1L) {
+                                 pairs = NULL, path = 1L, diagonal = FALSE) {
   rows <- methods::as(fixture$frame$weights, "RsparseMatrix")
   n_features <- ncol(fixture$frame$weights)
   if (is.null(pairs)) pairs <- t(utils::combn(length(fixture$effects), 2L))
@@ -226,7 +226,8 @@ gram_route_arguments <- function(fixture, metric = fixture$metric$value,
     as.integer(seq_len(n_features) - 1L), blocks,
     as.integer(edges[, 1L]), as.integer(edges[, 2L]),
     rep(1 / (2 * nrow(edges)), nrow(edges)),   # the half-edge weight
-    as.integer(pairs[, 1L] - 1L), as.integer(pairs[, 2L] - 1L), path
+    as.integer(pairs[, 1L] - 1L), as.integer(pairs[, 2L] - 1L), path,
+    diagonal
   )
 }
 
@@ -306,4 +307,117 @@ test_that("a subset of pairs reports exactly the columns it names", {
   expect_identical(ncol(subset$value), 2L)
   expect_equal(subset$value, full$value[, position, drop = FALSE],
     tolerance = 1e-13)
+})
+
+# The metric-free reading -----------------------------------------------------
+#
+# With no declared metric the local operator is diag(frame weights), and the
+# kernel takes a diagonal mode that scales instead of multiplying. These check
+# that the mode computes the same numbers the dense route would, and that the
+# route reproduces the additive kernel it stands in for.
+
+metric_free_fixture <- function(effects = 8L, side = 4L, partitions = 3L,
+                                radius = 1.5, seed = 90210) {
+  set.seed(seed)
+  n_features <- side^3
+  coordinates <- as.matrix(expand.grid(
+    x = seq_len(side), y = seq_len(side), z = seq_len(side)
+  ))
+  domain <- abstract_domain(n_features, coordinates = coordinates,
+    id = "gram-metric-free", coordinate_units = "mm")
+  names <- sprintf("e%02d", seq_len(effects))
+  truth <- matrix(stats::rnorm(effects * n_features, sd = 0.4),
+    effects, n_features, dimnames = list(names, NULL))
+  blocks <- stats::setNames(lapply(seq_len(partitions), function(partition) {
+    truth + matrix(stats::rnorm(effects * n_features), effects, n_features)
+  }), paste0("run", seq_len(partitions)))
+  relation <- relation(blocks, domain = domain)
+  list(domain = domain, relation = relation, blocks = blocks, effects = names,
+    frame = compile_frame(
+      searchlights(radius = radius, normalization = "local"), domain
+    ),
+    over = cross_partitions(relation, independence = "independent"))
+}
+
+test_that("the diagonal mode equals the dense identity metric it stands for", {
+  fixture <- metric_free_fixture()
+  rows <- methods::as(fixture$frame$weights, "RsparseMatrix")
+  n_features <- ncol(fixture$frame$weights)
+  pairs <- t(utils::combn(length(fixture$effects), 2L))
+  blocks <- unname(lapply(fixture$relation$partitions, function(partition) {
+    fixture$blocks[[partition]]
+  }))
+  edges <- t(utils::combn(length(blocks), 2L)) - 1L
+  call <- function(metric, diagonal, path) {
+    crossform:::.support_metric_gram_pairs_cpp(
+      rows@p, rows@j, rows@x, metric,
+      as.integer(seq_len(n_features) - 1L), blocks,
+      as.integer(edges[, 1L]), as.integer(edges[, 2L]),
+      rep(1 / (2 * nrow(edges)), nrow(edges)),
+      as.integer(pairs[, 1L] - 1L), as.integer(pairs[, 2L] - 1L),
+      path, diagonal
+    )
+  }
+  identity_metric <- diag(n_features)
+  for (path in c(1L, 2L)) {
+    dense <- call(identity_metric, FALSE, path)
+    scaled <- call(matrix(0), TRUE, path)
+    expect_equal(scaled$value, dense$value, tolerance = 1e-12)
+    expect_identical(scaled$mass, dense$mass)
+  }
+})
+
+test_that("a metric-free plan reproduces the additive kernel it replaces", {
+  fixture <- metric_free_fixture()
+  plan <- plan_geometry(fixture$relation, fixture$frame, fixture$over)
+  expect_identical(plan$metric_schedule$kind, "implicit_identity_before_frame")
+  accepted <- new.env(parent = emptyenv())
+  accepted$count <- 0L
+  route <- crossform:::.additive_gram_route
+  testthat::local_mocked_bindings(
+    .additive_gram_route = function(...) {
+      value <- route(...)
+      if (!is.null(value)) accepted$count <- accepted$count + 1L
+      value
+    },
+    .package = "crossform"
+  )
+  observed <- rdm(plan)
+  reference <- local({
+    testthat::local_mocked_bindings(
+      .additive_gram_route = function(...) NULL, .package = "crossform"
+    )
+    rdm(plan)
+  })
+
+  expect_identical(accepted$count, 1L)
+  expect_equal(as.matrix(observed$values), as.matrix(reference$values),
+    tolerance = 1e-13)
+  expect_identical(observed$receipt$kernel_version,
+    reference$receipt$kernel_version)
+  expect_identical(observed$pairs, reference$pairs)
+})
+
+test_that("the metric-free route reports the additive diagnostics shape", {
+  fixture <- metric_free_fixture()
+  plan <- plan_geometry(fixture$relation, fixture$frame, fixture$over)
+  view <- evaluate_geometry(plan,
+    query = crossform:::.pair_difference_query(fixture$effects))
+  reference <- local({
+    testthat::local_mocked_bindings(
+      .additive_gram_route = function(...) NULL, .package = "crossform"
+    )
+    evaluate_geometry(plan,
+      query = crossform:::.pair_difference_query(fixture$effects))
+  })
+  observed <- view$metadata$diagnostics$total
+
+  expect_identical(names(observed),
+    names(reference$metadata$diagnostics$total))
+  expect_identical(observed$atom_count, 0L)
+  expect_identical(observed$relation_reads,
+    length(fixture$relation$partitions))
+  expect_gt(observed$max_live_temporary_bytes, 0)
+  expect_identical(observed$measurement_kind,
+    "static-owned-buffer-accounting")
 })
