@@ -1,0 +1,36 @@
+Predictive geometry exact fixtures
+R version 4.5.1 (2025-06-13)
+PASS F01 inverse penalty                             error 0
+PASS F01 objective                                   error 0
+KILL penalize by D instead of inverse D              gap 1.875
+KILL wrong regularization sign                       gap 4
+KILL fit unsupported null-space directions           gap 7
+PASS F03 characteristic equation                     error 4.44e-16
+PASS F03 rank one                                    error 3.17e-16
+KILL clip compressed source before penalty           gap 0.0772113
+PASS F03 spectral candidate / analytic oracle        error 4.44e-16
+KILL clip full source before compression             gap 0.5
+PASS F05 predictive gain                             error 0
+KILL omit prediction norm                            gap 5
+KILL use trace in place of squared norm              gap 2
+KILL use trace squared in place of squared norm      gap 4
+KILL omit leading factor two                         gap 1
+PASS F06 packed/Frobenius inner product              error 2.22e-16
+PASS F06 gain                                        error 0
+KILL omit sqrt(2) packed multiplier                  gap 0.5
+PASS F07 mode sum                                    error 0
+KILL discard negative modes using test outcomes      gap 1
+PASS F07 reproducible but overestimated mode         error 0
+PASS F08 additive linear evidence                    error 0
+KILL subtract prediction cost for each component     gap 5
+PASS F09 conditional risk identity                   error 0
+PASS F09 nonzero predictor under null                error 0
+KILL normalize by original pre-truncation trace      gap 0.2
+PASS F11 equal compressed input                      error 0
+PASS F11 unequal whole-space residuals               error 0
+KILL assume PSD fits add                             gap 1
+KILL discard model eigenvalues and retain only span  gap 1.5
+PASS F14 equal optimum objectives                    error 0
+KILL assume tied rank-cut prediction is unique       gap 4
+Validated 14 fixtures and 16 deliberately wrong alternatives.
+These are design witnesses; production tests remain to be implemented.

@@ -17,8 +17,10 @@ plan_relation(
 
 \item{model}{A \code{\link[=design_model]{design_model()}} or \code{\link[=raw_design_model]{raw_design_model()}}.}
 
-\item{effects}{An \code{\link[=effect_map]{effect_map()}} for a semantic model, or \code{\link[=raw_effect_map]{raw_effect_map()}}
-for a raw design.}
+\item{effects}{An \code{\link[=effect_map]{effect_map()}} for a semantic model, \code{\link[=raw_effect_map]{raw_effect_map()}}
+for a raw design, or a \code{\link[=model_basis]{model_basis()}} built with
+\code{conditions = model$condition_space}, whose \verb{$effect_map} lowers the
+condition means into model coordinates through the parameterization.}
 
 \item{observation_model}{An \code{\link[=observation_model]{observation_model()}}.}
 

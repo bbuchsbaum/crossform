@@ -419,6 +419,41 @@ the stated assumptions. It does not mean that Crossform implements every
 estimator family, preprocessing convention, uncertainty procedure, null law,
 or population generalization target associated with that name.
 
+## Learning a form, then freezing its query
+
+`fit_geometry()` adds a nonlinear training step: it learns a regularized,
+rank-limited PSD form $F$ from signed training geometry and a declared model
+kernel. That optimization is outside the fixed-query theorem above. Once
+training and selection are complete, however, independent evaluation returns
+to its algebra:
+
+\[
+\Delta(F;G_{\mathrm{test}})
+= 2\langle F,G_{\mathrm{test}}\rangle_F-\|F\|_F^2.
+\]
+
+For frozen $F$, this is a fixed linear geometry query plus a known offset.
+If $\mathbb E[G_{\mathrm{test}}\mid\mathrm{training}]=G^\star$, then
+
+\[
+\mathbb E[\Delta\mid\mathrm{training}]
+=\|G^\star\|_F^2-\|G^\star-F\|_F^2.
+\]
+
+Conditional unbiasedness requires evaluation observations independent of all
+training and selection dependencies. Marking a learned query as fixed does
+not establish that fact. `score_geometry()` checks declared observation
+origins and a matching evaluation target; the sampling assumption remains
+part of the analysis design.
+
+This extension preserves linear evidence decomposition: the inner products
+with coherent and configuration forms add under the same frozen $F$, with
+the prediction cost subtracted once. The nonlinear fits themselves do not
+obey that conservation law. The [predictive geometry guide](predictive-geometry.html)
+(`vignette("predictive-geometry")` offline) executes the public fit/score
+workflow and its mode-wise gain identity. It uses Frobenius loss on geometry,
+not the fixed RDM regression loss used in the RSA equivalence above.
+
 ## Limits and evidence status
 
 The theorem is algebraic. The hand, randomized, adversarial, and external

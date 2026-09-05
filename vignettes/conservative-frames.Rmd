@@ -515,6 +515,36 @@ at zero would be a *different* projection moving different mass. The layer
 takes a named projection from a closed set rather than substituting one
 silently.
 
+A rank budget makes a second descriptive choice: retain at most that many
+positive modes. The receipt separates negative mass clipped for PSD
+admission from positive mass discarded by the rank budget.
+
+```{r latent-rank-budget}
+rank_one <- latent_geometry(geometry, rank = 1)
+c(
+  peak_clipped_negative = rank_one$clipped_negative_mass[[peak]],
+  peak_truncated_positive = rank_one$truncated_positive_mass[[peak]],
+  peak_moved = rank_one$moved_mass[[peak]]
+)
+stopifnot(
+  all(rowSums(rank_one$spectrum > 0) <= 1L),
+  max(abs(rank_one$moved_mass - rank_one$clipped_negative_mass -
+    rank_one$truncated_positive_mass)) < 1e-12,
+  identical(rank_one$clipped_negative_mass, latent$clipped_negative_mass),
+  max(abs(rank_one$truncated_positive_mass -
+    rowSums(latent$spectrum[, -1L, drop = FALSE]))) < 1e-12
+)
+```
+
+This does not show that one dimension predicts independent data. For that
+question, `fit_geometry()` learns a regularized model-supported form and
+`score_geometry()` reads it on separate observations. With the same frozen
+prediction, coherent and configuration test inner products still add; the
+prediction's squared norm is subtracted once. Separately projected or fitted
+latent components need not add to a projection of their total. See
+[Predictive geometry](predictive-geometry.html)
+(`vignette("predictive-geometry")` offline) for an executable example.
+
 ## 6. Metrics: what folds, what breaks, what is a different estimand
 
 Everything above assumed the node metric is the identity. A metric composes

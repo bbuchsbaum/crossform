@@ -531,8 +531,10 @@ No. `geometry_alignment()` compares static Gram matrices and is a
 rotation-invariant multivariate generalization of squared scalar correlation.
 Informational-connectivity analyses often correlate dynamic discriminability
 series estimated across time or trials instead. Estimating those series
-requires training and cross-fitting stages that this fixed-form package does
-not implement.
+requires a dynamic-series estimator and its own training and inference
+contract. The package's `fit_geometry()` / `score_geometry()` workflow learns
+and evaluates a representational form on independent runs; it does not
+estimate those discriminability time series.
 
 Choose the function by the question:
 
@@ -542,6 +544,27 @@ Choose the function by the question:
 - call static CKA/RV-like comparison `geometry_alignment()`;
 - keep dynamic informational-connectivity estimators in an adjacent system
   until their training, cross-fitting, and inference contracts are explicit.
+
+## Pairing effects and separating model evaluation
+
+Adaptive model prediction introduces a second independence requirement.
+`cross_partitions()` or an explicit independent `pairing()` determines which
+effect estimates enter each cross-product and what the geometry generalizes
+over. The training/evaluation split determines whether evidence for a
+*learned* form is independent of the observations that selected its
+directions and amplitudes.
+
+Two independent runs can supply one signed cross-product. Using that same
+product to fit and score a model does not supply independent predictive
+evidence. A fixed four-run design can use runs 1 and 2 for training geometry
+and runs 3 and 4 for evaluation geometry. Selecting rank, penalty or model
+weights also needs data inside training, or choices fixed in advance.
+
+The [predictive geometry guide](predictive-geometry.html)
+(`vignette("predictive-geometry")` offline) constructs this design with
+explicit observation origins. Both plans generalize over runs on the same
+conditions; holding out conditions would be a separate generalization target.
+Copying or renaming a partition does not create an independent origin.
 
 For contrasts, RDMs, RSA, and geometry spectra within one experimental space,
 continue with `vignette("introduction", package = "crossform")`. Use the

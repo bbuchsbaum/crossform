@@ -8,7 +8,8 @@ latent_geometry(
   x,
   method = c("psd_projection"),
   component = c("total", "coherent", "configuration"),
-  row_block = 1024L
+  row_block = 1024L,
+  rank = NULL
 )
 }
 \arguments{
@@ -27,6 +28,15 @@ is an \code{effect_spectrum_view}.}
 
 \item{row_block}{Positive number of measurement rows read per block when
 \code{x} is a form.}
+
+\item{rank}{\code{NULL} for the plain PSD projection, or one positive whole
+number: the rank budget. After the negative roots are set to zero, the
+positive roots beyond the \code{rank} largest are set to zero as well. The
+result is \verb{[S]_\{+,rank\}}, the closed-form minimizer of the Frobenius
+distance to the signed form over PSD forms of rank at most \code{rank}, and it is
+the same projection with a second reason to move mass: the receipt
+carries \code{clipped_negative_mass} and \code{truncated_positive_mass} apart, and
+the budget enters the latent layer's identity.}
 }
 \value{
 An \code{effect_latent_geometry}.
@@ -65,20 +75,28 @@ through \code{Cq}, so \code{Cq} is \code{1} wherever the curve is defined.
 \eqn{(\sum_i \lambda_i)^2 / \sum_i \lambda_i^2}{(sum_i lambda_i)^2 / sum_i lambda_i^2} of the projected
 spectrum, one per measurement.
 \item \verb{$moved_mass}: the absolute mass the projection removed from each
-measurement -- the sum of the magnitudes of its negative roots. Zero for
-a measurement whose source spectrum was already nonnegative.
+measurement -- the magnitudes of its negative roots plus, under a \code{rank}
+budget, the positive roots beyond the budget. Zero for a measurement
+whose source spectrum was already nonnegative and within the budget.
 \item \verb{$moved_share}: that mass as a fraction of the source spectrum's total
 absolute mass, so a measurement that moved a lot in a large form is not
 confused with one that moved a little in a small one.
-\item \verb{$component}, \verb{$method}: what was projected, and by which named operator.
+\item \verb{$clipped_negative_mass}, \verb{$truncated_positive_mass}: the two reasons
+mass was moved, per measurement. They add to \verb{$moved_mass}; the second is
+identically zero unless a \code{rank} budget was declared, and the two are
+never summed into one number without both being on the record.
+\item \verb{$component}, \verb{$method}, \verb{$rank}: what was projected, by which named
+operator, and under which rank budget (\code{NA} when none).
 \item \verb{$index}: the measurement identifiers, carried from the source.
-\item \verb{$projection}: the projection receipt -- the operator, the per-measurement
-moved mass and share, the counts of clipped and masked measurements, and
-the source identity it was derived from.
+\item \verb{$projection}: the projection receipt -- the operator, the rank budget,
+the per-measurement moved mass and share and their two parts, the counts
+of clipped, truncated and masked measurements, and the source identity it
+was derived from.
 \item \verb{$receipt}: the execution receipt. Its \verb{$scientific_plan_id} is derived
-from the source's and the projection's name, so a latent layer never
-shares an identity with the signed estimates behind it, and its
-\verb{$task_partition_id} ends in \code{+psd_projection}.
+from the source's, the projection's name and the rank budget, so a
+latent layer never shares an identity with the signed estimates behind
+it, and its \verb{$task_partition_id} ends in \code{+psd_projection}, or
+\code{+psd_projection+rank2} under a budget of two.
 }
 
 Any element not listed here is internal and may change.
@@ -171,6 +189,7 @@ Other geometry plans and views:
 \code{\link{geometry_component}()},
 \code{\link{geometry_spectrum}()},
 \code{\link{materialize_geometry}()},
+\code{\link{model_geometry}()},
 \code{\link{plan_crossnobis}()},
 \code{\link{plan_geometry}()},
 \code{\link{plot_views}},

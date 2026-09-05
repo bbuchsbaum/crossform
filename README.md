@@ -468,6 +468,18 @@ is grouped in the same order this README is.
   `crossnobis()`, error-channel and residual readers, and numerical-agreement
   contracts. Specialist tools. The core path never needs them, and the
   matched-pair (ER-RSA) family inside this tier is explicitly provisional.
+  For model-supported prediction, `model_basis()` declares model kernels,
+  features or squared Euclidean distances; `fit_geometry()` learns a
+  regularized low-rank form on training runs; `score_geometry()` measures its
+  signed predictive gain on independent runs with the same conditions.
+  The model's strengths enter the penalty, and the fitted norm is charged
+  once during evaluation. The
+  [predictive geometry guide](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.html)
+  (`vignette("predictive-geometry")`) walks through an exact example.
+  The descriptive `model_geometry()` reader remains available for signed
+  model-addressable/orthogonal trace energies and constrained latent fits;
+  its cross-fitted projector energy is a different estimand from predictive
+  gain.
 - **Coupling and measurement — experimental, small-node only.**
   `measurement_form()`, `coupling()`, the connectivity readings, and
   tomography relate two sets of measurements to each other rather than

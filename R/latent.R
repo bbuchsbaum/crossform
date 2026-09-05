@@ -50,8 +50,9 @@
 # the receipt two ways it already has room for -- the derived
 # `$scientific_plan_id`, so a latent layer never shares an identity with the
 # signed source it came from, and `$task_partition_id`, which gains
-# `+psd_projection` so the operator is readable off the record without
-# decoding a digest -- and the moved mass lives in the projection receipt the
+# `+psd_projection` (and `+rank<s>` under a budget) so the operator is
+# readable off the record without decoding a digest -- and the moved mass
+# lives in the projection receipt the
 # object carries at `$projection`, which is a record of exactly this
 # operation and of nothing else.
 
@@ -211,10 +212,11 @@
 # returns, so the projected spectrum needs no re-sort. Three quantities come
 # out of it, and the denominators are the whole argument:
 #
-#   * MOVED MASS is `sum(|lambda|)` over the negative roots -- the absolute
-#     mass the truncation removed. It is not the change in the trace with a
-#     sign attached, because the reader has to be able to compare it against
-#     something, which is:
+#   * MOVED MASS is `sum(|lambda|)` over the negative roots, plus the
+#     positive roots beyond a declared rank budget -- the absolute mass the
+#     truncation removed, carried in those two parts. It is not the change in
+#     the trace with a sign attached, because the reader has to be able to
+#     compare it against something, which is:
 #   * TOTAL ABSOLUTE MASS, `sum(|lambda|)` over the *signed* source spectrum.
 #     The signed trace is the wrong denominator: it can be small, zero or
 #     negative while the form is far from PSD, and a share against it would be
@@ -267,9 +269,27 @@
     supported = supported)
 }
 
-.latent_psd_projection <- function(signed) {
+# The rank budget (`design/model-coordinate-geometry-contract.md` section
+# 3.2) is the same projection with a second reason to move mass. After the
+# negative roots are set to zero, the positive roots beyond the `rank`
+# largest are set to zero as well; the two are different reasons for moving
+# mass and are carried apart as `clipped_negative_mass` and
+# `truncated_positive_mass`, and `moved_mass` is their sum with both visible
+# beside it. It is `[S]_{+,s}`, the closed-form minimizer of `||S - A||_F`
+# over PSD `A` of rank at most `s` (Theorem 4 of the proposal the contract
+# answers), and it is not a second projection kind: the operator is still
+# eigenvalue truncation, the identity records the budget, and `rank = NULL`
+# is exactly the projection this file always applied.
+.latent_psd_projection <- function(signed, rank = NULL) {
   projected <- pmax(signed, 0)
-  moved_mass <- rowSums(pmax(-signed, 0))
+  clipped_negative_mass <- rowSums(pmax(-signed, 0))
+  truncated_positive_mass <- rep(0, nrow(projected))
+  if (!is.null(rank) && rank < ncol(projected)) {
+    beyond <- seq.int(rank + 1L, ncol(projected))
+    truncated_positive_mass <- rowSums(projected[, beyond, drop = FALSE])
+    projected[, beyond] <- 0
+  }
+  moved_mass <- clipped_negative_mass + truncated_positive_mass
   absolute_mass <- rowSums(abs(signed))
 
   # A form with no absolute mass at all moved none of it. The share is `0`
@@ -287,27 +307,86 @@
   list(spectrum = projected, cumulative = functionals$cumulative,
     n_eff = functionals$n_eff, moved_mass = moved_mass,
     moved_share = moved_share, absolute_mass = absolute_mass,
-    supported = functionals$supported)
+    supported = functionals$supported,
+    clipped_negative_mass = clipped_negative_mass,
+    truncated_positive_mass = truncated_positive_mass,
+    rank = if (is.null(rank)) NA_integer_ else as.integer(rank))
 }
 
-.latent_scientific_id <- function(parent, method, component) {
+# The same projection on one symmetric matrix rather than on a spectrum:
+# `[S]_{+,s}` as a form, with its eigenvectors and the two-part accounting.
+# This is the operator the model-coordinate readers (`model_geometry()`'s
+# shared fit and the edge-disjoint cross-fit) call, so that the rank-`s` fit
+# of a lowered form is `latent_geometry()`'s truncation and not a second
+# copy of it. The spectrum route above is this route with `geometry_spectrum()`
+# called first; both go through `.latent_psd_projection()` for the accounting.
+.latent_rank_psd_form <- function(form, rank = NULL) {
+  if (!.is_finite_matrix(form) || nrow(form) != ncol(form)) {
+    .input_error("`form` must be one finite square symmetric matrix.")
+  }
+  if (max(abs(form - t(form))) > 1e-12 * max(1, max(abs(form)))) {
+    .input_error(paste0(
+      "`form` must be symmetric: a PSD projection of a non-symmetric matrix ",
+      "would silently project its symmetric part."
+    ), arg = "form", received = "a non-symmetric matrix",
+      expected = "a symmetric matrix")
+  }
+  if (!is.null(rank)) {
+    rank <- .check_count(rank, "rank", min = 0L, max = .Machine$integer.max,
+      what = "NULL or one nonnegative whole number of roots to keep")
+  }
+  # Only rounding is repaired here; a genuine asymmetry was refused above.
+  symmetric <- form / 2 + t(form) / 2
+  e <- eigen(symmetric, symmetric = TRUE)
+  projection <- .latent_psd_projection(matrix(e$values, nrow = 1L), rank)
+  kept <- as.numeric(projection$spectrum[1L, ])
+  active <- kept > 0
+  V <- e$vectors[, active, drop = FALSE]
+  projected <- V %*% (kept[active] * t(V))
+  dimnames(projected) <- dimnames(form)
+  list(
+    form = projected,
+    values = e$values,
+    vectors = e$vectors,
+    spectrum = kept,
+    rank = projection$rank,
+    effective_rank = sum(active),
+    clipped_negative_mass = projection$clipped_negative_mass[[1L]],
+    truncated_positive_mass = projection$truncated_positive_mass[[1L]],
+    moved_mass = projection$moved_mass[[1L]],
+    absolute_mass = projection$absolute_mass[[1L]]
+  )
+}
+
+.latent_scientific_id <- function(parent, method, component,
+                                  rank = NA_integer_) {
   .sha256_signature(list(
-    schema_version = 1L,
+    schema_version = 2L,
     role = "latent_geometry",
     parent = parent,
     method = method,
     operator = .latent_projection_operators[[method]],
-    component = component
+    component = component,
+    rank = as.integer(rank)
   ), "latent-sha256:")
+}
+
+# The suffix a latent layer adds to its parent's `task_partition_id`: the
+# operator, and the rank budget when one was declared, so both are readable
+# off the record without decoding a digest.
+.latent_partition_suffix <- function(method, rank = NA_integer_) {
+  paste0(method, if (is.na(rank)) "" else sprintf("+rank%d", as.integer(rank)))
 }
 
 # `.projection_receipt()` marks a view as projected from a parent execution.
 # The latent layer names *which* projection on top of that, because section 6
 # requires the operation to be visible on the record and not only inside a
 # digest a reader cannot decode.
-.latent_execution_receipt <- function(parent, scientific_plan_id, method) {
+.latent_execution_receipt <- function(parent, scientific_plan_id, method,
+                                      rank = NA_integer_) {
   receipt <- .projection_receipt(parent, scientific_plan_id)
-  receipt$task_partition_id <- paste0(receipt$task_partition_id, "+", method)
+  receipt$task_partition_id <- paste0(receipt$task_partition_id, "+",
+    .latent_partition_suffix(method, rank))
   .validate_execution_receipt(receipt)
   receipt
 }
@@ -320,13 +399,19 @@
       method = method,
       operator = .latent_projection_operators[[method]],
       component = component,
+      rank = projection$rank,
       measurements = length(projection$moved_mass),
-      clipped = sum(projection$moved_mass > 0),
+      clipped = sum(projection$clipped_negative_mass > 0),
+      truncated = sum(projection$truncated_positive_mass > 0),
       masked = sum(!projection$supported),
       moved_mass = projection$moved_mass,
       moved_share = projection$moved_share,
+      clipped_negative_mass = projection$clipped_negative_mass,
+      truncated_positive_mass = projection$truncated_positive_mass,
       absolute_mass = projection$absolute_mass,
       total_moved_mass = sum(projection$moved_mass),
+      total_clipped_negative_mass = sum(projection$clipped_negative_mass),
+      total_truncated_positive_mass = sum(projection$truncated_positive_mass),
       max_moved_share = if (length(projection$moved_share)) {
         max(projection$moved_share)
       } else {
@@ -341,12 +426,18 @@
 }
 
 .validate_latent_projection_receipt <- function(x) {
-  expected <- c("method", "operator", "component", "measurements", "clipped",
-    "masked", "moved_mass", "moved_share", "absolute_mass",
-    "total_moved_mass", "max_moved_share", "source",
+  expected <- c("method", "operator", "component", "rank", "measurements",
+    "clipped", "truncated", "masked", "moved_mass", "moved_share",
+    "clipped_negative_mass", "truncated_positive_mass", "absolute_mass",
+    "total_moved_mass", "total_clipped_negative_mass",
+    "total_truncated_positive_mass", "max_moved_share", "source",
     "source_scientific_plan_id", "scientific_plan_id")
   if (!.sealed_fields(x, "effect_latent_projection_receipt", expected)) {
     .input_error("`x` must be a canonical latent projection receipt.")
+  }
+  if (!is.integer(x$rank) || length(x$rank) != 1L ||
+      (!is.na(x$rank) && x$rank < 1L)) {
+    .input_error("A latent projection receipt's rank budget is invalid.")
   }
   if (!x$method %in% .latent_projection_implemented ||
       !identical(x$operator, .latent_projection_operators[[x$method]])) {
@@ -358,16 +449,41 @@
       !.is_finite_numeric(x$absolute_mass) || any(x$absolute_mass < 0) ||
       length(x$moved_share) != length(x$moved_mass) ||
       length(x$absolute_mass) != length(x$moved_mass) ||
+      !.is_finite_numeric(x$clipped_negative_mass) ||
+      any(x$clipped_negative_mass < 0) ||
+      !.is_finite_numeric(x$truncated_positive_mass) ||
+      any(x$truncated_positive_mass < 0) ||
+      length(x$clipped_negative_mass) != length(x$moved_mass) ||
+      length(x$truncated_positive_mass) != length(x$moved_mass) ||
       !identical(length(x$moved_mass), as.integer(x$measurements))) {
     .input_error("Latent projection moved mass is missing or inconsistent.")
+  }
+  # The two reasons for moving mass add to the mass moved, and no positive
+  # mass is truncated unless a rank budget was declared. Without this a
+  # receipt could report a total moved mass honestly and attribute all of it
+  # to clipping when the budget removed most of it, which is the one-number
+  # summary section 3.2 of the model-coordinate contract forbids.
+  scale <- max(1, max(x$absolute_mass, 0))
+  if (any(abs(x$clipped_negative_mass + x$truncated_positive_mass -
+      x$moved_mass) > 1e-12 * scale) ||
+      (is.na(x$rank) && any(x$truncated_positive_mass > 0))) {
+    .contract_error(paste0(
+      "A latent projection receipt's clipped and truncated mass do not ",
+      "account for the mass it moved."
+    ))
   }
   # The three summaries are functions of the per-measurement series, and they
   # are the fields the print reads. Left unchecked, a receipt could carry the
   # honest per-measurement mass and a `clipped: 0 of 3` headline over it,
   # which is precisely the silent clipping section 6 forbids.
-  if (!identical(x$clipped, sum(x$moved_mass > 0)) ||
+  if (!identical(x$clipped, sum(x$clipped_negative_mass > 0)) ||
+      !identical(x$truncated, sum(x$truncated_positive_mass > 0)) ||
       !isTRUE(all.equal(x$total_moved_mass, sum(x$moved_mass),
         tolerance = 1e-12)) ||
+      !isTRUE(all.equal(x$total_clipped_negative_mass,
+        sum(x$clipped_negative_mass), tolerance = 1e-12)) ||
+      !isTRUE(all.equal(x$total_truncated_positive_mass,
+        sum(x$truncated_positive_mass), tolerance = 1e-12)) ||
       !isTRUE(all.equal(x$max_moved_share,
         if (length(x$moved_share)) max(x$moved_share) else 0,
         tolerance = 1e-12))) {
@@ -390,15 +506,18 @@
       n_eff = projection$n_eff,
       moved_mass = projection$moved_mass,
       moved_share = projection$moved_share,
+      clipped_negative_mass = projection$clipped_negative_mass,
+      truncated_positive_mass = projection$truncated_positive_mass,
       component = component,
       method = method,
+      rank = projection$rank,
       index = index,
       projection = projection_receipt,
       receipt = receipt,
       metadata = metadata,
       contract_signature = .latent_contract_signature(
         method, component, dim(projection$spectrum),
-        receipt$scientific_plan_id
+        receipt$scientific_plan_id, projection$rank
       )
     ),
     class = "effect_latent_geometry"
@@ -408,21 +527,24 @@
 }
 
 .latent_contract_signature <- function(method, component, shape,
-                                       scientific_plan_id) {
+                                       scientific_plan_id,
+                                       rank = NA_integer_) {
   .sha256_signature(list(
-    schema_version = 1L,
+    schema_version = 2L,
     result_capability = "latent_descriptive_layer",
     method = method,
     operator = .latent_projection_operators[[method]],
     component = component,
     shape = as.integer(shape),
-    scientific_plan_id = scientific_plan_id
+    scientific_plan_id = scientific_plan_id,
+    rank = as.integer(rank)
   ))
 }
 
 .validate_effect_latent_geometry <- function(x) {
   expected <- c("spectrum", "cumulative", "n_eff", "moved_mass", "moved_share",
-    "component", "method", "index", "projection", "receipt", "metadata",
+    "clipped_negative_mass", "truncated_positive_mass", "component", "method",
+    "rank", "index", "projection", "receipt", "metadata",
     "contract_signature")
   if (!.sealed_fields(x, "effect_latent_geometry", expected)) {
     .input_error("`x` must be a canonical `effect_latent_geometry`.")
@@ -494,11 +616,39 @@
   }
   if (!identical(x$projection$moved_mass, x$moved_mass) ||
       !identical(x$projection$moved_share, x$moved_share) ||
+      !identical(x$projection$clipped_negative_mass,
+        x$clipped_negative_mass) ||
+      !identical(x$projection$truncated_positive_mass,
+        x$truncated_positive_mass) ||
+      !identical(x$projection$rank, x$rank) ||
       !identical(x$projection$method, x$method) ||
       !identical(x$projection$component, x$component)) {
     .contract_error(paste0(
       "A latent layer and its projection receipt disagree about what was ",
       "projected or how much mass it moved."
+    ))
+  }
+  # A rank budget is a statement about the spectrum: at most `rank` roots
+  # survive, and every root past the budget is exactly zero.
+  if (!is.na(x$rank) && x$rank < ncol(x$spectrum) &&
+      any(x$spectrum[, seq.int(x$rank + 1L, ncol(x$spectrum)), drop = FALSE]
+        != 0)) {
+    .contract_error(
+      "A latent spectrum carries positive roots beyond its declared rank budget."
+    )
+  }
+  # Truncated mass is possible only where the budget bound: a row whose root
+  # at the budget position is zero had nothing beyond it to truncate, and a
+  # budget at or above the width never binds.
+  binding <- if (!is.na(x$rank) && x$rank < ncol(x$spectrum)) {
+    x$spectrum[, x$rank] > 0
+  } else {
+    rep(FALSE, nrow(x$spectrum))
+  }
+  if (any(x$truncated_positive_mass[!binding] > 0)) {
+    .contract_error(paste0(
+      "A latent layer claims truncated positive mass on a measurement where ",
+      "the rank budget did not bind."
     ))
   }
   .validate_execution_receipt(x$receipt)
@@ -517,7 +667,7 @@
   .check_signature(
     x$contract_signature,
     .latent_contract_signature(x$method, x$component, dim(x$spectrum),
-      x$receipt$scientific_plan_id),
+      x$receipt$scientific_plan_id, x$rank),
     "Latent contract signature is inconsistent with its claims."
   )
   invisible(x)
@@ -553,6 +703,14 @@
 #'   is an `effect_spectrum_view`.
 #' @param row_block Positive number of measurement rows read per block when
 #'   `x` is a form.
+#' @param rank `NULL` for the plain PSD projection, or one positive whole
+#'   number: the rank budget. After the negative roots are set to zero, the
+#'   positive roots beyond the `rank` largest are set to zero as well. The
+#'   result is `[S]_{+,rank}`, the closed-form minimizer of the Frobenius
+#'   distance to the signed form over PSD forms of rank at most `rank`, and it is
+#'   the same projection with a second reason to move mass: the receipt
+#'   carries `clipped_negative_mass` and `truncated_positive_mass` apart, and
+#'   the budget enters the latent layer's identity.
 #' @return An `effect_latent_geometry`.
 #' @section Structure:
 #' One nonnegative spectrum per spatial measurement, with the functionals that
@@ -569,20 +727,28 @@
 #'   \eqn{(\sum_i \lambda_i)^2 / \sum_i \lambda_i^2}{(sum_i lambda_i)^2 / sum_i lambda_i^2} of the projected
 #'   spectrum, one per measurement.
 #' - `$moved_mass`: the absolute mass the projection removed from each
-#'   measurement -- the sum of the magnitudes of its negative roots. Zero for
-#'   a measurement whose source spectrum was already nonnegative.
+#'   measurement -- the magnitudes of its negative roots plus, under a `rank`
+#'   budget, the positive roots beyond the budget. Zero for a measurement
+#'   whose source spectrum was already nonnegative and within the budget.
 #' - `$moved_share`: that mass as a fraction of the source spectrum's total
 #'   absolute mass, so a measurement that moved a lot in a large form is not
 #'   confused with one that moved a little in a small one.
-#' - `$component`, `$method`: what was projected, and by which named operator.
+#' - `$clipped_negative_mass`, `$truncated_positive_mass`: the two reasons
+#'   mass was moved, per measurement. They add to `$moved_mass`; the second is
+#'   identically zero unless a `rank` budget was declared, and the two are
+#'   never summed into one number without both being on the record.
+#' - `$component`, `$method`, `$rank`: what was projected, by which named
+#'   operator, and under which rank budget (`NA` when none).
 #' - `$index`: the measurement identifiers, carried from the source.
-#' - `$projection`: the projection receipt -- the operator, the per-measurement
-#'   moved mass and share, the counts of clipped and masked measurements, and
-#'   the source identity it was derived from.
+#' - `$projection`: the projection receipt -- the operator, the rank budget,
+#'   the per-measurement moved mass and share and their two parts, the counts
+#'   of clipped, truncated and masked measurements, and the source identity it
+#'   was derived from.
 #' - `$receipt`: the execution receipt. Its `$scientific_plan_id` is derived
-#'   from the source's and the projection's name, so a latent layer never
-#'   shares an identity with the signed estimates behind it, and its
-#'   `$task_partition_id` ends in `+psd_projection`.
+#'   from the source's, the projection's name and the rank budget, so a
+#'   latent layer never shares an identity with the signed estimates behind
+#'   it, and its `$task_partition_id` ends in `+psd_projection`, or
+#'   `+psd_projection+rank2` under a budget of two.
 #'
 #' Any element not listed here is internal and may change.
 #' @section Masking:
@@ -656,20 +822,26 @@ latent_geometry <- function(x,
                             method = c("psd_projection"),
                             component = c("total", "coherent",
                               "configuration"),
-                            row_block = 1024L) {
+                            row_block = 1024L,
+                            rank = NULL) {
   method <- .latent_projection_method(method)
   component_given <- !missing(component)
   component <- match.arg(component)
   row_block <- .validate_tile_size(row_block, "row_block")
+  if (!is.null(rank)) {
+    rank <- .check_count(rank, "rank",
+      what = "NULL or one positive whole number of roots to keep")
+  }
 
   source <- .latent_source(x, component, component_given, row_block)
-  projection <- .latent_psd_projection(source$spectrum)
+  projection <- .latent_psd_projection(source$spectrum, rank)
 
   scientific_plan_id <- .latent_scientific_id(
-    source$receipt$scientific_plan_id, method, source$component
+    source$receipt$scientific_plan_id, method, source$component,
+    projection$rank
   )
   receipt <- .latent_execution_receipt(
-    source$receipt, scientific_plan_id, method
+    source$receipt, scientific_plan_id, method, projection$rank
   )
   projection_receipt <- .new_latent_projection_receipt(
     method, source$component, projection, source$kind,
@@ -685,17 +857,39 @@ latent_geometry <- function(x,
 
 .latent_moved_items <- function(x) {
   moved <- x$moved_mass
-  clipped <- sum(moved > 0)
-  if (!clipped) {
-    return(c("none", "no source root was negative"))
+  clipped <- sum(x$clipped_negative_mass > 0)
+  truncated <- sum(x$truncated_positive_mass > 0)
+  budgeted <- !is.na(x$rank)
+  if (!clipped && !truncated) {
+    return(c("none", if (budgeted) {
+      "no source root was negative or beyond the rank budget"
+    } else {
+      "no source root was negative"
+    }))
   }
   c(
     paste0(.pf_num(sum(moved)), " moved"),
+    if (budgeted) c(
+      paste0(.pf_num(sum(x$clipped_negative_mass)), " clipped negative"),
+      paste0(.pf_num(sum(x$truncated_positive_mass)),
+        " truncated positive beyond rank ", x$rank)
+    ),
     sprintf("%d of %s clipped", clipped,
       .msg_count(length(moved), "measurement")),
+    if (budgeted) sprintf("%d truncated", truncated),
     paste0("max share ", .pf_num(max(x$moved_share), 3L)),
-    if (clipped < length(moved)) sprintf("%d moved none", length(moved) - clipped)
+    if (sum(moved > 0) < length(moved)) {
+      sprintf("%d moved none", length(moved) - sum(moved > 0))
+    }
   )
+}
+
+# Plain when unbudgeted, so the existing print is byte-identical; wrapped
+# under a budget, so the budget is never the part that gets truncated.
+.latent_projection_phrase <- function(x) {
+  phrase <- sprintf("%s (%s)", x$method, .latent_operator_phrase(x$method))
+  if (is.na(x$rank)) return(phrase)
+  .pf_wrap(c(phrase, sprintf("rank budget %d", x$rank)))
 }
 
 .latent_n_eff_line <- function(n_eff) {
@@ -716,16 +910,24 @@ latent_geometry <- function(x,
 as.data.frame.effect_latent_geometry <- function(x, row.names = NULL,
                                                  optional = FALSE, ...) {
   .validate_effect_latent_geometry(x)
+  # The two-part accounting appears as columns whenever a rank budget was
+  # declared; without one nothing is truncated and `moved_mass` is the
+  # clipped negative mass, so the unbudgeted frame is unchanged.
+  parts <- if (is.na(x$rank)) NULL else cbind(
+    clipped_negative_mass = x$clipped_negative_mass,
+    truncated_positive_mass = x$truncated_positive_mass
+  )
   .bind_result_values(x$index, cbind(
     n_eff = x$n_eff, moved_mass = x$moved_mass, moved_share = x$moved_share,
-    x$spectrum
+    parts, x$spectrum
   ))
 }
 
 #' @export
 format.effect_latent_geometry <- function(x, ...) {
   .format_counted_result("effect_latent_geometry", nrow(x$spectrum),
-    paste0(ncol(x$spectrum), " nonnegative roots"))
+    paste0(ncol(x$spectrum), " nonnegative roots",
+      if (is.na(x$rank)) "" else sprintf(", rank budget %d", x$rank)))
 }
 
 #' @export
@@ -733,8 +935,7 @@ print.effect_latent_geometry <- function(x, ...) {
   .validate_effect_latent_geometry(x)
   .format_result_preview(x, "effect_latent_geometry", fields = list(
     component = x$component,
-    projection = sprintf("%s (%s)", x$method,
-      .latent_operator_phrase(x$method)),
+    projection = .latent_projection_phrase(x),
     moved_mass = .pf_wrap(.latent_moved_items(x)),
     n_eff = .latent_n_eff_line(x$n_eff),
     reading = .latent_reading_line
@@ -747,22 +948,44 @@ print.effect_latent_geometry <- function(x, ...) {
 format.effect_latent_projection_receipt <- function(x, ...) {
   .pf_inline("effect_latent_projection_receipt", x$method,
     sprintf("%d of %s clipped", x$clipped,
-      .msg_count(x$measurements, "measurement")))
+      .msg_count(x$measurements, "measurement")),
+    if (!is.na(x$rank)) {
+      sprintf("%d truncated, rank budget %d", x$truncated, x$rank)
+    })
 }
 
 #' @export
 print.effect_latent_projection_receipt <- function(x, ...) {
   .validate_latent_projection_receipt(x)
-  .pf_emit("effect_latent_projection_receipt", list(
-    method = x$method,
-    operator = .latent_operator_phrase(x$method),
-    component = x$component,
-    clipped = sprintf("%d of %s", x$clipped,
-      .msg_count(x$measurements, "measurement")),
-    moved_mass = sprintf("%s total, max share %s",
-      .pf_num(x$total_moved_mass), .pf_num(x$max_moved_share, 3L)),
-    masked = if (x$masked) .msg_count(x$masked, "measurement") else "none",
-    source = .pf_sig(x$source_scientific_plan_id)
-  ))
+  budgeted <- !is.na(x$rank)
+  fields <- c(
+    list(
+      method = x$method,
+      operator = .latent_operator_phrase(x$method),
+      component = x$component
+    ),
+    if (budgeted) list(rank = sprintf("%d (budget)", x$rank)),
+    list(clipped = sprintf("%d of %s", x$clipped,
+      .msg_count(x$measurements, "measurement"))),
+    if (budgeted) list(truncated = sprintf("%d of %s", x$truncated,
+      .msg_count(x$measurements, "measurement"))),
+    list(
+      moved_mass = if (budgeted) {
+        .pf_wrap(c(
+          paste0(.pf_num(x$total_moved_mass), " total"),
+          paste0(.pf_num(x$total_clipped_negative_mass), " clipped negative"),
+          paste0(.pf_num(x$total_truncated_positive_mass),
+            " truncated positive"),
+          paste0("max share ", .pf_num(x$max_moved_share, 3L))
+        ))
+      } else {
+        sprintf("%s total, max share %s",
+          .pf_num(x$total_moved_mass), .pf_num(x$max_moved_share, 3L))
+      },
+      masked = if (x$masked) .msg_count(x$masked, "measurement") else "none",
+      source = .pf_sig(x$source_scientific_plan_id)
+    )
+  )
+  .pf_emit_block("effect_latent_projection_receipt", fields)
   invisible(x)
 }

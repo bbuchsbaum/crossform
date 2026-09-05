@@ -1,0 +1,31 @@
+Predictive geometry design checks; seed = 20260904
+Overlapping factors: 4 columns, union rank 3
+pooled small/full, weights 0.3/0.7                max error 1.77636e-15
+orthogonal coordinate change                      max error 1.77636e-15
+zero-rank baseline                                max error 0
+kernel/penalty joint scaling                      max error 2.66454e-15
+response/penalty joint scaling                    max error 0
+pooled small/full, weights 1/0                    max error 1.85962e-15
+orthogonal coordinate change                      max error 2.22045e-15
+zero-rank baseline                                max error 0
+kernel/penalty joint scaling                      max error 5.55112e-16
+response/penalty joint scaling                    max error 0
+pooled small/full, weights 0/1                    max error 4.44089e-15
+orthogonal coordinate change                      max error 2.2957e-15
+zero-rank baseline                                max error 0
+kernel/penalty joint scaling                      max error 2.88658e-15
+response/penalty joint scaling                    max error 0
+redundant-feature minimum-norm extension          max error 8.88178e-16
+feature penalty / kernel penalty                  max error 8.88178e-15
+completed square, noncommuting response/kernel    max error 0
+Commutator norm (nonzero): 0.293725
+best of 12 factor optimizations / spectral fit    max error 5.17364e-13
+full-span invariance at penalty zero              max error 1.15463e-14
+Full-span model difference with penalty: 1.75285
+pullback-adjoint                                  max error 4.88498e-15
+isometric packed dot product                      max error 2.22045e-15
+mode-wise gains sum to total                      max error 1.59872e-14
+conditional risk identity (exact paired noise)    max error 2.22045e-15
+null gain is minus squared prediction norm        max error 0
+Independent null (5000 reps): gain -0.670983; -norm -0.667839; identity error -0.00314325; MCSE 0.0141352
+All design checks passed. No production API was implemented.

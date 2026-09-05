@@ -358,6 +358,43 @@ partition names and identical fold counts, and identity tests enforce it.
 Runs, sessions, tasks, item sets, sites, and ordered cross-domains can all be
 represented by named pairing relations.
 
+### 7. Learned forms with independent fixed-query evidence
+
+`model_basis()` retains model directions and their strengths, `fit_geometry()`
+learns a regularized low-rank PSD form on training observations, and
+`score_geometry()` evaluates the frozen result on independent observations.
+The fitting problem is nonlinear. Its evaluation is an ordinary fixed
+bilinear readout plus a known prediction cost:
+
+\[
+\Delta=2\langle F,G_{\mathrm{test}}\rangle_F-\|F\|_F^2.
+\]
+
+The model's positive eigenvalues enter an inverse-kernel trace penalty, so
+an anisotropic full-span model still imposes directional preferences when
+the penalty is positive. At zero penalty only the admitted span matters;
+a full-span fit is labelled a generic baseline. Compression transforms each
+partition's effects before geometry accumulation, and a small spectral solve
+learns the form without a complete neural RDM.
+
+Low-rank factorization, PSD projection and kernel regularization are not
+claimed as new ingredients. The package contribution is their integration
+with typed effect coordinates, observation-origin admission and a frozen
+predictive readout. Conditional on training, the expected gain equals
+improvement in squared geometry error when the test form is unbiased for the
+target signal. It is not a trace energy: under zero signal its expectation
+is $-\|F\|_F^2$, even though the signed test inner product is centered on zero.
+
+The [predictive geometry guide](predictive-geometry.html)
+(`vignette("predictive-geometry")` offline) demonstrates the public fixed-split
+workflow. Its evidence concerns independent runs on the same conditions,
+with identity or fixed SPD neural metrics and Frobenius geometry loss.
+New-condition transfer, generic GLS, learned neural metrics and generic
+inference for selected eigenvalues are outside this public contract.
+The local statistical and numerical validation is recorded separately in the
+[predictive certification report](https://github.com/bbuchsbaum/crossform/blob/main/design/predictive-geometry-certification.md);
+it is not an empirical demonstration or a claim of universal speed advantage.
+
 ## The contract is the proof mechanism
 
 The calculus defines the scientific objects. The contract is how those objects
@@ -451,6 +488,8 @@ promotion classes. The generated ledger above governs status.
 | Route-stable view identity | **Implemented** | Fused query-first and materialize-then-project executions of one estimand carry one scientific id with distinct execution receipts: [`test-route-identity.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-route-identity.R), [`test-effect-form-certification.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-effect-form-certification.R). |
 | Spatial conservation | **Implemented** | `frame_conservation()` diagnostic plus public tests with the unnormalized global comparator and the total-only boundary stated: [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R). The overlap-accounting demonstration is Gate 4. |
 | Refusal discipline | **Implemented** | Classed `effect_capability_refusal` conditions with all-reasons reporting, `catch_refusal()`, `sampling_capabilities()`, and the executable [failure gallery](failure-gallery.html) (`vignette("failure-gallery", package = "crossform")` offline): [`test-capability-refusals.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-capability-refusals.R). |
+| Model-coordinate geometry (model-constrained low-rank fits as a lowering) | **Demonstrated on the README fixture and a base-R court** | A family of model RDMs or feature matrices becomes a declared, centered, rank-revealing basis (`model_basis()`); lowering the relation through it and running the ordinary plan yields the complete geometry in model coordinates, which agrees with the projected full form to `8.9e-16` for total, coherent and configuration over 280 searchlights, and on which `geometry_spectrum()` and `latent_geometry()` run unchanged. `model_geometry()` reads the exact trace split `centered total = model-addressable + model-orthogonal` (`4.10545 = 4.10297 + 0.00248` at the peak searchlight) on the signed layer and fits the isotropic, diagonal, block or shared model-side metric on the latent layer, the shared fit using the same unregularized PSD rank projection as `latent_geometry(rank = ...)`. The base-R court measures the compressed form as unbiased under pure noise (`0.0049`, se `0.0281`), the plug-in rank-1 energy as biased (`0.6446`, se `0.0167`), and the edge-disjoint cross-fitted energy as centered on zero (`-0.0415`, se `0.0249`): [`design/model-coordinate-geometry-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/model-coordinate-geometry-contract.md), [`design/oracles/model-coordinate-geometry.R`](https://github.com/bbuchsbaum/crossform/blob/main/design/oracles/model-coordinate-geometry.R), [`test-model-coordinate-contract.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-model-coordinate-contract.R), [`test-model-geometry.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-model-geometry.R). Gated, each to its own ticket and plan identity: condition hold-out with the Nyström extension, generalized least squares in compressed coordinates, feature-learned model factors, complete lowered forms under a learned local metric, and lowered-then-correlated readings. Boundary: fixed model geometries only; no claim that the shared structure tests the supplied RDMs, that a latent projection is unbiased, or that a response envelope is identifiable from the form. The cross-fitted quantity here is projector energy, not the squared-error predictive gain below. |
+| Regularized geometry prediction with independent scoring | **Implemented and locally validated on declared simulations** | `model_basis()` retains model eigenvalue preferences; `fit_geometry()` solves the inverse-kernel-penalized PSD rank problem from signed reduced forms; `score_geometry()` evaluates a frozen form on independent declared origins. The [executable guide](predictive-geometry.html) checks mode gains 4 and -1, total gain 3, equivalent kernel/squared-RDM inputs, a rank-zero baseline, and coherent/configuration evidence with one prediction cost. Dense independent oracles, risk-identity calibration, leakage controls and source-bound mutation/performance evidence are indexed in the [predictive certification report](https://github.com/bbuchsbaum/crossform/blob/main/design/predictive-geometry-certification.md). Boundary: same conditions on independent runs; Frobenius geometry loss; identity or fixed SPD neural metric (blocked storage requires identity). No generic eigenvalue/rank standard errors, public automatic tuning interface, new-condition transfer or cross-package speed claim. |
 | Cross-package speed advantage | **Not demonstrated** | The recorded matched-estimand comparison is internal (fused vs materialized routes of one plan). No cross-package speedup is claimed; that would require matched estimands, independent parity, warm-up, repeated timings, hardware, and map-scale budgets against the other implementation. |
 
 Reproducible Haxby scripts and qualifications are in

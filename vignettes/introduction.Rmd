@@ -473,6 +473,14 @@ stopifnot(
 It rejects a model with missing names or a rank-deficient regression design
 before it reads geometry rows.
 
+To learn a low-rank geometry whose directions and amplitudes adapt to neural
+training data, use `model_basis()`, `fit_geometry()`, then `score_geometry()`
+on independent runs. That score measures squared-error gain over zero;
+it answers a different question from this fixed RSA coefficient. The
+[predictive geometry guide](predictive-geometry.html)
+(`vignette("predictive-geometry")` offline) gives a complete four-run example
+with declared observation origins and mode-wise evidence.
+
 If you only want some pairs, ask for them. The rest is never materialized:
 
 ```{r rdm-pairs}
@@ -790,6 +798,9 @@ The accepted extension requirements and refusal cases are recorded in the
 
 ## Where to go next
 
+- [Predict model-supported geometry on independent runs](predictive-geometry.html)
+  (`vignette("predictive-geometry")`) — learn a regularized form on training
+  runs and read its frozen prediction on separate evaluation runs.
 - `?plan_geometry` describes rectangular cross-axis plans
   (`right = `), read with axis-bound `pair_query()`s, and `?coupling` takes
   the adjoint neural-side closure from the same plan vocabulary.

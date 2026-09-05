@@ -426,6 +426,12 @@ demonstrates nothing about speed, and nothing about correlation-distance RSA.
 
 ## Where to go next
 
+- [Predict model-supported geometry on independent runs](predictive-geometry.html)
+  (`vignette("predictive-geometry", package = "crossform")`) — a separate
+  learning workflow: `model_basis()` declares the models, `fit_geometry()`
+  learns on training runs, and `score_geometry()` evaluates signed gain on
+  independent runs. This is regularized geometry prediction, not another
+  `regtype` for the fixed RDM regression compared above.
 - `vignette("introduction", package = "crossform")` — what the energies, RDMs,
   and RSA coefficients mean.
 - `vignette("neuroim2-data", package = "crossform")` — the input and output

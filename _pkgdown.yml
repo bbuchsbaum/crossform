@@ -46,6 +46,7 @@ articles:
   desc: Reading the results, and mapping in from another package's vocabulary.
   contents:
   - interpreting-results
+  - predictive-geometry
   - from-rmvpa
 
 - title: Conservative geometry
@@ -200,6 +201,28 @@ reference:
   contents:
   - latent_geometry
 
+- title: "Advanced — predictive geometry"
+  desc: >
+    Declare model kernels, features or squared Euclidean distances, learn a
+    regularized low-rank prediction on training runs, and score its signed
+    gain on independent runs. Model strengths enter the penalty; source
+    geometry stays signed. Prediction is for the same conditions.
+  contents:
+  - model_basis
+  - fit_geometry
+  - score_geometry
+
+- title: "Advanced — descriptive model-coordinate geometry"
+  desc: >
+    A family of model RDMs or feature matrices as a declared, centered,
+    rank-revealing basis of the effect axis. Lowering a relation through it
+    gives the complete geometry in model coordinates, on which the spectrum,
+    the latent layer, the sampling covariance and the population layer apply
+    unchanged; the basis itself contains no neural data and enters plan
+    identity.
+  contents:
+  - model_geometry
+
 - title: "Advanced — metrics and crossnobis"
   desc: >
     Fixed and learned neural metrics, the leakage guard on metric training,
@@ -327,6 +350,13 @@ reference:
   - anatomical_transport
   - external_transport
   - transport_values
+  - population_component_view
+  - population_decomposition
+  - population_diagnostic_view
+  - population_diagnostics
+  - population_influence
+  - population_scale_profile
+  - population_wild_bootstrap
   - plan_population
   - estimate_population
   - materialize_population

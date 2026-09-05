@@ -86,6 +86,7 @@ from the promote table, or if a shipped `.rds` has no listed role.
 |---|---|---|
 | `rdm()`, `contrast_energy()` | `public-map-scale-gate.rds` | certified |
 | query-first `rdm()`, `rsa()`, `contrast_energy()` | `query-first-scale-gate.rds` | certified |
+| predictive `fit_geometry()`, `score_geometry()` | `predictive-geometry-validation.rds` | certified on declared same-condition routes |
 | `evaluate_geometry()` | query-first gate | covered |
 | `materialize_geometry()` | public-map and query-first late/comparator paths | covered |
 | `crossnobis()` | `crossnobis-scale-gate.rds` | certified |

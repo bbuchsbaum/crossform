@@ -479,9 +479,12 @@ test_that("the latent layer is sealed against forgery", {
   # was moved has to add back to the source's absolute mass.
   forged <- latent
   forged$moved_mass <- rep(0, 4)
+  forged$clipped_negative_mass <- rep(0, 4)
   forged$projection$moved_mass <- rep(0, 4)
+  forged$projection$clipped_negative_mass <- rep(0, 4)
   forged$projection$clipped <- 0L
   forged$projection$total_moved_mass <- 0
+  forged$projection$total_clipped_negative_mass <- 0
   expect_error(crossform:::.validate_effect_latent_geometry(forged),
     "do not add back", class = "effect_contract_error")
 
@@ -558,4 +561,347 @@ test_that("the latent layer coerces to one row per measurement", {
     "moved_share", paste0("root", 1:4)))
   expect_equal(frame$moved_mass, c(0, 2, 4, 1), tolerance = 1e-12)
   expect_true(is.na(frame$n_eff[[3L]]))
+})
+
+# The rank budget (ticket M4 of the model-coordinate epic) ---------------------
+#
+# `design/model-coordinate-geometry-contract.md` section 3.2: the rank-s fit
+# of a geometry to a model span is `latent_geometry()`'s eigenvalue truncation
+# with a rank budget added, not a second projection kind. The budget enters
+# the latent identity; the moved mass is reported in two parts, the negative
+# roots clipped and the positive roots truncated beyond the budget, and the
+# two are never summed without both being visible. Theorem 4 of the proposal
+# the contract answers says the truncation is the closed-form minimizer of
+# the Frobenius objective over PSD forms of rank at most s; the last test
+# measures that against random feasible and locally perturbed candidates,
+# as `design/oracles/model-coordinate-geometry.R` section O3 does.
+
+test_that("a rank budget truncates positive roots and reports the two parts apart", {
+  fixture <- latent_fixture()
+  latent <- latent_geometry(fixture$geometry, rank = 2)
+
+  # Row 1 is diag(4, 2, 1, 0.5): the budget keeps 4 and 2, truncates 1.5 of
+  # positive mass, clips nothing. Absolute mass is 7.5.
+  expect_equal(unname(latent$spectrum[1, ]), c(4, 2, 0, 0), tolerance = 1e-12)
+  expect_identical(latent$clipped_negative_mass[[1L]], 0)
+  expect_equal(latent$truncated_positive_mass[[1L]], 1.5, tolerance = 1e-12)
+  expect_equal(latent$moved_mass[[1L]], 1.5, tolerance = 1e-12)
+  expect_equal(latent$moved_share[[1L]], 1.5 / 7.5, tolerance = 1e-12)
+  expect_equal(latent$n_eff[[1L]], 36 / 20, tolerance = 1e-12)
+  expect_equal(unname(latent$cumulative[1, ]), c(4, 6, 6, 6) / 6,
+    tolerance = 1e-12)
+  # Row 2 is diag(3, 1, -0.5, -1.5): the budget keeps both positive roots,
+  # clips 2, truncates nothing.
+  expect_equal(latent$clipped_negative_mass[[2L]], 2, tolerance = 1e-12)
+  expect_identical(latent$truncated_positive_mass[[2L]], 0)
+  expect_equal(latent$moved_mass[[2L]], 2, tolerance = 1e-12)
+  # Row 4 has roots 3, 1, 0.5, -1: the budget keeps 3 and 1, truncates 0.5
+  # and clips 1, so both reasons move mass on one measurement.
+  expect_equal(unname(latent$spectrum[4, ]), c(3, 1, 0, 0), tolerance = 1e-12)
+  expect_equal(latent$clipped_negative_mass[[4L]], 1, tolerance = 1e-12)
+  expect_equal(latent$truncated_positive_mass[[4L]], 0.5, tolerance = 1e-12)
+  expect_equal(latent$moved_mass[[4L]], 1.5, tolerance = 1e-12)
+  expect_equal(latent$moved_share[[4L]], 1.5 / 5.5, tolerance = 1e-12)
+
+  expect_identical(latent$rank, 2L)
+  expect_identical(latent$projection$rank, 2L)
+  expect_identical(latent$projection$clipped, 3L)
+  expect_identical(latent$projection$truncated, 2L)
+  expect_equal(latent$projection$total_clipped_negative_mass, 7,
+    tolerance = 1e-12)
+  expect_equal(latent$projection$total_truncated_positive_mass, 2,
+    tolerance = 1e-12)
+  expect_equal(latent$projection$total_moved_mass, 9, tolerance = 1e-12)
+  expect_identical(latent$projection$clipped_negative_mass,
+    latent$clipped_negative_mass)
+
+  # The budget is part of the latent identity and readable off the receipt.
+  plain <- latent_geometry(fixture$geometry)
+  expect_false(identical(latent$receipt$scientific_plan_id,
+    plain$receipt$scientific_plan_id))
+  expect_false(identical(latent$contract_signature, plain$contract_signature))
+  expect_match(latent$receipt$task_partition_id, "\\+psd_projection\\+rank2$")
+  expect_match(plain$receipt$task_partition_id, "\\+psd_projection$")
+  expect_identical(plain$receipt$scientific_plan_id,
+    plain$projection$scientific_plan_id)
+
+  # Without a budget nothing is truncated and the moved mass is the clipped
+  # negative mass, exactly as the layer always reported it.
+  expect_true(is.na(plain$rank))
+  expect_identical(plain$truncated_positive_mass, rep(0, 4))
+  expect_identical(plain$clipped_negative_mass, plain$moved_mass)
+  expect_identical(plain$projection$truncated, 0L)
+
+  # A budget at or above the root count truncates nothing but is declared.
+  wide <- latent_geometry(fixture$geometry, rank = 4)
+  expect_identical(wide$spectrum, plain$spectrum)
+  expect_identical(wide$moved_mass, plain$moved_mass)
+  expect_identical(wide$rank, 4L)
+  expect_false(identical(wide$receipt$scientific_plan_id,
+    plain$receipt$scientific_plan_id))
+
+  # The spectrum route and the form route agree under a budget.
+  spectrum_route <- latent_geometry(geometry_spectrum(fixture$geometry),
+    rank = 2)
+  expect_identical(spectrum_route$spectrum, latent$spectrum)
+  expect_identical(spectrum_route$truncated_positive_mass,
+    latent$truncated_positive_mass)
+  expect_identical(spectrum_route$receipt$scientific_plan_id,
+    latent$receipt$scientific_plan_id)
+
+  expect_error(latent_geometry(fixture$geometry, rank = 0),
+    "positive whole number", class = "effect_input_error")
+  expect_error(latent_geometry(fixture$geometry, rank = 1.5),
+    "positive whole number", class = "effect_input_error")
+  expect_error(latent_geometry(fixture$geometry, rank = c(1, 2)),
+    "positive whole number", class = "effect_input_error")
+})
+
+test_that("the two-part accounting is sealed", {
+  latent <- latent_geometry(latent_fixture()$geometry, rank = 2)
+
+  # Attributing truncated mass to nothing leaves the moved total unaccounted.
+  forged <- latent
+  forged$truncated_positive_mass[[1L]] <- 0
+  forged$projection$truncated_positive_mass[[1L]] <- 0
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "do not account", class = "effect_contract_error")
+
+  # Moving it to the other reason keeps the total; the receipt's counts and
+  # part totals then disagree with the series, which is what is caught here.
+  forged <- latent
+  forged$clipped_negative_mass[[1L]] <- 1.5
+  forged$truncated_positive_mass[[1L]] <- 0
+  forged$projection$clipped_negative_mass[[1L]] <- 1.5
+  forged$projection$truncated_positive_mass[[1L]] <- 0
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "summarizes moved mass it does not carry", class = "effect_contract_error")
+
+  # The budget on the object and the receipt must agree, and both are in the
+  # identity.
+  forged <- latent
+  forged$rank <- NA_integer_
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "disagree about what was projected", class = "effect_contract_error")
+  # A forged budget contradicts the spectrum before it reaches the identity:
+  # under a budget of 3 the first row's third root is zero, so its truncated
+  # mass has no root to have come from.
+  forged <- latent
+  forged$rank <- 3L
+  forged$projection$rank <- 3L
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "did not bind", class = "effect_contract_error")
+  # Where nothing binds, the budget is still in the identity.
+  wide <- latent_geometry(latent_fixture()$geometry, rank = 4)
+  forged <- wide
+  forged$rank <- 5L
+  forged$projection$rank <- 5L
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "signature is inconsistent", class = "effect_contract_error")
+
+  # A root past the budget is a contradiction, even when every mass total is
+  # forged to agree with it.
+  forged <- latent
+  forged$spectrum[1L, 3L] <- 1
+  functionals <- crossform:::.latent_functionals(forged$spectrum)
+  forged$n_eff <- functionals$n_eff
+  forged$cumulative <- functionals$cumulative
+  forged$projection$absolute_mass[[1L]] <-
+    forged$projection$absolute_mass[[1L]] + 1
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "beyond its declared rank budget", class = "effect_contract_error")
+
+  # An unbudgeted layer cannot claim truncated mass.
+  plain <- latent_geometry(latent_fixture()$geometry)
+  forged <- plain
+  forged$truncated_positive_mass[[2L]] <- 0.5
+  forged$clipped_negative_mass[[2L]] <- 1.5
+  forged$projection$truncated_positive_mass[[2L]] <- 0.5
+  forged$projection$clipped_negative_mass[[2L]] <- 1.5
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "do not account", class = "effect_contract_error")
+})
+
+test_that("the rank budget is the closed-form rank-s PSD fit of a lowered form", {
+  # Theorem 4, on the package route: a relation lowered through a model
+  # basis, the compressed form S = Q' G Q read from the lowered geometry,
+  # and the latent layer's rank-1 projection of it. Everything on the right
+  # of each comparison is base matrix algebra on G, Q and R.
+  set.seed(20260904)
+  conditions <- paste0("c", 1:6)
+  n <- 6L
+  p <- 8L
+  labels <- c(1, 1, 1, 0, 0, 0)
+  category <- outer(labels, labels, function(a, b) (a - b)^2)
+  dimnames(category) <- list(conditions, conditions)
+  features <- matrix(rnorm(n * 2L), n, 2L, dimnames = list(conditions, NULL))
+  basis <- model_basis(list(category = category), "squared_euclidean",
+    features = list(feature = features), conditions = conditions)
+  Q <- unname(basis$Q)
+  R <- unname(basis$R)
+  Tm <- Q %*% R
+  q <- ncol(Q)
+
+  betas <- lapply(1:3, function(run) {
+    b <- Tm %*% matrix(rnorm(q * p), q, p) + matrix(rnorm(n * p, sd = 0.7), n, p)
+    rownames(b) <- conditions
+    b
+  })
+  names(betas) <- paste0("run", 1:3)
+  domain <- abstract_domain(p, id = "latent-rank-budget")
+  frame <- compile_frame(whole_brain(), domain)
+  full <- relation(betas, effects = conditions, domain = domain)
+  lowered <- relation(betas, extract = basis$extractor, domain = domain)
+  G <- crossform:::.unsvec_symmetric(geometry_component(materialize_geometry(
+    plan_geometry(full, frame, cross_partitions(full, independence = "independent"))
+  ), "total")[1L, ], n)
+  G_m <- materialize_geometry(plan_geometry(lowered, frame,
+    cross_partitions(lowered, independence = "independent")))
+  S <- crossform:::.unsvec_symmetric(geometry_component(G_m, "total")[1L, ], q)
+  expect_equal(S, t(Q) %*% G %*% Q, tolerance = 1e-12, ignore_attr = TRUE)
+
+  e <- eigen(S, symmetric = TRUE)
+  # The fixture has to exercise both reasons for moving mass: at least one
+  # negative root, and at least two positive roots so a budget of one
+  # truncates something.
+  expect_lt(min(e$values), 0)
+  expect_gte(sum(e$values > 0), 2L)
+
+  latent <- latent_geometry(G_m, rank = 1)
+  expect_equal(unname(latent$spectrum[1L, ]), c(e$values[[1L]], 0, 0),
+    tolerance = 1e-12)
+  expect_equal(latent$clipped_negative_mass[[1L]], -sum(pmin(e$values, 0)),
+    tolerance = 1e-12)
+  expect_equal(latent$truncated_positive_mass[[1L]],
+    sum(pmax(e$values[-1L], 0)), tolerance = 1e-12)
+
+  # The closed form, and the Pythagorean split of the Frobenius objective.
+  frob <- function(x) sqrt(sum(x^2))
+  A_star <- e$values[[1L]] * tcrossprod(e$vectors[, 1L])
+  R_inv <- solve(R)
+  C_star <- R_inv %*% A_star %*% t(R_inv)
+  objective <- function(C) frob(G - Tm %*% C %*% t(Tm))^2
+  constant <- frob(G - Q %*% S %*% t(Q))^2
+  expect_equal(objective(C_star), constant + frob(S - A_star)^2,
+    tolerance = 1e-10)
+  # The residual on the compressed side is the sum of squares of the roots
+  # the budget and the clipping moved.
+  expect_equal(frob(S - A_star)^2, sum(e$values[-1L]^2), tolerance = 1e-10)
+
+  random_feasible <- replicate(500, {
+    W <- matrix(rnorm(q), q, 1L)
+    objective(tcrossprod(W))
+  })
+  perturbed <- replicate(500, {
+    E <- matrix(rnorm(q * q), q, q)
+    A_pert <- A_star + 0.05 * frob(A_star) * (E + t(E)) / 2
+    ep <- eigen(A_pert, symmetric = TRUE)
+    A_pert <- max(ep$values[[1L]], 0) * tcrossprod(ep$vectors[, 1L])
+    objective(R_inv %*% A_pert %*% t(R_inv))
+  })
+  expect_lte(objective(C_star), min(random_feasible) + 1e-10)
+  expect_lte(objective(C_star), min(perturbed) + 1e-10)
+
+  # The matrix-level operator the model-coordinate readers call is the same
+  # truncation with the same accounting.
+  operator <- crossform:::.latent_rank_psd_form(S, rank = 1)
+  expect_equal(operator$form, A_star, tolerance = 1e-12, ignore_attr = TRUE)
+  expect_identical(operator$rank, 1L)
+  expect_identical(operator$effective_rank, 1L)
+  expect_equal(operator$clipped_negative_mass, latent$clipped_negative_mass[[1L]],
+    tolerance = 1e-12)
+  expect_equal(operator$truncated_positive_mass,
+    latent$truncated_positive_mass[[1L]], tolerance = 1e-12)
+  expect_equal(operator$spectrum, unname(latent$spectrum[1L, ]),
+    tolerance = 1e-12)
+  unbudgeted <- crossform:::.latent_rank_psd_form(S)
+  expect_true(is.na(unbudgeted$rank))
+  expect_identical(unbudgeted$truncated_positive_mass, 0)
+  expect_equal(unbudgeted$form,
+    e$vectors %*% (pmax(e$values, 0) * t(e$vectors)), tolerance = 1e-12,
+    ignore_attr = TRUE)
+  expect_error(crossform:::.latent_rank_psd_form(matrix(1, 2, 3)),
+    "square", class = "effect_input_error")
+  expect_error(crossform:::.latent_rank_psd_form(matrix(c(1, 5, 0, 1), 2, 2)),
+    "symmetric", class = "effect_input_error")
+  expect_equal(crossform:::.latent_rank_psd_form(S, 0)$form,
+    matrix(0, nrow(S), ncol(S)), ignore_attr = TRUE)
+  for (bad in list(-2, 1.5, "2", c(1, 2), NA_real_, Inf, 2^31)) {
+    expect_error(crossform:::.latent_rank_psd_form(S, bad),
+      "nonnegative whole number", class = "effect_input_error")
+  }
+  # An all-negative form projects to zero with no active column.
+  negative <- crossform:::.latent_rank_psd_form(-diag(3), rank = 2)
+  expect_identical(negative$effective_rank, 0L)
+  expect_equal(negative$form, matrix(0, 3, 3), tolerance = 0, ignore_attr = TRUE)
+  expect_equal(negative$clipped_negative_mass, 3, tolerance = 1e-12)
+})
+
+test_that("truncated mass is claimed only where the budget bound", {
+  fixture <- latent_fixture()
+  # E1: a budget at or above the width never truncates, whatever the totals.
+  wide <- latent_geometry(fixture$geometry, rank = 4)
+  forged <- wide
+  forged$truncated_positive_mass[[2L]] <- 1
+  forged$clipped_negative_mass[[2L]] <- 1
+  forged$projection$truncated_positive_mass[[2L]] <- 1
+  forged$projection$clipped_negative_mass[[2L]] <- 1
+  forged$projection$truncated <- 1L
+  forged$projection$total_truncated_positive_mass <- 1
+  forged$projection$total_clipped_negative_mass <- 6
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "did not bind", class = "effect_contract_error")
+  # E2: under a budget of 2, row 3 (all negative) kept no root at the budget
+  # position, so it cannot have truncated anything.
+  budgeted <- latent_geometry(fixture$geometry, rank = 2)
+  forged <- budgeted
+  forged$truncated_positive_mass[[3L]] <- 1
+  forged$clipped_negative_mass[[3L]] <- 3
+  forged$projection$truncated_positive_mass[[3L]] <- 1
+  forged$projection$clipped_negative_mass[[3L]] <- 3
+  forged$projection$truncated <- 3L
+  forged$projection$total_truncated_positive_mass <- 3
+  forged$projection$total_clipped_negative_mass <- 6
+  expect_error(crossform:::.validate_effect_latent_geometry(forged),
+    "did not bind", class = "effect_contract_error")
+})
+
+test_that("the budgeted layer prints the two parts and coerces with them", {
+  fixture <- latent_fixture()
+  latent <- latent_geometry(fixture$geometry, rank = 2)
+
+  printed <- capture.output(print(latent))
+  expect_true(any(grepl("rank budget 2", printed, fixed = TRUE)))
+  expect_true(any(grepl("clipped negative", printed, fixed = TRUE)))
+  expect_true(any(grepl("truncated positive beyond rank 2", printed,
+    fixed = TRUE)))
+  expect_true(any(grepl("latent descriptive layer; not for inference", printed,
+    fixed = TRUE)))
+  receipt_printed <- capture.output(print(latent$projection))
+  expect_true(any(grepl("rank:", receipt_printed, fixed = TRUE)))
+  expect_true(any(grepl("truncated:", receipt_printed, fixed = TRUE)))
+  expect_true(any(grepl("clipped negative", receipt_printed, fixed = TRUE)))
+
+  frame <- as.data.frame(latent)
+  expect_identical(names(frame), c("measurement", "n_eff", "moved_mass",
+    "moved_share", "clipped_negative_mass", "truncated_positive_mass",
+    paste0("root", 1:4)))
+  expect_equal(frame$truncated_positive_mass, c(1.5, 0, 0, 0.5),
+    tolerance = 1e-12)
+  expect_equal(frame$clipped_negative_mass + frame$truncated_positive_mass,
+    frame$moved_mass, tolerance = 1e-12)
+
+  # A budget that moved nothing says so in the budget's own words.
+  clean <- latent_geometry(latent_clean_fixture(), rank = 2)
+  clean_printed <- capture.output(print(clean))
+  expect_true(any(grepl("beyond the rank budget", clean_printed, fixed = TRUE)))
+
+  # The one-line formats carry the budget and the truncated count, so a PSD
+  # source truncated under a budget never reads as "0 clipped" alone.
+  truncated_only <- latent_geometry(latent_clean_fixture(), rank = 1)
+  expect_match(format(truncated_only$projection),
+    "0 of 2 measurements clipped, 2 truncated, rank budget 1", fixed = TRUE)
+  expect_match(format(truncated_only), "rank budget 1", fixed = TRUE)
+  expect_false(grepl("rank budget", format(latent_geometry(fixture$geometry)),
+    fixed = TRUE))
 })

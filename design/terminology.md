@@ -16,9 +16,25 @@ Version: crossform-terminology-v1
 | detection map | local normalization | Intensive per-neighborhood evidence used to locate effects | importance map | additive territory budget |
 | attribution ledger | conservative normalization | Extensive allocation of one total across nodes | detection map | thresholded activation map |
 | population coefficient | model term | Coefficient for the declared coverage target conditional on realized transport | group effect | marginal population truth without its conditioning |
+| model basis | model basis | Declared, centered, rank-revealing basis of a model family's joint span; data-independent | model kernel | a neural subspace |
+| model-coordinate geometry | lowered form | The complete cross-generalized form read in model coordinates, Q' G_x Q | projected RDM | a denoised geometry |
+| model-addressable component | addressable | Signed energy of the geometry within the model span, tr(P G_x) | explained energy | variance explained by the model |
+| model-orthogonal component | orthogonal | Signed energy of the centered geometry outside the model span | residual energy | noise |
+| latent rank-s model energy | latent_rank | PSD rank-s projection of the addressable component; latent layer | low-rank fit | an unbiased estimate |
+| cross-fitted model energy | cross_fit | Rank-s energy with the readout learned on disjoint edges; estimation layer | held-out fit | condition generalization |
+| fitted representational prediction | fit_geometry | Biased PSD form learned from signed training geometry with model support, rank and inverse-kernel penalty declared | reduced-rank RSA beta | an unbiased neural geometry estimate |
+| predictive geometry gain | score_geometry | Twice the independent signed inner product minus the frozen prediction's squared Frobenius norm; squared geometry units | explained energy | an explained fraction or generic significance test |
+| signed mode evidence | evidence | Independent test geometry contracted with a frozen unit mode | mode amplitude | a fitted test eigenvalue |
+| prediction cost | prediction_cost | Squared fitted amplitude for a mode, summed once over the prediction | regularization cost | the training inverse-kernel penalty |
+| span fraction | span_fraction | q/(n-1); one at saturation | model rank | goodness of fit |
 
 Nouns and adjectives are deliberate: the stored component is
 configuration; configurational modifies component, contribution, or profile.
+The raw geometry is the neural cross-generalized form. Model kernels describe
+model geometry, their compiled declaration is a basis, and fitted predictions
+are explicitly labelled as learned forms. The model-addressable and
+model-orthogonal components are the representational-axis counterpart of the
+coherent and configurational components along the spatial axis.
 Coherent and configurational are mathematical estimand components. They are not
 ontological categories of regions, subjects, or neural mechanisms.
 

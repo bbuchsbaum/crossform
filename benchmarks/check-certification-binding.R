@@ -48,6 +48,29 @@ for (path in shipped) {
       substr(sub("^sha256:", "", recorded), 1L, 12L),
       if (is.null(runner)) "its runner" else runner))
   }
+  if (identical(name, "predictive-geometry-validation.rds")) {
+    # A source-only digest cannot detect an edited oracle, calibration
+    # configuration or test. Check the compact receipt's complete declared
+    # harness bindings in the bare-R CI job as well as in source tests.
+    groups <- list(artifact$harness_digests, artifact$sampling$harness,
+      artifact$selection$harness, artifact$performance$harness_digests,
+      artifact$mutations$harness_digests)
+    if (any(lengths(groups) == 0L)) {
+      stale <- c(stale, paste0(name, " (missing predictive harness manifest)"))
+    } else for (hashes in groups) {
+      if (is.null(names(hashes)) || any(!nzchar(names(hashes)))) {
+        stale <- c(stale, paste0(name, " (unnamed predictive harness manifest)"))
+        next
+      }
+      for (file in names(hashes)) {
+        path <- file.path(root, file)
+        if (!file.exists(path) || !identical(unname(hashes[[file]]),
+            digest::digest(file = path, algo = "sha256"))) {
+          stale <- c(stale, paste0(name, " (stale or missing harness: ", file, ")"))
+        }
+      }
+    }
+  }
 }
 
 ## The external-parity receipt is a CSV, not an RDS, because it is produced by
@@ -86,6 +109,10 @@ for (path in csv_receipts) {
 }
 
 if (length(unbound)) {
+  unexpected <- setdiff(unbound, "shard-admission.rds")
+  if (length(unexpected)) {
+    stale <- c(stale, paste0(unexpected, " (unexpected unbound artifact)"))
+  }
   cat("unbound by design (no recorded digest):\n",
     paste0("  - ", unbound, collapse = "\n"), "\n", sep = "")
 }

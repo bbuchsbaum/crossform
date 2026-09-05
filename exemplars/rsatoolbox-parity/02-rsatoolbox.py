@@ -438,7 +438,7 @@ def main() -> int:
     # carries the execution provenance that a digest cannot supply -- when the
     # external arm actually ran, on what, and against which resolved wheels.
     with open(os.path.join(RESULTS, "run-receipt.csv"), "w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(["key", "value"])
         writer.writerow(
             ["recorded_at", datetime.datetime.now(datetime.timezone.utc).isoformat()]

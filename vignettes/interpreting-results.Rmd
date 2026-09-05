@@ -635,6 +635,44 @@ meaningful and shared. Coefficients are in units of distance per unit of model
 RDM, so they are comparable across measurements within one analysis but not
 across analyses with differently scaled model RDMs.
 
+## Reading a learned geometry prediction
+
+`fit_geometry()` learns a model-supported PSD form on training data.
+`score_geometry()` evaluates that frozen form on independent runs using
+$2\langle F,G_{\mathrm{test}}\rangle_F-\|F\|_F^2$. The result is a signed
+gain in squared geometry units, relative to predicting zero. Positive gain
+supports improved prediction in expectation under the declared independence
+assumptions; negative gain means the prediction's amplitude costs more than
+its independent evidence earns.
+
+For each fitted mode, keep three quantities apart:
+
+| Quantity | Meaning |
+|---|---|
+| `amplitude` | Strength learned on training data |
+| `evidence` | Signed geometry in that frozen direction on evaluation data |
+| `gain` | Twice amplitude times evidence, minus amplitude squared |
+
+A positive training amplitude does not establish replication. Even positive
+test evidence can produce negative gain if the training amplitude is too
+large. Do not drop such a mode after inspecting final evaluation results:
+that would select a different prediction using the test data. Rank, penalty,
+model weights and preprocessing belong to training or inner validation.
+
+Gain is neither a fraction explained nor a trace energy. Under zero signal,
+its conditional expectation is minus the prediction's squared norm; the
+test inner product alone is centered on zero. Likewise, the descriptive
+projection from `latent_geometry(rank = ...)` and the trace split from
+`model_geometry()` do not measure independent predictive improvement.
+
+The [predictive geometry guide](predictive-geometry.html)
+(`vignette("predictive-geometry", package = "crossform")` offline) executes a
+case with mode gains 4 and -1, total gain 3, and an exact rank-zero baseline.
+It also shows the observation-origin manifest that keeps training and
+evaluation separate. These scores concern new runs on the same conditions;
+they do not establish transfer to new conditions or supply generic standard
+errors for learned ranks and eigenvalues.
+
 ## Uncertainty: two targets, and what "refused" means
 
 `rdm_sampling_covariance()` requires an explicit `target`, because the two
@@ -752,6 +790,8 @@ relation; only the error bar is withheld.
 | `NA` fraction | read as "no interpretable share" | impute or drop silently |
 | RDM values | treat as signed squared distances | take square roots, or read as `1 - r` |
 | RSA coefficient | keep the intercept | compare across differently scaled models |
+| Predictive gain | retain its sign and the frozen prediction cost | call it a fraction explained or a null-centered energy |
+| Mode evidence | distinguish training amplitude, test evidence and gain | remove harmful modes using final test outcomes |
 | `target = "null"` | calibrate a test of no effect | use as an error bar on a nonzero distance |
 | `target = "plugin"` | error bar on an estimate, read as conservative | treat as exact |
 | a refusal | read `$reasons` and `$remedies` | retry until something returns a number |

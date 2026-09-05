@@ -451,6 +451,54 @@
   invisible(TRUE)
 }
 
+# Model-coordinate lowering commutes with the estimator only across stages
+# that are linear on the effect axis (`design/model-coordinate-geometry-
+# contract.md` section 2.2). Under `correlation()`, `cosine()`, `fisher_z()`
+# or `rank_edges()` the lowered and the projected estimands differ, and a
+# correlation of model-coordinate patterns is a well-defined estimand with no
+# name in this version; refusing it keeps it from being produced silently
+# under the model-coordinate name. The gate lives here, where every evidence
+# task passes and both relations meet the stage plan, and it is dormant
+# today: no public entry sets a normalizer or transform, so only the internal
+# task compiler can reach it.
+.model_coordinate_linear_normalizers <- c("inner_product", "covariance")
+
+.model_coordinate_lowering_gate <- function(left_space, right_space, stages) {
+  lowered <- .is_model_coordinate_space(left_space) ||
+    .is_model_coordinate_space(right_space)
+  if (!lowered) return(invisible(FALSE))
+  normalizer <- stages$normalization$operation$kind
+  transform <- stages$transform$operation$kind
+  nonlinear <- c(
+    if (!normalizer %in% .model_coordinate_linear_normalizers) {
+      sprintf("edge normalizer `%s()`", normalizer)
+    },
+    if (!identical(transform, "identity")) {
+      sprintf("edge transform `%s()`", transform)
+    }
+  )
+  if (!length(nonlinear)) return(invisible(TRUE))
+  .capability_refusal(
+    sprintf(paste0(
+      "A relation lowered into model coordinates cannot be read through a ",
+      "stage that is nonlinear on the effect axis (%s): lowering commutes ",
+      "with the cross-partition estimator only for `inner_product()` and ",
+      "`covariance()` under the identity transform, so the lowered and the ",
+      "projected estimands would differ and the result would carry the ",
+      "model-coordinate name for a different quantity."
+    ), paste(nonlinear, collapse = " and ")),
+    capability = "model_coordinate_lowering",
+    namespace = "model_coordinate",
+    reasons = c("nonlinear_edge_transform", nonlinear),
+    remedies = c(
+      paste0("Read the full form on the original relation, apply the ",
+        "transform there, and project it onto the model basis afterwards."),
+      paste0("Use `inner_product()` or `covariance()` with the identity ",
+        "transform on the lowered relation.")
+    )
+  )
+}
+
 .evidence_identity_schema <- "evidence-pairing-v1"
 
 # One evidence task, one naming rule. `evidence-pairing-v1` is the only
@@ -527,6 +575,9 @@
     )
   }
   stages <- .validate_evidence_stage_plan(stages)
+  .model_coordinate_lowering_gate(
+    left_relation$effect_space, right_relation$effect_space, stages
+  )
   materialization <- .validate_evidence_materialization(materialization)
   .validate_evidence_boundary_combination(
     experimental_boundary, neural_boundary, materialization
