@@ -17,6 +17,8 @@ plan_population(
   model = ~1,
   data = NULL,
   normalization = c("none", "unit_budget", "precision_weighted"),
+  coverage_policy = c("all_planned", "available_at_node"),
+  coverage_tolerance = 0,
   compute = compute_policy(),
   allow_nonconservative = FALSE
 )
@@ -57,6 +59,22 @@ plan_population(
   `"none"` (the default), `"unit_budget"`, or `"precision_weighted"`
   (gated, see above).
 
+- coverage_policy:
+
+  Population target under incomplete ordinary-node coverage.
+  "all_planned" (the default) returns a coefficient only when every
+  planned participant is available at that node and query.
+  "available_at_node" fits the explicitly selected participant set and
+  records that different target at every cell.
+
+- coverage_tolerance:
+
+  Nonnegative relative transported-mass threshold. Subject i covers
+  ordinary node j when its transported row mass is greater than
+  coverage_tolerance times its total declared row mass. The sink is
+  observed for every admitted subject because zero sink budget is
+  meaningful.
+
 - compute:
 
   A
@@ -76,10 +94,14 @@ An `effect_population_plan`: a sealed list carrying `$subjects`,
 `$transport`, the shared `$group_index`, the transport `$semantics`, the
 `$model` record (formula, canonical text, term labels, model matrix, its
 pivoted `$qr`, `$rank` and `$pivot`, and per-covariate content digests),
-`$data`, `$normalization`, the `$fit` marker, `$allow_nonconservative`,
-a per-participant `$subject_index` audit table, `$compute`, the
-`$scientific_plan_id` naming the estimand, and the `$signature` covering
-how it will be executed.
+`$data`, `$normalization`, `$coverage_policy`, `$coverage_tolerance`,
+the subject-by-node `$operator_mass` and `$operator_coverage`, the
+`$fit` marker, `$allow_nonconservative`, a per-participant
+`$subject_index` audit table (including transport source,
+fixed-versus-estimated status, fitting sample, cross-fitting folds,
+conditional inference scope, and whether transport uncertainty was
+propagated), `$compute`, the `$scientific_plan_id` naming the estimand,
+and the `$signature` covering how it will be executed.
 
 ## What the plan fixes
 
@@ -154,6 +176,13 @@ contract measures the three normalizations disagreeing by up to 94 %.
 The mode stays in the closed set, and in this argument's default,
 because the set *is* the plan identity; what is gated is admitting it.
 
+This gate does not apply to the default unweighted node-wise OLS. Each
+node-query cell is fitted across participants and needs no model for
+covariance between nodes. Future covariance-dependent operations must
+meet `design/cross-node-covariance-contract.md`: dense/sparse
+representation, index binding, symmetry and PSD checks, error-model
+provenance, and compute-budget guardrails are mandatory.
+
 ## References
 
 `design/population-form-contract.md` (`population-form-v1`), sections
@@ -180,6 +209,7 @@ Other population transports:
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -214,9 +244,11 @@ plan
 #>   transport:     budget, anatomical
 #>   model:         ~1 -> 1 column, rank 1
 #>   normalization: none
+#>   coverage:      all_planned, operator mass > 0 relative tolerance; node ...
+#>   inference:     fixed; conditional on realized transport; uncertainty no...
 #>   fit:           OLS (subject-constant weights), transport then fit
-#>   estimand:      population-sha256:7cd6972df1d6...
-#>   signature:     sha256:43de83dc28a5...
+#>   estimand:      population-sha256:56899e0399e8...
+#>   signature:     sha256:4bf73ef9ea3d...
 plan$subject_index[, c("subject", "declared_normalization", "sink_territory")]
 #>   subject declared_normalization sink_territory
 #> 1     s01           conservative              0

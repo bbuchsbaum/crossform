@@ -9,86 +9,24 @@
 - [Bring your own neuroim2
   data](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.md):
 
-### Advanced evidence forms
+### Read and interpret results
 
-Experimental. Results that relate two sets of measurements to each
-other, under a small-node scale gate.
-
-- [Measure effects within and between neural
-  nodes](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md):
-
-### Guides
-
-Reading the results, and mapping in from another package’s vocabulary.
+Understand the returned quantities, choose a distance, and diagnose
+unavailable results.
 
 - [Reading contrast energies, RDMs, and
   uncertainty](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md):
 
-  What each returned column means, how to read negatives and the
-  coherence fraction, the three interpretive traps that make a coherent
-  share look like a scientific finding when it is an artefact of the
-  frame, and how to read a real map when no ground truth marks the
-  answer.
+  Interpret signed energies, coherent shares, RDMs, RSA coefficients and
+  predictive gain, with worked examples of frame dependence and
+  uncertainty.
 
-- [Coming from
-  rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.md):
+- [Choosing distance: effect magnitude or pattern
+  correlation](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md):
 
-  A concept map from rMVPA’s dataset/design/model vocabulary to
-  crossform’s relation/frame/plan vocabulary, with an honest list of
-  what crossform does not do.
-
-### Conservative geometry
-
-The attribution instrument. A conservative frame partitions one fixed
-global budget instead of reporting a density per neighbourhood, so its
-map is a ledger that adds up over territories — and its per-scale totals
-are the analyst’s own weights, which is why the coherence spectrum, not
-the energy spectrum, is the finding.
-
-- [Conservative frames: attribution, not
-  detection](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md):
-
-  The second spatial instrument. A conservative frame partitions one
-  fixed global budget instead of reporting a density per neighbourhood,
-  so its map is a ledger you may add up over territories — and its
-  per-scale totals are the analyst’s own weights, which is why the
-  coherence spectrum, not the energy spectrum, is the finding.
-
-### Population (experimental)
-
-Experimental. Carrying each participant’s conservative ledger onto a
-shared group node set: the typed transport you supply and the package
-refuses to learn, the sink column that makes partial coverage a number
-you read rather than budget that went missing, the commutation that
-makes modelling-then-querying the same answer as
-querying-then-modelling, the cross-fitted subject Gram that separates
-consensus from disagreement, and the two error bars the layer keeps
-apart and labels uncalibrated.
-
-- [Population form: one participant's ledger, carried to a
-  group](https://bbuchsbaum.github.io/crossform/articles/population-form.md):
-
-  Experimental. A group analysis of conservative geometry is three typed
-  objects — a per-participant plan, a transport you supply, and a group
-  model — and one theorem: the query, the transport and the group fit
-  act on different axes, so modelling then querying is the same number
-  as querying then modelling. This article builds the objects on a
-  generated six-participant fixture, asserts the commutation and the
-  conservation identity, finds a planted odd participant with the
-  cross-fitted subject Gram, and reports the two error bars the layer
-  keeps apart — separately, and labelled uncalibrated.
-
-### Claims and policies
-
-What the package claims, what it refuses, and where the boundaries are
-drawn.
-
-- [What is novel in
-  crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.md):
-
-  The evidence-pairing calculus, the executable estimand contract, and
-  an audited ledger separating what is demonstrated from what is still
-  gated.
+  Choose between squared distance and Pearson correlation distance,
+  understand their different scale behavior, and identify the views
+  crossform supports.
 
 - [Failure
   gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md):
@@ -97,16 +35,80 @@ drawn.
   silently, and the classed refusals or absent transformations that stop
   them.
 
-- [Correlation-distance
-  policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md):
+- [Coming from
+  rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.md):
 
-  Why rdm() means squared Euclidean or fixed-Mahalanobis distance and
-  never silently substitutes 1 - Pearson correlation.
+  A concept map from rMVPA’s dataset/design/model vocabulary to
+  crossform’s relation/frame/plan vocabulary, with an honest list of
+  what crossform does not do.
+
+### Spatial organization
+
+Compare spatial patterns and account for overlapping measurements across
+scales.
+
+- [Equal total effects can have different spatial
+  organization](https://bbuchsbaum.github.io/crossform/articles/matched-interpretability.md):
+
+  A matched simulation comparing conventional summaries with coherent
+  and configuration spectra across spatial scale.
+
+- [Conservative frames: attribution, not
+  detection](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md):
+
+  Partition a global contrast budget across space, compare coherent
+  shares across scales, and distinguish signed attribution from latent
+  descriptive summaries.
+
+### Model-supported prediction
+
+Learn a representational form on training runs and evaluate it on
+independent runs.
+
+- [Predict model-supported geometry on independent
+  runs](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md):
+
+### Advanced evidence forms
+
+Relate two sets of measurements through experimental node and edge forms
+with bounded scale support.
+
+- [Measure effects within and between neural
+  nodes](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md):
+
+### Population (experimental)
+
+Transport participant geometries to a shared node set, read group
+effects, and distinguish their uncertainty targets.
+
+- [Population form: one participant's ledger, carried to a
+  group](https://bbuchsbaum.github.io/crossform/articles/population-form.md):
+
+  Carry conservative participant maps to shared group nodes, estimate
+  contrasts, and interpret conservation, heterogeneity, and conditional
+  uncertainty.
+
+### Algebra and evidence
+
+Follow the fixed-query derivation and distinguish established methods
+from supported package claims.
+
+- [Contrast, crossnobis, and linear RSA as one
+  geometry](https://bbuchsbaum.github.io/crossform/articles/common-geometry-equivalence.md):
+
+  An executable theorem, independent oracle, estimator claim table, and
+  external parity receipt for Crossform’s fixed bilinear geometry.
+
+- [What is novel in
+  crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.md):
+
+  The evidence-pairing calculus, the executable estimand contract, and
+  an audited ledger separating what is demonstrated from what is still
+  gated.
 
 ### For package authors
 
-The surface an extension package may build against, and what is closed
-to it.
+Build an adapter using the public extension protocol.
 
 - [Extending crossform: the developer
   protocol](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.md):

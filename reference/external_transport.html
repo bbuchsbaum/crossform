@@ -47,7 +47,7 @@ the provenance that makes the operator auditable."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Admit a transport built outside crossform</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/transport.R" class="external-link"><code>R/transport.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/transport.R" class="external-link"><code>R/transport.R</code></a></small>
       <div class="d-none name"><code>external_transport.Rd</code></div>
     </div>
 
@@ -131,6 +131,7 @@ partitions; <code>"external"</code> is not a way around that.</p>
 <code><a href="population_prevalence.html">population_prevalence()</a></code>,
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>,
 <code><a href="population_views.html">population_views</a></code>,
+<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -150,9 +151,10 @@ partitions; <code>"external"</code> is not a way around that.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   semantics:  density</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   row mass:   unit (one per native node)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   sink:       mass 0.5 of 3 rows, 16.7% of territory</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   provenance: external (cross-fit: none)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   provenance: external, fixed (cross-fit: none)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   built:      partial-volume warp from atlas-tool 2.1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   signature:  sha256:4286fd2f411f...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   inference:  conditional_on_realized_transport; uncertainty not propagated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   signature:  sha256:89768655d449...</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Density divides the transported budget by the transported row mass; with</span></span></span>
 <span class="r-in"><span><span class="co"># the default unit row mass that is the transported node count.</span></span></span>

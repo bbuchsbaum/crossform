@@ -50,7 +50,9 @@ location_transport(
 - provenance:
 
   A list carrying at least `method` and `details`, plus `cross_fit` when
-  `method` is `"functional"`.
+  `method` is `"functional"`. Optional `fitting_sample` and
+  `cross_fit_folds` refine that declaration. Conditioning fields are
+  derived and cannot be supplied by the caller.
 
 - row_mass:
 
@@ -113,8 +115,19 @@ data built it. That field is not advisory. A circular transport — one
 fitted on a partition that is also used to evaluate it — reports a
 transport gain roughly three times the honest one and is otherwise
 indistinguishable from it, so the field that would let a plan exclude
-those partitions is required rather than encouraged. Any further keys
-are kept as declared.
+those partitions is required rather than encouraged. `fitting_sample`
+and `cross_fit_folds` may distinguish the operator's full fitting sample
+from the named fold assignments; for compatibility they default to the
+required `cross_fit` declaration.
+
+Cross-fitting is a circularity control, not uncertainty propagation.
+Every transport receives a derived `$provenance$conditioning` record
+naming its source, fixed-versus-estimated status, fitting sample, folds,
+conditional inference scope, excluded uncertainty, and the future
+propagation capability. Current population inference is always
+conditional on the realized operator: `uncertainty_propagated` and
+`marginal_over_transport` are immutable `FALSE`. Any further
+non-reserved keys are kept as declared.
 
 ## Refusal
 
@@ -143,6 +156,7 @@ Other population transports:
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -163,9 +177,10 @@ transport
 #>   nodes:      4 native -> 2 group + sink
 #>   semantics:  budget
 #>   sink:       mass 0.3 of 4 rows, 7.5% of territory
-#>   provenance: anatomical (cross-fit: none)
+#>   provenance: anatomical, fixed (cross-fit: none)
 #>   built:      hand-declared
-#>   signature:  sha256:93779bd18b8b...
+#>   inference:  conditional_on_realized_transport; uncertainty not propagated
+#>   signature:  sha256:516c1f0f6271...
 
 # The sink column is materialized and closes every row sum to one.
 as.matrix(transport$matrix)

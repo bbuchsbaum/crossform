@@ -47,7 +47,7 @@ the combinations that would make that meaning false."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Plan a population form over transported conservative geometry</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/population-plan.R" class="external-link"><code>R/population-plan.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/population-plan.R" class="external-link"><code>R/population-plan.R</code></a></small>
       <div class="d-none name"><code>plan_population.Rd</code></div>
     </div>
 
@@ -68,6 +68,8 @@ the combinations that would make that meaning false.</p>
 <span>  model <span class="op">=</span> <span class="op">~</span><span class="fl">1</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  normalization <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"unit_budget"</span>, <span class="st">"precision_weighted"</span><span class="op">)</span>,</span>
+<span>  coverage_policy <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"all_planned"</span>, <span class="st">"available_at_node"</span><span class="op">)</span>,</span>
+<span>  coverage_tolerance <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  compute <span class="op">=</span> <span class="fu"><a href="compute_policy.html">compute_policy</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  allow_nonconservative <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -109,6 +111,21 @@ commensurable: <code>"none"</code> (the default), <code>"unit_budget"</code>, or
 <code>"precision_weighted"</code> (gated, see above).</p></dd>
 
 
+<dt id="arg-coverage-policy">coverage_policy<a class="anchor" aria-label="anchor" href="#arg-coverage-policy"></a></dt>
+<dd><p>Population target under incomplete ordinary-node
+coverage. "all_planned" (the default) returns a coefficient only when
+every planned participant is available at that node and query.
+"available_at_node" fits the explicitly selected participant set and
+records that different target at every cell.</p></dd>
+
+
+<dt id="arg-coverage-tolerance">coverage_tolerance<a class="anchor" aria-label="anchor" href="#arg-coverage-tolerance"></a></dt>
+<dd><p>Nonnegative relative transported-mass threshold.
+Subject i covers ordinary node j when its transported row mass is greater
+than coverage_tolerance times its total declared row mass. The sink is
+observed for every admitted subject because zero sink budget is meaningful.</p></dd>
+
+
 <dt id="arg-compute">compute<a class="anchor" aria-label="anchor" href="#arg-compute"></a></dt>
 <dd><p>A <code><a href="compute_policy.html">compute_policy()</a></code>. It enters the plan's physical
 signature, never its scientific identity.</p></dd>
@@ -127,8 +144,12 @@ same one.</p></dd>
 <code>$transport</code>, the shared <code>$group_index</code>, the transport <code>$semantics</code>, the
 <code>$model</code> record (formula, canonical text, term labels, model matrix, its
 pivoted <code>$qr</code>, <code>$rank</code> and <code>$pivot</code>, and per-covariate content digests),
-<code>$data</code>, <code>$normalization</code>, the <code>$fit</code> marker, <code>$allow_nonconservative</code>,
-a per-participant <code>$subject_index</code> audit table, <code>$compute</code>, the
+<code>$data</code>, <code>$normalization</code>, <code>$coverage_policy</code>, <code>$coverage_tolerance</code>,
+the subject-by-node <code>$operator_mass</code> and <code>$operator_coverage</code>, the <code>$fit</code>
+marker, <code>$allow_nonconservative</code>, a per-participant <code>$subject_index</code> audit
+table (including transport source, fixed-versus-estimated status, fitting
+sample, cross-fitting folds, conditional inference scope, and whether
+transport uncertainty was propagated), <code>$compute</code>, the
 <code>$scientific_plan_id</code> naming the estimand, and the <code>$signature</code> covering
 how it will be executed.</p>
     </div>
@@ -193,6 +214,12 @@ margins would reweight participants by the wrong quantity, and the contract
 measures the three normalizations disagreeing by up to 94 %. The mode stays
 in the closed set, and in this argument's default, because the set <em>is</em> the
 plan identity; what is gated is admitting it.</p>
+<p>This gate does not apply to the default unweighted node-wise OLS. Each
+node-query cell is fitted across participants and needs no model for
+covariance between nodes. Future covariance-dependent operations must meet
+<code>design/cross-node-covariance-contract.md</code>: dense/sparse representation,
+index binding, symmetry and PSD checks, error-model provenance, and
+compute-budget guardrails are mandatory.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -214,6 +241,7 @@ operator, <code><a href="transport_values.html">transport_values()</a></code> fo
 <code><a href="population_prevalence.html">population_prevalence()</a></code>,
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>,
 <code><a href="population_views.html">population_views</a></code>,
+<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -248,9 +276,11 @@ operator, <code><a href="transport_values.html">transport_values()</a></code> fo
 <span class="r-out co"><span class="r-pr">#&gt;</span>   transport:     budget, anatomical</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   model:         ~1 -&gt; 1 column, rank 1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   normalization: none</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   coverage:      all_planned, operator mass &gt; 0 relative tolerance; node ...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   inference:     fixed; conditional on realized transport; uncertainty no...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   fit:           OLS (subject-constant weights), transport then fit</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:7cd6972df1d6...</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   signature:     sha256:43de83dc28a5...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:56899e0399e8...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   signature:     sha256:4bf73ef9ea3d...</span>
 <span class="r-in"><span><span class="va">plan</span><span class="op">$</span><span class="va">subject_index</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"subject"</span>, <span class="st">"declared_normalization"</span>, <span class="st">"sink_territory"</span><span class="op">)</span><span class="op">]</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   subject declared_normalization sink_territory</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1     s01           conservative              0</span>

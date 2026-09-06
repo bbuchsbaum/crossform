@@ -63,7 +63,7 @@
       <h1>Where does a representational effect generalize?</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/vignettes/introduction.Rmd" class="external-link"><code>vignettes/introduction.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/vignettes/introduction.Rmd" class="external-link"><code>vignettes/introduction.Rmd</code></a></small>
       <div class="d-none name"><code>introduction.Rmd</code></div>
     </div>
 
@@ -73,11 +73,11 @@
 <h2 id="the-question">The question<a class="anchor" aria-label="anchor" href="#the-question"></a>
 </h2>
 <p>You have condition estimates from repeated runs, and you want to know
-where an effect reproduces across those runs. This guide answers that
-question, and then three more from the same fit without recomputing
-anything: what <em>kind</em> of effect it is, what the whole
-representational geometry looks like at the strongest location, and how
-much of that you are entitled to put an error bar on.</p>
+where an effect reproduces across those runs. This guide uses one fitted
+relation to ask where the effect is strongest, whether it is carried by
+a local mean or a spatial pattern, how the conditions are arranged, and
+which uncertainty calculations the fit supports. Each view reads the
+same declared geometry; the condition effects do not need refitting.</p>
 <p>One word to fix before starting: a <strong>measurement</strong> is
 one spatial unit of the frame, and every result below has one value per
 measurement. Here the measurements are searchlights; anatomical regions,
@@ -103,17 +103,15 @@ public-data comparison.</p>
 four conditions in a small 8 by 7 by 5 volume.
 <code>example$frame</code> defines the 280 searchlights at which the
 analysis will report results, one centered on each voxel. The generator
-returns the frame separately because a fitted relation records the
-neural domain but does not own a mutable searchlight definition.</p>
+returns the frame separately so you can choose the measurement locations
+and weights independently of the fitted effects.</p>
 <p>The fit provides two kinds of information:</p>
 <ul>
 <li>
-<code>example$fit$relation</code> is the condition-by-feature
-relation used for point estimates; it reads feature blocks only when a
-query needs them;</li>
-<li>its error channel stores residual blocks, residual degrees of
-freedom, and effect-coordinate covariance for uncertainty calculations
-whose assumptions the fit can support.</li>
+<code>example$fit$relation</code> provides the condition estimates
+from each run;</li>
+<li>its error channel retains the residual information needed for the
+uncertainty calculations later in this guide.</li>
 </ul>
 <p><code>example$truth</code> records what was planted: two blocks of 19
 voxels, at opposite ends of the longest axis, never overlapping, at the
@@ -143,9 +141,34 @@ union, and it is what the figures below highlight.</p>
 <div class="section level2">
 <h2 id="declare-what-must-generalize">Declare what must generalize<a class="anchor" aria-label="anchor" href="#declare-what-must-generalize"></a>
 </h2>
-<p>Three declarations make the estimand: the relation you fitted, the
-frame you want answers at, and the pairing that says what must
-reproduce.</p>
+<p>A geometry plan combines three declarations. Together they define the
+<strong>estimand</strong>: the scientific quantity you intend to
+estimate.</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Declaration</th>
+<th>What you choose here</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Relation</td>
+<td>Four condition estimates in each of four runs</td>
+</tr>
+<tr class="even">
+<td>Frame</td>
+<td>One weighted neighborhood around each voxel</td>
+</tr>
+<tr class="odd">
+<td>Pairing</td>
+<td>Products between different runs, under independent estimation
+errors</td>
+</tr>
+</tbody>
+</table>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span></span>
 <span>  <span class="va">example</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
@@ -172,14 +195,11 @@ function does not treat the six run pairs as six independent samples.
 <code><a href="../reference/plan_geometry.html">plan_geometry()</a></code> checks that the relation, condition names,
 searchlight frame, metric, units, and neural domain agree before it
 reads neural values.</p>
-<p>Read the <code>execution</code> and <code>state</code> lines of that
-print. The plan is query-first: it holds the identity of the quantity,
-and nothing has been materialized yet. Save <code>plan</code> with the
-analysis record. It identifies the estimand: the scientific quantity the
-analysis is meant to estimate. Changing block size or storage changes
-the execution receipt, not this plan identity, and
-<code>print(plan, detail = TRUE)</code> is where those execution
-internals are shown.</p>
+<p>The plan print summarizes those choices. It is
+<strong>query-first</strong>: declaring the plan has not yet computed a
+full geometry or RDM. Save it with the analysis record. Memory and
+storage settings affect how it executes; they do not change the
+scientific quantity it describes.</p>
 <div class="section level3">
 <h3 id="choosing-what-must-generalize">Choosing what must generalize<a class="anchor" aria-label="anchor" href="#choosing-what-must-generalize"></a>
 </h3>
@@ -191,12 +211,14 @@ estimating, so it is worth being deliberate about both.</p>
 different scientific quantities even at identical fold counts, so the
 declared axis is bound into every plan identity built from this pairing.
 If your partitions are sessions, pass <code>"session"</code>.</p>
-<p><code>independence = "independent"</code> is your declaration that
-distinct partition estimates have independent estimation errors, which
-separate runs or sessions with separately estimated noise satisfy. It
-has to be stated explicitly: leaving it <code>NULL</code> records the
-endpoints as undeclared, which still yields a point estimand but earns
-neither cross-generalized nor analytic sampling-law capabilities.</p>
+<p><code>independence = "independent"</code> declares independent
+estimation errors across partitions. Separate runs are useful for
+constructing such estimates, but run labels alone do not establish
+independence: shared preprocessing, nuisance estimation or other fitted
+transformations can couple them. State the assumption only when your
+sampling and estimation design supports it. Leaving it undeclared still
+permits a point calculation, but does not establish cross-generalized or
+analytic sampling-law capabilities.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">declared</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
 <span>  <span class="va">example</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
@@ -214,17 +236,13 @@ neither cross-generalized nor analytic sampling-law capabilities.</p>
 that you declared what you meant. Left undeclared it reads
 <code>6 partition pairs (axis undeclared), endpoints undeclared</code>
 instead.</p>
-<p>One thing the pairing is <em>not</em>: its six rows are estimator
-contributions, not six independent replicates. Pairs that share a run
-share that run’s estimation error, which is why the standard-error
-section below cannot simply take their spread.
-<code><a href="../reference/cross_partitions.html">?cross_partitions</a></code> states this; <code><a href="../reference/pairing.html">?pairing</a></code> builds
-explicit or directed edge sets for designs that need one, such as nested
-or ordered axes.</p>
+<p>Pairs sharing a run also share its estimation error. Their spread
+cannot be used as if it came from six independent replicates. For
+explicit or directed pair sets, see <code><a href="../reference/pairing.html">?pairing</a></code>.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="the-answer">The answer<a class="anchor" aria-label="anchor" href="#the-answer"></a>
+<h2 id="locate-the-contrast-effect">Locate the contrast effect<a class="anchor" aria-label="anchor" href="#locate-the-contrast-effect"></a>
 </h2>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">effect</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/contrast_energy.html">contrast_energy</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">example</span><span class="op">$</span><span class="va">contrast</span><span class="op">)</span></span>
@@ -257,7 +275,7 @@ departures from the weighted mean;</li>
 </ul>
 <p>The peak sits inside the pattern block, and its energy is almost
 entirely <code>configuration</code> — its signed contrast is close to
-zero. Hold that; it is the subject of the next section.</p>
+zero. The next section explains this difference.</p>
 <p>Because the fixture planted its signal in known searchlights, the
 answer can be drawn against the truth. <code>highlight</code> marks both
 planted blocks in the picture; it plays no part in the estimate.</p>
@@ -275,13 +293,12 @@ along the two axes. Right: total energy along the searchlight index. The
 planted searchlights are filled.
 </p>
 </div>
-<p>The right panel is the map. The planted searchlights are the spikes;
-everything else lies on zero rather than above it. That is deliberate.
-Crossvalidated energy is centered on zero when no reproducible effect is
-present, so sampling noise produces negative estimates about half the
-time. Clipping them to zero would change the estimator and introduce
-positive bias, so <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code> retains them and the
-plot draws them where they fall.</p>
+<p>The right panel shows total energy at each searchlight. The planted
+searchlights stand above the others, whose values fluctuate around zero.
+Under independent, unbiased partition estimates, a null energy has
+expectation zero; its observed values can be negative. Clipping those
+values would introduce positive bias. In this fixture, roughly half the
+null measurements fall below zero.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">summarize_region</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">index</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  total <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">[</span><span class="va">index</span><span class="op">]</span><span class="op">)</span>,</span>
@@ -307,9 +324,8 @@ plot draws them where they fall.</p>
 it in opposite directions: the pattern block puts more than ten times as
 much into configuration as into coherent, the mean block puts more into
 coherent than into configuration. Outside them the mean total energy is
-<code>0.003</code> and roughly half the estimates fall below zero. That
-is what a correctly centered null looks like, and you can see it rather
-than assume it.</p>
+<code>0.003</code> and roughly half the estimates fall below zero. This
+agrees with the known null in this generated example.</p>
 <div class="figure">
 <img src="introduction_files/figure-html/contrast-map-1.png" class="r-plt" alt="Cross-generalized contrast energy in the middle slice, on a scale centered at zero: white is the noise floor, red is reproducible energy. The two generated blocks sit at opposite ends of the long axis, which runs vertically here. The map checks the analysis and is not empirical evidence." width="576"><p class="caption">
 Cross-generalized contrast energy in the middle slice, on a scale
@@ -323,11 +339,10 @@ evidence.
 <div class="section level2">
 <h2 id="what-kind-of-effect-is-it">What kind of effect is it?<a class="anchor" aria-label="anchor" href="#what-kind-of-effect-is-it"></a>
 </h2>
-<p>The left panel of the two-panel figure is the part that is hard to
-obtain elsewhere. It places every searchlight by how its reproducible
-energy divides: <code>coherent</code> on the horizontal axis is the
-energy carried by the searchlight’s frame-weighted mean pattern, which
-is the familiar univariate story, and <code>configuration</code> on the
+<p>The left panel places every searchlight by how its estimated energy
+divides: <code>coherent</code> on the horizontal axis is the energy
+carried by the searchlight’s frame-weighted mean pattern, which is the
+familiar univariate story, and <code>configuration</code> on the
 vertical axis is the reproducible pattern beyond that mean.</p>
 <p>The two components sum to <code>total</code> exactly at every
 measurement, which is why lines of constant total appear as the dashed
@@ -365,9 +380,9 @@ The pattern block puts essentially all of it into
 <code>configuration</code>; the mean block puts essentially all of it
 into <code>coherent</code>. That first row is the signature of a
 multivariate pattern a univariate map would miss: the sphere reproduces
-a <em>shape</em>, while its average response barely moves. Nothing was
-removed to see this, and nothing was fitted twice; the split is a
-property of the plan.</p>
+a <em>shape</em>, while its average response barely moves. Both
+components come from the same fitted effects and the same spatial
+weights.</p>
 <p>“A univariate map would miss it” is checkable here.
 <code>signed</code> is a first moment — the ordinary contrast of the
 frame-weighted mean pattern, carrying your effect’s units and sign —
@@ -408,13 +423,12 @@ first moment sees that block perfectly well. The pattern block is a
 different story. Its alternating signs do not cancel exactly, so most of
 its searchlights clear the level too — but only by about twice the noise
 level, where their energies clear it by more than fifty times. And the
-single strongest searchlight in the whole volume, the one you would
-actually report, has a signed contrast of <code>0.052</code>,
-<em>smaller</em> than the <code>0.154</code> noise level. A signed map
-ranks the best result in the volume below pure noise, while its total
-energy of <code>4.10</code> stands against a largest-elsewhere total of
-<code>0.03</code>. The energies see both blocks; the first moment sees
-only one of them clearly.</p>
+single strongest searchlight in this example has a signed contrast of
+<code>0.052</code>, <em>smaller</em> than the <code>0.154</code> noise
+level. A signed map ranks the best result in the volume below pure
+noise, while its total energy of <code>4.10</code> stands against a
+largest-elsewhere total of <code>0.03</code>. The energies see both
+blocks; the first moment sees only one of them clearly.</p>
 <p><code><a href="../reference/contrast_energy.html">contrast_energy()</a></code> also reports
 <code>coherence_fraction</code>, the share of reproducible energy
 carried by the local mean, but only where the components form a
@@ -427,9 +441,10 @@ read that fraction and the three ways it can mislead you.</p>
 <div class="section level2">
 <h2 id="change-the-question-without-refitting">Change the question without refitting<a class="anchor" aria-label="anchor" href="#change-the-question-without-refitting"></a>
 </h2>
-<p>The plan is unchanged, and nothing about it is recompiled below. For
-conditions <code>i</code> and <code>j</code>, <code><a href="../reference/rdm.html">rdm()</a></code> applies
-the fixed contrast <code>c = e_i - e_j</code> to the geometry:</p>
+<p>The condition effects and geometry plan stay the same. Each new view
+compiles its own readout. For conditions <code>i</code> and
+<code>j</code>, <code><a href="../reference/rdm.html">rdm()</a></code> applies the fixed contrast
+<code>c = e_i - e_j</code> to the geometry:</p>
 <p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>d</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><msup><mi>c</mi><mi>T</mi></msup><mi>G</mi><mi>c</mi><mo>=</mo><msub><mi>G</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub><mo>+</mo><msub><mi>G</mi><mrow><mi>j</mi><mi>j</mi></mrow></msub><mo>−</mo><mn>2</mn><msub><mi>G</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mi>.</mi></mrow><annotation encoding="application/x-tex">
 d_{ij} = c^T G c = G_{ii} + G_{jj} - 2G_{ij}.
 </annotation></semantics></math></p>
@@ -470,6 +485,14 @@ a fixed query against the same plan:</p>
 <p><code><a href="../reference/rsa.html">rsa()</a></code> aligns the model’s named rows and columns to the
 relation conditions. It rejects a model with missing names or a
 rank-deficient regression design before it reads geometry rows.</p>
+<p>To learn a low-rank geometry whose directions and amplitudes adapt to
+neural training data, use <code><a href="../reference/model_basis.html">model_basis()</a></code>,
+<code><a href="../reference/fit_geometry.html">fit_geometry()</a></code>, then <code><a href="../reference/score_geometry.html">score_geometry()</a></code> on
+independent runs. That score measures squared-error gain over zero; it
+answers a different question from this fixed RSA coefficient. The <a href="predictive-geometry.html">predictive geometry guide</a>
+(<code><a href="../articles/predictive-geometry.html">vignette("predictive-geometry")</a></code> offline) gives a complete
+four-run example with declared observation origins and mode-wise
+evidence.</p>
 <p>If you only want some pairs, ask for them. The rest is never
 materialized:</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
@@ -477,7 +500,7 @@ materialized:</p>
 <span><span class="co">#&gt; [1] 280   1</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="uncertainty-and-what-the-package-refuses-to-fake">Uncertainty, and what the package refuses to fake<a class="anchor" aria-label="anchor" href="#uncertainty-and-what-the-package-refuses-to-fake"></a>
+<h2 id="estimate-uncertainty-when-the-fit-supports-it">Estimate uncertainty when the fit supports it<a class="anchor" aria-label="anchor" href="#estimate-uncertainty-when-the-fit-supports-it"></a>
 </h2>
 <p>The six run pairs share run estimates and are not six independent
 sampling units. Their empirical spread divided by the square root of six
@@ -502,8 +525,9 @@ for you.</p>
 <ul>
 <li>
 <code>target = "null"</code> evaluates the signal-dependent variance
-term under a fixed zero-effect null. It is exact there, so prefer it
-whenever the standard error is referenced to a test of no effect.</li>
+term under a fixed zero-effect null. Under the admitted covariance model
+it supplies the variance used for a fixed, prespecified null
+comparison.</li>
 <li>
 <code>target = "plugin"</code>, used above, substitutes the
 partition mean of the <em>estimates</em> for the unknown signal. That
@@ -521,50 +545,36 @@ inference. The object stores a factorized covariance operator.
 <code><a href="../reference/sampling_covariance.html">sampling_covariance()</a></code> can read its diagonal, selected
 entries, matrix action, quadratic form, or fixed linear transport
 without constructing the full distance-by-distance matrix.</p>
-<p>Now the part worth knowing before you need it. Those standard errors
-are available because this fit kept residuals. Build the same plan from
-beta matrices alone and the request is refused, by name:</p>
+<p>Those standard errors require retained residual information. A
+relation built from beta matrices alone cannot supply it:</p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">conditions</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"body"</span>, <span class="st">"house"</span>, <span class="st">"tool"</span><span class="op">)</span></span>
-<span><span class="va">betas_only_domain</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/abstract_domain.html">abstract_domain</a></span><span class="op">(</span><span class="fl">40L</span>, id <span class="op">=</span> <span class="st">"betas-only:v1"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">betas_only_runs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">run</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">4</span> <span class="op">*</span> <span class="fl">40</span><span class="op">)</span>, nrow <span class="op">=</span> <span class="fl">4</span>, dimnames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">conditions</span>, <span class="cn">NULL</span><span class="op">)</span></span>
-<span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">betas_only_runs</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run"</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">betas_only</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relation.html">relation</a></span><span class="op">(</span></span>
-<span>  <span class="va">betas_only_runs</span>,</span>
-<span>  effects <span class="op">=</span> <span class="fu"><a href="../reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">conditions</span><span class="op">)</span>,</span>
-<span>  domain <span class="op">=</span> <span class="va">betas_only_domain</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">betas_only_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span></span>
-<span>  <span class="va">betas_only</span>,</span>
-<span>  <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/whole_brain.html">whole_brain</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">betas_only_domain</span><span class="op">)</span>,</span>
-<span>  <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
-<span>    <span class="va">betas_only</span>, independence <span class="op">=</span> <span class="st">"independent"</span>, generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/catch_refusal.html">catch_refusal</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">refusal</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/catch_refusal.html">catch_refusal</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/rdm_sampling_covariance.html">rdm_sampling_covariance</a></span><span class="op">(</span><span class="va">betas_only_plan</span>, <span class="va">betas_only</span>, target <span class="op">=</span> <span class="st">"null"</span>, at <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; &lt;effect_capability_refusal&gt;</span></span>
-<span><span class="co">#&gt;   capability:  sampling_covariance</span></span>
-<span><span class="co">#&gt;   namespace:   evidence_sampling</span></span>
-<span><span class="co">#&gt;   reasons:</span></span>
-<span><span class="co">#&gt;     - missing_error_channel</span></span>
-<span><span class="co">#&gt;   remedies:</span></span>
-<span><span class="co">#&gt;     - Refit raw observations with `lm_relation_fit()`.</span></span>
-<span><span class="co">#&gt;   state:       refused; no partial result was produced</span></span></code></pre></div>
-<p>That is a value, not a message: <code><a href="../reference/catch_refusal.html">catch_refusal()</a></code> hands
-back the unmet requirement and its remedy so a script can branch on
-them. The point estimates are unaffected —
-<code><a href="../reference/contrast_energy.html">contrast_energy()</a></code>, <code><a href="../reference/rdm.html">rdm()</a></code>, and
-<code><a href="../reference/rsa.html">rsa()</a></code> all work on <code>betas_only_plan</code>. What is
-withheld is the one quantity the inputs cannot support.
-<code>sampling_capabilities(plan, fit)</code> answers the same admission
-question before you provoke it.</p>
+<span><span class="va">refusal</span><span class="op">$</span><span class="va">capability</span></span>
+<span><span class="co">#&gt; [1] "sampling_covariance"</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="30%">
+<col width="69%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">reason</th>
+<th align="left">remedy</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="left">missing_error_channel</td>
+<td align="left">Refit raw observations with
+<code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code>.</td>
+</tr></tbody>
+</table>
+<p><code><a href="../reference/catch_refusal.html">catch_refusal()</a></code> returns the unmet requirement and its
+remedy as a structured condition, so a script can inspect them. The
+point estimates are unaffected — <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code>,
+<code><a href="../reference/rdm.html">rdm()</a></code>, and <code><a href="../reference/rsa.html">rsa()</a></code> all work on
+<code>betas_only_plan</code>. What is withheld is the one quantity the
+inputs cannot support. <code>sampling_capabilities(plan, fit)</code>
+answers the same admission question before you provoke it.</p>
 </div>
 <div class="section level2">
 <h2 id="use-your-own-data">Use your own data<a class="anchor" aria-label="anchor" href="#use-your-own-data"></a>
@@ -591,19 +601,19 @@ one row per condition, a named effect space, and a neural domain. Give
 that domain a mask and voxel spacing and searchlights become available.
 Nothing downstream changes: the same relation, pairing, and views apply,
 and the result simply has one row per searchlight.</p>
-<p>So that there is something to find, twelve voxels below carry the
-same face-minus-house pattern in every run, alternating in sign so that
-the regional mean stays near zero — the fixture’s pattern block trick,
-done by hand. Delete <code>volume_planted</code>,
-<code>volume_pattern</code>, and the two lines that add them to
-<code>b</code> when you substitute your own betas.</p>
+<p>Supply <code>volume_runs</code> as a named list of condition-by-voxel
+matrices and <code>mask</code> as the volume mask. Columns must follow
+the mask’s voxel order. The optional block below generates these inputs
+so the example runs as written.</p>
+<details><summary>
+Generate example beta matrices
+</summary><p>The twelve planted voxels have alternating face-minus-house effects,
+so their regional mean is small. Replace these generated matrices with
+your estimates.</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">20260816</span><span class="op">)</span></span>
 <span><span class="va">condition_names</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"body"</span>, <span class="st">"house"</span>, <span class="st">"tool"</span><span class="op">)</span></span>
 <span><span class="va">mask</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8L</span>, <span class="fl">8L</span>, <span class="fl">6L</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">mask_domain</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/volume_domain.html">volume_domain</a></span><span class="op">(</span><span class="va">mask</span>, spacing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">3</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">volume_frame</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/searchlights.html">searchlights</a></span><span class="op">(</span>radius <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>, <span class="va">mask_domain</span><span class="op">)</span></span>
-<span></span>
 <span><span class="va">volume_planted</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="cn">FALSE</span>, <span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">mask</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">volume_planted</span><span class="op">[</span><span class="fl">3</span><span class="op">:</span><span class="fl">4</span>, <span class="fl">3</span><span class="op">:</span><span class="fl">5</span>, <span class="fl">3</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
 <span><span class="va">volume_pattern</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="op">-</span><span class="fl">3</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">volume_planted</span><span class="op">)</span><span class="op">)</span></span>
@@ -621,8 +631,12 @@ done by hand. Delete <code>volume_planted</code>,
 <span>    <span class="va">b</span><span class="op">[</span><span class="st">"house"</span>, <span class="va">volume_planted</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span><span class="op">]</span> <span class="op">-</span> <span class="va">volume_pattern</span></span>
 <span>  <span class="va">b</span></span>
 <span><span class="op">}</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">volume_runs</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run"</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">volume_runs</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run"</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</details><p>The analysis declares a domain with 3 mm voxel spacing, a 4 mm
+searchlight radius, named effects and cross-run pairing:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">mask_domain</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/volume_domain.html">volume_domain</a></span><span class="op">(</span><span class="va">mask</span>, spacing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">3</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">volume_frame</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/searchlights.html">searchlights</a></span><span class="op">(</span>radius <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>, <span class="va">mask_domain</span><span class="op">)</span></span>
 <span><span class="va">volume_relation</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relation.html">relation</a></span><span class="op">(</span></span>
 <span>  <span class="va">volume_runs</span>,</span>
 <span>  effects <span class="op">=</span> <span class="fu"><a href="../reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">condition_names</span>, units <span class="op">=</span> <span class="st">"percent-signal"</span><span class="op">)</span>,</span>
@@ -643,7 +657,7 @@ done by hand. Delete <code>volume_planted</code>,
 <span><span class="co">#&gt; [1] 384   6</span></span></code></pre></div>
 <p>The same picture works here, and this time nothing was told where to
 look.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">volume_effect</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
 <img src="introduction_files/figure-html/own-betas-plot-1.png" class="r-plt" alt="The planted pattern on generated 'own' data. No highlight was supplied: the candidates are simply the measurements standing clear of the band at zero." width="768"><p class="caption">
@@ -655,7 +669,7 @@ zero.
 <p>Whether that is the right answer is checkable, because we planted it.
 The searchlights that give any weight to a planted voxel are the ones
 that should have won:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">touching</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span></span>
 <span>  <span class="fu">Matrix</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/colSums-methods.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">volume_frame</span><span class="op">$</span><span class="va">weights</span><span class="op">[</span>, <span class="va">volume_planted</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span>
@@ -692,26 +706,28 @@ figure still works. <code>highlight</code> is optional, as the plot
 above shows. Read it in two steps.</p>
 <ul>
 <li>
-<strong>The right panel gives you candidates.</strong> The band
-around zero <em>is</em> the noise floor: crossvalidated energy is
-centered there when nothing reproduces, which is why roughly half of it
-falls below the line. Candidates are the measurements standing clear of
-that band.</li>
+<strong>The right panel shows the range of estimated
+effects.</strong> Large values identify locations worth examining, but
+the observed band around zero is not a calibrated null distribution or
+threshold.</li>
 <li>
-<strong>The left panel gives you their kind.</strong> High on the
-vertical axis is a reproducible pattern; far along the horizontal axis
-is a regional mean that a univariate analysis would also have
-found.</li>
+<strong>The left panel shows their estimated composition.</strong> A
+high configuration value attributes more energy to spatial departures
+from the local mean; a high coherent value attributes more to that mean.
+Independent evidence is needed to establish that a selected effect
+reproduces.</li>
 </ul>
-<p>What the figure does not give you is a threshold or a p-value.
-<code>crossform</code> performs no spatial and no group inference, and
-it will not invent a null distribution over measurements for you. A
-within-measurement standard error is available, but only from a fit that
-kept residuals, which the beta matrices above did not. <a href="https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth">Reading
+<p>What the figure does not give you is a spatial threshold or
+selected-peak p-value. This single-participant view performs no spatial
+multiplicity or population inference and will not invent a null
+distribution over measurements. Population analysis is a separate
+declared <code><a href="../reference/plan_population.html">plan_population()</a></code> target. A within-measurement
+standard error is available, but only from a fit that kept residuals,
+which the beta matrices above did not. <a href="https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth">Reading
 a map without ground truth</a>
 (<code><a href="../articles/interpreting-results.html">vignette("interpreting-results")</a></code>) works through what a
-candidate is and is not, including why an error bar taken at
-<code><a href="https://rdrr.io/r/base/which.min.html" class="external-link">which.max()</a></code> is not an error bar.</p>
+candidate is and is not, including why a pointwise error bar does not
+account for selecting the peak.</p>
 </div>
 <div class="section level3">
 <h3 id="the-other-starting-points">The other starting points<a class="anchor" aria-label="anchor" href="#the-other-starting-points"></a>
@@ -760,63 +776,51 @@ cases are recorded in the <a href="https://bbuchsbaum.github.io/crossform/articl
 policy</a> (<code><a href="../articles/correlation-distance-policy.html">vignette("correlation-distance-policy")</a></code>).</p>
 </div>
 <div class="section level2">
-<h2 id="what-you-just-did-that-you-could-not-before">What you just did that you could not before<a class="anchor" aria-label="anchor" href="#what-you-just-did-that-you-could-not-before"></a>
-</h2>
-<ul>
-<li>
-<strong>You asked four questions of one fit.</strong> The contrast
-map, the RDM, the RSA coefficient, and the single-pair query all read
-the same compiled plan, so they agree by construction rather than by
-care. The <a href="https://bbuchsbaum.github.io/crossform/articles/novelty.html">novelty
-ledger</a> (<code><a href="../articles/novelty.html">vignette("novelty")</a></code>) states what that
-architecture does and does not yet demonstrate.</li>
-<li>
-<strong>You learned what kind of effect you had found.</strong> The
-exact, non-destructive split into regional-mean and
-pattern-beyond-the-mean energy came free with the contrast, and
-separated two blocks of equal effect size into a pattern and a regional
-mean. <a href="https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html">Reading
-the results</a> (<code><a href="../articles/interpreting-results.html">vignette("interpreting-results")</a></code>) covers
-the traps.</li>
-<li>
-<strong>You saw the null.</strong> Negative crossvalidated estimates
-were kept, so the noise floor sat on zero in the figure instead of being
-clipped into a positive-looking band.</li>
-<li>
-<strong>You were told what could not be estimated, and why.</strong>
-The refusal named the missing error channel and the remedy. The <a href="https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html">failure
-gallery</a> (<code><a href="../articles/failure-gallery.html">vignette("failure-gallery")</a></code>) collects six such
-guards, this one among them.</li>
-</ul>
-</div>
-<div class="section level2">
 <h2 id="where-to-go-next">Where to go next<a class="anchor" aria-label="anchor" href="#where-to-go-next"></a>
 </h2>
-<ul>
-<li>
-<code><a href="../reference/plan_geometry.html">?plan_geometry</a></code> describes rectangular cross-axis plans
-(<code>right =</code>), read with axis-bound <code><a href="../reference/pair_query.html">pair_query()</a></code>s,
-and <code><a href="../reference/coupling.html">?coupling</a></code> takes the adjoint neural-side closure from
-the same plan vocabulary.</li>
-<li>
-<code><a href="../articles/evidence-pairing.html">vignette("evidence-pairing")</a></code> covers measurement forms
-and coupling views, including one bounded cross-domain contraction and
-the Parseval reconstruction law.</li>
-<li>
-<code><a href="../reference/rdm_sampling_covariance.html">?rdm_sampling_covariance</a></code> states the admitted analytic
-covariance contract, and <code><a href="../reference/sampling_capabilities.html">?sampling_capabilities</a></code> answers the
-admission question before it is provoked.</li>
-<li>The Haxby 2001 exemplar supplies public-data parity and refusal
-evidence.</li>
-<li>
-<a href="https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html">Coming
-from rMVPA</a> (<code><a href="../articles/from-rmvpa.html">vignette("from-rmvpa")</a></code>) maps the familiar
-objects onto this vocabulary.</li>
-</ul>
-<p>For the usual workflow, construct one plan from the fitted relation,
-spatial frame, and cross-run pairing. Then pass that plan to
-<code><a href="../reference/contrast_energy.html">contrast_energy()</a></code>, <code><a href="../reference/rdm.html">rdm()</a></code>, or
-<code><a href="../reference/rsa.html">rsa()</a></code> according to the result you need.</p>
+<p>Choose the next guide by the task you have in front of you:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Task</th>
+<th>Guide</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Interpret the columns, coherent shares and uncertainty</td>
+<td><a href="interpreting-results.html">Reading results</a></td>
+</tr>
+<tr class="even">
+<td>Start from scan responses, events or an existing design matrix</td>
+<td><a href="from-observations.html">From observations to
+geometry</a></td>
+</tr>
+<tr class="odd">
+<td>Read and write neuroim2 image objects</td>
+<td><a href="neuroim2-data.html">Working with neuroim2 data</a></td>
+</tr>
+<tr class="even">
+<td>Translate an rMVPA analysis</td>
+<td><a href="from-rmvpa.html">Coming from rMVPA</a></td>
+</tr>
+<tr class="odd">
+<td>Account for overlapping measurements and compare spatial scales</td>
+<td><a href="conservative-frames.html">Conservative frames</a></td>
+</tr>
+<tr class="even">
+<td>Learn a model-supported form and test it on independent runs</td>
+<td><a href="predictive-geometry.html">Predictive geometry</a></td>
+</tr>
+</tbody>
+</table>
+<p>For the algebra behind the fixed queries, see <a href="common-geometry-equivalence.html">Contrast, crossnobis, and linear
+RSA as one geometry</a>. The <a href="evidence-pairing.html">evidence-pairing guide</a> extends the
+discussion to measurements and cross-domain forms; the <a href="failure-gallery.html">failure gallery</a> helps diagnose
+unavailable operations. These guides are also available offline through
+<code>vignette("guide-name", package = "crossform")</code>.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

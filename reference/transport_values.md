@@ -55,7 +55,8 @@ Other population transports:
 [`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md),
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
-[`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md)
+[`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md)
 
 ## Examples
 

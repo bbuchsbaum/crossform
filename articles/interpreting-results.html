@@ -11,9 +11,9 @@
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Reading contrast energies, RDMs, and uncertainty">
-<meta name="description" content="What each returned column means, how to read negatives and the coherence fraction, the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame, and how to read a real map when no ground truth marks the answer.
+<meta name="description" content="Interpret signed energies, coherent shares, RDMs, RSA coefficients and predictive gain, with worked examples of frame dependence and uncertainty.
 ">
-<meta property="og:description" content="What each returned column means, how to read negatives and the coherence fraction, the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame, and how to read a real map when no ground truth marks the answer.
+<meta property="og:description" content="Interpret signed energies, coherent shares, RDMs, RSA coefficients and predictive gain, with worked examples of frame dependence and uncertainty.
 ">
 </head>
 <body>
@@ -67,20 +67,21 @@
       <h1>Reading contrast energies, RDMs, and uncertainty</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/vignettes/interpreting-results.Rmd" class="external-link"><code>vignettes/interpreting-results.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/vignettes/interpreting-results.Rmd" class="external-link"><code>vignettes/interpreting-results.Rmd</code></a></small>
       <div class="d-none name"><code>interpreting-results.Rmd</code></div>
     </div>
 
     
     
-<p>This article introduces no new statistics. It is about reading the
-numbers the package already returns: what each column means, three ways
-a reader can be misled by the coherence fraction, and how to read a map
-when nothing marks the right answer. Everything below runs on the
-generated fixture, which plants two blocks of equal amplitude at
-opposite ends of the volume — one whose sign alternates between
-neighboring voxels, one that shifts every voxel the same way — so each
-half of the energy decomposition has a known home.</p>
+<p>Use this guide after the <a href="introduction.html">introduction</a>
+to interpret the numbers returned by a geometry plan. Start with the
+contrast columns, then follow the section relevant to your result:
+coherent shares, an exploratory map, RDMs, fixed RSA coefficients,
+predictive gain or uncertainty. Everything below runs on the generated
+fixture, which plants two blocks of equal amplitude at opposite ends of
+the volume — one whose sign alternates between neighboring voxels, one
+that shifts every voxel the same way — so each half of the energy
+decomposition has a known home.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">example</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/example_fmri_effects.html">example_fmri_effects</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">pairing</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
@@ -104,9 +105,9 @@ half of the energy decomposition has a known home.</p>
 <span><span class="co">#&gt;                  280                   52                   52 </span></span>
 <span><span class="co">#&gt;              overlap </span></span>
 <span><span class="co">#&gt;                    0</span></span></code></pre></div>
-<p>The two blocks are the same size and never touch the same
-searchlight, so every comparison below between them is a comparison of
-sign structure alone.</p>
+<p>The two blocks have equal planted amplitude and size, and their
+searchlights do not overlap. This controlled comparison lets us examine
+spatial sign structure while keeping those factors fixed.</p>
 <div class="section level2">
 <h2 id="the-four-columns-of-a-contrast-view">The four columns of a contrast view<a class="anchor" aria-label="anchor" href="#the-four-columns-of-a-contrast-view"></a>
 </h2>
@@ -162,9 +163,9 @@ strongest searchlight in each block:</p>
 and opposite decompositions. The pattern block’s energy is almost all
 <code>configuration</code>: a shape that reproduces across runs while
 the sphere’s average barely moves, which is why its <code>signed</code>
-value is close to zero and a univariate contrast would find nothing
-there. The mean block’s energy is almost all <code>coherent</code>, and
-its <code>signed</code> value is large, because the whole neighborhood
+value is close to zero and its signed regional-mean contrast is small.
+The mean block’s energy is almost all <code>coherent</code>, and its
+<code>signed</code> value is large, because the whole neighborhood
 shifts together.</p>
 <p>Note the <code>NA</code> in the first row. That searchlight is the
 largest <code>total</code> in the map and it reports no coherence
@@ -173,9 +174,11 @@ hair below zero. That is the subject of the section after next.</p>
 <div class="section level3">
 <h3 id="negatives-are-estimates-not-errors">Negatives are estimates, not errors<a class="anchor" aria-label="anchor" href="#negatives-are-estimates-not-errors"></a>
 </h3>
-<p>Each energy is a product of estimates from two different runs. Under
-the null its expectation is zero, so roughly half the sampling
-distribution lies below zero.</p>
+<p>Each energy combines products of estimates from different runs. With
+independent, unbiased partition estimates, its expectation is zero under
+the null. Negative estimates are therefore legitimate. Zero expectation
+alone does not imply that positive and negative values are equally
+likely.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  measurements <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">)</span>,</span>
@@ -188,12 +191,11 @@ distribution lies below zero.</p>
 <span><span class="co">#&gt;             280.00000000              79.00000000              95.00000000 </span></span>
 <span><span class="co">#&gt; configuration_below_zero                min_total </span></span>
 <span><span class="co">#&gt;              82.00000000              -0.01089941</span></span></code></pre></div>
-<p>Do not truncate them. Clipping at zero replaces an unbiased estimator
-with a positively biased one, and the bias is largest exactly where
-there is no effect — which is where a thresholded map does its talking.
-If you average energies over an ROI, over participants, or over
-searchlights, average the signed values. The negatives are what makes
-the average come out at zero when nothing is there.</p>
+<p>Keep the negative values in summaries. Clipping them at zero
+introduces positive bias, including where the true effect is absent. An
+average over prespecified measurements or participants should use the
+signed estimates; selecting only positive values changes the quantity
+being summarized.</p>
 </div>
 </div>
 <div class="section level2">
@@ -222,41 +224,42 @@ got <code>NA</code>.</p>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;     total_not_positive      coherent_negative configuration_negative </span></span>
 <span><span class="co">#&gt;                     79                     95                     82</span></span></code></pre></div>
-<p>The gate is not fussiness. A ratio of two quantities that can each be
-negative is not a share of anything: it can exceed 1, or be negative, or
-flip sign under an arbitrarily small change in the denominator. Rather
-than print such a number, the package withholds it. <code>NA</code> here
-means “this measurement has no interpretable coherent share”, not
-“missing data”.</p>
-<p>Nor is the gate a signal detector. The peak of the pattern block
-above is the strongest measurement in the entire map and it is one of
-these <code>NA</code>s: an effect that is genuinely all configuration
-has nothing left over to form a nonnegative pair with.</p>
+<p>Outside this gate the ratio can leave [0, 1], and a denominator near
+zero makes it unstable. The package therefore withholds it.
+<code>NA</code> here means “this measurement has no interpretable
+coherent share”, not “missing data”.</p>
+<p>The gate is not a test for signal. The strongest pattern-block
+measurement above has an <code>NA</code> share because its coherent
+estimate is slightly negative, even though its total energy is
+large.</p>
 <p>The three sections below are the caveats that matter once you start
 reporting those fractions.</p>
 </div>
 <div class="section level2">
 <h2 id="trap-a-the-coherent-share-shrinks-as-the-sphere-grows">Trap (a): the coherent share shrinks as the sphere grows<a class="anchor" aria-label="anchor" href="#trap-a-the-coherent-share-shrinks-as-the-sphere-grows"></a>
 </h2>
-<p>The coherent share falls as a searchlight grows, with no change in
-the underlying neural data. It is worth being exact about <em>why</em>,
-because the obvious explanation is the wrong one.</p>
-<p>It is not dimension counting. A larger sphere does give the
-configuration subspace more dimensions while the coherent subspace stays
-one-dimensional, but these are <em>crossvalidated</em> energies: extra
-noise dimensions add variance to the configuration estimate, not
-expectation. A configuration remainder over pure noise is centered on
-zero however many dimensions it spans. Counting dimensions cannot move a
-share whose numerator and denominator are both unbiased.</p>
-<p>What moves it is dilution of the weighted mean. The coherent
-component is the energy of the contrast carried by one average pattern,
-and that average runs over the whole support. Grow the sphere around a
-fixed block of signal and the block’s share of the weighted support
-falls; the weighted mean’s contrast falls with it, and the coherent
-energy — a squared quantity — falls with the square of that share. The
-configuration remainder keeps the block’s departure from a mean that is
-now nearly zero, so it does not fall. The ratio slides because its
-numerator is being averaged away.</p>
+<p>Changing the radius changes the spatial quantity being measured, even
+when the neural data stay fixed. In this example, a larger sphere
+dilutes a fixed block of mean-shift signal with surrounding voxels.</p>
+<p>A simple noise-free case explains the effect. Suppose a fraction
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>f</mi><annotation encoding="application/x-tex">f</annotation></semantics></math>
+of a uniformly weighted, locally normalized support carries contrast
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>a</mi><annotation encoding="application/x-tex">a</annotation></semantics></math>,
+and the rest carries zero. Then</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi></mrow><mo>=</mo><msup><mi>a</mi><mn>2</mn></msup><mi>f</mi><mo>,</mo><mspace width="2.0em"></mspace><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">t</mi></mrow><mo>=</mo><msup><mi>a</mi><mn>2</mn></msup><msup><mi>f</mi><mn>2</mn></msup><mo>,</mo><mspace width="2.0em"></mspace><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">n</mi></mrow><mo>=</mo><msup><mi>a</mi><mn>2</mn></msup><mi>f</mi><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>−</mo><mi>f</mi><mo stretchy="false" form="postfix">)</mo><mi>.</mi></mrow><annotation encoding="application/x-tex">
+\mathrm{total}=a^2 f,\qquad
+\mathrm{coherent}=a^2 f^2,\qquad
+\mathrm{configuration}=a^2 f(1-f).
+</annotation></semantics></math></p>
+<p>The coherent share is
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>f</mi><annotation encoding="application/x-tex">f</annotation></semantics></math>.
+Enlarging the support lowers that share as the signal occupies less of
+it. Configuration need not stay constant; it is the remainder after the
+squared local mean is removed.</p>
+<p>Extra noise dimensions can change variability and which noisy ratios
+pass the validity gate. They do not, by themselves, add positive
+expected crossvalidated energy. Read the radius sweep as a change in the
+declared measurement, not as a count of neural dimensions.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">radii</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">4.5</span>, <span class="fl">6</span><span class="op">)</span></span>
 <span><span class="va">sweep</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">radii</span>, <span class="kw">function</span><span class="op">(</span><span class="va">r</span><span class="op">)</span> <span class="op">{</span></span>
@@ -307,8 +310,8 @@ voxels in each support:</p>
 <span><span class="co">#&gt;  searchlights      coherent configuration </span></span>
 <span><span class="co">#&gt;        80.000         0.998         0.408</span></span></code></pre></div>
 <p>The coherent energy is almost a deterministic function of the squared
-planted share. The configuration energy is not. That is dilution, not
-dimensionality.</p>
+planted share. The configuration energy is not. This is the dilution
+mechanism predicted by the simple mean-shift example.</p>
 <p>At radius 2 every support is a single voxel, so the weighted mean
 <em>is</em> the pattern and the fraction is exactly 1 by construction —
 in both blocks. It then falls. The decomposition keeps the two blocks in
@@ -389,15 +392,15 @@ results, so nothing below is a selected extreme.</p>
 <p>Identical voxels, identical data, different numbers — but not equally
 different. The mean block’s coherent energy barely moves: a shift that
 is the same in every voxel is the same shift under any nonnegative
-weights. The pattern block’s coherent energy halves, because there it is
-not a signal at all. It is whatever failed to cancel, and how much fails
-to cancel is decided entirely by the weights. Both totals move.</p>
+weights. The pattern block’s coherent energy roughly halves because its
+alternating signal cancels differently under the two weightings. Both
+are valid weighted projections of the same spatial pattern. Both totals
+move.</p>
 <p>This is not instability: each frame defines a different,
 well-specified estimand, and the plan records which one you asked for.
 It does mean that “the coherent component” is not a property of the
 brain region. It is a property of the region <em>and</em> the weights
-you chose to average it with — and the smaller the coherent component,
-the more of it belongs to the weights.</p>
+you chose to average it with.</p>
 </div>
 <div class="section level2">
 <h2 id="trap-c-reported-fractions-are-a-selected-sample">Trap (c): reported fractions are a selected sample<a class="anchor" aria-label="anchor" href="#trap-c-reported-fractions-are-a-selected-sample"></a>
@@ -442,16 +445,16 @@ both components positive.</p>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;             share_of_map_reporting share_of_reporters_that_are_signal </span></span>
 <span><span class="co">#&gt;                          0.5107143                          0.6993007</span></span></code></pre></div>
-<p>Both blocks clear the gate at about the same rate, so the selection
-is not about which kind of effect you have; it is about having one.
-Under a quarter of the remaining measurements report a fraction, on
-noise alone. The result is that the average fraction “over the map” is
-really an average over a set that is 70% planted signal. That is fine if
-you say so, and misleading if you do not. If you want a map-wide
-summary, define the denominator explicitly — for instance the share of
-<em>all</em> measurements that report a coherent share at all, the first
-number above — rather than averaging the reported values and calling the
-result a property of the map.</p>
+<p>In this fixture, both blocks clear the gate at similar rates. That
+need not hold for every signal shape or noise regime. Under a quarter of
+the remaining measurements report a fraction, on noise alone. The result
+is that the average fraction “over the map” is really an average over a
+set that is 70% planted signal. That is fine if you say so, and
+misleading if you do not. If you want a map-wide summary, define the
+denominator explicitly — for instance the share of <em>all</em>
+measurements that report a coherent share at all, the first number above
+— rather than averaging the reported values and calling the result a
+property of the map.</p>
 <p>The same warning applies to any post-hoc gate: thresholding on
 <code>total &gt; 0</code> and then summarizing <code>coherent</code>
 conditions the summary on the numerator’s sibling.</p>
@@ -473,13 +476,14 @@ on the page.
 </p>
 </div>
 <div class="section level3">
-<h3 id="the-band-at-zero-is-the-noise-floor-and-it-comes-free">The band at zero is the noise floor, and it comes free<a class="anchor" aria-label="anchor" href="#the-band-at-zero-is-the-noise-floor-and-it-comes-free"></a>
+<h3 id="zero-is-a-reference-not-a-threshold">Zero is a reference, not a threshold<a class="anchor" aria-label="anchor" href="#zero-is-a-reference-not-a-threshold"></a>
 </h3>
-<p>A crossvalidated energy is a product of estimates from two different
-partitions, so its expectation is zero wherever nothing reproduces. You
-do not have to model that floor or estimate it from a separate null run.
-It is already in the map, underneath your candidates, and about half of
-it is below the line because the negatives were kept.</p>
+<p>Independent, unbiased partition estimates give null energy an
+expectation of zero. That provides a useful reference line. It does not
+tell you which locations are null, how variable their estimates are, or
+what threshold controls false positives across the map.</p>
+<p>Here the generated truth lets us examine measurements without planted
+signal:</p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">quiet</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sets.html" class="external-link">setdiff</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">)</span>, <span class="va">example</span><span class="op">$</span><span class="va">truth</span><span class="op">$</span><span class="va">signal_measurements</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -493,9 +497,9 @@ it is below the line because the negatives were kept.</p>
 <span><span class="co">#&gt;            176.0000              0.0027              0.0085              0.4489 </span></span>
 <span><span class="co">#&gt;             largest </span></span>
 <span><span class="co">#&gt;              0.0297</span></span></code></pre></div>
-<p>That used the truth. You can get close without it, because in a
-typical map the floor is the majority and a robust summary is dominated
-by it:</p>
+<p>Without the truth, the median and MAD summarize the observed map.
+Their meaning depends on its mixture of signal and noise; they are not
+automatically estimates of a null distribution:</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  median_over_all <span class="op">=</span> <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/median.html" class="external-link">median</a></span><span class="op">(</span><span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">)</span>,</span>
@@ -506,12 +510,11 @@ by it:</p>
 <span><span class="co">#&gt;                       0.0088                       0.0198 </span></span>
 <span><span class="co">#&gt; fraction_below_zero_over_all </span></span>
 <span><span class="co">#&gt;                       0.2821</span></span></code></pre></div>
-<p>The blind median lands near the true floor’s center, and both sit
-under 0.3% of the peak. The blind MAD is more than twice the floor’s
-true spread, because 37% of these measurements carry planted signal —
-two blocks, not one — and inflate it. That is the right direction for a
-scale you are going to eyeball against, but it is a description, not an
-estimate of a null.</p>
+<p>In this fixture the blind median lies near the known null center,
+while the MAD is more than twice the standard deviation of the known
+null measurements. The two signal blocks occupy 37% of the map and
+affect that summary. A different signal prevalence or spatial noise
+pattern could change both comparisons.</p>
 </div>
 <div class="section level3">
 <h3 id="candidates-not-findings">Candidates, not findings<a class="anchor" aria-label="anchor" href="#candidates-not-findings"></a>
@@ -524,23 +527,18 @@ is a fact about this fixture, not a method.</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="va">effect</span><span class="op">$</span><span class="va">total</span>, decreasing <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">10</span>, <span class="fl">40</span>, <span class="fl">104</span>, <span class="fl">105</span>, <span class="fl">150</span>, <span class="fl">280</span><span class="op">)</span><span class="op">]</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1]  4.1030  3.4728  1.7863  0.4779  0.0297  0.0067 -0.0109</span></span></code></pre></div>
-<p><code>crossform</code> deliberately gives you no way to turn that
-shoulder into a finding. There is no threshold, no p-value, no
-permutation null, no spatial random-field correction, and no group
-inference; the README’s <strong>Status and scope</strong> section says
-so, and the failure gallery (<a href="failure-gallery.html">online</a>,
-or <code><a href="../articles/failure-gallery.html">vignette("failure-gallery")</a></code> offline) treats manufactured
-uncertainty as an error to guard against. Measurements standing clear of
-the floor are <strong>candidates</strong>. What you may legitimately do
-with them:</p>
+<p>A visible shoulder is useful for exploration, but this view supplies
+no spatial threshold or selected-peak p-value. A population analysis has
+its own declared target and assumptions; it does not retroactively
+calibrate this map. Treat selected locations as candidates for further
+study:</p>
 <ul>
 <li>
-<strong>Say what kind of effect each one is.</strong> The
-coherent/configuration split is descriptive, not inferential, so it
-costs you nothing to read: a candidate high in configuration is a
-reproducible pattern, one far along the coherent axis is a regional mean
-that a univariate contrast would also have found. This map has both, at
-opposite ends of the volume, with the same amplitude.</li>
+<strong>Describe its estimated composition.</strong> High
+configuration attributes more estimated energy to departures from the
+local mean; high coherent energy attributes more to that mean. Selection
+can exaggerate either component, so the description does not establish
+replication.</li>
 <li>
 <strong>Attach a within-measurement standard error at a measurement
 you chose in advance</strong>, using
@@ -555,15 +553,14 @@ outside this package.</li>
 </ul>
 </div>
 <div class="section level3">
-<h3 id="the-error-bar-at-the-peak-is-not-an-error-bar">The error bar at the peak is not an error bar<a class="anchor" aria-label="anchor" href="#the-error-bar-at-the-peak-is-not-an-error-bar"></a>
+<h3 id="a-pointwise-error-bar-does-not-account-for-peak-selection">A pointwise error bar does not account for peak selection<a class="anchor" aria-label="anchor" href="#a-pointwise-error-bar-does-not-account-for-peak-selection"></a>
 </h3>
-<p>One trap deserves naming, because the package makes it easy to walk
-into. If you find <code>peak &lt;- which.max(effect$total)</code> and
-then report a standard error at <code>peak</code>, that interval
-describes a measurement you selected <em>because</em> it was extreme.
-The estimate is conditioned on being the largest; the standard error is
-not. Every number in this article that uses <code>peak</code> is
-illustrative for that reason, not a result.</p>
+<p>If you find <code>peak &lt;- which.max(effect$total)</code> and then
+report a standard error at <code>peak</code>, the pointwise standard
+error does not account for having chosen an extreme estimate. An
+interval formed from it need not retain its nominal coverage after
+selection. The peak summaries here illustrate the fixture; they do not
+perform inference for a selected location.</p>
 <p>Specify the measurement in advance, or treat the peak as a candidate
 and estimate it somewhere you did not select it.</p>
 </div>
@@ -624,9 +621,10 @@ opposite directions:</p>
 <span><span class="co">#&gt;         house - tool</span></span>
 <span><span class="co">#&gt; pattern        0.009</span></span>
 <span><span class="co">#&gt; mean          -0.015</span></span></code></pre></div>
-<p>Only <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code> separates coherent from
-configuration. If the distinction matters to your question, the RDM is
-not where you will find it.</p>
+<p>The total RDM alone cannot distinguish those spatial organizations.
+Use <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code> for a contrast decomposition;
+<code><a href="../reference/rdm.html">rdm()</a></code> also accepts a <code>component</code> when you want
+distances from a particular spatial component.</p>
 </div>
 <div class="section level2">
 <h2 id="reading-rsa-coefficients">Reading RSA coefficients<a class="anchor" aria-label="anchor" href="#reading-rsa-coefficients"></a>
@@ -640,18 +638,12 @@ RDMs. It is ordinary least squares, not a rank correlation.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">category</span><span class="op">$</span><span class="va">coefficients</span><span class="op">[</span><span class="va">peak</span>, <span class="op">]</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt; (Intercept)    category </span></span>
 <span><span class="co">#&gt;      0.0025      4.1017</span></span></code></pre></div>
-<p>There are two columns for one model because an <strong>intercept is
-fitted by default</strong>. Keep it. Not because the distances need an
-offset removed — they are unbiased as they stand, which is the whole
-point of the cross-partition pairing — but because the
-<em>regression</em> has a level of its own. Every measurement has some
-mean signed distance across its pairs, and that mean is a property of
-how far apart the conditions sit there, not evidence for the shape your
-model RDM predicts. The intercept absorbs it as a nuisance level. Drop
-it and the fit is forced through the origin, so the model coefficient
-has to account for the mean as well as the shape, and a searchlight
-where everything is far from everything scores high on any model RDM
-with a positive mean.</p>
+<p>There are two columns because an <strong>intercept is fitted by
+default</strong>. It absorbs the overall level of signed distances,
+letting the model slope describe their relationship after accounting for
+that level. Without an intercept, the slope must explain both level and
+shape: uniformly large distances can increase the coefficient of a
+positive-valued model even when its shape matches poorly.</p>
 <div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">no_intercept</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rsa.html">rsa</a></span><span class="op">(</span></span>
 <span>  <span class="va">plan</span>, models <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>category <span class="op">=</span> <span class="va">example</span><span class="op">$</span><span class="va">model_rdm</span><span class="op">)</span>, intercept <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -666,6 +658,64 @@ with a positive mean.</p>
 is meaningful and shared. Coefficients are in units of distance per unit
 of model RDM, so they are comparable across measurements within one
 analysis but not across analyses with differently scaled model RDMs.</p>
+</div>
+<div class="section level2">
+<h2 id="reading-a-learned-geometry-prediction">Reading a learned geometry prediction<a class="anchor" aria-label="anchor" href="#reading-a-learned-geometry-prediction"></a>
+</h2>
+<p><code><a href="../reference/fit_geometry.html">fit_geometry()</a></code> learns a model-supported PSD form on
+training data. <code><a href="../reference/score_geometry.html">score_geometry()</a></code> evaluates that frozen form
+on independent runs using
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mo stretchy="false" form="prefix">⟨</mo><mi>F</mi><mo>,</mo><msub><mi>G</mi><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">t</mi></mrow></msub><msub><mo stretchy="false" form="postfix">⟩</mo><mi>F</mi></msub><mi>−</mi><mo stretchy="false" form="postfix">∥</mo><mi>F</mi><msubsup><mo stretchy="false" form="postfix">∥</mo><mi>F</mi><mn>2</mn></msubsup></mrow><annotation encoding="application/x-tex">2\langle F,G_{\mathrm{test}}\rangle_F-\|F\|_F^2</annotation></semantics></math>.
+The result is a signed gain in squared geometry units, relative to
+predicting zero. Positive gain supports improved prediction in
+expectation under the declared independence assumptions; negative gain
+means the prediction’s amplitude costs more than its independent
+evidence earns.</p>
+<p>For each fitted mode, keep three quantities apart:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Quantity</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>amplitude</code></td>
+<td>Strength learned on training data</td>
+</tr>
+<tr class="even">
+<td><code>evidence</code></td>
+<td>Signed geometry in that frozen direction on evaluation data</td>
+</tr>
+<tr class="odd">
+<td><code>gain</code></td>
+<td>Twice amplitude times evidence, minus amplitude squared</td>
+</tr>
+</tbody>
+</table>
+<p>A positive training amplitude does not establish replication. Even
+positive test evidence can produce negative gain if the training
+amplitude is too large. Do not drop such a mode after inspecting final
+evaluation results: that would select a different prediction using the
+test data. Rank, penalty, model weights and preprocessing belong to
+training or inner validation.</p>
+<p>Gain is neither a fraction explained nor a trace energy. Under zero
+signal, its conditional expectation is minus the prediction’s squared
+norm; the test inner product alone is centered on zero. Likewise, the
+descriptive projection from <code>latent_geometry(rank = ...)</code> and
+the trace split from <code><a href="../reference/model_geometry.html">model_geometry()</a></code> do not measure
+independent predictive improvement.</p>
+<p>The <a href="predictive-geometry.html">predictive geometry guide</a>
+(<code><a href="../articles/predictive-geometry.html">vignette("predictive-geometry", package = "crossform")</a></code>
+offline) executes a case with mode gains 4 and -1, total gain 3, and an
+exact rank-zero baseline. It also shows the observation-origin manifest
+that keeps training and evaluation separate. These scores concern new
+runs on the same conditions; they do not establish transfer to new
+conditions or supply generic standard errors for learned ranks and
+eigenvalues.</p>
 </div>
 <div class="section level2">
 <h2 id="uncertainty-two-targets-and-what-refused-means">Uncertainty: two targets, and what “refused” means<a class="anchor" aria-label="anchor" href="#uncertainty-two-targets-and-what-refused-means"></a>
@@ -751,33 +801,24 @@ correction, and not group inference.</p>
 with a classed condition rather than returning a plausible-looking
 number. Ask before provoking:</p>
 <div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
-<span><span class="va">conditions</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"c"</span><span class="op">)</span></span>
-<span><span class="va">domain</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/volume_domain.html">volume_domain</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span>, spacing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">3</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">beta_runs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">3</span> <span class="op">*</span> <span class="fl">48</span><span class="op">)</span>, <span class="fl">3</span>, <span class="fl">48</span><span class="op">)</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">conditions</span></span>
-<span>  <span class="va">m</span></span>
-<span><span class="op">}</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">beta_runs</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span></span>
-<span><span class="va">beta_only</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relation.html">relation</a></span><span class="op">(</span><span class="va">beta_runs</span>, effects <span class="op">=</span> <span class="fu"><a href="../reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">conditions</span><span class="op">)</span>,</span>
-<span>                      domain <span class="op">=</span> <span class="va">domain</span><span class="op">)</span></span>
-<span><span class="va">beta_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span></span>
-<span>  <span class="va">beta_only</span>,</span>
-<span>  at <span class="op">=</span> <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/searchlights.html">searchlights</a></span><span class="op">(</span>radius <span class="op">=</span> <span class="fl">3</span><span class="op">)</span>, <span class="va">domain</span><span class="op">)</span>,</span>
-<span>  over <span class="op">=</span> <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span><span class="va">beta_only</span>, independence <span class="op">=</span> <span class="st">"independent"</span>,</span>
-<span>                          generalizes_over <span class="op">=</span> <span class="st">"run"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/sampling_capabilities.html">sampling_capabilities</a></span><span class="op">(</span><span class="va">beta_plan</span>, <span class="va">beta_only</span><span class="op">)</span></span>
-<span><span class="co">#&gt; &lt;effect_sampling_capabilities&gt;</span></span>
-<span><span class="co">#&gt;   analytic sampling law: unavailable </span></span>
-<span><span class="co">#&gt;   metric: fixed | partitions: equal | error channel: absent </span></span>
-<span><span class="co">#&gt;   unmet requirements:</span></span>
-<span><span class="co">#&gt;   * missing_error_channel - this evidence plan has only a precomputed relation and no error channel. Refit raw observations with `lm_relation_fit()` or supply a validated, identity-bound external error channel; beta matrices alone cannot recover residual uncertainty </span></span>
-<span><span class="co">#&gt;       remedy: Refit raw observations with `lm_relation_fit()`. </span></span>
-<span><span class="co">#&gt;   note: requirements that describe the error channel itself cannot be</span></span>
-<span><span class="co">#&gt;         evaluated until one exists, and are not listed.</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">capabilities</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/sampling_capabilities.html">sampling_capabilities</a></span><span class="op">(</span><span class="va">beta_plan</span>, <span class="va">beta_only</span><span class="op">)</span></span>
+<span><span class="va">capabilities</span><span class="op">$</span><span class="va">available</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="30%">
+<col width="69%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">reason</th>
+<th align="left">remedy</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="left">missing_error_channel</td>
+<td align="left">Refit raw observations with
+<code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code>.</td>
+</tr></tbody>
+</table>
 <p>A relation built only from precomputed beta matrices has no residuals
 and no residual degrees of freedom, so the analytic law is unavailable.
 Provoking it anyway yields a refusal you can inspect as data:</p>
@@ -785,21 +826,16 @@ Provoking it anyway yields a refusal you can inspect as data:</p>
 <code class="sourceCode R"><span><span class="va">refusal</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/catch_refusal.html">catch_refusal</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/rdm_sampling_covariance.html">rdm_sampling_covariance</a></span><span class="op">(</span><span class="va">beta_plan</span>, <span class="va">beta_only</span>, target <span class="op">=</span> <span class="st">"null"</span>, at <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="va">refusal</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "effect_capability_refusal" "error"                    </span></span>
-<span><span class="co">#&gt; [3] "condition"</span></span>
 <span><span class="va">refusal</span><span class="op">$</span><span class="va">capability</span></span>
 <span><span class="co">#&gt; [1] "sampling_covariance"</span></span>
 <span><span class="va">refusal</span><span class="op">$</span><span class="va">reasons</span></span>
-<span><span class="co">#&gt; [1] "missing_error_channel"</span></span>
-<span><span class="va">refusal</span><span class="op">$</span><span class="va">remedies</span></span>
-<span><span class="co">#&gt; [1] "Refit raw observations with `lm_relation_fit()`."</span></span></code></pre></div>
-<p>“Refused” does not mean “not implemented”. It means the specific
-claim you asked for is not supported by the evidence you supplied, and
-the condition carries every unmet requirement with a concrete remedy.
-The point estimates — <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code>,
-<code><a href="../reference/rdm.html">rdm()</a></code>, <code><a href="../reference/rsa.html">rsa()</a></code> — remain perfectly valid on such
-a relation; only the error bar is withheld.</p>
+<span><span class="co">#&gt; [1] "missing_error_channel"</span></span></code></pre></div>
+<p>Here the refusal identifies missing statistical information. Other
+refusals can identify unsupported operations; read <code>$reasons</code>
+and <code>$remedies</code> to tell which requirement failed. The point
+estimates — <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code>, <code><a href="../reference/rdm.html">rdm()</a></code>,
+<code><a href="../reference/rsa.html">rsa()</a></code> — remain perfectly valid on such a relation; only the
+error bar is withheld.</p>
 </div>
 </div>
 <div class="section level2">
@@ -848,6 +884,16 @@ a relation; only the error bar is withheld.</p>
 <td>RSA coefficient</td>
 <td>keep the intercept</td>
 <td>compare across differently scaled models</td>
+</tr>
+<tr class="odd">
+<td>Predictive gain</td>
+<td>retain its sign and the frozen prediction cost</td>
+<td>call it a fraction explained or a null-centered energy</td>
+</tr>
+<tr class="even">
+<td>Mode evidence</td>
+<td>distinguish training amplitude, test evidence and gain</td>
+<td>remove harmful modes using final test outcomes</td>
 </tr>
 <tr class="odd">
 <td><code>target = "null"</code></td>

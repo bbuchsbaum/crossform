@@ -120,11 +120,13 @@ contribution(x, by, using = NULL, ...)
 An `effect_population_view`: `$values`, one row per group node plus the
 sink and one column per view column; `$columns` naming those columns;
 `$index`, the group node table with the sink marked and its units; the
-`$ledger` name, `$term`, `$semantics`, `$normalization`; a `$receipt`
-carrying the transport, the native frame family, the budget certificate,
-the normalization and the basis coefficients that reached this view; and
-a `$scientific_plan_id` derived from the population plan and the view's
-own parameters.
+`$ledger` name, `$term`, `$semantics`, `$normalization`; `$coverage`,
+preserving the exact subject set, rank, df, and estimability of each
+view cell (and refusing combinations with incompatible sets); a
+`$receipt` carrying the transport, the native frame family, the budget
+certificate, the normalization and the basis coefficients that reached
+this view; and a `$scientific_plan_id` derived from the population plan
+and the view's own parameters.
 [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) returns
 the long table.
 
@@ -231,6 +233,11 @@ Each is an `effect_capability_refusal` in namespace `"population_views"`
 - `sink_is_not_a_territory` — a `by` that labels a group node `<sink>`.
   The sink is appended as its own row automatically.
 
+- `common_population_subject_set` — a query recombination or spatial
+  aggregation whose source coefficients were estimated from different
+  subject sets. Re-estimate the desired query directly, or aggregate
+  only cells with one common recoverable set.
+
 - `nondestructive_decomposition` and `guaranteed_psd` —
   `remove_univariate` and `normalize`, refused for the same reasons the
   per-participant views refuse them.
@@ -262,6 +269,7 @@ Other population transports:
 [`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md),
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -305,11 +313,13 @@ contrast_energy(fit, c(face = 1, house = -1, tool = 0))
 #>   group nodes:   2 + sink
 #>   columns:       1 (energy)
 #>   frame:         undeclared, conservative
-#>   transport:     budget, anatomical, cross-fit not declared
+#>   transport:     budget, anatomical, fixed, cross-fit not declared
 #>   normalization: none (mean subject ledger, native evidence units)
+#>   coverage:      all_planned; cell n 3 to 3 of 3; estimated
+#>   inference:     conditional_on_realized_transport; uncertainty not propa...
 #>   basis:         selection over 3 estimated queries (face-house, face-too...
 #>   budget:        preserved, worst relative deviation 1.94e-16 against 1e-12
-#>   estimand:      population-sha256:4bb36d3c7b5f...
+#>   estimand:      population-sha256:6225475610e1...
 #>   next:          as.data.frame(x), contribution(x, by = ...)
 
 # The three distances, and an RSA regression on them: both are inside the
@@ -329,13 +339,27 @@ as.data.frame(rsa(fit, models = list(animacy = animacy)))
 #> 4 group1      0 FALSE budget  rsa transported_total (Intercept)     animacy
 #> 5 group2      4 FALSE budget  rsa transported_total (Intercept)     animacy
 #> 6 <sink>     NA  TRUE budget  rsa transported_total (Intercept)     animacy
-#>        role   estimate
-#> 1 intercept 0.06298996
-#> 2 intercept 0.05832523
-#> 3 intercept 0.00000000
-#> 4     model 0.09448494
-#> 5     model 0.08748785
-#> 6     model 0.00000000
+#>        role coverage_policy planned_n n fraction n_eff design_rank residual_df
+#> 1 intercept     all_planned         3 3        1     3           1           2
+#> 2 intercept     all_planned         3 3        1     3           1           2
+#> 3 intercept     all_planned         3 3        1     3           1           2
+#> 4     model     all_planned         3 3        1     3           1           2
+#> 5     model     all_planned         3 3        1     3           1           2
+#> 6     model     all_planned         3 3        1     3           1           2
+#>   coverage_status coefficient_estimable exclusion_reason subject_set_id
+#> 1       estimated                  TRUE             <NA>           set1
+#> 2       estimated                  TRUE             <NA>           set1
+#> 3       estimated                  TRUE             <NA>           set1
+#> 4       estimated                  TRUE             <NA>           set1
+#> 5       estimated                  TRUE             <NA>           set1
+#> 6       estimated                  TRUE             <NA>           set1
+#>   available_subjects excluded_subjects   estimate
+#> 1        s01,s02,s03                   0.06298996
+#> 2        s01,s02,s03                   0.05832523
+#> 3        s01,s02,s03                   0.00000000
+#> 4        s01,s02,s03                   0.09448494
+#> 5        s01,s02,s03                   0.08748785
+#> 6        s01,s02,s03                   0.00000000
 
 # The ledger adds up over the group nodes and the sink.
 ledger <- contribution(fit, by = c("anterior", "posterior"))
@@ -347,12 +371,14 @@ ledger
 #>   group nodes:   2 territories + sink, from 2 group nodes
 #>   columns:       3 (face-house, face-tool, house-tool)
 #>   frame:         undeclared, conservative
-#>   transport:     budget, anatomical, cross-fit not declared
+#>   transport:     budget, anatomical, fixed, cross-fit not declared
 #>   normalization: none (mean subject ledger, native evidence units)
+#>   coverage:      all_planned; cell n 3 to 3 of 3; estimated
+#>   inference:     conditional_on_realized_transport; uncertainty not propa...
 #>   basis:         whole bank over 3 estimated queries (face-house, face-to...
 #>   budget:        preserved, worst relative deviation 1.94e-16 against 1e-12
 #>   aggregation:   by group, budget-exact; the sink is its own row
-#>   estimand:      population-sha256:54230de1614b...
+#>   estimand:      population-sha256:fd4c5b6db754...
 #>   next:          as.data.frame(x), x$values
 
 # An uncentred contrast is outside the span of a zero-sum bank, and is

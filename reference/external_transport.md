@@ -81,6 +81,7 @@ Other population transports:
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -100,9 +101,10 @@ transport
 #>   semantics:  density
 #>   row mass:   unit (one per native node)
 #>   sink:       mass 0.5 of 3 rows, 16.7% of territory
-#>   provenance: external (cross-fit: none)
+#>   provenance: external, fixed (cross-fit: none)
 #>   built:      partial-volume warp from atlas-tool 2.1
-#>   signature:  sha256:4286fd2f411f...
+#>   inference:  conditional_on_realized_transport; uncertainty not propagated
+#>   signature:  sha256:89768655d449...
 
 # Density divides the transported budget by the transported row mass; with
 # the default unit row mass that is the transported node count.

@@ -149,6 +149,7 @@ Other population transports:
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -187,11 +188,13 @@ form
 #>   readout:       complete 2x2 form, 3 packed coordinates (face:face, hous...
 #>   streaming:     coordinate tile 3 of 3, 1 pass/participant; peak group s...
 #>   frame:         undeclared, conservative
-#>   transport:     budget, anatomical, cross-fit not declared
+#>   transport:     budget, anatomical, fixed, cross-fit not declared
 #>   normalization: none (mean subject ledger, native evidence units)
+#>   coverage:      all_planned; cell n 4 to 4 of 4; estimated
+#>   inference:     conditional_on_realized_transport; uncertainty not propa...
 #>   fit:           OLS (subject-constant weights), transport then fit
 #>   budget:        preserved, worst relative deviation 1.65e-16 against 1e-12
-#>   estimand:      population-sha256:df8915ebdc51...
+#>   estimand:      population-sha256:4326af5de139...
 #>   No participant-level arrays: indexed by participant, group node and
 #>     packed coordinate they are the dense stack this route streams in order
 #>     not to build. Read them through estimate_population() with the

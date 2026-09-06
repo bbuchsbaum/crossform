@@ -1,0 +1,306 @@
+# Predict model-supported geometry on independent runs
+
+You have condition-by-feature effects from several runs and a model of
+the conditions’ representational relationships. You want to learn which
+model-supported dimensions predict neural geometry, then evaluate that
+prediction on independent runs.
+[`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md)
+learns a low-rank PSD form;
+[`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
+measures its signed predictive gain over a zero-geometry prediction. A
+fitted dimension can help or harm prediction.
+
+The
+[introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
+explains relations, frames and geometry plans. Here a **form** is a
+condition-by-condition inner-product matrix. A positive-semidefinite
+(PSD) form assigns nonnegative energy to every contrast; it describes
+the fitted prediction. The signed crossvalidated geometry used to fit
+and score it can have negative eigenvalues.
+
+This example uses four conditions, two neural features and four runs.
+Its values are deterministic so that the score can be checked exactly.
+In an analysis, the matrices would contain your independently estimated
+effects. The first pair of runs trains the prediction; the second pair
+evaluates it.
+
+## Declare the model and the observations
+
+The model distinguishes face from body and house from tool. These two
+contrasts form centered, orthonormal directions: each has length one and
+they are mutually orthogonal. Their model strengths are 0.6 and 0.4. The
+kernel `K` records inner products among the four conditions.
+
+``` r
+
+condition_names <- c("face", "body", "house", "tool")
+V <- cbind(c(1, -1, 0, 0), c(0, 0, 1, -1)) / sqrt(2)
+rownames(V) <- condition_names
+model_values <- c(.6, .4)
+K <- V %*% diag(model_values) %*% t(V)
+```
+
+Choose penalty 0.1 before looking at the evaluation runs. The training
+effects below give fitted amplitudes 2 and 1 after this penalty. Only
+the first dimension is present in the evaluation effects.
+
+``` r
+
+penalty <- .1
+B_train <- V %*% diag(sqrt(c(2, 1) + penalty / model_values))
+B_test <- V %*% diag(sqrt(c(2, 0)))
+domain <- abstract_domain(2, id = "predictive-guide")
+```
+
+An origin manifest identifies the underlying observations. It records
+your sampling assumption; equal numerical values do not determine
+whether observations are independent. Use a shared manifest for training
+and evaluation so that copied or renamed observations retain their
+identity.
+
+``` r
+
+origins <- list(id = "four-independent-runs",
+  partitions = list(train1 = "raw-run1", train2 = "raw-run2",
+    test1 = "raw-run3", test2 = "raw-run4"),
+  independence = "independent",
+  assumption = "Independent runs; preprocessing and effect extraction were fixed externally.")
+rel <- relation(list(train1 = B_train, train2 = B_train,
+  test1 = B_test, test2 = B_test), domain = domain,
+  provenance = list(observation_origins = origins))
+```
+
+The frame sums over the two features. Its normalization sets the
+geometry scale and therefore matters when choosing the penalty.
+
+``` r
+
+at <- compile_frame(whole_brain(normalization = "none"), domain)
+train_plan <- plan_geometry(rel, at, pairing("train1", "train2",
+  independence = "independent", generalizes_over = "run"))
+test_plan <- plan_geometry(rel, at, pairing("test1", "test2",
+  independence = "independent", generalizes_over = "run"))
+```
+
+## Fit once, then score independently
+
+[`model_basis()`](https://bbuchsbaum.github.io/crossform/reference/model_basis.md)
+retains the model’s directions and their relative strengths. Trace
+normalization is applied after any declared model-rank truncation. With
+several models, supply named nonnegative weights summing to one when
+fitting. Overlapping model directions are allowed.
+
+``` r
+
+basis <- model_basis(kernels = list(model = K),
+  conditions = rel$effect_space, normalize = "trace")
+fit <- fit_geometry(train_plan, basis, rank = 2, penalty = penalty)
+evidence <- score_geometry(fit, test_plan, modes = TRUE)
+as.data.frame(evidence)
+#>   measurement gain rank inner_product prediction_norm_sq
+#> 1 whole_brain    3    2             4                  5
+```
+
+The gain is **3 squared geometry units**. For a frozen prediction $`F`$
+and independent signed test geometry $`G_{\mathrm{test}}`$, it is
+
+``` math
+\Delta = 2\langle F,G_{\mathrm{test}}\rangle_F-\|F\|_F^2.
+```
+
+Conditional on training and under the declared independence assumptions,
+its expectation is the reduction in squared geometry error relative to
+zero. It can be negative. It is not an explained fraction, and the score
+does not estimate generic standard errors for fitted eigenvalues or
+ranks.
+
+Under a zero signal, the expected gain of a nonzero frozen prediction is
+$`-\|F\|_F^2`$: predicting structure that is absent incurs a cost. The
+signed test inner product is centered on zero in that case; predictive
+gain is not. This distinction matters when comparing gain with a
+cross-fitted energy.
+
+## Read the evidence for each fitted dimension
+
+``` r
+
+modes <- as.data.frame(evidence, view = "modes")
+knitr::kable(modes, digits = 6)
+```
+
+| measurement | mode | group | amplitude | evidence | prediction_cost | gain |
+|:------------|-----:|------:|----------:|---------:|----------------:|-----:|
+| whole_brain |    1 |     1 |         2 |        2 |               4 |    4 |
+| whole_brain |    2 |     2 |         1 |        0 |               1 |   -1 |
+
+The first mode has fitted amplitude 2 and signed test evidence 2. Its
+predictive gain is $`2(2)(2)-2^2=4`$. The second mode has amplitude 1
+and test evidence zero, so its gain is $`-1`$. Together they give 3.
+
+Training amplitude, test evidence and predictive benefit answer
+different questions. Scoring keeps the frozen prediction, including
+modes that harm prediction. Discarding a mode after inspecting this
+table would use the evaluation data to select a new model.
+
+Use `view = "groups"` for invariant evidence across a fully retained
+tied eigenspace. Individual eigenvectors within such a group have
+arbitrary orientation. A rank that cuts through a positive tie refuses
+rather than choosing an arbitrary predictor.
+
+The rank-zero predictor is a useful exact baseline:
+
+``` r
+
+zero_fit <- fit_geometry(train_plan, basis, rank = 0, penalty = penalty)
+as.data.frame(score_geometry(zero_fit, test_plan))
+#>   measurement gain rank inner_product prediction_norm_sq
+#> 1 whole_brain    0    0             0                  0
+```
+
+## Choose what the prediction is allowed to learn
+
+There are two rank choices and one penalty:
+
+| Choice | What it controls |
+|----|----|
+| `model_basis(rank = ...)` | Dimensions retained from each supplied model |
+| `fit_geometry(rank = ...)` | Maximum dimensions in the learned neural prediction |
+| `fit_geometry(penalty = ...)` | How strongly weak model directions are discouraged |
+
+At zero penalty, only the model span matters. If that span covers the
+whole centered condition space, the model imposes no directional
+preference and the fit is labelled a generic baseline. A positive
+penalty preserves preferences from the model eigenvalues, even when the
+span is full.
+
+Choose model ranks, weights, response rank and penalty before final
+evaluation, or select them using inner validation contained entirely
+within the training data. Four partitions support this fixed
+two-run/two-run example; they do not provide an arbitrary nested tuning
+design. The public verbs shown here fit and score a declared choice,
+without automatic tuning.
+
+The estimator minimizes Frobenius error on effect geometry with an
+inverse-kernel trace penalty. It compresses the signed training form,
+applies the penalty, then retains the largest positive eigenvalues
+within the rank budget. It never first clips the neural geometry. This
+objective differs from
+[`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md)’s
+fixed linear regression on RDM entries and from the descriptive trace
+energies returned by
+[`model_geometry()`](https://bbuchsbaum.github.io/crossform/reference/model_geometry.md).
+
+### How the model controls the fit
+
+More precisely, let $`K_\alpha = \sum_i \alpha_i K_{i,r_i}`$ be the
+weighted sum of the retained, normalized model kernels. In its positive
+eigenspace, $`K_\alpha = Q D Q^\top`$, the fitted form is
+
+``` math
+\widehat F = Q\left[Q^\top G_{\mathrm{train}}Q
+  - \lambda D^{-1}\right]_{+,s}Q^\top.
+```
+
+Here $`[\cdot]_{+,s}`$ retains at most the $`s`$ largest positive
+eigenvalues. The response rank is $`s`$ and `penalty` is $`\lambda`$.
+The model directions can overlap: their strengths combine in
+$`K_\alpha`$. The package transforms each partition’s effects into
+reduced coordinates before accumulating geometry, so fitting does not
+require a complete condition-by-condition neural form. Compressed
+residual diagnostics describe that reduced problem; they do not identify
+a whole-geometry explained fraction.
+
+### Starting with squared distances
+
+If you start with an RDM, declare that its entries are **squared**
+Euclidean distances. The same model in this example can be supplied as
+follows:
+
+``` r
+
+squared_distances <- outer(diag(K), diag(K), "+") - 2 * K
+distance_basis <- model_basis(models = list(model = squared_distances),
+  distance = "squared_euclidean", conditions = rel$effect_space,
+  normalize = "trace")
+distance_fit <- fit_geometry(train_plan, distance_basis, rank = 2,
+  penalty = penalty)
+as.data.frame(score_geometry(distance_fit, test_plan))
+#>   measurement gain rank inner_product prediction_norm_sq
+#> 1 whole_brain    3    2             4                  5
+```
+
+This recovers the same gain. Ordinary Euclidean distances must be
+squared before this conversion; arbitrary dissimilarities need not
+define an admitted PSD kernel.
+
+## Keep the evaluation target explicit
+
+Training and test plans must describe the same conditions, effect
+meanings, spatial measurements, normalization, fixed neural metric and
+generalization axis. Stable measurement IDs can appear in a different
+row order. Used observation origins and upstream training dependencies
+must be disjoint. There are two independence requirements: the effects
+within each cross-partition product must be independent, and the
+evaluation observations must be independent of everything used to learn
+or select the prediction. Scoring on the training observations refuses:
+
+``` r
+
+overlap <- catch_refusal(score_geometry(fit, train_plan))
+overlap$reasons
+#> [1] "overlapping_training_evaluation_origins"
+```
+
+These scores evaluate independent runs on the **same conditions**.
+Prediction on new conditions needs a training-defined model
+transformation and a cross-kernel; it is outside this interface. Generic
+RDM/GLS losses and learned neural metric schedules are also outside the
+current spectral path.
+
+## Read the spatial components with the same prediction
+
+For a total-geometry prediction, `components = TRUE` retains coherent
+and configuration inner products read with the same frozen form. Their
+evidence adds before subtracting the prediction cost once. Separately
+fitting each component does not conserve the original signed
+decomposition.
+
+``` r
+
+component_score <- score_geometry(fit, test_plan, components = TRUE)
+component_score$components
+#>   measurement coherent_inner_product configuration_inner_product
+#> 1 whole_brain                      2                           2
+```
+
+In this two-feature example, the coherent and configuration inner
+products are each 2. Twice their sum is 8; subtracting the fitted
+squared norm of 5 once gives the same gain of 3. These component inner
+products describe how the frozen prediction reads the two spatial forms.
+They are not two independently fitted predictive scores.
+
+## Larger analyses and next steps
+
+For many measurements, use a declared workspace budget and, with the
+implicit identity neural metric, `storage = "block"`. Supply a new
+directory through `storage_path`; completed records reopen with
+[`readRDS()`](https://rdrr.io/r/base/readRDS.html) while that directory
+stays in place. A fixed SPD neural metric currently uses memory storage.
+See
+[`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md)
+and
+[`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
+for retained fields and storage controls. The workspace budget covers
+planned numerical buffers, not a hard limit on the R process’s resident
+memory. This path currently uses one worker.
+
+For the signed energies and fixed RSA coefficients, see [Reading
+results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md)
+([`vignette("interpreting-results")`](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md)
+offline). For a descriptive rank budget without independent prediction,
+see the latent-layer example in [Conservative
+frames](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md)
+([`vignette("conservative-frames")`](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md)).
+The repository’s [standalone
+example](https://github.com/bbuchsbaum/crossform/blob/main/exemplars/predictive-geometry/fixed-split.R)
+also checks equivalent kernel, feature and squared-Euclidean-RDM inputs.

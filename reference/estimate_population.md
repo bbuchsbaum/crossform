@@ -63,7 +63,8 @@ estimate_population(
 An `effect_population_result`: a sealed record carrying `$coefficients`
 (a `node`-by-`query`-by-`term` array), `$values`, `$fitted` and
 `$residuals` (`node`-by-`query`-by-`subject`), the `$index` of group
-nodes plus the sink, `$queries`, `$ledger`, `$uncertainty` (see the
+nodes plus the sink, `$queries`, `$ledger`, `$coverage` (the exact
+node/readout population target and provenance), `$uncertainty` (see the
 section above; read it through
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md)),
 and a `$receipt` recording every participant's read, its transport
@@ -137,15 +138,35 @@ exist yet. Both normalizations are computed against a total read from
 the same data as the ledger, which the receipt declares
 (`budget_estimate = "same_data_ratio"`).
 
+## Coverage and the population target
+
+Ordinary-node availability is derived from positive realized transported
+mass and query admission, never from whether a numeric response equals
+zero. Under the default `coverage_policy = "all_planned"`, a cell is
+unresolved if any planned participant is unavailable. The explicit
+`"available_at_node"` policy fits the exact local subject set and
+therefore names a different target. `$coverage` records the policy,
+planned subjects, stable plan and transport identifiers, operator
+coverage, exact analytic availability, recoverable dictionary-encoded
+subject sets, `n`, `n_eff`, `mass_n_eff`, local design rank and residual
+df, status, and coefficient-specific estimability and exclusion reasons.
+The estimates are conditional on the realized transport and coverage.
+`$coverage$conditioning` retains every participant's transport source,
+fitting sample, cross-fitting folds, and fixed-versus-estimated status.
+Transport-estimation uncertainty is not propagated by this contract, and
+cross-fitting does not make the result marginal over it.
+
 ## Uncertainty
 
 `$uncertainty` always carries `$between`, the ingredients of the
-between-subject layer: the group design's unscaled covariance
-\\(X'X)^{-1}\\ and the terms it is indexed by. That is what
+between-subject layer: the subject-aligned group design, available
+estimators, estimator assumptions, and the terms they are indexed by.
+That is what
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md)
-needs and the result does not otherwise hold; the standard errors
-themselves are computed when they are read rather than stored as three
-more `node`-by-`query`-by-`term` arrays.
+needs to reconstruct each node-query cell's exact local design and
+return either classical OLS or HC3 sandwich covariance. The covariances
+themselves are computed when read rather than stored beside every point
+estimate.
 
 Supplying `uncertainty` adds two more blocks. `$native` is D8's own
 per-native-node covariance per participant, carried **untransported**,
@@ -155,6 +176,14 @@ no route produces one. `$within` is the part of that refusal E8 lifts —
 a group column fed by exactly one native row, where the cross-node terms
 carry weight zero — admitted per participant and per column and absent
 elsewhere. No independence assumption is made anywhere.
+
+The missing joint covariance does not gate ordinary population point
+estimation: unweighted OLS operates across participants separately at
+each node-query cell. It gates covariance-dependent operations such as
+transported within-subject precision, conserved-budget variance, or
+later joint spatial inference. The future admission law is recorded in
+`design/cross-node-covariance-contract.md` and on the transported
+refusal's `$future` field with status `"not_implemented"`.
 
 The two layers are reported separately and are never pooled; there is no
 field holding their sum. See
@@ -202,6 +231,7 @@ Other population transports:
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -242,12 +272,14 @@ fit
 #>   group nodes:   2 + sink
 #>   queries:       2 (face-house, face+house)
 #>   frame:         undeclared, conservative
-#>   transport:     budget, anatomical, cross-fit not declared
+#>   transport:     budget, anatomical, fixed, cross-fit not declared
 #>   normalization: none (mean subject ledger, native evidence units)
+#>   coverage:      all_planned; cell n 4 to 4 of 4; estimated
+#>   inference:     conditional_on_realized_transport; uncertainty not propa...
 #>   fit:           OLS (subject-constant weights), transport then fit
 #>   budget:        preserved, worst relative deviation 2.02e-16 against 1e-12
-#>   uncertainty:   between-subject SE, df 3 (uncalibrated)
-#>   estimand:      population-sha256:fc0f369ba976...
+#>   uncertainty:   between-subject covariance classical/HC3, cell df 3 to 3...
+#>   estimand:      population-sha256:6300c2c34d71...
 #>   next:          as.data.frame(x), x$coefficients[, , term], population_uncertainty(x)
 
 # The group mean at each node and query, with the sink as its own row.

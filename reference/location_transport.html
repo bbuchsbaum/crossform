@@ -45,7 +45,7 @@ functional-transport learning stay outside the package)."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Declare a location transport onto a shared group node set</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/transport.R" class="external-link"><code>R/transport.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/transport.R" class="external-link"><code>R/transport.R</code></a></small>
       <div class="d-none name"><code>location_transport.Rd</code></div>
     </div>
 
@@ -101,7 +101,9 @@ column <code>m + 1</code> of the operator and has no index row.</p></dd>
 
 <dt id="arg-provenance">provenance<a class="anchor" aria-label="anchor" href="#arg-provenance"></a></dt>
 <dd><p>A list carrying at least <code>method</code> and <code>details</code>, plus
-<code>cross_fit</code> when <code>method</code> is <code>"functional"</code>.</p></dd>
+<code>cross_fit</code> when <code>method</code> is <code>"functional"</code>. Optional <code>fitting_sample</code>
+and <code>cross_fit_folds</code> refine that declaration. Conditioning fields are
+derived and cannot be supplied by the caller.</p></dd>
 
 
 <dt id="arg-row-mass">row_mass<a class="anchor" aria-label="anchor" href="#arg-row-mass"></a></dt>
@@ -165,7 +167,17 @@ field is not advisory. A circular transport — one fitted on a partition
 that is also used to evaluate it — reports a transport gain roughly three
 times the honest one and is otherwise indistinguishable from it, so the
 field that would let a plan exclude those partitions is required rather
-than encouraged. Any further keys are kept as declared.</p>
+than encouraged. <code>fitting_sample</code> and <code>cross_fit_folds</code> may distinguish the
+operator's full fitting sample from the named fold assignments; for
+compatibility they default to the required <code>cross_fit</code> declaration.</p>
+<p>Cross-fitting is a circularity control, not uncertainty propagation. Every
+transport receives a derived <code>$provenance$conditioning</code> record naming its
+source, fixed-versus-estimated status, fitting sample, folds, conditional
+inference scope, excluded uncertainty, and the future propagation
+capability. Current population inference is always conditional on the
+realized operator: <code>uncertainty_propagated</code> and
+<code>marginal_over_transport</code> are immutable <code>FALSE</code>. Any further non-reserved
+keys are kept as declared.</p>
     </div>
     <div class="section level2">
     <h2 id="refusal">Refusal<a class="anchor" aria-label="anchor" href="#refusal"></a></h2>
@@ -190,6 +202,7 @@ convenience constructors, and <code><a href="transport_values.html">transport_va
 <code><a href="population_prevalence.html">population_prevalence()</a></code>,
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>,
 <code><a href="population_views.html">population_views</a></code>,
+<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -210,9 +223,10 @@ convenience constructors, and <code><a href="transport_values.html">transport_va
 <span class="r-out co"><span class="r-pr">#&gt;</span>   nodes:      4 native -&gt; 2 group + sink</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   semantics:  budget</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   sink:       mass 0.3 of 4 rows, 7.5% of territory</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   provenance: anatomical (cross-fit: none)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   provenance: anatomical, fixed (cross-fit: none)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   built:      hand-declared</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   signature:  sha256:93779bd18b8b...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   inference:  conditional_on_realized_transport; uncertainty not propagated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   signature:  sha256:516c1f0f6271...</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The sink column is materialized and closes every row sum to one.</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">transport</span><span class="op">$</span><span class="va">matrix</span><span class="op">)</span></span></span>

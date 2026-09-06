@@ -63,31 +63,26 @@
       <h1>Extending crossform: the developer protocol</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/vignettes/crossform-extending.Rmd" class="external-link"><code>vignettes/crossform-extending.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/vignettes/crossform-extending.Rmd" class="external-link"><code>vignettes/crossform-extending.Rmd</code></a></small>
       <div class="d-none name"><code>crossform-extending.Rmd</code></div>
     </div>
 
     
     
-<p>This guide is for people writing a <em>package</em>, not an analysis:
-a storage backend, a first-level fitting engine, a design compiler, a
-spatial provider, or a result type. It states the surface crossform
-promises to such a package — what you supply, what the compiler checks,
-and which refusal you get when the declaration and the object disagree —
-and then builds a small adapter end to end so the protocol is
-demonstrated rather than described.</p>
-<p>If you are analysing data rather than writing a package, you want
-<code><a href="../articles/introduction.html">vignette("introduction")</a></code> or
-<code><a href="../articles/from-observations.html">vignette("from-observations")</a></code> instead. Nothing here is
-required to use crossform.</p>
+<p>How can another R package supply data or fitted effects to
+<code>crossform</code> while preserving bounded reads and honest
+uncertainty? This guide builds a small adapter from binary response
+files to a cross-run contrast result. It is for package authors;
+analysis users can start with <a href="from-observations.html">From
+observations</a>.</p>
+<p>You should be familiar with <code><a href="../reference/relation.html">relation()</a></code>,
+<code><a href="../reference/plan_geometry.html">plan_geometry()</a></code>, and the distinction between a relation’s
+point estimates and its error channel. The example uses only public
+functions. Optional volume output requires <code>neuroim2</code> &gt;=
+0.19.0; the storage and estimation workflow runs without it.</p>
 <div class="section level2">
-<h2 id="the-protocol">The protocol<a class="anchor" aria-label="anchor" href="#the-protocol"></a>
+<h2 id="choose-the-boundary-your-package-needs">Choose the boundary your package needs<a class="anchor" aria-label="anchor" href="#choose-the-boundary-your-package-needs"></a>
 </h2>
-<p>An extension package meets crossform at two places.</p>
-<p><strong>The extension-only surface</strong> is six entry points, plus
-one obligation. They exist so another package can hand data, an
-estimator, an error channel, and a result type into the typed core; an
-ordinary analysis never calls them.</p>
 <table class="table">
 <colgroup>
 <col width="33%">
@@ -95,62 +90,53 @@ ordinary analysis never calls them.</p>
 <col width="33%">
 </colgroup>
 <thead><tr class="header">
-<th>Entry point</th>
-<th>Seam</th>
-<th>Hands in</th>
+<th>Your package supplies</th>
+<th>Public entry points</th>
+<th>What to demonstrate</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td><code><a href="../reference/file_matrix_source.html">file_matrix_source()</a></code></td>
-<td>data-in</td>
-<td>a reopenable out-of-memory response store</td>
+<td>A response store</td>
+<td>
+<code><a href="../reference/file_matrix_source.html">file_matrix_source()</a></code>,
+<code><a href="../reference/source_capabilities.html">source_capabilities()</a></code>, <code><a href="../reference/relation_block.html">relation_block()</a></code>
+</td>
+<td>Stable source identity and bounded feature reads</td>
 </tr>
 <tr class="even">
-<td><code><a href="../reference/source_capabilities.html">source_capabilities()</a></code></td>
-<td>data-in</td>
-<td>what an opaque source can actually do</td>
-</tr>
-<tr class="odd">
-<td><code><a href="../reference/relation_block.html">relation_block()</a></code></td>
-<td>data-in</td>
-<td>the bounded read the whole design rests on</td>
-</tr>
-<tr class="even">
+<td>A linear estimator</td>
 <td><code><a href="../reference/effect_extractor.html">effect_extractor()</a></code></td>
-<td>design-in</td>
-<td>the declared map <code>E</code> in <code>B = E Y</code>
+<td>The declared effect-by-observation map <code>E</code> in
+<code>B = E Y</code>
 </td>
 </tr>
 <tr class="odd">
+<td>Fitted effects and uncertainty provenance</td>
 <td><code><a href="../reference/relation_fit.html">relation_fit()</a></code></td>
-<td>error-channel-in</td>
-<td>the statistical envelope around a relation</td>
+<td>Which error-channel capabilities are actually available</td>
 </tr>
 <tr class="even">
+<td>A custom result class</td>
 <td><code><a href="../reference/as_neurovol.html">as_neurovol()</a></code></td>
-<td>result-out</td>
-<td>an S3 generic your result class can register on</td>
+<td>Correct values and spatial indexing in the returned volume</td>
+</tr>
+<tr class="odd">
+<td>A version-specific compiler adapter</td>
+<td><code><a href="../reference/adapter_version_certificate.html">adapter_version_certificate()</a></code></td>
+<td>Installed dependency version matches a separately certified
+version</td>
 </tr>
 </tbody>
 </table>
-<p><code><a href="../reference/adapter_version_certificate.html">adapter_version_certificate()</a></code> is the seventh name and
-not a seam: it is how you discharge the certification obligation stated
-at the end of this guide, and it is here because a protocol that
-requires a behaviour has to publish the call that performs it.</p>
-<p><strong>The ordinary core</strong> is everything else, and adapters
-use much more of it than of the list above. The four adapters shipped in
-this package call seventeen crossform functions between them and only
-three — <code><a href="../reference/effect_extractor.html">effect_extractor()</a></code>, <code><a href="../reference/relation_fit.html">relation_fit()</a></code> and
-<code><a href="../reference/source_capabilities.html">source_capabilities()</a></code> — come from the extension-only list.
-The rest are the same <code><a href="../reference/study.html">study()</a></code>,
-<code><a href="../reference/observation_events.html">observation_events()</a></code>, <code><a href="../reference/condition_space.html">condition_space()</a></code>,
-<code><a href="../reference/design_model.html">design_model()</a></code>, <code><a href="../reference/relation.html">relation()</a></code>,
-<code><a href="../reference/volume_domain.html">volume_domain()</a></code> calls a user makes. That is deliberate: an
-adapter is a <em>morphism into the typed core</em>, so it builds
-ordinary crossform objects and hands them over. There is no privileged
-back door, and the absence of one is the point.</p>
-<p>The rest of this guide takes the six in turn, then builds an
-adapter.</p>
+<p>Adapters also use ordinary constructors such as
+<code><a href="../reference/relation.html">relation()</a></code>, <code><a href="../reference/study.html">study()</a></code>, and
+<code><a href="../reference/volume_domain.html">volume_domain()</a></code>. Build those objects through their public
+constructors so the same checks apply to adapter and user inputs. A
+version certificate records a tested version; it does not replace
+numerical or compiler-conformance tests.</p>
+<p>The next sections explain the boundaries and their expected failures.
+Continue to <a href="#a-worked-adapter">the worked adapter</a> to see
+them assembled into one workflow.</p>
 <div class="section level3">
 <h3 id="file_matrix_source-an-out-of-memory-store">
 <code>file_matrix_source()</code> — an out-of-memory store<a class="anchor" aria-label="anchor" href="#file_matrix_source-an-out-of-memory-store"></a>
@@ -170,14 +156,30 @@ argument:</p>
 <code class="sourceCode R"><span><span class="va">path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".bin"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/readBin.html" class="external-link">writeBin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/vector.html" class="external-link">as.vector</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/double.html" class="external-link">as.double</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">12</span><span class="op">)</span>, <span class="fl">4L</span>, <span class="fl">3L</span><span class="op">)</span><span class="op">)</span>, <span class="va">path</span>, size <span class="op">=</span> <span class="fl">8L</span><span class="op">)</span></span>
 <span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
+<span><span class="va">revision_failure</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/file_matrix_source.html">file_matrix_source</a></span><span class="op">(</span></span>
 <span>    <span class="va">path</span>, dim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4L</span>, <span class="fl">3L</span><span class="op">)</span>,</span>
 <span>    stable_revision <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"sha256:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/strrep.html" class="external-link">strrep</a></span><span class="op">(</span><span class="st">"0"</span>, <span class="fl">64</span><span class="op">)</span><span class="op">)</span></span>
 <span>  <span class="op">)</span>,</span>
 <span>  effect_contract_error <span class="op">=</span> <span class="va">conditionMessage</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "The matrix file does not match `stable_revision`."</span></span></code></pre></div>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>problem <span class="op">=</span> <span class="st">"Revision differs from file contents"</span>,</span>
+<span>  message <span class="op">=</span> <span class="va">revision_failure</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="41%">
+<col width="58%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">problem</th>
+<th align="left">message</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="left">Revision differs from file contents</td>
+<td align="left">The matrix file does not match
+<code>stable_revision</code>.</td>
+</tr></tbody>
+</table>
 <p>The same check runs again every time the file is reopened for a block
 read
 (<code>"Reopenable matrix source has a stale content revision."</code>),
@@ -213,16 +215,36 @@ nothing, and you must say.</p>
 <span>  <span class="op">)</span><span class="op">)</span>,</span>
 <span>  effect_input_error <span class="op">=</span> <span class="va">conditionMessage</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>weak_revision <span class="op">=</span> <span class="va">weak</span>, nonlogical_flag <span class="op">=</span> <span class="va">flags</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                                                               weak_revision </span></span>
-<span><span class="co">#&gt; "`stable_revision` must be a sha256 identifier with 64 hexadecimal digits." </span></span>
-<span><span class="co">#&gt;                                                             nonlogical_flag </span></span>
-<span><span class="co">#&gt;                       "Source capability flags must each be TRUE or FALSE."</span></span></code></pre></div>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>problem <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Weak revision"</span>, <span class="st">"Nonlogical flag"</span><span class="op">)</span>,</span>
+<span>  message <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">weak</span>, <span class="va">flags</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="17%">
+<col width="82%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">problem</th>
+<th align="left">message</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">Weak revision</td>
+<td align="left">
+<code>stable_revision</code> must be a sha256
+identifier with 64 hexadecimal digits.</td>
+</tr>
+<tr class="even">
+<td align="left">Nonlogical flag</td>
+<td align="left">Source capability flags must each be TRUE or
+FALSE.</td>
+</tr>
+</tbody>
+</table>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Claiming `reopenable` for a source that has no reopenable descriptor: the</span></span>
 <span><span class="co"># claim cannot be honoured, because there is nothing to reopen.</span></span>
 <span><span class="va">source_fn</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">features</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">4L</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">features</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
+<span><span class="va">reopen_failure</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/relation.html">relation</a></span><span class="op">(</span></span>
 <span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>`run-1` <span class="op">=</span> <span class="va">source_fn</span><span class="op">)</span>, effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"c"</span>, <span class="st">"d"</span><span class="op">)</span>,</span>
 <span>    source_dims <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4L</span>, <span class="fl">3L</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -233,20 +255,27 @@ nothing, and you must say.</p>
 <span>  <span class="op">)</span>,</span>
 <span>  effect_input_error <span class="op">=</span> <span class="va">conditionMessage</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "Reopenable source capabilities require a reopenable descriptor."</span></span></code></pre></div>
-<p>Two more are worth knowing because they gate execution rather than
-construction. Both come from
-<code>.relation_source_capabilities()</code> in
-<code>R/capabilities.R</code>, which every route into the executor
-passes through:</p>
-<ul>
-<li>omitting capabilities for an opaque source —
-<code>"Opaque relation sources require explicit source_capabilities() before execution."</code>
-</li>
-<li>declaring <code>block_read = FALSE</code> —
-<code>"All relation sources must support bounded block reads."</code>
-</li>
-</ul>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>problem <span class="op">=</span> <span class="st">"Opaque source declared reopenable"</span>,</span>
+<span>  message <span class="op">=</span> <span class="va">reopen_failure</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="34%">
+<col width="65%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">problem</th>
+<th align="left">message</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="left">Opaque source declared reopenable</td>
+<td align="left">Reopenable source capabilities require a reopenable
+descriptor.</td>
+</tr></tbody>
+</table>
+<p>Two declarations are checked when a source reaches execution: opaque
+sources must supply capabilities, and every source must support bounded
+block reads. An adapter should exercise both failures as well as
+successful reads.</p>
 <p>Note what class these are. A wrong capability declaration is an
 <code>effect_input_error</code> or an
 <code>effect_contract_error</code>, not an
@@ -284,19 +313,11 @@ effect-by-observation, holding no neural data, and therefore reusable
 across every feature block. Supply <code>map</code> plus an
 <code>estimator</code> identity string; the constructor requires a
 finite nonempty matrix and names the rows from the effect space.</p>
-<p>This is the seam for an engine that owns its own estimator.
-crossform’s <code><a href="../reference/lm_extractor.html">lm_extractor()</a></code> compiles one from a design and a
-target and is <em>not</em> part of the developer protocol — maintainer
-decision 2 in <code>design/api-tiers.md</code> re-tiered it as advanced,
-because it is an <code>extract =</code> argument value of
-<code><a href="../reference/relation.html">relation()</a></code> and so reachable by an ordinary user. Use it if
-it fits; it raises the capability refusals <code>full_rank_design</code>
-and <code>estimable_effects</code> in namespace
-<code>relation_fit</code> when the design cannot identify what was asked
-for. If your package does something <code><a href="../reference/lm_extractor.html">lm_extractor()</a></code> does
-not, compute <code>E</code> yourself and hand it in through
-<code><a href="../reference/effect_extractor.html">effect_extractor()</a></code> — that is what the fmrireg adapter does
-with <code><a href="https://bbuchsbaum.github.io/fmrireg/reference/fmri_ols_fit.html" class="external-link">fmrireg::fmri_ols_fit()</a></code>.</p>
+<p>If your estimator is an ordinary linear model,
+<code><a href="../reference/lm_extractor.html">lm_extractor()</a></code> can compile <code>E</code> from a design and
+target. It checks full design rank and target estimability. An engine
+with its own estimator instead computes <code>E</code> and passes it to
+<code><a href="../reference/effect_extractor.html">effect_extractor()</a></code>, as the worked example does.</p>
 </div>
 <div class="section level3">
 <h3 id="relation_fit-the-error-channel">
@@ -408,7 +429,7 @@ layout <code><a href="../reference/file_matrix_source.html">file_matrix_source()
 <span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">design</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">condition</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">design</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">design</span>, drift <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_scans</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">store</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"runstore"</span><span class="op">)</span></span>
+<span><span class="va">store</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span><span class="st">"runstore-"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/files2.html" class="external-link">dir.create</a></span><span class="op">(</span><span class="va">store</span>, showWarnings <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="va">paths</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">runs</span>, <span class="kw">function</span><span class="op">(</span><span class="va">run</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">coefficients</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
@@ -522,7 +543,7 @@ features are planted and the last is not, which the numbers show. Rows
 come back in effect-space order regardless of how the store is laid
 out.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">block_failures</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  bad_feature <span class="op">=</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
 <span>    <span class="fu"><a href="../reference/relation_block.html">relation_block</a></span><span class="op">(</span><span class="va">relation_value</span>, <span class="st">"run-1"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="fl">99L</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>    effect_input_error <span class="op">=</span> <span class="va">conditionMessage</span></span>
@@ -532,10 +553,32 @@ out.</p>
 <span>    effect_input_error <span class="op">=</span> <span class="va">conditionMessage</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt;                                               bad_feature </span></span>
-<span><span class="co">#&gt; "`features` must be unique valid neural feature indices." </span></span>
-<span><span class="co">#&gt;                                             bad_partition </span></span>
-<span><span class="co">#&gt;       "`partition` must identify one relation partition."</span></span></code></pre></div>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>problem <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">block_failures</span><span class="op">)</span>,</span>
+<span>  message <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unname.html" class="external-link">unname</a></span><span class="op">(</span><span class="va">block_failures</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="20%">
+<col width="80%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">problem</th>
+<th align="left">message</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">bad_feature</td>
+<td align="left">
+<code>features</code> must be unique valid neural
+feature indices.</td>
+</tr>
+<tr class="even">
+<td align="left">bad_partition</td>
+<td align="left">
+<code>partition</code> must identify one relation
+partition.</td>
+</tr>
+</tbody>
+</table>
 </div>
 <div class="section level3">
 <h3 id="error-channel-in">Error-channel-in<a class="anchor" aria-label="anchor" href="#error-channel-in"></a>
@@ -565,8 +608,16 @@ that was missing:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>capability <span class="op">=</span> <span class="va">refusal</span><span class="op">$</span><span class="va">capability</span>, namespace <span class="op">=</span> <span class="va">refusal</span><span class="op">$</span><span class="va">namespace</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     capability      namespace </span></span>
 <span><span class="co">#&gt;  "residual_df" "relation_fit"</span></span>
-<span><span class="va">refusal</span><span class="op">$</span><span class="va">remedies</span></span>
-<span><span class="co">#&gt; [1] "Refit raw observations with `lm_relation_fit()`."</span></span></code></pre></div>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>remedy <span class="op">=</span> <span class="va">refusal</span><span class="op">$</span><span class="va">remedies</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<thead><tr class="header">
+<th align="left">remedy</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="left">Refit raw observations with
+<code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code>.</td>
+</tr></tbody>
+</table>
 <p><code><a href="../reference/sampling_capabilities.html">sampling_capabilities()</a></code> is the ask-before-you-provoke
 form of the same question: it returns the unmet requirements as a value,
 so an adapter can report them without provoking the refusal.</p>
@@ -583,15 +634,32 @@ so an adapter can report them without provoking the refusal.</p>
 <span>    <span class="va">fit</span><span class="op">$</span><span class="va">relation</span>, independence <span class="op">=</span> <span class="st">"independent"</span>, generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/sampling_capabilities.html">sampling_capabilities</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">fit</span><span class="op">)</span></span>
-<span><span class="co">#&gt; &lt;effect_sampling_capabilities&gt;</span></span>
-<span><span class="co">#&gt;   analytic sampling law: unavailable </span></span>
-<span><span class="co">#&gt;   metric: fixed | partitions: equal | error channel: absent </span></span>
-<span><span class="co">#&gt;   unmet requirements:</span></span>
-<span><span class="co">#&gt;   * missing_error_channel - this evidence plan has only a precomputed relation and no error channel. Refit raw observations with `lm_relation_fit()` or supply a validated, identity-bound external error channel; beta matrices alone cannot recover residual uncertainty </span></span>
-<span><span class="co">#&gt;       remedy: Refit raw observations with `lm_relation_fit()`. </span></span>
-<span><span class="co">#&gt;   note: requirements that describe the error channel itself cannot be</span></span>
-<span><span class="co">#&gt;         evaluated until one exists, and are not listed.</span></span></code></pre></div>
+<span><span class="va">sampling</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/sampling_capabilities.html">sampling_capabilities</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">fit</span><span class="op">)</span></span>
+<span><span class="va">sampling</span><span class="op">$</span><span class="va">available</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="va">sampling</span><span class="op">$</span><span class="va">reasons</span>, col.names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Requirement"</span>, <span class="st">"Why unavailable"</span>, <span class="st">"Remedy"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="7%">
+<col width="77%">
+<col width="15%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">Requirement</th>
+<th align="left">Why unavailable</th>
+<th align="left">Remedy</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="left">missing_error_channel</td>
+<td align="left">this evidence plan has only a precomputed relation and
+no error channel. Refit raw observations with
+<code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code> or supply a validated, identity-bound
+external error channel; beta matrices alone cannot recover residual
+uncertainty</td>
+<td align="left">Refit raw observations with
+<code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code>.</td>
+</tr></tbody>
+</table>
 </div>
 <div class="section level3">
 <h3 id="an-opaque-source-and-why-it-needs-a-declaration">An opaque source, and why it needs a declaration<a class="anchor" aria-label="anchor" href="#an-opaque-source-and-why-it-needs-a-declaration"></a>
@@ -601,32 +669,51 @@ in-memory or networked backend exposed as a closure, the descriptor —
 and with it the derived capability record — disappears, and the
 declaration becomes the adapter’s job.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">opaque</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">features</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_scans</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">features</span><span class="op">)</span><span class="op">)</span>, <span class="va">n_scans</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">features</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">}</span></span>
+<code class="sourceCode R"><span><span class="va">opaque_values</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/readBin.html" class="external-link">readBin</a></span><span class="op">(</span><span class="va">paths</span><span class="op">[[</span><span class="fl">1L</span><span class="op">]</span><span class="op">]</span>, what <span class="op">=</span> <span class="st">"double"</span>, n <span class="op">=</span> <span class="va">n_scans</span> <span class="op">*</span> <span class="va">n_features</span><span class="op">)</span>,</span>
+<span>  nrow <span class="op">=</span> <span class="va">n_scans</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">opaque</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/eval.html" class="external-link">local</a></span><span class="op">(</span><span class="op">{</span></span>
+<span>  <span class="va">snapshot</span> <span class="op">&lt;-</span> <span class="va">opaque_values</span></span>
+<span>  <span class="kw">function</span><span class="op">(</span><span class="va">features</span><span class="op">)</span> <span class="va">snapshot</span><span class="op">[</span>, <span class="va">features</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
 <span><span class="va">undeclared</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relation.html">relation</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>`run-1` <span class="op">=</span> <span class="va">opaque</span><span class="op">)</span>, extract <span class="op">=</span> <span class="va">extractor</span>,</span>
 <span>  source_dims <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">n_scans</span>, <span class="va">n_features</span><span class="op">)</span><span class="op">)</span>, domain <span class="op">=</span> <span class="va">domain</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Constructing the relation is fine; executing it is not.</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="fu"><a href="../reference/relation_fit.html">relation_fit</a></span><span class="op">(</span><span class="va">undeclared</span><span class="op">)</span>, effect_input_error <span class="op">=</span> <span class="va">conditionMessage</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "Opaque relation sources require explicit `source_capabilities()` before execution."</span></span></code></pre></div>
+<span><span class="va">missing_declaration</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/relation_fit.html">relation_fit</a></span><span class="op">(</span><span class="va">undeclared</span><span class="op">)</span>, effect_input_error <span class="op">=</span> <span class="va">conditionMessage</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>message <span class="op">=</span> <span class="va">missing_declaration</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup><col width="100%"></colgroup>
+<thead><tr class="header">
+<th align="left">message</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="left">Opaque relation sources require explicit
+<code><a href="../reference/source_capabilities.html">source_capabilities()</a></code> before execution.</td>
+</tr></tbody>
+</table>
+<p>The closure holds a fixed in-memory snapshot of the first file. Its
+revision can therefore use the descriptor’s content hash; the function
+returns selected columns from that snapshot on every call.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">declared</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relation.html">relation</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>`run-1` <span class="op">=</span> <span class="va">opaque</span><span class="op">)</span>, extract <span class="op">=</span> <span class="va">extractor</span>,</span>
 <span>  source_dims <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">n_scans</span>, <span class="va">n_features</span><span class="op">)</span><span class="op">)</span>, domain <span class="op">=</span> <span class="va">domain</span>,</span>
 <span>  capabilities <span class="op">=</span> <span class="fu"><a href="../reference/source_capabilities.html">source_capabilities</a></span><span class="op">(</span></span>
 <span>    block_read <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>    stable_revision <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"sha256:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/strrep.html" class="external-link">strrep</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="fl">64</span><span class="op">)</span><span class="op">)</span></span>
+<span>    stable_revision <span class="op">=</span> <span class="va">sources</span><span class="op">[[</span><span class="fl">1L</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">stable_revision</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/relation_fit_capabilities.html">relation_fit_capabilities</a></span><span class="op">(</span><span class="fu"><a href="../reference/relation_fit.html">relation_fit</a></span><span class="op">(</span><span class="va">declared</span><span class="op">)</span><span class="op">)</span><span class="op">$</span><span class="va">error_model</span></span>
 <span><span class="co">#&gt; [1] FALSE</span></span></code></pre></div>
-<p>In a real adapter the revision must actually identify the bytes your
-source will return — it is what a receipt is checked against later. A
-literal constant like the one above is only acceptable in a
-vignette.</p>
+<p>The declaration admits bounded reads, but does not claim that the
+closure is reopenable or thread-safe. A different backend must establish
+those properties before advertising them.</p>
 </div>
 <div class="section level3">
 <h3 id="it-is-now-an-ordinary-relation">It is now an ordinary relation<a class="anchor" aria-label="anchor" href="#it-is-now-an-ordinary-relation"></a>
@@ -643,8 +730,10 @@ was involved. The plan built above compiles and runs:</p>
 <span><span class="co">#&gt;   background -0.01807 -0.0001196       0.00255 0.00243                 NA</span></span>
 <span><span class="co">#&gt;   coherence_fraction: 1 of 2 valid; NA where coherent and configuration are</span></span>
 <span><span class="co">#&gt;     not a nonnegative partition</span></span></code></pre></div>
-<p>The planted region reproduces across runs and the background region
-does not, which is the answer the data were built to give.</p>
+<p>Compare the planted region with the background: the generated face
+effect should produce stronger cross-run evidence in the planted region.
+This is a point-estimate check of the adapter workflow; the fit has
+declared no analytic error channel.</p>
 </div>
 <div class="section level3">
 <h3 id="result-out-registering-an-as_neurovol-method">Result-out: registering an <code>as_neurovol()</code> method<a class="anchor" aria-label="anchor" href="#result-out-registering-an-as_neurovol-method"></a>
@@ -681,161 +770,80 @@ reimplementing the index arithmetic.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="what-is-not-part-of-the-protocol">What is not part of the protocol<a class="anchor" aria-label="anchor" href="#what-is-not-part-of-the-protocol"></a>
+<h2 id="stay-on-the-public-extension-boundary">Stay on the public extension boundary<a class="anchor" aria-label="anchor" href="#stay-on-the-public-extension-boundary"></a>
 </h2>
-<p>The list above is exhaustive, and the exclusions are deliberate.</p>
-<p><strong>The compiler and the executor are closed.</strong>
-<code><a href="../reference/plan_geometry.html">plan_geometry()</a></code>, <code><a href="../reference/plan_relation.html">plan_relation()</a></code>, and
-<code><a href="../reference/estimate_relation.html">estimate_relation()</a></code> are user-facing verbs, not extension
-points. Nothing in <code>R/compiler.R</code>,
-<code>R/execution-driver.R</code>, <code>R/task.R</code>, or
-<code>R/storage.R</code> is reachable, and the compiled task IR, the
-memory plan, and the reduction schedule are internal by construction. An
-adapter supplies inputs and reads outputs; it does not schedule
-work.</p>
-<p><strong>Kernels are closed.</strong> The numerical kernels
-(<code>R/kernel.R</code>, <code>R/measurement-kernel.R</code>,
-<code>R/evidence-sampling-kernel.R</code>, the crossnobis execution
-driver, and the C++ in <code>src/</code>) are not an extension surface
-at any version. <code><a href="../reference/crossnobis.html">crossnobis()</a></code> is a user verb, not a hook
-into the kernel behind it. Their identity is recorded in the execution
-receipt precisely so that a result can be attributed to one; a
-third-party kernel would make that attribution meaningless.</p>
-<p><strong>Everything the tier ledger demotes.</strong>
-<code>design/api-tiers.md</code> moves seven exports to internal in the
-subtraction release — <code>inner_product</code>,
-<code>measurement_space</code>, <code>measurement_bridge</code>,
-<code>effect_covariance</code>, <code>residual_pair_statistics</code>,
-<code>bids_events</code>, <code>bids_confounds</code> — and merges
-<code>reverse_bridge</code> into <code>measurement_bridge</code>. Two of
-those were developer-tier: <code><a href="../reference/effect_covariance.html">effect_covariance()</a></code> (a
-design-side factor with no call site anywhere in <code>R/</code> outside
-its own file — <code><a href="../reference/relation_fit_capabilities.html">relation_fit_capabilities()</a></code> already answers
-the only question anyone asks of it) and
-<code><a href="../reference/residual_pair_statistics.html">residual_pair_statistics()</a></code> (a compiler-stage accumulator
-that <code><a href="../reference/plan_crossnobis.html">plan_crossnobis()</a></code> runs internally). Do not build
-against them.</p>
-<p><strong>Anything reached with <code>:::</code>.</strong> If you
-cannot get there from <code>NAMESPACE</code>, it is not protocol, and
-the layering in <code>design/architecture.md</code> is not a public
-contract either.</p>
-<div class="section level3">
-<h3 id="the-gaps-once-stated-honestly-now-closed">The gaps, once stated honestly, now closed<a class="anchor" aria-label="anchor" href="#the-gaps-once-stated-honestly-now-closed"></a>
-</h3>
-<p>The four adapters shipped in this package used to be written partly
-outside the protocol they document.
-<code>tests/testthat/test-adapter-protocol.R</code> checks that every
-crossform function an adapter calls is either an export or a layer-1
-internal (argument checks, message formatting, refusal raising,
-hashing), and it carried a register of twelve calls that were neither —
-one per place an external package would have had to use <code>:::</code>
-or hand-roll a replacement.</p>
-<p><strong>The register is empty.</strong> The twelve fell into four
-groups, and closing each one changed something about the protocol rather
-than about the bookkeeping:</p>
-<ul>
-<li>
-<strong>fact re-validation</strong>
-(<code>.validate_observations()</code>,
-<code>.validate_partition_names()</code>,
-<code>.validate_study()</code>) — deleted, because none of it was doing
-work. <code><a href="../reference/bids_study.html">bids_study()</a></code> was re-checking an
-<code><a href="../reference/observations.html">observations()</a></code> record it was about to hand to
-<code><a href="../reference/study.html">study()</a></code>, which checks it on intake; the refusal now arrives
-from <code><a href="../reference/study.html">study()</a></code>, one frame later and in the same words.
-<code><a href="../reference/fmridesign_design_model.html">fmridesign_design_model()</a></code> asks
-<code><a href="../reference/study_capabilities.html">study_capabilities()</a></code> instead: it is the public verb that
-runs the study validator, so a study proves itself through the published
-surface. And an adapter checking that its own <code>partitions</code>
-argument is a vector of unique names writes that check itself, as you
-would.</li>
-<li>
-<strong>adapter version pinning</strong> — exported, as
-<code><a href="../reference/adapter_version_certificate.html">adapter_version_certificate()</a></code>. This was the one gap whose
-honest closure was a new name. Two paragraphs below, this guide
-<em>obliges</em> you to certify against installed versions; the refusal
-that discharges the obligation cannot then be a private helper. Call it
-first, in your own adapter, exactly as the two shipped compiler adapters
-do.</li>
-<li>
-<strong>external execution of a plan</strong>
-(<code>.validate_relation_plan()</code>,
-<code>.planned_observation_sources()</code>) — rewritten, and this is
-the seam that changed the most. <code><a href="../reference/relation_plan_receipts.html">relation_plan_receipts()</a></code> is
-the public verb that makes a plan prove itself: it runs the plan
-validator and hands back the validated per-partition receipts. The
-planned sources — the study’s readers restricted to the rows censoring
-retained — are then built in the adapter from the plan’s documented
-<code>$study</code>, <code>$retained_rows</code> and
-<code>$design_receipts</code>, with <code><a href="../reference/source_capabilities.html">source_capabilities()</a></code>
-declaring what those derived sources can honestly do. So
-<code><a href="../reference/fmrireg_relation.html">fmrireg_relation()</a></code> <em>can</em> now be written outside this
-package, and <code>R/adapter-fmrireg.R</code> is the worked example of
-how.</li>
-<li>
-<strong>spatial provider internals</strong>
-(<code>.new_domain()</code>, <code>.validate_domain()</code>,
-<code>.same_domain_reference()</code>, <code>.normalize_frame()</code>,
-<code>.support_index_from_members()</code>,
-<code>.support_index_membership()</code>) — moved into the public
-constructors, where the missing capability turned out to be two
-arguments. <code>volume_domain(metadata = )</code> records what a
-provider knows and an array does not
-(<code><a href="../reference/neuroim2_volume_domain.html">neuroim2_volume_domain()</a></code> uses it for the hash of the full
-<code>neuroim2</code> space), and because a domain’s geometry signature
-covers its metadata, two domains that agree on every voxel and disagree
-about their provenance stay correctly distinct.
-<code>additive_frame(members = )</code> takes the neighborhoods a
-provider computed and compiles them the way <code><a href="../reference/compile_frame.html">compile_frame()</a></code>
-compiles crossform’s own — applying the normalization law, building the
-support pattern, returning a frame with an <code>$index</code> and the
-<code>$specification</code> you recorded. A provider supplies supports;
-it does not reimplement what a frame is.</li>
-</ul>
-<p>Two of those closures compare a domain or a plan against a
-<em>rebuilt</em> one rather than against a recorded signature, which is
-worth copying: a value identical to one the constructor would have
-produced is a valid value, so the agreement check and the validity check
-are the same check, and both are reachable from outside.</p>
-<p>The register is a ratchet, not a licence: the test fails on a new
-unregistered internal call <em>and</em> on a registered one that has
-been removed. It is empty now, so any new entry is a request for a
-justification. If you need a seam that is not here, that is still the
-ticket to open.</p>
-</div>
+<p>An adapter supplies inputs and consumes results. The compiler’s task
+representation, execution schedule, storage internals, and numerical
+kernels are not extension hooks. Call public planning and estimation
+functions when needed; do not modify their internal representations or
+call private functions through <code>:::</code>.</p>
+<p>Several public constructors support specialized adapters without
+private helpers:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Adapter task</th>
+<th>Public route</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Validate an external compiler’s plan and inspect its records</td>
+<td>
+<code><a href="../reference/relation_plan_receipts.html">relation_plan_receipts()</a></code> and
+<code><a href="../reference/compiler_conformance.html">compiler_conformance()</a></code>
+</td>
+</tr>
+<tr class="even">
+<td>Describe a provider’s spatial geometry and provenance</td>
+<td><code>volume_domain(metadata = ...)</code></td>
+</tr>
+<tr class="odd">
+<td>Supply precomputed neighbourhood membership</td>
+<td><code>additive_frame(members = ...)</code></td>
+</tr>
+<tr class="even">
+<td>Inspect a study’s admitted behavior</td>
+<td><code><a href="../reference/study_capabilities.html">study_capabilities()</a></code></td>
+</tr>
+</tbody>
+</table>
+<p>A spatial provider supplies membership and metadata; the constructors
+apply frame normalization and establish domain identity. A compiler
+adapter validates its plan and builds readers over the retained
+observations. See the <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/ingestion-contract.md" class="external-link">ingestion
+contract</a> for the portable receipt schema, and the <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/api-tiers.md" class="external-link">API
+tier ledger</a> for the current public boundaries.</p>
 </div>
 <div class="section level2">
 <h2 id="the-compatibility-promise">The compatibility promise<a class="anchor" aria-label="anchor" href="#the-compatibility-promise"></a>
 </h2>
-<p><code>design/ingestion-contract.md</code> §13 is the binding
-statement. In short: the <code><a href="../reference/effect_extractor.html">effect_extractor()</a></code>,
-<code><a href="../reference/lm_extractor.html">lm_extractor()</a></code>, and <code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code> APIs
-remain valid for explicit linear designs and keep their honest, narrower
-capabilities; a future ingestion layer may reimplement them through
-shared internals but must not silently grant symbolic provenance or
-change their numerical estimand. <code><a href="../reference/plan_geometry.html">plan_geometry()</a></code> continues
-to consume the existing relation-fit output, and no parallel downstream
-engine is introduced alongside it. The promise binds regardless of tier
-— <code><a href="../reference/lm_extractor.html">lm_extractor()</a></code> moving from developer to advanced does not
-weaken it.</p>
+<p>The <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/ingestion-contract.md" class="external-link">ingestion
+contract</a> §13 defines the compatibility promise: the
+<code><a href="../reference/effect_extractor.html">effect_extractor()</a></code>, <code><a href="../reference/lm_extractor.html">lm_extractor()</a></code>, and
+<code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code> APIs remain valid for explicit linear
+designs and keep their honest, narrower capabilities; a future ingestion
+layer may reimplement them through shared internals but must not
+silently grant symbolic provenance or change their numerical estimand.
+<code><a href="../reference/plan_geometry.html">plan_geometry()</a></code> continues to consume the existing
+relation-fit output, and no parallel downstream engine is introduced
+alongside it. This promise applies to the public functions regardless of
+their API tier.</p>
 <p>§12 of the same document states the boundary the other way round:
 <em>the conformance protocol, not a particular package, is the core
 boundary</em>. Any compiler may participate if it emits the same
 portable receipt and passes <code><a href="../reference/compiler_conformance.html">compiler_conformance()</a></code>. The
 core is not BIDS-shaped, and no adapter’s dependency is mandatory —
 every one of them is in <code>Suggests:</code>.</p>
-<p>Two obligations follow for you. Certify against <em>installed</em>
-package versions and record them with
-<code><a href="../reference/adapter_version_certificate.html">adapter_version_certificate()</a></code>, as
-<code><a href="../reference/fmridesign_design_model.html">fmridesign_design_model()</a></code> and
-<code><a href="../reference/fmrireg_relation.html">fmrireg_relation()</a></code> do; source-checkout agreement is not
-evidence, and a hand-rolled version check that gets the capability name
-or the namespace wrong is invisible to every caller branching on
-<code><a href="../reference/catch_refusal.html">catch_refusal()</a></code>. And declare capabilities you can honour:
-crossform’s refusals are only as good as the declarations they are
-computed from, and a source that overstates <code>thread_safe</code>, or
-a fit that claims an error channel it does not have, converts a
-principled refusal into a wrong number.</p>
+<p>Before releasing an adapter, test it against the installed dependency
+version you will support. Record that version with
+<code><a href="../reference/adapter_version_certificate.html">adapter_version_certificate()</a></code> so unsupported installations
+produce the standard capability refusal. Then check that successful
+bounded reads and failed capability requests match your declarations. In
+particular, verify any claim of thread safety and any error channel used
+to compute uncertainty.</p>
 </div>
 <div class="section level2">
 <h2 id="where-to-look-next">Where to look next<a class="anchor" aria-label="anchor" href="#where-to-look-next"></a>

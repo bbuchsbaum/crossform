@@ -47,7 +47,7 @@ the same way as the rest of the group's."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Count how many participants a transported group value stands on</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/population-prevalence.R" class="external-link"><code>R/population-prevalence.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/population-prevalence.R" class="external-link"><code>R/population-prevalence.R</code></a></small>
       <div class="d-none name"><code>population_prevalence.Rd</code></div>
     </div>
 
@@ -190,13 +190,11 @@ about transport failure and not about a place. The exclusion is recorded at
 <code>$receipt$prevalence$sink_excluded</code> and the per-participant sink budget
 stays readable at <code>$receipt$sink_budget</code>.</p>
 <p>A prevalence is uninterpretable without the number of participants behind
-it. <code>$coverage$contributing</code> counts, per node and query, the participants
-whose transported value is finite and not exactly zero — a proxy, read off
-the shipped values, for <code>population-form-v1</code> section 7.5's
-<code>group_node_subject_coverage</code>, which is a property of the transport
-operators a result does not carry. <code>coverage_floor</code> marks the nodes below a
-declared floor; it has no default because section 14.3 records the threshold
-itself as an open maintainer decision.</p>
+it. <code>$coverage$contributing</code> is the result's exact node-query availability,
+derived from realized transported mass and query admission rather than from
+whether the observed value is nonzero. <code>coverage_floor</code> marks the nodes
+below a declared floor; it has no default because section 14.3 records the
+threshold itself as an open maintainer decision.</p>
     </div>
     <div class="section level2">
     <h2 id="refusals">Refusals<a class="anchor" aria-label="anchor" href="#refusals"></a></h2>
@@ -243,6 +241,7 @@ participants differ.</p>
 <code><a href="plan_population.html">plan_population()</a></code>,
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>,
 <code><a href="population_views.html">population_views</a></code>,
+<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -285,13 +284,13 @@ participants differ.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   group nodes:  2 (sink excluded)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   queries:      face-house, face-tool</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   threshold:    value &gt; 0 (ledger units, exact)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   sign:         median 0.667 (range 0.5 to 1)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   alignment:    median 0.917 (range 0.833 to 1), leave-one-out reference</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   sign:         median 0.75 (range 0.5 to 1), 2 cells masked</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   alignment:    median 1 (range 1 to 1), 1 cell masked, leave-one-out ref...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   readout:      2 queries; bank Gram off identity by 3, not Frobenius</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   coverage:     minimum 5 of 6 participants contributing; no floor declared</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   frame:        undeclared, conservative</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:    budget, anatomical, cross-fit not declared</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:     population-sha256:7b32ff9246f3...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:    budget, anatomical, fixed, cross-fit not declared</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:     population-sha256:7ac3b9441c67...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   reading:      latent descriptive layer; not for inference</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   a cell at which nothing reproduces reports a fraction near 0.5, not near</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     0: thresholding a signed crossvalidated estimate keeps the sign and</span>
@@ -306,8 +305,8 @@ participants differ.</p>
 <span class="r-in"><span><span class="va">shared</span><span class="op">$</span><span class="va">sign</span><span class="op">$</span><span class="va">fraction</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         query</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> node     face-house face-tool</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   group1  1.0000000       0.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   group2  0.8333333       0.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   group1          1       0.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   group2         NA        NA</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># And how many participants were there to be counted at each node.</span></span></span>
 <span class="r-in"><span><span class="va">shared</span><span class="op">$</span><span class="va">coverage</span><span class="op">$</span><span class="va">contributing</span></span></span>

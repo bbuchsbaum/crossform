@@ -1,18 +1,15 @@
 # Coming from rMVPA
 
-> **This is a mapping guide, not a benchmark.** Nothing here compares
-> the two packages on speed, accuracy, or scientific quality. It answers
-> one question: if you already think in
-> [rMVPA](https://github.com/bbuchsbaum/rMVPA)’s vocabulary, what is the
-> corresponding `crossform` object, and what is deliberately missing?
-> The one place the two packages have been measured against each other
-> is a numerical-parity check, reported at the end with its caveats.
->
-> The rMVPA calls below are shown but not executed — rMVPA is not on
-> CRAN, so this vignette cannot depend on it. The `crossform` calls are
-> executed.
+Use this guide to translate an rMVPA analysis into `crossform`: identify
+the corresponding objects, bring in a trial-level beta series, and
+understand which results can be compared. You need trial condition/run
+labels and either a masked beta matrix or neuroim2 images.
 
-## The one structural difference
+The `crossform` examples run on simulated data. The rMVPA example is an
+unevaluated template requiring your own images and model RDM. A recorded
+numerical comparison on a shared distance estimand appears at the end.
+
+## From a model run to a reusable geometry plan
 
 rMVPA is organized around a **model** that is *run over* a set of
 locations. You build a dataset, a design, and a model specification,
@@ -42,7 +39,7 @@ blocking variable is consumed by a cross-validation scheme that folds a
 *model*. In `crossform` the generalization axis is bound into the
 *estimand’s identity* by
 [`cross_partitions()`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md),
-before any data is read, and it travels with the plan.
+when the geometry is planned, and it travels with the plan.
 
 ## Concept map
 
@@ -69,23 +66,27 @@ before any data is read, and it travels with the plan.
 ### The cross-validation mapping deserves a second look
 
 `blocked_cross_validation(block_var)` and
-`cross_partitions(rel, generalizes_over = "run")` both encode “runs are
-the independent unit”, but they are not interchangeable objects.
+`cross_partitions(rel, generalizes_over = "run")` both use run
+structure, but neither run labels nor a fold scheme establish
+statistical independence.
 
 A leave-one-run-out fold scheme produces training means that **overlap
 across folds**. Cross-partition pairing forms products between two
-*disjoint* run estimates, so the noise in the two factors is independent
-and cancels in expectation. That is exactly why `crossform`’s estimates
-are unbiased and may be negative. The Haxby exemplar records a concrete
-instance of the difference mattering: an older rMVPA build derived
-crossnobis folds from leave-one-run-out training means, whose overlap
-made the distances positively biased, and the exemplar script asserts
-fold semantics rather than trusting a version number.
+*disjoint* run estimates. When errors in those estimates have zero mean
+and are independent across runs, their cross-product has zero
+expectation. This removes the noise contribution that biases a
+within-run squared distance upward, while allowing individual estimates
+to be negative. The Haxby exemplar records a concrete instance of the
+difference mattering: an older rMVPA build derived crossnobis folds from
+leave-one-run-out training means, whose overlap made the distances
+positively biased, and the exemplar script asserts fold semantics rather
+than trusting a version number.
 
 ## Side-by-side minimal example
 
-The same question — where does an animate-versus-inanimate pattern
-reproduce across runs? — written both ways.
+Both examples examine animacy-related geometry. They illustrate the two
+workflows; their distance definitions and summary statistics differ, so
+their output values are not interchangeable.
 
 ### rMVPA
 
@@ -201,7 +202,8 @@ head(trial_design, 3)
 wants one **condition-by-voxel matrix per run**, not a trial list,
 because the second-order geometry is defined on condition estimates and
 the runs are the partitions that must generalize. There are two ways to
-get there, and they are not equivalent in what they earn you.
+get there. Both estimate condition means; fitting also retains residuals
+under a declared trial-level error model.
 
 ### Route 1: average the betas within condition, per run
 
@@ -241,9 +243,8 @@ condition. `t(vapply(...))` above produces that.
 
 ### Route 2: hand the trial betas over as observations
 
-Better, when you can.
 [`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
-takes the trials themselves plus a per-run design matrix and fits the
+takes the trial betas plus a per-run design matrix and fits the
 condition estimates inside `crossform`, which keeps the residual error
 channel that the analytic sampling law needs. The design is the
 condition indicator; `effects` says each condition *is* its own
@@ -287,8 +288,12 @@ c(route_1 = energy_averaged$total,
 #>   4.209631e-01   4.209631e-01   1.110223e-16
 ```
 
-What route 2 buys is the error channel. Only the fitted relation can be
-asked for a within-measurement standard error:
+The fitted route retains an error channel for within-participant
+standard errors. In this simulation trial errors are independent. For
+real beta series, the first-level GLM can induce covariance among trial
+estimates; treating those betas as independent observations requires
+justification. The following standard errors use the null calibration
+target:
 
 ``` r
 
@@ -304,8 +309,7 @@ round(sqrt(sampling_covariance(rdm_sampling_covariance(
 #>       0.0247       0.0247       0.0247       0.0247       0.0247       0.0247
 ```
 
-Ask the averaged relation the same question and you get a refusal naming
-exactly what is missing, rather than a number:
+The averaged relation has no residual channel:
 
 ``` r
 
@@ -324,19 +328,17 @@ catch_refusal(
 
 Two practical notes. Runs need not have equal trial counts — `design`
 accepts a named list with one matrix per partition, which is why it is
-built inside [`lapply()`](https://rdrr.io/r/base/lapply.html) above. And
-if your betas came from a GLM whose residuals are temporally
-autocorrelated, pass `observation_whitener =` as well; see
-[`vignette("from-observations", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md)
-for what that argument is asserting.
+built inside [`lapply()`](https://rdrr.io/r/base/lapply.html) above. A
+fixed `observation_whitener` here must describe covariance among the
+trial betas, not among the original scans. See [Fit condition effects
+from
+observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.md)
+for the scan-level route and the fixed-whitener assumptions.
 
 ## Distance and second-order conventions are not the same
 
-This is the most likely source of surprise, and it is not a bug on
-either side.
-
-The two arguments of `rsa_model()` do separate jobs, and only one of
-them is where the packages part company.
+`rsa_model()` makes two choices: how to construct the neural RDM, and
+how to compare it with a model RDM. Match both before comparing outputs.
 
 - **The distance.** `crossform`’s
   [`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md)
@@ -374,32 +376,40 @@ both can express is the condition-level crossvalidated squared Euclidean
 (crossnobis) distance — which is the pairing used for the parity check
 below.
 
-## What crossform does not do (yet)
+## What remains outside crossform
 
-Each absence below was checked against the package’s actual exports
-rather than recalled.
+Keep these parts of an existing analysis in other tools:
 
 - **Classification and decoding.** There is no classifier, no accuracy,
   no AUC, no confusion matrix, no `MVPAModels` registry. `crossform`
   computes second-order geometry only.
-- **Group inference.** No second-level model, no random-effects map, no
-  across-subject test.
-  [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
-  is a *within*-measurement, within-participant covariance law and says
-  so.
+- **Universal group inference.** The experimental population layer now
+  has declared group models, classical and HC3 intervals, and a
+  participant-level null-imposed wild bootstrap, calibrated only in its
+  recorded synthetic regimes and conditional on realized transport. It
+  does not provide random fields, simultaneous/maxT bands, general
+  multiplicity correction, or a marginal interval under informative
+  coverage or transport learning.
 - **Feature selection.** No `FTest`/`catscore` ranking, no `top_k`
   cutoff. The frame decides which features each measurement reads, and
   it is declared in advance.
-- **Permutation and bootstrap.** No label shuffling, no null
-  distributions, no FDR correction.
+- **Label permutation and multiplicity correction.** There is no label
+  shuffling, cluster/random-field procedure, or FDR correction. The
+  exported
+  [`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md)
+  is a different object: it resamples participants under a declared
+  group-model null and keeps its conditional target explicit.
 - **Parallel backends.** Execution is sequential. This is refused rather
   than silently downgraded:
 
 ``` r
 
-compute_policy(workers = 4)
-#> Error:
-#> ! crossform 0.1 owns no process pool, so `workers` must be 1; received `4`. Sequential execution is a capability boundary, not a performance default: an executor that spawns workers has to pass memory and determinism gates first.
+worker_refusal <- catch_refusal(compute_policy(workers = 4))
+cat(paste(strwrap(worker_refusal$message, width = 76), collapse = "\n"))
+#> crossform 0.1 owns no process pool, so `workers` must be 1; received `4`.
+#> Sequential execution is a capability boundary, not a performance default:
+#> an executor that spawns workers has to pass memory and determinism gates
+#> first.
 ```
 
 - **Preprocessing and I/O.** No registration, no smoothing, no file
@@ -434,40 +444,35 @@ followed by `compute_crossnobis_distances_sl()` — the two agree to a
 **maximum absolute difference of 8.88e-16** at every one of the 577
 centers. Sphere membership was verified identical rather than assumed.
 
-Read that number with the exemplar’s own caveats, which are recorded
-there in full:
+This is a recorded result, not a benchmark rerun by this vignette. The
+[exemplar scripts and
+receipts](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001)
+document the inputs, sphere membership, and package behavior required to
+reproduce it. Three limits matter when adapting it:
 
-1.  **It is not `rsa_model`.** The exemplar originally named `rsa_model`
-    for the rMVPA arm and could not use it: its distances are
-    correlation distances, which `crossform` does not compute.
-    `vector_rsa_model` is trial-level. `contrast_rsa_model` does build
-    the cross-validated second-moment matrix internally, but what it
-    returns is a signed per-contrast contribution evaluated at each
-    searchlight’s center voxel, never the condition-by-condition
-    distances themselves. The crossnobis helper is the only route, and
-    `compute_crossnobis_distances_sl()` is not exported, so the script
-    calls it with `:::`.
-2.  **It is version-sensitive.** The comparison requires an rMVPA build
-    whose crossnobis fold estimates are per-run condition means. The
-    script asserts that semantics and stops with an explanatory error
-    otherwise, rather than checking a version string.
-3.  **The originally specified estimand was not achievable.** A
-    correlation-distance RDM scored by Spearman cannot be expressed by
-    `crossform` at all: `rsa_model()`’s `distmethod` offers only
-    `"pearson"` and `"spearman"`, and `crossform` has no correlation
-    distance to meet either one. The second-order statistic is not the
-    obstacle — that is a separate argument, `regtype`, whose `"lm"`
-    setting is the same OLS family as `crossform`’s
-    [`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md).
-    It is the distance that cannot be shared. The matched comparison is
-    therefore a substitution, and the exemplar says so.
-
-What the number demonstrates is numerical parity on a shared estimand.
-It demonstrates nothing about speed, and nothing about
-correlation-distance RSA.
+- It uses rMVPA’s crossnobis helpers, including an unexported helper
+  called with `:::`, rather than `rsa_model()`.
+- It requires per-run condition means. The script checks this behavior
+  because older fold implementations used overlapping training means.
+- It substitutes a shared squared-distance estimand for the originally
+  proposed correlation-distance RSA. The agreement supports that shared
+  estimand only; it says nothing about runtime or correlation-distance
+  RSA.
 
 ## Where to go next
 
+- [Predict model-supported geometry on independent
+  runs](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
+  ([`vignette("predictive-geometry", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md))
+  — a separate learning workflow:
+  [`model_basis()`](https://bbuchsbaum.github.io/crossform/reference/model_basis.md)
+  declares the models,
+  [`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md)
+  learns on training runs, and
+  [`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
+  evaluates signed gain on independent runs. This is regularized
+  geometry prediction, not another `regtype` for the fixed RDM
+  regression compared above.
 - [`vignette("introduction", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
   — what the energies, RDMs, and RSA coefficients mean.
 - [`vignette("neuroim2-data", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.md)

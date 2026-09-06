@@ -40,6 +40,7 @@ Other geometry plans and views:
 [`geometry_spectrum()`](https://bbuchsbaum.github.io/crossform/reference/geometry_spectrum.md),
 [`latent_geometry()`](https://bbuchsbaum.github.io/crossform/reference/latent_geometry.md),
 [`materialize_geometry()`](https://bbuchsbaum.github.io/crossform/reference/materialize_geometry.md),
+[`model_geometry()`](https://bbuchsbaum.github.io/crossform/reference/model_geometry.md),
 [`plan_crossnobis()`](https://bbuchsbaum.github.io/crossform/reference/plan_crossnobis.md),
 [`plan_geometry()`](https://bbuchsbaum.github.io/crossform/reference/plan_geometry.md),
 [`plot_views`](https://bbuchsbaum.github.io/crossform/reference/plot_views.md),

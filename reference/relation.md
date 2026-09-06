@@ -38,7 +38,12 @@ relation(
 
 - extract:
 
-  NULL, one `effect_extractor`, or one extractor per partition.
+  NULL, one `effect_extractor`, one extractor per partition, or a
+  [`model_basis()`](https://bbuchsbaum.github.io/crossform/reference/model_basis.md),
+  which lowers every partition's condition betas into model coordinates
+  through its `$extractor`. Labelled beta rows are then aligned to the
+  basis's `$conditions` by name in any order and a mismatch is refused;
+  unlabelled rows are taken in the basis's condition order.
 
 - effects:
 
@@ -71,7 +76,16 @@ relation(
 
 - provenance:
 
-  Optional provenance metadata.
+  Optional provenance metadata. For independent predictive scoring,
+  `observation_origins` declares a common parent manifest: a list with
+  `id`, a named `partitions` list of raw observation-origin identifiers,
+  `independence = "independent"` or `"undeclared"`, and an `assumption`
+  describing the sampling/preprocessing independence claim. Optional
+  `dependencies` names each partition's upstream observation origins.
+  The manifest is sealed and ancestry is attached to each source.
+  Copies, aliases and reprocessed estimates must retain their actual
+  origin IDs; neither endpoint names nor equal numeric values establish
+  independence.
 
 ## Value
 
@@ -111,7 +125,8 @@ and shapes rather than values.
   [`source_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/source_capabilities.md)
   per partition when the sources declared them, otherwise `NULL`.
 
-- `$provenance`: the metadata supplied at construction, unchanged.
+- `$provenance`: the supplied metadata; an `observation_origins`
+  declaration is canonicalized into a sealed parent manifest.
 
 `$sources` and `$extractors` are the compiled read path
 [`relation_block()`](https://bbuchsbaum.github.io/crossform/reference/relation_block.md)
@@ -127,23 +142,7 @@ to read one block, and
 for the next step.
 
 Other relation planning and fitting:
-[`adapter_version_certificate()`](https://bbuchsbaum.github.io/crossform/reference/adapter_version_certificate.md),
-[`compiler_conformance()`](https://bbuchsbaum.github.io/crossform/reference/compiler_conformance.md),
-[`effect_extractor()`](https://bbuchsbaum.github.io/crossform/reference/effect_extractor.md),
-[`estimate_relation()`](https://bbuchsbaum.github.io/crossform/reference/estimate_relation.md),
-[`file_matrix_source()`](https://bbuchsbaum.github.io/crossform/reference/file_matrix_source.md),
-[`fmridesign_design_model()`](https://bbuchsbaum.github.io/crossform/reference/fmridesign_design_model.md),
-[`fmrireg_relation()`](https://bbuchsbaum.github.io/crossform/reference/fmrireg_relation.md),
-[`lm_extractor()`](https://bbuchsbaum.github.io/crossform/reference/lm_extractor.md),
-[`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md),
-[`plan_relation()`](https://bbuchsbaum.github.io/crossform/reference/plan_relation.md),
-[`relation_block()`](https://bbuchsbaum.github.io/crossform/reference/relation_block.md),
-[`relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit.md),
-[`relation_fit_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/relation_fit_capabilities.md),
-[`relation_plan_receipts()`](https://bbuchsbaum.github.io/crossform/reference/relation_plan_receipts.md),
-[`residual_block()`](https://bbuchsbaum.github.io/crossform/reference/residual_block.md),
-[`residual_df()`](https://bbuchsbaum.github.io/crossform/reference/residual_df.md),
-[`source_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/source_capabilities.md)
+[`relation_block()`](https://bbuchsbaum.github.io/crossform/reference/relation_block.md)
 
 ## Examples
 

@@ -12,7 +12,13 @@ only where it is exact.
 ## Usage
 
 ``` r
-population_uncertainty(x, term = NULL, level = 0.95)
+population_uncertainty(
+  x,
+  term = NULL,
+  level = 0.95,
+  estimator = c("classical", "HC3"),
+  leverage_tolerance = 1e-08
+)
 ```
 
 ## Arguments
@@ -34,18 +40,50 @@ population_uncertainty(x, term = NULL, level = 0.95)
   coverage simulation measured; the interval is labelled uncalibrated
   whatever level is asked for.
 
+- estimator:
+
+  Between-subject covariance estimator. `"classical"` is ordinary
+  homoskedastic OLS; `"HC3"` is the leverage-adjusted
+  heteroskedasticity-robust sandwich estimator.
+
+- leverage_tolerance:
+
+  Positive tolerance below which HC3 treats \\1-h_i\\ as numerically
+  zero and refuses that cell.
+
 ## Value
 
 An `effect_population_uncertainty`: `$between` holding `$estimate`,
-`$se`, `$t`, `$lower`, `$upper` (each a `node`-by-`query`-by-`term`
-array), `$residual_sd`, `$residual_df`, `$level` and `$calibration`;
-`$within` holding the transported layer's `$admitted`, `$coefficient`,
-`$source_node`, `$variance` and `$refusal`, or `NULL` when
+`$covariance`, `$se`, `$t`, `$lower`, `$upper`, leverage, adjusted
+residuals and local design diagnostics, estimator identity, assumptions,
+status and refusal reasons; `$within` holding the transported layer's
+`$admitted`, `$coefficient`, `$source_node`, `$variance` and `$refusal`,
+or `NULL` when
 [`estimate_population()`](https://bbuchsbaum.github.io/crossform/reference/estimate_population.md)
 was not given `uncertainty`; `$separation` stating that the two are
 never pooled; and the `$index`, `$queries`, `$ledger`, `$semantics`,
 `$normalization` and `$receipt` of the result it read.
 `as.data.frame(x, layer = )` returns one layer in long form.
+
+## Classical OLS and HC3
+
+`estimator = "classical"` reproduces the ordinary OLS covariance
+\\s^2(X'X)^{-1}\\. `estimator = "HC3"` returns the
+heteroskedasticity-robust sandwich covariance
+\\(X'X)^{-1}X'\mathrm{diag}\\e_i^2/(1-h_i)^2\\X(X'X)^{-1}\\. The latter
+is the recommended sensitivity analysis when subject-level variance
+differs with covariates or transport quality. It is not a distributional
+calibration theorem, so both routes retain the `"uncalibrated"` label.
+
+Every node-query cell is computed from its exact contributing subject
+set. `$between` therefore carries the full coefficient covariance, SEs,
+local `n`, design rank and residual df, subject leverage, the residual
+adjustment actually used in the sandwich, maximum leverage, conditioning
+statement, and a cellwise status/reason. Rank-deficient and saturated
+cells are refused. HC3 also refuses a cell when any \\1-h_i\\ is no
+larger than `leverage_tolerance`; dividing by an almost-zero leverage
+complement would turn a numerical singularity into a confident-looking
+result.
 
 ## The two layers are never pooled
 
@@ -61,15 +99,15 @@ record carries `$between` and `$within` as separate blocks,
 ## The `t` is uncalibrated, and stays uncalibrated
 
 `$between$t` is the estimate over its standard error. Its null
-distribution has been *measured* against \\t\_{df}\\ by
-`benchmarks/run-population-null-coverage.R`, a 2,000-replication null
-simulation of the group layer. Under a **correctly specified** group
-model the nominal 95% interval covered the null term in **0.9485** of
-replications at `N = 6`, **0.9500** at `N = 8`, **0.9520** at `N = 12`
-and **0.9480** at `N = 24` (Monte Carlo standard error 0.005), and the
-Kolmogorov-Smirnov distance between the null `t` and \\t\_{df}\\ was at
-most **0.0209** (`p >= 0.34`). The arithmetic is right, which was never
-the part in doubt.
+distribution for `estimator = "classical"` has been *measured* against
+\\t\_{df}\\ by `benchmarks/run-population-null-coverage.R`, a
+2,000-replication null simulation of the group layer. Under a
+**correctly specified** group model the nominal 95% interval covered the
+null term in **0.9485** of replications at `N = 6`, **0.9500** at
+`N = 8`, **0.9520** at `N = 12` and **0.9480** at `N = 24` (Monte Carlo
+standard error 0.005), and the Kolmogorov-Smirnov distance between the
+null `t` and \\t\_{df}\\ was at most **0.0209** (`p >= 0.34`). The
+arithmetic is right, which was never the part in doubt.
 
 The same simulation's second arm is why the label does not move. When
 each participant's transported value carries a variance that depends on
@@ -81,6 +119,17 @@ falls to **0.9230** at `N = 6` and **0.8850** at `N = 24`. It gets
 error and not in the sample size: at `N = 24` the nominal 5% test
 rejects a true null **11.5%** of the time, and the null `t` is
 distinguishable from \\t\_{df}\\ at `p = 1.2e-6`.
+
+Those coverage figures do not transfer to HC3. Its randomized court
+proves agreement with the defining sandwich covariance over full-rank
+designs and adversarial leverage fixtures; it does not supply a
+finite-sample reference distribution. HC3 therefore retains the same
+`"uncalibrated"` label. The expanded paired benchmark in
+`inst/extdata/certification/population-calibration-results.csv` records
+classical, HC3, and wild-bootstrap behavior across eight synthetic
+regimes. It supports only the regimes and conditional targets named
+there: informative coverage remains ineligible for a marginal claim, and
+no arm is marginal over transport estimation.
 
 A real population fit carries misspecification of unknown degree and a
 transport whose displacement, entropy and subject coverage vary across
@@ -100,6 +149,13 @@ w_x^2\\\mathrm{Var}(z\_{ix})\\ is exact. **No independence assumption is
 made anywhere**, and none would be defensible: overlapping searchlight
 supports under spatially correlated noise are positively correlated, so
 a diagonal sum would be an under-estimate in a known direction.
+
+A future joint covariance may support transported precision or a
+separately calibrated spatial procedure, but it is not required by the
+cellwise between-subject covariance computed here. Dense/sparse
+representation, PSD validation and scaling requirements are specified in
+`design/cross-node-covariance-contract.md`. maxT and multiple-comparison
+methods are optional later consumers, not part of this gate.
 
 Admission is per participant and per group column, and
 `$within$admitted` is the matrix that records it. A hard anatomical
@@ -133,6 +189,15 @@ Each is an `effect_capability_refusal` in namespace
   residual degrees of freedom the participants' scatter is not
   estimable.
 
+## Transport conditioning
+
+Classical and HC3 intervals use the exact subject-level residuals and
+may account for homoskedastic or heteroskedastic between-subject
+variation. They remain conditional on each realized transport. In
+particular, HC3 does not include uncertainty from learning a functional
+transport or from assigning its cross-fitting folds. The complete
+conditioning record is retained in `$between$conditioning`.
+
 ## References
 
 `design/population-form-contract.md` (`population-form-v1`), section 7;
@@ -156,6 +221,7 @@ Other population transports:
 [`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md),
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
+[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -197,14 +263,20 @@ error_bars
 #>   group nodes:     2 + sink
 #>   queries:         1 (face-house)
 #>   terms:           (Intercept), age
-#>   between-subject: SE 0 to 0.06273, df 4, |t| up to 1.079 (2 NA)
+#>   between-subject: classical_ols SE 0 to 0.06273, cell df 4 to 4, |t| up ...
+#>   leverage:        max h 0.5972; estimated, degenerate_residual_scale
+#>   assumptions:     independent_subjects, fixed_group_design, conditional_...
 #>   interval:        95% nominal, uncalibrated
 #>   within-subject:  absent (estimate_population() was given no `uncertainty`)
+#>   inference:       conditional_on_realized_transport; uncertainty not pro...
 #>   normalization:   none
-#>   estimand:        population-sha256:a2c0966743eb...
+#>   estimand:        population-sha256:e1ed8d16b2bc...
 #>   The two layers are reported separately and are never pooled: a
 #>     within-subject sampling variance and a between-subject residual
 #>     variance answer different questions, and their sum answers neither.
+#>   These intervals condition on the realized transport. Cross-fitting limits
+#>     circularity but does not propagate uncertainty from estimating that
+#>     transport.
 #>   The t is UNCALIBRATED for real data. Measured against t_df, the nominal
 #>     95% interval covers 0.948 to 0.952 of the time under a correctly
 #>     specified group model, and 0.885 to 0.923 when the participants' noise
@@ -229,14 +301,39 @@ head(as.data.frame(error_bars), 4)
 #> 2 group2      4 FALSE budget between_subject transported_total face-house
 #> 3 <sink>     NA  TRUE budget between_subject transported_total face-house
 #> 4 group1      0 FALSE budget between_subject transported_total face-house
-#>          term      estimate          se residual_df          t level
-#> 1 (Intercept)  0.0677011006 0.062728222           4  1.0792766  0.95
-#> 2 (Intercept)  0.0134879486 0.047090859           4  0.2864239  0.95
-#> 3 (Intercept)  0.0000000000 0.000000000           4         NA  0.95
-#> 4         age -0.0007196853 0.001869364           4 -0.3849895  0.95
-#>          lower     upper  calibration
-#> 1 -0.106460365 0.2418626 uncalibrated
-#> 2 -0.117257236 0.1442331 uncalibrated
-#> 3           NA        NA uncalibrated
-#> 4 -0.005909871 0.0044705 uncalibrated
+#>          term     estimator
+#> 1 (Intercept) classical_ols
+#> 2 (Intercept) classical_ols
+#> 3 (Intercept) classical_ols
+#> 4         age classical_ols
+#>                                                                                                                                                                    assumptions
+#> 1 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean
+#> 2 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean
+#> 3 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean
+#> 4 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean
+#>        estimate          se n design_rank residual_df max_leverage
+#> 1  0.0677011006 0.062728222 6           2           4    0.5971698
+#> 2  0.0134879486 0.047090859 6           2           4    0.5971698
+#> 3  0.0000000000 0.000000000 6           2           4    0.5971698
+#> 4 -0.0007196853 0.001869364 6           2           4    0.5971698
+#>   max_abs_adjusted_residual        uncertainty_status
+#> 1                0.05284663                 estimated
+#> 2                0.03987747                 estimated
+#> 3                0.00000000 degenerate_residual_scale
+#> 4                0.05284663                 estimated
+#>           uncertainty_reason            transport_conditioning
+#> 1                       <NA> conditional_on_realized_transport
+#> 2                       <NA> conditional_on_realized_transport
+#> 3 nonpositive_standard_error conditional_on_realized_transport
+#> 4                       <NA> conditional_on_realized_transport
+#>              coverage_conditioning          t level        lower     upper
+#> 1 conditional_on_realized_coverage  1.0792766  0.95 -0.106460365 0.2418626
+#> 2 conditional_on_realized_coverage  0.2864239  0.95 -0.117257236 0.1442331
+#> 3 conditional_on_realized_coverage         NA  0.95           NA        NA
+#> 4 conditional_on_realized_coverage -0.3849895  0.95 -0.005909871 0.0044705
+#>    calibration
+#> 1 uncalibrated
+#> 2 uncalibrated
+#> 3 uncalibrated
+#> 4 uncalibrated
 ```
