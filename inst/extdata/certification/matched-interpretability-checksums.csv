@@ -12,5 +12,5 @@
 "matched-interpretability-checksums-v1","numeric_artifact","inst/extdata/certification/matched-interpretability-summary.csv",195655,"md5","c8ac1d8c01bea878ba9993d52ec7ef60"
 "matched-interpretability-checksums-v1","numeric_artifact","inst/extdata/certification/matched-interpretability-metrics.csv",4530,"md5","e855ffc4eae0aa64c6a72ba7ce804b01"
 "matched-interpretability-checksums-v1","numeric_artifact","inst/extdata/certification/matched-interpretability-figure-data.csv",15252,"md5","1477d948fdec433564924c9ed40096ac"
-"matched-interpretability-checksums-v1","numeric_artifact","vignettes/matched-interpretability.Rmd",4137,"md5","b48b90275a34c61e4e49354c9169c863"
+"matched-interpretability-checksums-v1","numeric_artifact","vignettes/matched-interpretability.Rmd",6157,"md5","e5cfa1c97b7fbfd90a38fba5a6af2883"
 "matched-interpretability-checksums-v1","semantic_plot","inst/extdata/certification/matched-interpretability-figure.png",181870,"semantic_render_check",""

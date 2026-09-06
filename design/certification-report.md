@@ -657,3 +657,76 @@ independent calibration datasets, fresh legacy/external parity receipts and
 R CMD check 0 errors / 0 warnings / 1 explained CRAN incoming note. See that
 report for separate installed-test counts, optional skips, source bindings and
 measured memory limits. No publication or commit is implied.
+## Hot-path epic closure (2026-08-21)
+
+The legacy native-kernel epic was reconstructed in the current Mote store as
+`bd-01M0J3FYZ6Q20K1SR1R9DMD8SQ` because its original records were not present
+after the tracker-store replacement. The reconstruction audited the landed
+commits before adding new evidence: `d1504bd` introduced the fused pair-query
+kernel, `2bd7ba3` added the sampling, packed/coherent, and topology work, and
+`f6baa14`, `03e1d33`, and `8fdbb17` supplied the prior re-certification and
+admission ledger. No legacy child was credited from prose alone.
+
+Two remaining evidence gaps are now closed:
+
+- `measurement-profile.rds` promotes the no-Rcpp decision for
+  `measurement_form()`. Across the scalar and requested-multivariate routes,
+  the maximum independent-oracle error is `7.10543e-15`, plan identity is
+  stable, and the classified R-loop share is zero. The recorded decision is
+  `no_rcpp_keep_blas`: another native kernel is not admitted under the declared
+  15 percent R-loop / projected 1.25x speedup rule.
+- `native-pair-allocation.rds` records a five-repetition cumulative-allocation
+  court for the fused pair-query kernel. The native route allocated a median
+  4,638,576 bytes against 286,853,280 bytes for the retained two-pass R oracle,
+  a ratio of 0.0161706 against the maximum 0.70. Its maximum numerical error is
+  `9.43690e-16`; the median runtimes were 0.030 and 0.094 seconds,
+  respectively. This receipt concerns cumulative R allocation, not peak heap
+  or process RSS.
+
+The source tree remained bound to the certification digest
+`sha256:346aba47b81e768edc36e3fbbc51fddfff8220e3bc8522c778e31cf02a917ede`.
+The complete source-checkout test suite passed with the six declared skips
+(one unbound executor, one absent local-only population artifact, and four
+opt-in scale/topology courts). A compiler-neutral `R CMD check` using Apple
+clang passed with zero errors and zero warnings. Its single remaining note
+combines new-submission metadata with URLs for the not-yet-published site and
+files not yet on the hosted `main` branch; it is a release-state note, not a
+hot-path or package-correctness failure.
+
+## PR #3 merge verification (2026-09-06)
+
+Merging `main` at `215e860` into `elite-pass` preserves both the hot-path
+closure and the later predictive geometry work. No `R/` or `src/` code changes
+relative to the PR head were needed. The two documentation conflicts retain
+both contributions.
+
+The incoming measurement and native-allocation receipts were rerun with their
+original five repetitions on the current R source digest
+`sha256:10bfc4506bcf9c110f8ac10a0bfba425fb0f3eb4c5975e608bd1cd095690bf12`.
+Measurement oracle error is at most `7.10543e-15`, plan identity is stable,
+and the maximum classified R-loop share is 0.0128; the decision remains
+`no_rcpp_keep_blas`. Native cumulative allocation is 4,638,576 bytes against
+286,853,280 bytes for the oracle (ratio 0.0161706), with maximum numerical
+error `9.43690e-16`. These replace the shipped receipts; earlier dated numbers
+above remain historical.
+
+The merged admission registry and promotion script also changed two predictive
+harness hashes. The existing `predictive-geometry/certify.R` verified the
+preserved raw sampling, selection, performance and mutation records, reran its
+independent oracle, and regenerated the compact predictive receipt. No stale
+measurements were re-stamped. All 13 source-bound receipts pass the binding
+gate; the shard admission record remains intentionally unbound.
+
+The expanded checks caught a pre-existing documentation-binding omission in
+`2078630`: the matched-interpretability manifest still named the old vignette
+bytes. All other manifest entries, numerical artifacts and simulation sources
+were unchanged. Its checksum was regenerated for the reviewed vignette using
+the existing manifest generator, with equality of every other entry checked.
+The matched-interpretability and vignette tests were included in final merge
+validation.
+
+Final focused validation: 1,828 assertions passed, zero failures, errors or
+test warnings, and two declared skips (unbound shard admission and the opt-in
+48-seed matched simulation). The filter covered certification, admission
+coverage, predictive geometry, matched interpretability and vignette tests.
+Both benchmark runners passed independently; `git diff --check` also passed.

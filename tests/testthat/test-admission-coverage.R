@@ -35,10 +35,10 @@ test_that("the promote table is exactly the certified and refused coverage rows"
   coverage <- environment$.crossform_admission_coverage()
   promotable <- environment$.crossform_promotable_artifacts(coverage)
 
-  expect_setequal(
-    coverage$role,
-    c("certified", "covered", "refused", "local", "gap")
-  )
+  known_roles <- c("certified", "covered", "refused", "local", "gap")
+  expect_length(setdiff(coverage$role, known_roles), 0L)
+  expect_true(all(c("certified", "covered", "refused", "local") %in%
+    coverage$role))
 
   shipped_roles <- coverage$role %in% c("certified", "refused")
   shipped <- coverage[shipped_roles & !is.na(coverage$artifact) &
@@ -53,7 +53,14 @@ test_that("the promote table is exactly the certified and refused coverage rows"
   gaps <- coverage[coverage$role == "gap", ]
   expect_true(all(is.na(gaps$artifact) | !nzchar(gaps$artifact)))
   expect_false(any(gaps$verbs %in% names(promotable)))
-  expect_true(any(gaps$verbs == "measurement_form"))
+  expect_false(any(gaps$verbs == "measurement_form"))
+
+  measurement <- coverage[coverage$verbs == "measurement_form", ]
+  expect_identical(nrow(measurement), 1L)
+  expect_identical(measurement$role, "certified")
+  expect_identical(measurement$artifact, "measurement-profile.rds")
+  expect_identical(measurement$runner, "run-measurement-profile.R")
+  expect_identical(measurement$reader, "test-certification-artifacts.R")
 
   locals <- coverage[coverage$role == "local", ]
   expect_false(any(locals$artifact %in% names(promotable)))

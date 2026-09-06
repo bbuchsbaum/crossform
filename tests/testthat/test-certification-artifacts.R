@@ -53,6 +53,100 @@ test_that("recorded brain-scale crossnobis evidence passes its gate", {
   expect_true(artifact$gate$passed)
 })
 
+test_that("recorded measurement-form evidence retains the BLAS route", {
+  artifact <- certified_artifact(
+    "measurement-profile.rds", "run-measurement-profile.R"
+  )
+  expect_identical(artifact$schema_version, 1L)
+  expect_identical(artifact$provenance$runner, "run-measurement-profile.R")
+  expect_identical(artifact$dimensions$experimental_conditions, 16L)
+  expect_identical(artifact$dimensions$domain_features, 128L)
+  expect_gte(artifact$dimensions$scalar_nodes, 20L)
+  expect_gte(artifact$dimensions$multivariate_nodes, 10L)
+  expect_gte(artifact$dimensions$partitions, 3L)
+
+  records <- artifact$records
+  expect_gte(nrow(records), 10L)
+  expect_setequal(records$frame, c("scalar", "requested_multivariate"))
+  expect_true(all(is.finite(records$median_elapsed_seconds)))
+  expect_true(all(records$median_elapsed_seconds > 0))
+  expect_true(all(is.finite(records$peak_rss_bytes)))
+  expect_true(all(records$planned_workspace_bytes > records$output_bytes))
+  expect_lt(max(records$oracle_error), 1e-10)
+  expect_true(artifact$checks$oracle_parity)
+  expect_true(artifact$checks$plan_identity_stable)
+  expect_true(artifact$checks$planned_workspace_exceeds_output)
+
+  expect_true(is.finite(artifact$rprof$max_r_loop_share))
+  expect_lt(artifact$rprof$max_r_loop_share, 0.15)
+  expect_identical(artifact$decision, "no_rcpp_keep_blas")
+  expect_match(artifact$decision_rule, "R-level loops are >= 15%")
+  expect_match(artifact$decision_rule, "prototype projects >= 1.25x")
+})
+
+test_that("the fused pair kernel clears its cumulative-allocation court", {
+  artifact <- certified_artifact(
+    "native-pair-allocation.rds", "run-native-pair-allocation.R"
+  )
+  expect_identical(artifact$schema_version, 1L)
+  expect_identical(
+    artifact$provenance$runner, "run-native-pair-allocation.R"
+  )
+  expect_identical(artifact$dimensions$conditions, 48L)
+  expect_identical(artifact$dimensions$features, 512L)
+  expect_identical(artifact$dimensions$partitions, 4L)
+  expect_identical(artifact$dimensions$ordered_edges, 12L)
+  expect_identical(artifact$dimensions$pairs, 1128L)
+  expect_gte(artifact$dimensions$repetitions, 5L)
+
+  records <- artifact$records
+  expect_identical(
+    nrow(records), 2L * artifact$dimensions$repetitions
+  )
+  expect_setequal(records$route, c("native_fused", "r_two_pass_oracle"))
+  expect_true(all(table(records$repetition, records$route) == 1L))
+  expect_true(all(records$allocation_count > 0))
+  expect_true(all(records$allocated_bytes >= records$output_bytes))
+  expect_true(all(is.finite(records$elapsed_seconds)))
+  expect_true(all(records$elapsed_seconds > 0))
+  expect_equal(
+    records$checksum,
+    rep(artifact$numerical$checksum, nrow(records)),
+    tolerance = 1e-12
+  )
+  expect_lte(
+    artifact$numerical$max_abs_error,
+    artifact$numerical$tolerance
+  )
+
+  median_for <- function(column, route) {
+    stats::median(records[[column]][records$route == route])
+  }
+  native_allocated <- median_for("allocated_bytes", "native_fused")
+  oracle_allocated <- median_for("allocated_bytes", "r_two_pass_oracle")
+  allocation_ratio <- native_allocated / oracle_allocated
+  expect_equal(
+    artifact$summary$native_median_allocated_bytes, native_allocated,
+    tolerance = 0
+  )
+  expect_equal(
+    artifact$summary$oracle_median_allocated_bytes, oracle_allocated,
+    tolerance = 0
+  )
+  expect_equal(
+    artifact$summary$native_to_oracle_allocation_ratio, allocation_ratio,
+    tolerance = 0
+  )
+  expect_identical(artifact$gate$maximum_allocation_ratio, 0.70)
+  expect_true(artifact$gate$numerical_pass)
+  expect_identical(
+    artifact$gate$allocation_pass,
+    allocation_ratio <= artifact$gate$maximum_allocation_ratio
+  )
+  expect_true(artifact$gate$allocation_pass)
+  expect_true(artifact$gate$passed)
+})
+
 test_that("the recorded executor admission record refuses the adapter", {
   artifact <- certified_artifact(
     "shard-admission.rds", "run-shard-admission.R"

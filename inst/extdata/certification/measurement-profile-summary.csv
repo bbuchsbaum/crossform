@@ -1,0 +1,12 @@
+"frame","route","selected_route","iterations","median_elapsed_seconds","peak_rss_bytes","planned_workspace_bytes","output_bytes","edge_count","scientific_plan_id","checksum","oracle_error"
+"scalar","auto","auto",5,0.765000000000001,820559872,160430,384,48,"measurement-sha256:44cb3be865cb032669da3a936165c48cc17a0687e05c4da507ef89c90aaa8c81",7.52139007932726,0
+"scalar","pull_h","pull_h",5,0.763,926072832,160430,384,48,"measurement-sha256:44cb3be865cb032669da3a936165c48cc17a0687e05c4da507ef89c90aaa8c81",7.52139007932726,0
+"scalar","forward_k","forward_k",5,0.765999999999998,940867584,160430,384,48,"measurement-sha256:44cb3be865cb032669da3a936165c48cc17a0687e05c4da507ef89c90aaa8c81",7.52139007932726,0
+"scalar","multivariate_blocks","multivariate_blocks",5,0.77,977092608,160430,384,48,"measurement-sha256:44cb3be865cb032669da3a936165c48cc17a0687e05c4da507ef89c90aaa8c81",7.52139007932726,0
+"scalar","scalar_stack","scalar_stack",5,0.765999999999998,982876160,160430,384,48,"measurement-sha256:44cb3be865cb032669da3a936165c48cc17a0687e05c4da507ef89c90aaa8c81",7.52139007932726,8.88178419700125e-16
+"scalar","factorized_h","factorized_h",5,0.765000000000001,1012727808,162670,384,48,"measurement-sha256:44cb3be865cb032669da3a936165c48cc17a0687e05c4da507ef89c90aaa8c81",7.52139007932726,1.77635683940025e-15
+"requested_multivariate","auto","auto",5,0.460000000000001,1013415936,257600,3072,24,"measurement-sha256:f01e7dd3cc266d59afd98f5d95425a4b5bab48173cb007cdacf6ffe9f4030bc0",33.7635731393031,0
+"requested_multivariate","pull_h","pull_h",5,0.460000000000001,1014792192,257600,3072,24,"measurement-sha256:f01e7dd3cc266d59afd98f5d95425a4b5bab48173cb007cdacf6ffe9f4030bc0",33.7635731393031,0
+"requested_multivariate","forward_k","forward_k",5,0.460000000000001,1022459904,257600,3072,24,"measurement-sha256:f01e7dd3cc266d59afd98f5d95425a4b5bab48173cb007cdacf6ffe9f4030bc0",33.7635731393031,7.105427357601e-15
+"requested_multivariate","multivariate_blocks","multivariate_blocks",5,0.460000000000001,1024032768,257600,3072,24,"measurement-sha256:f01e7dd3cc266d59afd98f5d95425a4b5bab48173cb007cdacf6ffe9f4030bc0",33.7635731393031,0
+"requested_multivariate","factorized_h","factorized_h",5,0.462000000000003,1024360448,259840,3072,24,"measurement-sha256:f01e7dd3cc266d59afd98f5d95425a4b5bab48173cb007cdacf6ffe9f4030bc0",33.7635731393031,0
