@@ -43,10 +43,9 @@ pex_subject <- function(id, features, gain = 1) {
 # Group centres at 0, 4 and 9 with radius 1.5: a native node at x = 2, 6, 7 or
 # 11 is two units from its nearest centre and therefore lands entirely in the
 # sink, so the sink carries real mass rather than being an always-zero column
-# no assertion can distinguish from an absent one. Group node 9 is out of
-# reach of the two smaller participants under *any* radius --- nothing of
-# theirs is closest to it --- which is what gives the density branch a group
-# node reached by no native mass, and therefore an `NA` rather than a `0`.
+# no assertion can distinguish from an absent one. The general executor
+# fixture gives every participant mass at every ordinary node; the density
+# test below deliberately restores smaller frames to exercise missing coverage.
 pex_carrier <- function(features, semantics = "budget", radius = 1.5, ...) {
   anatomical_transport(
     native_coords = cbind(seq_len(features) - 1),
@@ -55,7 +54,7 @@ pex_carrier <- function(features, semantics = "budget", radius = 1.5, ...) {
   )
 }
 
-pex_sizes <- c(s01 = 6L, s02 = 8L, s03 = 10L, s04 = 12L)
+pex_sizes <- c(s01 = 10L, s02 = 11L, s03 = 12L, s04 = 13L)
 pex_gains <- c(s01 = 1, s02 = 1.6, s03 = 0.6, s04 = 1.2)
 
 pex_subjects <- function(sizes = pex_sizes) {
@@ -445,7 +444,7 @@ test_that("`precision_weighted` is refused at plan construction, so it never rea
 # Density semantics ------------------------------------------------------------
 
 test_that("density transports the same values through the declared ratio", {
-  sizes <- pex_sizes
+  sizes <- c(s01 = 6L, s02 = 8L, s03 = 10L, s04 = 12L)
   plan <- plan_population(
     pex_subjects(sizes),
     lapply(stats::setNames(names(sizes), names(sizes)), function(id)

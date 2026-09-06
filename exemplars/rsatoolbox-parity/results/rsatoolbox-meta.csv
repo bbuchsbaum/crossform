@@ -2,9 +2,14 @@ key,value
 python,3.12.11
 rsatoolbox,0.3.2
 numpy,2.5.2
-scipy,1.18.0
+scipy,1.18.1
 prec_from_residuals_max_abs_diff,2.3092638912203256e-14
 prec_from_residuals_rel_diff,3.60457138835135e-15
 loo_vs_allpairs_max_abs_diff,3.3306690738754696e-16
 cv_scheme,leave_one_fold_out
 distance_normalization,divide_by_n_channels
+prec_from_residuals_diag_max_abs_diff,3.9968028886505635e-15
+shrinkage_diag_implied_lambda,0.13100165726598445
+shrinkage_diag_reconstruction_max_abs_diff,5.10702591327572e-15
+shrinkage_eye_implied_lambda,0.08296503377561959
+shrinkage_eye_reconstruction_max_abs_diff,5.10702591327572e-15

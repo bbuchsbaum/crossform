@@ -175,16 +175,180 @@ utils::write.csv(crossform_rdm, file.path(results, "crossform-rdm.csv"),
                  row.names = FALSE)
 utils::write.csv(crossform_rsa, file.path(results, "crossform-rsa.csv"),
                  row.names = FALSE)
+fixture_meta <- c(
+  seed = SEED,
+  n_runs = N_RUNS,
+  n_voxels = N_VOXELS,
+  n_conditions = fixture$q,
+  n_obs_per_run = fixture$n_obs,
+  residual_df = noise$residual_df,
+  n_pairs = nrow(pair_frame),
+  beta_vs_ols_max_abs_diff = beta_gap,
+  pairing_edges = nrow(over),
+  partition_weight = unique(over$weight),
+  covariance_condition_number = kappa(noise$covariance, exact = TRUE),
+  metric_role = "fixed_noise_precision",
+  metric_estimator = "inverse_pooled_within_run_residual_covariance",
+  metric_normalization = "frame_local_divide_by_support_size",
+  effect_centering = "none_pair_differences_are_zero_sum",
+  partition_scheme = "uniform_unordered_cross_run_pairs",
+  pair_order = "row_major_upper_triangle",
+  rsa_objective = "fixed_ols_on_vectorized_rdm",
+  noncv_pairing = "biased_self_pairing_single_partition",
+  correlation_route = "downstream_from_psd_within_sample_self_form",
+  correlation_support_scope = "one_plan_per_support_not_frame_composable",
+  comparison_route = "downstream_base_r_no_crossform_export",
+  claim_scope = "standard_workflow_distances_comparisons_and_fixed_linear_rsa"
+)
 utils::write.csv(
-  data.frame(
-    key = c("seed", "n_runs", "n_voxels", "n_conditions", "n_obs_per_run",
-            "residual_df", "n_pairs", "beta_vs_ols_max_abs_diff",
-            "pairing_edges", "covariance_condition_number"),
-    value = c(SEED, N_RUNS, N_VOXELS, fixture$q, fixture$n_obs,
-              noise$residual_df, nrow(pair_frame), beta_gap, nrow(over),
-              kappa(noise$covariance, exact = TRUE)),
-    stringsAsFactors = FALSE),
+  data.frame(key = names(fixture_meta), value = unname(fixture_meta),
+             stringsAsFactors = FALSE),
   file.path(results, "fixture-meta.csv"), row.names = FALSE)
+
+## ---- Non-crossvalidated distances (the within-sample arm) ---------------
+# rsatoolbox's calc_rdm(method = "euclidean" / "mahalanobis" / "correlation")
+# averages every observation of a condition across the whole dataset. With a
+# balanced indicator design repeated identically in each run, that grand mean
+# is exactly the mean of the per-run OLS blocks, so both sides contract the
+# same patterns. crossform expresses "no cross-validation" as a declared
+# biased self-pairing rather than by dropping the generalization axis.
+grand <- Reduce(`+`, betas) / length(betas)
+within <- relation(list(all = grand), domain = domain)
+within_over <- pairing("all", "all", self_pairs = "allow_biased",
+                       independence = "not_independent")
+stopifnot(identical(attr(within_over, "estimate"), "self_product_biased"))
+
+distance_rows <- list()
+for (nm in names(frames)) {
+  frame <- frames[[nm]]
+
+  euclidean_plan <- plan_geometry(within, at = frame, over = within_over)
+  mahalanobis_plan <- plan_geometry(within, at = frame, over = within_over,
+                                    metric = metric)
+  euclidean_view <- rdm(euclidean_plan)
+  mahalanobis_view <- rdm(mahalanobis_plan)
+  measurements <- as.character(euclidean_view$index)
+  stopifnot(identical(euclidean_view$pairs, pair_frame))
+
+  for (i in seq_along(measurements)) {
+    distance_rows[[length(distance_rows) + 1L]] <- data.frame(
+      frame = nm, measurement = measurements[i],
+      pair = seq_len(nrow(pair_frame)),
+      left = pair_frame$left, right = pair_frame$right,
+      euclidean = as.numeric(as.matrix(euclidean_view$values)[i, ]),
+      mahalanobis = as.numeric(as.matrix(mahalanobis_view$values)[i, ]),
+      stringsAsFactors = FALSE
+    )
+  }
+}
+crossform_distances <- do.call(rbind, distance_rows)
+message("non-crossvalidated distances: ", nrow(crossform_distances),
+        " rows over ", length(unique(crossform_distances$measurement)),
+        " measurements")
+
+## ---- Correlation distance, one support at a time ------------------------
+# Euclidean and Mahalanobis are frame-composable: one frame carrying several
+# supports yields all of them in a single pass, because the distance is a
+# fixed bilinear query and `normalization = "local"` supplies the channel
+# count per support.
+#
+# Correlation distance is not. Both its centering and its normalizer depend on
+# which channels are in the support -- rsatoolbox's `calc_rdm_correlation`
+# calls `_parse_input(..., remove_mean = TRUE)` on the *restricted* dataset --
+# so a multi-support frame cannot produce it in one pass. That is a concrete
+# consequence of its being a nonlinear view rather than a bilinear query, and
+# it is exactly the kind of structure the correlation-distance policy is
+# about. Each support therefore gets its own domain, its own support-centered
+# patterns, and its own plan.
+supports <- c(list(whole_brain = seq_len(N_VOXELS)),
+              split(seq_len(N_VOXELS), REGION_LABELS))
+correlation_rows <- list()
+for (nm in names(supports)) {
+  support <- supports[[nm]]
+  patterns <- grand[, support, drop = FALSE]
+  patterns <- patterns - rowMeans(patterns)
+  support_domain <- abstract_domain(
+    length(support), id = paste0("rsatoolbox-parity-support-", nm)
+  )
+  support_relation <- relation(list(all = patterns), domain = support_domain)
+  support_plan <- plan_geometry(
+    support_relation, at = compile_frame(whole_brain(), support_domain),
+    over = within_over
+  )
+  distances <- as.numeric(as.matrix(rdm(support_plan)$values)[1L, ])
+  diagonals <- vapply(seq_along(CONDITIONS), function(i) {
+    w <- setNames(rep(0, length(CONDITIONS)), CONDITIONS)
+    w[i] <- 1
+    as.numeric(contrast_energy(support_plan, w)$total)[1L]
+  }, numeric(1))
+  correlation_rows[[length(correlation_rows) + 1L]] <- data.frame(
+    measurement = nm, pair = seq_len(nrow(pair_frame)),
+    left = pair_frame$left, right = pair_frame$right,
+    correlation = correlation_distance(distances, diagonals,
+                                       length(CONDITIONS)),
+    stringsAsFactors = FALSE
+  )
+}
+crossform_correlation <- do.call(rbind, correlation_rows)
+message("correlation distances: ", nrow(crossform_correlation), " rows over ",
+        length(supports), " supports (one plan each; not frame-composable)")
+
+## ---- Downstream comparison statistics -----------------------------------
+# Computed from crossform's crossnobis RDM with base R. No crossform export is
+# involved: `rdm()$values` is already in row-major upper-triangle order, which
+# is what numpy's triu_indices produces, so the two vectors align elementwise.
+all_models <- c(models, list(graded = graded_model()))
+model_vectors <- lapply(all_models, rdm_pair_vector)
+
+similarity_rows <- list()
+for (m in unique(crossform_rdm$measurement)) {
+  part <- crossform_rdm[crossform_rdm$measurement == m, ]
+  part <- part[order(part$pair), ]
+  for (model_name in names(model_vectors)) {
+    stats <- similarity_statistics(part$crossform, model_vectors[[model_name]],
+                                   length(CONDITIONS))
+    similarity_rows[[length(similarity_rows) + 1L]] <- data.frame(
+      measurement = m, model = model_name, method = names(stats),
+      crossform = unname(stats), stringsAsFactors = FALSE
+    )
+  }
+}
+crossform_similarity <- do.call(rbind, similarity_rows)
+message("downstream similarity statistics: ", nrow(crossform_similarity),
+        " rows (", length(model_vectors), " models x 8 methods x ",
+        length(unique(crossform_rdm$measurement)), " measurements)")
+
+## ---- Diagonal noise precision -------------------------------------------
+# Same pattern as the full precision: the estimator is the exemplar's, applied
+# once in R, and 03-compare.R checks that rsatoolbox's own prec_from_residuals
+# reproduces it.
+diagonal_covariance <- diag(diag(noise$covariance))
+diagonal_precision_matrix <- diag(1 / diag(noise$covariance))
+
+utils::write.csv(crossform_distances,
+                 file.path(results, "crossform-distances.csv"),
+                 row.names = FALSE)
+utils::write.csv(crossform_correlation,
+                 file.path(results, "crossform-correlation.csv"),
+                 row.names = FALSE)
+utils::write.csv(crossform_similarity,
+                 file.path(results, "crossform-similarity.csv"),
+                 row.names = FALSE)
+utils::write.csv(as.data.frame(unname(diagonal_precision_matrix)),
+                 file.path(results, "precision-diagonal.csv"),
+                 row.names = FALSE)
+utils::write.csv(
+  data.frame(condition = CONDITIONS, as.data.frame(unname(grand)),
+             stringsAsFactors = FALSE),
+  file.path(results, "grand-means.csv"), row.names = FALSE)
+utils::write.csv(
+  data.frame(pair = seq_len(nrow(pair_frame)), left = pair_frame$left,
+             right = pair_frame$right,
+             category = model_vectors$category,
+             animacy = model_vectors$animacy,
+             graded = model_vectors$graded,
+             stringsAsFactors = FALSE),
+  file.path(results, "model-rdms-extended.csv"), row.names = FALSE)
 
 saveRDS(list(fixture = fixture, noise = noise, domain = domain, fit = fit,
              over = over, metric = metric, frames = frames, plans = plans,

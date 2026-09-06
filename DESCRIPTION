@@ -3,17 +3,15 @@ Title: Cross-Generalized Effect Geometry
 Version: 0.0.0.9000
 Authors@R: person("Bradley", "Buchsbaum", role = c("aut", "cre"),
     email = "bradley.buchsbaum@gmail.com")
-Description: Asks where task effects and representational geometries
-    reproduce across independent partitions of a task functional magnetic
-    resonance imaging (fMRI) dataset, such as separate runs or sessions. The
-    effects, the spatial measurement, and the partitions that must generalize
-    are declared once and compiled into a single estimand-bearing effect form;
-    crossvalidated contrast energy, squared-distance representational
-    dissimilarity matrices, fixed linear representational similarity analysis,
-    and ordered cross-axis hypotheses are queries against that form rather
-    than separate pipelines. Spatial measurements, generalization pairings,
-    units, execution receipts, uncertainty capabilities, and principled
-    refusals remain explicit.
+Description: Gives univariate contrasts, multivariate distances and fixed
+    linear representational similarity analysis, and population summaries one
+    declared crossvalidated bilinear geometry. Reproducible effects are
+    decomposed across spatial scales into additive coherent and configurational
+    estimand components. Spatial measurements, independent partitions,
+    realized population transports, units, support diagnostics, uncertainty
+    capabilities, execution receipts, and principled refusals remain explicit.
+    It is not a preprocessing system or a universal fMRI, RSA, prediction, or
+    downstream-inference solution.
 License: MIT + file LICENSE
 URL: https://bbuchsbaum.github.io/crossform/,
     https://github.com/bbuchsbaum/crossform
@@ -36,13 +34,15 @@ Suggests:
     fmridesign,
     fmrireg,
     future,
+    jsonlite,
     knitr,
     neuroim2 (>= 0.19.0),
     pkgload,
     processx,
     ps,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 VignetteBuilder: knitr
 Additional_repositories: https://bbuchsbaum.r-universe.dev
 Config/Needs/website: rmarkdown

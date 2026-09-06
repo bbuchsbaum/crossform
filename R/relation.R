@@ -92,7 +92,11 @@
 #'
 #' @param sources A matrix, or a named list of matrix, function, or
 #'   `effect_source_descriptor` response sources.
-#' @param extract NULL, one `effect_extractor`, or one extractor per partition.
+#' @param extract NULL, one `effect_extractor`, one extractor per partition, or
+#'   a [model_basis()], which lowers every partition's condition betas into
+#'   model coordinates through its `$extractor`. Labelled beta rows are then
+#'   aligned to the basis's `$conditions` by name in any order and a mismatch
+#'   is refused; unlabelled rows are taken in the basis's condition order.
 #' @param effects An `effect_space()` for already estimated sources, or unique
 #'   names used as shorthand for an unspecified-basis effect space.
 #' @param source_dims Required dimensions for function sources, as one
@@ -102,7 +106,15 @@
 #'   resampling or changing neural features.
 #' @param domain_id Stable neural-domain identity.
 #' @param capabilities Optional source-capability values, one per partition.
-#' @param provenance Optional provenance metadata.
+#' @param provenance Optional provenance metadata. For independent predictive
+#'   scoring, `observation_origins` declares a common parent manifest: a list
+#'   with `id`, a named `partitions` list of raw observation-origin identifiers,
+#'   `independence = "independent"` or `"undeclared"`, and an `assumption`
+#'   describing the sampling/preprocessing independence claim. Optional
+#'   `dependencies` names each partition's upstream observation origins.
+#'   The manifest is sealed and ancestry is attached to each source. Copies,
+#'   aliases and reprocessed estimates must retain their actual origin IDs;
+#'   neither endpoint names nor equal numeric values establish independence.
 #' @return An `effect_relation`: a list with the compiled `$sources`, one
 #'   `$extractors` entry per partition, the shared `$effect_space` and its
 #'   `$effects` labels, `$partitions`, `$n_features`, the `$domain` reference
@@ -125,7 +137,8 @@
 #'   `id`.
 #' - `$capabilities`: one [source_capabilities()] per partition when the
 #'   sources declared them, otherwise `NULL`.
-#' - `$provenance`: the metadata supplied at construction, unchanged.
+#' - `$provenance`: the supplied metadata; an `observation_origins` declaration
+#'   is canonicalized into a sealed parent manifest.
 #'
 #' `$sources` and `$extractors` are the compiled read path [relation_block()]
 #' uses; they and any element not listed here are internal and may change.
@@ -212,6 +225,9 @@ relation <- function(sources, extract = NULL, effects = NULL,
     .input_error("`source_dims` must provide one entry per source.")
   }
   declared_effect_space <- !is.null(effects)
+  if (inherits(extract, "effect_model_basis")) {
+    extract <- .validate_model_basis(extract)$extractor
+  }
   if (is.null(extract)) {
     first_dimension <- if (is.matrix(sources[[1L]])) {
       nrow(sources[[1L]])
@@ -277,6 +293,9 @@ relation <- function(sources, extract = NULL, effects = NULL,
     }
   }
 
+  if (!is.null(extract)) {
+    sources <- .align_sources_to_extractors(sources, extract, partitions)
+  }
   compiled_sources <- Map(function(source, dim, label) {
     if (is.matrix(source)) {
       .matrix_response_source(source, label)
@@ -396,6 +415,13 @@ relation <- function(sources, extract = NULL, effects = NULL,
     }
   }
 
+  origins <- provenance$observation_origins
+  if (!is.null(origins)) {
+    origins <- .origin_manifest(origins)
+    provenance$observation_origins <- origins
+    for (p in partitions) compiled_sources[[p]]$origin <- .source_origin(origins, p)
+  }
+
   structure(
     list(
       sources = compiled_sources,
@@ -485,13 +511,138 @@ relation_block <- function(x, partition, features) {
       "Response source returned an invalid observation-by-feature block."
     )
   }
-  value <- x$extractors[[partition]]$map %*% response
-  if (any(!is.finite(value))) {
-    .input_error(paste0("Effect extraction produced non-finite relation values.",
-          " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation."))
+  # A relation built from effect blocks carries an identity extractor, and
+  # multiplying by it computes nothing: at q = 100 over 1000 features that is
+  # a 20 MFLOP product per partition, plus a second finiteness sweep of a
+  # result already known finite. The identity is proven here rather than
+  # inferred from the recorded estimator, and anything else takes the product.
+  # `is.double()` is part of the test, not a detail: a relation block is a
+  # double matrix, and when the response arrives as integers the product is
+  # what widened them. Skipping it would hand integer storage to a kernel that
+  # requires reals, so an integer response takes the product.
+  extractor <- x$extractors[[partition]]
+  value <- if (is.double(response) &&
+      identical(extractor$estimator, "identity") &&
+      identical(unname(extractor$map), diag(nrow(extractor$map)))) {
+    response
+  } else {
+    product <- extractor$map %*% response
+    if (any(!is.finite(product))) {
+      .input_error(paste0("Effect extraction produced non-finite relation values.",
+            " Finite inputs overflowed double precision during the computation; rescale the responses (for example to unit variance) before building the relation."))
+    }
+    product
   }
   dimnames(value) <- list(x$effect_space$coordinates, NULL)
   value
+}
+
+# A labelled beta block under an extractor whose map names its observation
+# axis (a model basis names it with the conditions) is aligned by name and a
+# mismatch is refused, exactly as the identity route aligns rows to the
+# declared effects. Positional application stays the rule for unlabelled
+# blocks and for extractors whose map carries no observation names, which is
+# every `lm_extractor()`; without this, `relation(betas, extract = basis)`
+# with rows in another order than the basis's conditions lowered `t(Q) B[perm, ]`
+# silently while the same betas without `extract` were reordered by name.
+.align_sources_to_extractors <- function(sources, extract, partitions) {
+  extractors <- if (inherits(extract, "effect_extractor")) {
+    rep(list(extract), length(sources))
+  } else {
+    extract
+  }
+  if (!is.list(extractors) || length(extractors) != length(sources)) {
+    return(sources)
+  }
+  for (i in seq_along(sources)) {
+    source <- sources[[i]]
+    extractor <- extractors[[i]]
+    if (!is.matrix(source) || !inherits(extractor, "effect_extractor") ||
+        !is.matrix(extractor$map)) {
+      next
+    }
+    expected <- colnames(extractor$map)
+    given <- rownames(source)
+    if (is.null(expected) || is.null(given)) next
+    if (anyNA(given) || anyDuplicated(given) || !setequal(given, expected)) {
+      missing <- setdiff(expected, given)
+      extra <- setdiff(given, expected)
+      detail <- c(
+        if (length(missing)) sprintf("%s absent", .msg_names(missing)),
+        if (length(extra)) sprintf("%s unexpected", .msg_names(extra))
+      )
+      if (!length(detail)) detail <- "a row name repeats"
+      .input_error(sprintf(paste0(
+        "Partition `%s` does not carry the observations the extractor lowers ",
+        "(%s): %s. Name the rows with the extractor's observation axis, in ",
+        "any order, or drop the row names to apply the map by position."
+      ), partitions[[i]], .msg_names(expected), paste(detail, collapse = "; ")),
+        arg = "sources", received = .msg_names(given), expected = .msg_names(expected))
+    }
+    sources[[i]] <- source[match(expected, given), , drop = FALSE]
+  }
+  sources
+}
+
+# The relation lowered through a model basis: the same sources, every
+# partition's extractor composed with `t(Q)` (`Q'B = (Q'E) Y`), and the
+# model-coordinate effect space. This is how a layer-5 reader lowers the
+# relation of an existing plan without re-reading or re-wrapping its
+# sources; the betas entry `relation(betas, extract = basis)` reaches the same
+# family identity from a matrix, because an identity extractor composes to
+# the basis's extractor itself.
+.relation_lowered <- function(x, basis) {
+  x <- .validate_relation(x)
+  basis <- .validate_model_basis(basis)
+  if (!identical(x$effect_space$coordinates, basis$conditions)) {
+    .input_error(sprintf(paste0(
+      "The model basis is declared over conditions (%s) that are not the ",
+      "relation's effects in the relation's order (%s). Build the basis with ",
+      "`conditions = relation$effect_space`."
+    ), .msg_names(basis$conditions), .msg_names(x$effect_space$coordinates)),
+      arg = "basis", received = .msg_names(basis$conditions),
+      expected = .msg_names(x$effect_space$coordinates))
+  }
+  map <- t(basis$Q)
+  # An identity extractor composes to the basis's own extractor, verbatim, so
+  # a relation lowered here and one built by `relation(betas, extract =
+  # basis)` share one family identity and therefore one plan identity.
+  x$extractors <- lapply(x$extractors, function(extractor) {
+    if (identical(extractor$estimator, "identity")) {
+      return(basis$extractor)
+    }
+    composed <- map %*% extractor$map
+    dimnames(composed) <- list(basis$effect_space$coordinates,
+      colnames(extractor$map))
+    effect_extractor(
+      composed,
+      effects = basis$effect_space,
+      estimator = "model_basis",
+      diagnostics = list(
+        model_basis_signature = basis$signature,
+        composed_estimator = extractor$estimator,
+        composed_diagnostics = extractor$diagnostics
+      )
+    )
+  })
+  x$effect_space <- basis$effect_space
+  x$effects <- basis$effect_space$coordinates
+  .validate_relation(x)
+}
+
+# Subsetting preserves source ancestry and the complete parent manifest.
+# Display labels may change; actual observation identities never do.
+.relation_subset <- function(x, partitions, labels = partitions) {
+  x <- .validate_relation(x)
+  if (!.is_strings(partitions, unique = TRUE) || !all(partitions %in% x$partitions) ||
+      !.is_strings(labels, unique = TRUE) || length(labels) != length(partitions)) {
+    .input_error("Relation subsets need unique existing partitions and equally many unique labels.")
+  }
+  x$sources <- stats::setNames(x$sources[partitions], labels)
+  x$extractors <- stats::setNames(x$extractors[partitions], labels)
+  if (!is.null(x$capabilities)) x$capabilities <- stats::setNames(x$capabilities[partitions], labels)
+  x$partitions <- labels
+  .validate_relation(x)
 }
 
 .validate_relation <- function(x, deep = TRUE) {
@@ -535,8 +686,15 @@ relation_block <- function(x, partition, features) {
       "Relation metadata is inconsistent with its exact neural domain."
     )
   }
+  origins <- x$provenance$observation_origins
+  if (!is.null(origins)) origins <- .validate_origin_manifest(origins)
   for (partition in x$partitions) {
     source <- x$sources[[partition]]
+    if (!is.null(origins)) {
+      .validate_source_origin(source$origin, origins)
+    } else if (!is.null(source$origin)) {
+      .contract_error("A source with known observation ancestry cannot discard its parent manifest.")
+    }
     if (!inherits(source, "effect_response_source") ||
         !is.numeric(source$dim) || length(source$dim) != 2L ||
         source$dim[[2L]] != x$n_features || !is.function(source$read) ||

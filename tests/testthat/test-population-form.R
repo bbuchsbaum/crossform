@@ -50,7 +50,9 @@ pf_subject <- function(id, features, gain = 1, effects = pf_effects()) {
 }
 
 # Group centres at 0, 4 and 9 with radius 1.5, so native nodes at x = 2, 6, 7
-# or 11 land entirely in the sink and the sink column carries real mass.
+# or 11 land entirely in the sink and the sink column carries real mass. Every
+# participant reaches every ordinary node so this file isolates streamed-form
+# algebra; variable coverage has its own target tests.
 pf_carrier <- function(features, semantics = "budget", radius = 1.5, ...) {
   anatomical_transport(
     native_coords = cbind(seq_len(features) - 1),
@@ -59,7 +61,7 @@ pf_carrier <- function(features, semantics = "budget", radius = 1.5, ...) {
   )
 }
 
-pf_sizes <- c(s01 = 6L, s02 = 8L, s03 = 10L, s04 = 12L)
+pf_sizes <- c(s01 = 10L, s02 = 11L, s03 = 12L, s04 = 13L)
 pf_gains <- c(s01 = 1, s02 = 1.6, s03 = 0.6, s04 = 1.2)
 
 pf_plan <- function(sizes = pf_sizes, semantics = "budget", ...) {
@@ -222,7 +224,8 @@ test_that("the commutation survives density semantics and its NA group node", {
   # Group node 9 is out of reach of the two smaller participants under any
   # radius, so density returns NA there rather than 0, and both executors must
   # solve around the same columns.
-  plan <- pf_plan(semantics = "density")
+  partial_sizes <- c(s01 = 6L, s02 = 8L, s03 = 10L, s04 = 12L)
+  plan <- pf_plan(sizes = partial_sizes, semantics = "density")
   bank <- rbind(`face-house` = c(1, -1, 0))
   form <- materialize_population(plan)
   queried <- estimate_population(plan, bank)
@@ -349,8 +352,16 @@ test_that("peak vector memory tracks the coordinate tile", {
   # The answer does not move, and the peak does: the fivefold reduction in the
   # group stack is 3.4 MiB, so a route whose peak did not fall by megabytes
   # would be holding the dense array somewhere.
+  expect_identical(
+    is.na(wide$value$coefficient_forms),
+    is.na(narrow$value$coefficient_forms)
+  )
+  finite <- is.finite(wide$value$coefficient_forms) &
+    is.finite(narrow$value$coefficient_forms)
+  expect_true(any(finite))
   expect_lt(
-    max(abs(wide$value$coefficient_forms - narrow$value$coefficient_forms)),
+    max(abs(wide$value$coefficient_forms[finite] -
+      narrow$value$coefficient_forms[finite])),
     numerical_contract()$atol
   )
   expect_lt(narrow$bytes, wide$bytes - 2 * 1024^2)
@@ -404,7 +415,7 @@ test_that("the complete-form result is a sealed record with a stable contract", 
   expect_identical(names(form), c(
     "basis", "coefficient_forms", "residual_df", "index", "effects",
     "coordinates", "component", "ledger", "semantics", "normalization",
-    "uncertainty", "receipt", "scientific_plan_id"
+    "coverage", "uncertainty", "receipt", "scientific_plan_id"
   ))
   expect_null(form$values)
   expect_null(form$fitted)
@@ -468,7 +479,7 @@ test_that("the query-bank result keeps its own field contract and basis", {
   expect_identical(names(fit), c(
     "basis", "coefficients", "values", "fitted", "residuals", "residual_df",
     "index", "queries", "component", "ledger", "semantics", "normalization",
-    "uncertainty", "receipt", "scientific_plan_id"
+    "coverage", "uncertainty", "receipt", "scientific_plan_id"
   ))
   expect_identical(fit$receipt$basis, "query_bank")
   expect_identical(fit$receipt$queries, "face-house")

@@ -600,9 +600,9 @@ plot.effect_contrast_view <- function(x,
     defaults <- list(
       x = coherent, y = configuration,
       xlim = xlim, ylim = ylim, asp = 1, cex.main = 1,
-      xlab = "Coherent energy (region-average contrast)",
-      ylab = "Configuration energy (pattern beyond that mean)",
-      main = .panel_main(main, 1L, "Coherent versus configuration energy")
+      xlab = "Coherent component (squared response units)",
+      ylab = "Configurational component (squared response units)",
+      main = .panel_main(main, 1L, "Coherent versus configurational components")
     )
     if (dense) {
       # The cloud is drawn as counts below, so the panel opens empty.

@@ -1,0 +1,7 @@
+"schema_version","path","size_bytes","hash_algorithm","digest"
+"population-interpretability-checksums-v1","benchmarks/population-interpretability/00-certify.R",12026,"md5","fdcd433abf2575f0766be26a9ca9ad9c"
+"population-interpretability-checksums-v1","design/population-interpretability-contract.md",1815,"md5","1030f420a7c0fee55f9f632f4c1695c9"
+"population-interpretability-checksums-v1","inst/extdata/certification/matched-interpretability-truth.csv",10137,"md5","b4a80dc321dfdf0ea9e3ebc0a2918323"
+"population-interpretability-checksums-v1","inst/extdata/certification/population-interpretability-replicates.csv",8392032,"md5","6110d3c3527080b98a12b0f1587da67e"
+"population-interpretability-checksums-v1","inst/extdata/certification/population-interpretability-results.csv",35290,"md5","805cbd0056f7c45572daf81e52251bd9"
+"population-interpretability-checksums-v1","inst/extdata/certification/population-interpretability-verdicts.csv",837,"md5","ae58061f607f14dcc716618ae0cf989b"

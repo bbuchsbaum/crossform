@@ -5,14 +5,27 @@ This exemplar closes claim-promotion gate 1 of
 crossnobis plus linear-RSA result with a version-pinned environment and an
 independent oracle*.
 
-It has two arms.
+It has three arms.
 
-1. **Parity.** On one shared synthetic fixture, crossform's fixed-metric
-   crossnobis RDM and its linear RSA coefficients agree with Python
-   `rsatoolbox` 0.3.2 to **3.8e-15** and **8.6e-16** in maximum absolute
-   difference. Those are floating-point reordering differences, not
-   estimator differences.
-2. **Strict extension.** From the *same* relation fit, the *same* fixed noise
+1. **Parity, across the standard workflow.** On one shared synthetic fixture,
+   crossform reproduces every step of an ordinary rsatoolbox analysis: the
+   crossnobis, Euclidean, Mahalanobis and correlation RDMs, the full and
+   diagonal noise-precision estimators (and the shrinkage family under a
+   stated condition), fixed linear RSA, and all eight `compare()` similarity
+   statistics. **24 recorded comparisons, worst maximum absolute difference
+   5.1e-15** against a declared `1e-10` tolerance. Those are floating-point
+   reordering differences, not estimator differences.
+2. **No new public surface.** Reaching that coverage added **zero exports**
+   to crossform and amended no contract. Two steps are reached *downstream*
+   of crossform's outputs rather than inside them, deliberately:
+   `design/api-tiers.md:305` records that no exported function accepts a
+   normalizer, and `design/common-geometry-equivalence.md:156` excludes rank
+   transforms and cosine/correlation normalization of the observed RDM from
+   the equivalence theorem. Exporting a similarity function would contradict
+   both; demonstrating the statistic downstream contradicts neither. See
+   *Two things that are downstream, and why* below.
+
+3. **Strict extension.** From the *same* relation fit, the *same* fixed noise
    precision, and the *same* cross-run pairing, crossform additionally
    returns the signed contrast energy, the exact coherent/configuration/total
    partition of it, the same partition of every RDM entry, and analytic
@@ -22,6 +35,11 @@ It has two arms.
 Nothing here claims that `rsatoolbox` is wrong or slow. The parity arm exists
 so that the extension arm is anchored: the extra quantities come out of an
 object that reproduces the standard answer exactly.
+
+The scope is deliberately narrow: the external result supports the fixed
+crossnobis and fixed linear-RSA rows described below, not every statistic
+called RSA. The exact mapping into the common-geometry theorem is recorded in
+[`design/common-geometry-equivalence.md`](../../design/common-geometry-equivalence.md#8-external-parity-binding).
 
 ## How to run
 
@@ -39,6 +57,7 @@ Rscript 01-fixture.R          # build the fixture, fit it, export CSVs
 rsaenv/bin/python 02-rsatoolbox.py
 Rscript 03-compare.R          # agreement table -> results/agreement.csv
 Rscript 04-extension.R        # the strict extension
+Rscript 05-manifest.R         # bind sources, environment, and outputs
 
 # or, equivalently
 RSA_PYTHON=rsaenv/bin/python ./run-all.sh
@@ -51,6 +70,41 @@ is the CSV directory `results/`.
 
 Recorded run: R 4.5, CPython 3.12.11, `rsatoolbox` 0.3.2, `numpy` 2.5.2,
 `scipy` 1.18.0, darwin/arm64, 2026-08-17.
+
+To revalidate the recorded external output against a changed crossform source
+without rebuilding Python, run `Rscript 01-fixture.R`, `Rscript 03-compare.R`,
+and `Rscript 05-manifest.R`. This regenerates the deterministic crossform arm,
+rechecks every matched value against the pinned external CSVs, and refreshes
+the source binding. A full external regeneration uses `run-all.sh` and the
+pinned environment above.
+
+`results/parity-manifest.csv` is the drift diagnostic. It records byte sizes
+and MD5 digests for the fixture, comparison and extension sources, the Python
+implementation, the environment lock, the algebraic claim, the
+machine-readable fixture contract, and every recorded output — 31 bindings.
+Schema 2 additionally records the **crossform source digest and git commit**
+that produced the R arm, using the same definition as
+`benchmarks/provenance.R`, so the manifest can now detect not only a later
+edit to an output but the fact that the outputs came from a different package
+source than the tree holds.
+`tests/testthat/test-rsatoolbox-parity.R` recomputes every entry. A digest
+mismatch identifies the exact stale path; a semantic assertion then diagnoses
+version, tolerance, metric, centering, partition, ordering, or objective
+drift.
+
+**Where that enforcement actually runs.** Under `R CMD check` it does not:
+`^exemplars$` is Rbuildignored and there is no copy under `inst/`, so
+`system.file("exemplars", ...)` never resolves and every assertion in that
+file hits its `skip_if` guard. An earlier version of this README claimed the
+ratchet "fails CI/certification"; it did not, because no workflow ran Python
+at all. Enforcement now comes from two places that do run:
+[`.github/workflows/rsatoolbox-parity.yaml`](../../.github/workflows/rsatoolbox-parity.yaml),
+which rebuilds the pinned environment, regenerates both arms from a source
+checkout, and fails if any recorded number moves; and
+`benchmarks/check-certification-binding.R`, which now checks the shipped
+`common-geometry-external-parity.csv` receipt as well as the `.rds` artifacts
+— previously it globbed `\.rds$` only, which left this receipt as the one
+shipped certification artifact with no source binding at all.
 
 ## The fixture
 
@@ -130,17 +184,32 @@ in the agreement table.
 `results/agreement.csv`, verbatim (`03-compare.R` fails the run if any row
 exceeds its tolerance):
 
-| quantity | comparator | n | max abs diff | max rel diff | tolerance |
-| --- | --- | ---: | ---: | ---: | ---: |
-| `crossnobis_rdm` | `rsatoolbox::calc_rdm_crossnobis` | 60 | 3.77e-15 | 6.70e-14 | 1e-10 |
-| `crossnobis_rdm` | explicit all-pairs numpy oracle | 60 | 3.77e-15 | 6.69e-14 | 1e-10 |
-| `crossnobis_rdm[roiA]` | `rsatoolbox::calc_rdm_crossnobis` | 15 | 3.77e-15 | 9.19e-15 | 1e-10 |
-| `crossnobis_rdm[roiB]` | `rsatoolbox::calc_rdm_crossnobis` | 15 | 1.03e-15 | 7.23e-15 | 1e-10 |
-| `crossnobis_rdm[roiC]` | `rsatoolbox::calc_rdm_crossnobis` | 15 | 9.44e-16 | 6.70e-14 | 1e-10 |
-| `crossnobis_rdm[whole_brain]` | `rsatoolbox::calc_rdm_crossnobis` | 15 | 7.77e-16 | 4.92e-14 | 1e-10 |
-| `linear_rsa_coefficients` | numpy least squares on vectorised RDMs | 20 | 8.60e-16 | 1.11e-12 | 1e-10 |
-| `linear_rsa_coefficients[intercept]` | numpy least squares on vectorised RDMs | 12 | 4.94e-16 | 1.11e-12 | 1e-10 |
-| `linear_rsa_coefficients[no intercept]` | `ModelWeighted` + `fit_regress(cosine)`, rescaled | 8 | 8.88e-16 | 1.82e-14 | 1e-8 |
+| quantity | comparator | n | max abs diff | tolerance |
+| --- | --- | ---: | ---: | ---: |
+| `crossnobis_rdm` | rsatoolbox::calc_rdm_crossnobis | 60 | 3.77e-15 | 1.00e-10 |
+| `crossnobis_rdm` | explicit all-pairs numpy oracle | 60 | 3.77e-15 | 1.00e-10 |
+| `crossnobis_rdm[roiA]` | rsatoolbox::calc_rdm_crossnobis | 15 | 3.77e-15 | 1.00e-10 |
+| `crossnobis_rdm[roiB]` | rsatoolbox::calc_rdm_crossnobis | 15 | 1.03e-15 | 1.00e-10 |
+| `crossnobis_rdm[roiC]` | rsatoolbox::calc_rdm_crossnobis | 15 | 9.44e-16 | 1.00e-10 |
+| `crossnobis_rdm[whole_brain]` | rsatoolbox::calc_rdm_crossnobis | 15 | 7.77e-16 | 1.00e-10 |
+| `linear_rsa_coefficients` | numpy least squares on vectorised RDMs | 20 | 8.60e-16 | 1.00e-10 |
+| `linear_rsa_coefficients[intercept]` | numpy least squares on vectorised RDMs | 12 | 4.94e-16 | 1.00e-10 |
+| `linear_rsa_coefficients[no intercept]` | rsatoolbox ModelWeighted + fit_regress(cosine), rescaled | 8 | 8.88e-16 | 1.00e-08 |
+| `euclidean_rdm` | rsatoolbox::calc_rdm(method="euclidean") | 60 | 3.11e-15 | 1.00e-10 |
+| `mahalanobis_rdm` | rsatoolbox::calc_rdm(method="mahalanobis") | 60 | 4.44e-15 | 1.00e-10 |
+| `correlation_rdm` | rsatoolbox::calc_rdm(method="correlation") | 60 | 5.11e-15 | 1.00e-10 |
+| `rdm_comparison_statistics` | rsatoolbox::compare (all methods) | 96 | 2.62e-15 | 1.00e-10 |
+| `rdm_comparison[corr]` | rsatoolbox::compare(method="corr") | 12 | 2.28e-15 | 1.00e-10 |
+| `rdm_comparison[corr_cov]` | rsatoolbox::compare(method="corr-cov") | 12 | 1.39e-15 | 1.00e-10 |
+| `rdm_comparison[cosine]` | rsatoolbox::compare(method="cosine") | 12 | 2.62e-15 | 1.00e-10 |
+| `rdm_comparison[cosine_cov]` | rsatoolbox::compare(method="cosine-cov") | 12 | 8.88e-16 | 1.00e-10 |
+| `rdm_comparison[kendall]` | rsatoolbox::compare(method="kendall") | 12 | 4.44e-16 | 1.00e-10 |
+| `rdm_comparison[rho_a]` | rsatoolbox::compare(method="rho-a") | 12 | 4.44e-16 | 1.00e-10 |
+| `rdm_comparison[spearman]` | rsatoolbox::compare(method="spearman") | 12 | 4.44e-16 | 1.00e-10 |
+| `rdm_comparison[tau_a]` | rsatoolbox::compare(method="tau-a") | 12 | 4.16e-16 | 1.00e-10 |
+| `noise_precision[diagonal]` | rsatoolbox::prec_from_residuals(method="diag") | 1 | 4.00e-15 | 1.00e-10 |
+| `noise_precision[shrinkage_eye]` | rsatoolbox::cov_from_residuals(method="shrinkage_eye") | 1 | 5.11e-15 | 1.00e-10 |
+| `noise_precision[shrinkage]` | rsatoolbox::cov_from_residuals(method="shrinkage_diag") | 1 | 5.11e-15 | 1.00e-10 |
 
 Plus, from `results/rsatoolbox-meta.csv`:
 
@@ -148,17 +217,73 @@ Plus, from `results/rsatoolbox-meta.csv`:
 | --- | ---: |
 | `prec_from_residuals(method="full", dof=168)` vs the R pooled precision | 2.31e-14 |
 | LOO folding vs uniform C(4,2) pairing | 3.33e-16 |
+| `shrinkage_diag` implied lambda | 0.131002 |
+| `shrinkage_eye` implied lambda | 0.082965 |
 
-**No convention had to be conceded.** The declared tolerance is `1e-10` and
-the worst observed difference across all 60 RDM entries and 20 RSA
-coefficients is **3.8e-15**, which is the accumulation order of the two
-implementations' inner products, not a difference in estimand. The one
+**No convention had to be conceded.** The declared tolerance is `1e-10` and the
+worst observed difference across all 24 comparisons is **5.1e-15**. The one
 looser row (`1e-8`) is the `fit_regress` route, and it is looser only because
 its coefficient passes through an extra division and multiplication by the
 data RMS; it in fact lands at 8.9e-16 too.
 
-The largest relative difference, `1.1e-12`, belongs to a near-zero quantity
-(the roiC RSA intercept, `−9.3e-05`); its absolute difference is 4.9e-16.
+## The coverage ledger
+
+`results/coverage.csv` gives every rsatoolbox capability exactly one
+disposition, so the question "where there is overlap, can you show parity?"
+has a checkable answer rather than a narrative one:
+
+| disposition | n | meaning |
+| --- | ---: | --- |
+| `parity` | 7 | a direct numerical agreement row |
+| `reproducible_downstream` | 9 | reproduced from crossform outputs in base R, no export involved |
+| `out_of_scope` | 6 | outside what this exemplar undertakes to match |
+| `absent_no_claim` | 3 | not implemented, and not claimed |
+| `parity_conditional` | 2 | agreement under a stated condition |
+| `refused_by_design` | 1 | a written contract refuses it, and names the capability |
+
+`03-compare.R` refuses to write the ledger if any row claiming evidence names
+an agreement row that does not exist or does not pass, so the ledger cannot
+drift into decoration.
+
+## Two things that are downstream, and why
+
+**The comparison statistics.** `rdm()$values` is a measurement-by-pair matrix
+already in row-major upper-triangle order, which is what `np.triu_indices`
+produces. So `cor(d, model, method = "spearman")` and its siblings align with
+`compare()` elementwise. All eight methods — `cosine`, `corr`, `spearman`,
+`kendall`/`tau-b`, `tau-a`, `rho-a`, `cosine_cov`, `corr_cov` — agree to
+**7.8e-16**. `cosine_cov` turns out to be the linear CKA of the double-centred
+second-moment matrices `G = -0.5 H D H`, and `corr_cov` the same on
+mean-centred vectors.
+
+The fixture carries binary model RDMs precisely so this is a real test: `tau-a`
+differs from Kendall's tau-b, and `rho-a` from Spearman, **only under ties**.
+On untied data all four collapse to two numbers and half these rows would be
+testing the same value twice. The separations are recorded in
+`results/comparison-meta.csv` and asserted by the in-package test.
+
+**Correlation distance.** `rdm(normalize = "correlation")` is refused, and
+stays refused. That refusal is about *cross-generalized* diagonals, which can
+be zero or negative — dividing by them is not conventional Pearson distance.
+rsatoolbox's `calc_rdm_correlation` is not cross-validated at all: it is a
+within-sample Gram, positive semidefinite with strictly positive diagonals,
+which is exactly the case
+[`vignettes/correlation-distance-policy.Rmd`](../../vignettes/correlation-distance-policy.Rmd)
+already classifies as a legitimate disciplined nonlinear view. So the exemplar
+reads `G_ij = (G_ii + G_jj - d_ij)/2` from `rdm()` and `contrast_energy()`, and
+reports `1 - G_ij / sqrt(G_ii G_jj)`, checking the positivity precondition
+rather than assuming it. Agreement: **4.9e-15**.
+
+Reproduction is not endorsement. crossform's recommendation to prefer
+crossnobis for cross-generalized inference is unchanged.
+
+One structural consequence worth recording: **correlation distance is not
+frame-composable.** Euclidean and Mahalanobis are fixed bilinear queries, so
+one frame carrying four supports yields all four in a single pass. Correlation
+distance's centering *and* its normalizer both depend on which channels are in
+the support, so each support needs its own plan. That is a concrete cost of
+being a nonlinear view rather than a bilinear query, and it is measured here
+rather than asserted.
 
 ## The strict extension
 

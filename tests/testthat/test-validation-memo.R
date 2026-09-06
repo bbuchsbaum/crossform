@@ -218,10 +218,45 @@ test_that("the memo store is bounded by its fixed key set", {
   keys <- ls(crossform:::.validation_memo, all.names = TRUE)
   expect_true(length(keys) <= 8L)
   expect_true(all(keys %in% c(
-    "evidence_sampling_plan", "geometry_plan", "relation_fit",
-    "sampling_covariance", "neural_metric"
+    "evidence_sampling_plan", "geometry_plan", "geometry_execution_plan",
+    "relation_fit", "sampling_covariance", "neural_metric"
   )))
   crossform:::.reset_validation_memo()
   expect_identical(ls(crossform:::.validation_memo, all.names = TRUE),
     character())
+})
+
+test_that("memoising the execution plan leaves the geometry it executes alone", {
+  # The executor validates the plan the compiler just built, so a repeated
+  # evaluation re-derives and re-checks the same object. The memo admits it on
+  # a structural-equality hit; what must not change is anything the evaluation
+  # reports.
+  fixture <- memo_sweep_fixture()
+  crossform:::.reset_validation_memo()
+  oracle <- with_unoptimized_validation(as.matrix(rdm(fixture$plan)$values))
+  crossform:::.reset_validation_memo()
+  cold <- as.matrix(rdm(fixture$plan)$values)
+  warm <- as.matrix(rdm(fixture$plan)$values)
+
+  expect_identical(cold, oracle)
+  expect_identical(warm, oracle)
+  expect_true("geometry_execution_plan" %in%
+    ls(crossform:::.validation_memo, all.names = TRUE))
+  crossform:::.reset_validation_memo()
+})
+
+test_that("a tampered execution plan is refused after a sound one was memoised", {
+  fixture <- memo_sweep_fixture()
+  crossform:::.reset_validation_memo()
+  sound <- crossform:::.compile_geometry_execution_plan(fixture$plan)
+  expect_silent(crossform:::.validate_geometry_execution_plan(sound))
+  forged <- sound
+  forged$lowering <- "additive_contraction"
+
+  expect_error(
+    crossform:::.validate_geometry_execution_plan(forged),
+    "inconsistent",
+    class = "effect_contract_error"
+  )
+  crossform:::.reset_validation_memo()
 })

@@ -1,0 +1,9 @@
+{
+  "status": "SYNTHETIC_REHEARSAL_ONLY",
+  "eligible": true,
+  "real_data_claim": false,
+  "subjects": 24,
+  "partitions": 4,
+  "conditions": ["condition_a", "condition_b", "negative_control"],
+  "contract": "protocols/prospective/eligibility-v1.md"
+}

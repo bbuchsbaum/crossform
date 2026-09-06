@@ -46,6 +46,12 @@
 .crossform_admission_coverage <- function() {
   rbind(
     .admission_row(
+      "certified", "fit_geometry, score_geometry",
+      "predictive-geometry-validation.rds", "predictive-geometry/certify.R",
+      "test-predictive-certification.R",
+      "independent gain calibration, reduced execution, frozen selection and mutation evidence"
+    ),
+    .admission_row(
       "certified", "rdm, contrast_energy",
       "public-map-scale-gate.rds", "run-public-map-scale-gate.R",
       "test-public-map-scale.R",

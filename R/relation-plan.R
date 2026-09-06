@@ -211,8 +211,10 @@
 #'
 #' @param study A [study()].
 #' @param model A [design_model()] or [raw_design_model()].
-#' @param effects An [effect_map()] for a semantic model, or [raw_effect_map()]
-#'   for a raw design.
+#' @param effects An [effect_map()] for a semantic model, [raw_effect_map()]
+#'   for a raw design, or a [model_basis()] built with
+#'   `conditions = model$condition_space`, whose `$effect_map` lowers the
+#'   condition means into model coordinates through the parameterization.
 #' @param observation_model An [observation_model()].
 #' @param tolerance Positive numerical rank and estimability tolerance.
 #' @return An `effect_relation_plan`: a list with the validated `$study`,
@@ -284,6 +286,18 @@ plan_relation <- function(study, model, effects, observation_model,
   }
   .assert_model_rows(study, model)
   raw <- inherits(model, "effect_raw_design_model")
+  if (inherits(effects, "effect_model_basis")) {
+    effects <- .validate_model_basis(effects)
+    if (is.null(effects$effect_map)) {
+      .input_error(paste0(
+        "This model basis carries no effect map: build it with `conditions = ",
+        "model$condition_space` so that it can be lowered through the ",
+        "design's condition space."
+      ), arg = "effects", received = "a model basis built without a condition space",
+        expected = "`model_basis(..., conditions = <condition_space>)`")
+    }
+    effects <- effects$effect_map
+  }
   if (raw) {
     effects <- .validate_lowered_effect_map(effects)
     if (!inherits(effects, "effect_raw_map")) {

@@ -44,17 +44,20 @@ parity claim:
 from __future__ import annotations
 
 import csv
+import datetime
 import os
+import platform
 import sys
 from importlib import metadata
 
 import numpy as np
 from rsatoolbox.data import Dataset
-from rsatoolbox.data.noise import prec_from_residuals
+from rsatoolbox.data.noise import cov_from_residuals, prec_from_residuals
 from rsatoolbox.model import ModelWeighted
 from rsatoolbox.model.fitter import fit_regress
 from rsatoolbox.rdm import RDMs
-from rsatoolbox.rdm.calc import calc_rdm_crossnobis
+from rsatoolbox.rdm import compare
+from rsatoolbox.rdm.calc import calc_rdm, calc_rdm_crossnobis
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RESULTS = os.path.join(HERE, "results")
@@ -72,10 +75,10 @@ def numeric_block(rows, prefix="V"):
 
 
 def main() -> int:
-    meta = {r["key"]: float(r["value"]) for r in read_csv("fixture-meta.csv")}
-    n_voxels = int(meta["n_voxels"])
-    n_runs = int(meta["n_runs"])
-    residual_df = int(meta["residual_df"])
+    meta = {r["key"]: r["value"] for r in read_csv("fixture-meta.csv")}
+    n_voxels = int(float(meta["n_voxels"]))
+    n_runs = int(float(meta["n_runs"]))
+    residual_df = int(float(meta["residual_df"]))
 
     beta_rows = read_csv("betas.csv")
     betas = numeric_block(beta_rows)
@@ -240,6 +243,135 @@ def main() -> int:
             }
         )
 
+    # ---- The broadened arm ------------------------------------------------
+    # Everything below is the standard workflow beyond fixed crossnobis:
+    # the non-crossvalidated distances, the diagonal and shrinkage noise
+    # estimators, and every rsatoolbox compare() method.
+
+    grand_rows = read_csv("grand-means.csv")
+    grand = numeric_block(grand_rows)
+    assert [r["condition"] for r in grand_rows] == conditions
+
+    extended_rows = read_csv("model-rdms-extended.csv")
+    extended_models = {
+        key: np.array([float(r[key]) for r in extended_rows])
+        for key in ("category", "animacy", "graded")
+    }
+
+    distance_records = []
+    similarity_records = []
+    for name, support in supports.items():
+        noise = precision[np.ix_(support, support)]
+        patterns = grand[:, support]
+        dataset = Dataset(
+            measurements=patterns,
+            obs_descriptors={"conds": np.array(conditions)},
+            channel_descriptors={"voxel": support.astype(str)},
+        )
+        by_method = {
+            "euclidean": calc_rdm(dataset, method="euclidean", descriptor="conds"),
+            "mahalanobis": calc_rdm(
+                dataset, method="mahalanobis", descriptor="conds", noise=noise
+            ),
+            "correlation": calc_rdm(
+                dataset, method="correlation", descriptor="conds"
+            ),
+        }
+        for method, rdms_obj in by_method.items():
+            assert list(rdms_obj.pattern_descriptors["conds"]) == conditions
+            values = np.asarray(rdms_obj.get_vectors()).ravel()
+            for k, value in enumerate(values):
+                distance_records.append(
+                    {
+                        "measurement": name,
+                        "pair": k + 1,
+                        "left": pair_left[k],
+                        "right": pair_right[k],
+                        "method": method,
+                        "rsatoolbox": repr(float(value)),
+                    }
+                )
+
+        # ---- compare(): every method, against the crossnobis RDM ----------
+        crossnobis_values = np.array(
+            [
+                float(r["rsatoolbox"])
+                for r in rdm_records
+                if r["measurement"] == name
+            ]
+        )
+        data_rdms = RDMs(
+            dissimilarities=crossnobis_values.reshape(1, -1),
+            dissimilarity_measure="crossnobis",
+            pattern_descriptors={"conds": np.array(conditions)},
+        )
+        for model_name, vector in extended_models.items():
+            model_rdms_obj = RDMs(
+                dissimilarities=vector.reshape(1, -1),
+                dissimilarity_measure="model",
+                pattern_descriptors={"conds": np.array(conditions)},
+            )
+            for method in (
+                "cosine",
+                "corr",
+                "spearman",
+                "kendall",
+                "tau-a",
+                "rho-a",
+                "cosine_cov",
+                "corr_cov",
+            ):
+                value = float(compare(data_rdms, model_rdms_obj, method=method)[0][0])
+                similarity_records.append(
+                    {
+                        "measurement": name,
+                        "model": model_name,
+                        "method": method.replace("-", "_"),
+                        "rsatoolbox": repr(value),
+                    }
+                )
+
+    # ---- Diagonal and shrinkage noise estimators --------------------------
+    r_diagonal = np.array(
+        [[float(v) for v in r.values()] for r in read_csv("precision-diagonal.csv")]
+    )
+    rsatoolbox_diagonal = prec_from_residuals(
+        residuals, dof=residual_df, method="diag"
+    )
+    diagonal_gap = float(np.max(np.abs(rsatoolbox_diagonal - r_diagonal)))
+
+    # rsatoolbox derives its shrinkage coefficient analytically; crossform's
+    # shrinkage_precision() takes lambda as a declaration and refuses to tune
+    # it on evaluation data. Recovering lambda here turns an apparent
+    # capability gap into a stated policy difference: off-diagonal entries of
+    # the shrunk covariance are exactly (1 - lambda) times the sample ones.
+    sample_covariance = np.array(
+        [[float(v) for v in r.values()] for r in read_csv("covariance.csv")]
+    )
+    shrunk = cov_from_residuals(residuals, dof=residual_df, method="shrinkage_diag")
+    off = ~np.eye(n_voxels, dtype=bool)
+    implied_lambda = float(
+        1.0 - np.median(shrunk[off] / sample_covariance[off])
+    )
+    reconstructed = (1.0 - implied_lambda) * sample_covariance + implied_lambda * np.diag(
+        np.diag(sample_covariance)
+    )
+    shrinkage_gap = float(np.max(np.abs(reconstructed - shrunk)))
+
+    # shrinkage_eye shrinks toward a multiple of the identity instead of
+    # toward the diagonal; the same lambda recovery applies.
+    shrunk_eye = cov_from_residuals(
+        residuals, dof=residual_df, method="shrinkage_eye"
+    )
+    implied_lambda_eye = float(
+        1.0 - np.median(shrunk_eye[off] / sample_covariance[off])
+    )
+    target_eye = np.mean(np.diag(sample_covariance)) * np.eye(n_voxels)
+    reconstructed_eye = (
+        1.0 - implied_lambda_eye
+    ) * sample_covariance + implied_lambda_eye * target_eye
+    shrinkage_eye_gap = float(np.max(np.abs(reconstructed_eye - shrunk_eye)))
+
     with open(os.path.join(RESULTS, "rsatoolbox-rdm.csv"), "w", newline="") as handle:
         writer = csv.DictWriter(
             handle,
@@ -262,6 +394,25 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(rsa_records)
 
+    with open(
+        os.path.join(RESULTS, "rsatoolbox-distances.csv"), "w", newline=""
+    ) as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["measurement", "pair", "left", "right", "method", "rsatoolbox"],
+        )
+        writer.writeheader()
+        writer.writerows(distance_records)
+
+    with open(
+        os.path.join(RESULTS, "rsatoolbox-similarity.csv"), "w", newline=""
+    ) as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=["measurement", "model", "method", "rsatoolbox"]
+        )
+        writer.writeheader()
+        writer.writerows(similarity_records)
+
     with open(os.path.join(RESULTS, "rsatoolbox-meta.csv"), "w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["key", "value"])
@@ -274,6 +425,35 @@ def main() -> int:
         writer.writerow(["loo_vs_allpairs_max_abs_diff", repr(oracle_gap)])
         writer.writerow(["cv_scheme", "leave_one_fold_out"])
         writer.writerow(["distance_normalization", "divide_by_n_channels"])
+        writer.writerow(["prec_from_residuals_diag_max_abs_diff", repr(diagonal_gap)])
+        writer.writerow(["shrinkage_diag_implied_lambda", repr(implied_lambda)])
+        writer.writerow(["shrinkage_diag_reconstruction_max_abs_diff", repr(shrinkage_gap)])
+        writer.writerow(["shrinkage_eye_implied_lambda", repr(implied_lambda_eye)])
+        writer.writerow(
+            ["shrinkage_eye_reconstruction_max_abs_diff", repr(shrinkage_eye_gap)]
+        )
+
+    # A run receipt, deliberately separate from the manifest. The manifest is
+    # timestamp-free so identical bytes give an identical record; this file
+    # carries the execution provenance that a digest cannot supply -- when the
+    # external arm actually ran, on what, and against which resolved wheels.
+    with open(os.path.join(RESULTS, "run-receipt.csv"), "w", newline="") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        writer.writerow(["key", "value"])
+        writer.writerow(
+            ["recorded_at", datetime.datetime.now(datetime.timezone.utc).isoformat()]
+        )
+        writer.writerow(["python_implementation", platform.python_implementation()])
+        writer.writerow(["python_version", platform.python_version()])
+        writer.writerow(["platform", platform.platform()])
+        writer.writerow(["machine", platform.machine()])
+        for package in sorted(
+            ("rsatoolbox", "numpy", "scipy", "scikit-learn", "pandas", "h5py")
+        ):
+            try:
+                writer.writerow([f"{package}_version", metadata.version(package)])
+            except metadata.PackageNotFoundError:
+                writer.writerow([f"{package}_version", "absent"])
 
     print(
         f"rsatoolbox {metadata.version('rsatoolbox')} / "
@@ -289,7 +469,19 @@ def main() -> int:
         "calc_rdm_crossnobis (leave-one-run-out) vs explicit all-pairs "
         f"mean: max abs diff = {oracle_gap:.3e}"
     )
+    print(
+        f"prec_from_residuals(method='diag') vs the R diagonal estimate: "
+        f"max abs diff = {diagonal_gap:.3e}"
+    )
+    print(
+        f"shrinkage_diag implied lambda = {implied_lambda:.6f}; "
+        f"(1-lambda)S + lambda diag(S) reconstructs it to {shrinkage_gap:.3e}"
+    )
     print(f"wrote {len(rdm_records)} RDM rows and {len(rsa_records)} RSA rows")
+    print(
+        f"wrote {len(distance_records)} distance rows and "
+        f"{len(similarity_records)} similarity rows"
+    )
     return 0
 
 

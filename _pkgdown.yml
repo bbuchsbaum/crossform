@@ -35,50 +35,43 @@ articles:
   - from-observations
   - neuroim2-data
 
+- title: Read and interpret results
+  desc: Understand the returned quantities, choose a distance, and diagnose unavailable results.
+  contents:
+  - interpreting-results
+  - correlation-distance-policy
+  - failure-gallery
+  - from-rmvpa
+
+- title: Spatial organization
+  desc: Compare spatial patterns and account for overlapping measurements across scales.
+  contents:
+  - matched-interpretability
+  - conservative-frames
+
+- title: Model-supported prediction
+  desc: Learn a representational form on training runs and evaluate it on independent runs.
+  contents:
+  - predictive-geometry
+
 - title: Advanced evidence forms
-  desc: >
-    Experimental. Results that relate two sets of measurements to each other,
-    under a small-node scale gate.
+  desc: Relate two sets of measurements through experimental node and edge forms with bounded scale support.
   contents:
   - evidence-pairing
 
-- title: Guides
-  desc: Reading the results, and mapping in from another package's vocabulary.
-  contents:
-  - interpreting-results
-  - from-rmvpa
-
-- title: Conservative geometry
-  desc: >
-    The attribution instrument. A conservative frame partitions one fixed
-    global budget instead of reporting a density per neighbourhood, so its map
-    is a ledger that adds up over territories — and its per-scale totals are
-    the analyst's own weights, which is why the coherence spectrum, not the
-    energy spectrum, is the finding.
-  contents:
-  - conservative-frames
-
 - title: Population (experimental)
-  desc: >
-    Experimental. Carrying each participant's conservative ledger onto a
-    shared group node set: the typed transport you supply and the package
-    refuses to learn, the sink column that makes partial coverage a number
-    you read rather than budget that went missing, the commutation that makes
-    modelling-then-querying the same answer as querying-then-modelling, the
-    cross-fitted subject Gram that separates consensus from disagreement, and
-    the two error bars the layer keeps apart and labels uncalibrated.
+  desc: Transport participant geometries to a shared node set, read group effects, and distinguish their uncertainty targets.
   contents:
   - population-form
 
-- title: Claims and policies
-  desc: What the package claims, what it refuses, and where the boundaries are drawn.
+- title: Algebra and evidence
+  desc: Follow the fixed-query derivation and distinguish established methods from supported package claims.
   contents:
+  - common-geometry-equivalence
   - novelty
-  - failure-gallery
-  - correlation-distance-policy
 
 - title: For package authors
-  desc: The surface an extension package may build against, and what is closed to it.
+  desc: Build an adapter using the public extension protocol.
   contents:
   - crossform-extending
 
@@ -197,6 +190,28 @@ reference:
     than absorbed.
   contents:
   - latent_geometry
+
+- title: "Advanced — predictive geometry"
+  desc: >
+    Declare model kernels, features or squared Euclidean distances, learn a
+    regularized low-rank prediction on training runs, and score its signed
+    gain on independent runs. Model strengths enter the penalty; source
+    geometry stays signed. Prediction is for the same conditions.
+  contents:
+  - model_basis
+  - fit_geometry
+  - score_geometry
+
+- title: "Advanced — descriptive model-coordinate geometry"
+  desc: >
+    A family of model RDMs or feature matrices as a declared, centered,
+    rank-revealing basis of the effect axis. Lowering a relation through it
+    gives the complete geometry in model coordinates, on which the spectrum,
+    the latent layer, the sampling covariance and the population layer apply
+    unchanged; the basis itself contains no neural data and enters plan
+    identity.
+  contents:
+  - model_geometry
 
 - title: "Advanced — metrics and crossnobis"
   desc: >
@@ -325,6 +340,13 @@ reference:
   - anatomical_transport
   - external_transport
   - transport_values
+  - population_component_view
+  - population_decomposition
+  - population_diagnostic_view
+  - population_diagnostics
+  - population_influence
+  - population_scale_profile
+  - population_wild_bootstrap
   - plan_population
   - estimate_population
   - materialize_population

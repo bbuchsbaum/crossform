@@ -85,7 +85,11 @@ pu_population <- function(sizes, gains, model = ~ 1, data = NULL,
   )
 }
 
-pu_sizes <- c(s01 = 5L, s02 = 6L, s03 = 7L, s04 = 8L, s05 = 9L, s06 = 10L)
+# Every participant reaches every ordinary group node in the general
+# inferential fixture. Variable-coverage inference is a separate estimand and
+# is not smuggled into these full-design OLS oracles.
+pu_sizes <- c(s01 = 10L, s02 = 11L, s03 = 12L, s04 = 13L, s05 = 14L,
+  s06 = 15L)
 pu_gains <- c(s01 = 1, s02 = 1.4, s03 = 0.7, s04 = 1.1, s05 = 0.9, s06 = 1.3)
 
 
@@ -100,7 +104,7 @@ test_that("the between-subject standard error is the group OLS's own, exactly", 
   # its standard error is their sample standard deviation over root N, on
   # `N - 1` degrees of freedom. Both are checked at every group node and query
   # rather than at one.
-  expect_identical(layer$between$residual_df, 6L - 1L)
+  expect_true(all(layer$between$residual_df == 6L - 1L))
   values <- fit$values
   hand_estimate <- apply(values, c(1L, 2L), mean)
   hand_se <- apply(values, c(1L, 2L), function(y) stats::sd(y) / sqrt(length(y)))
@@ -140,7 +144,7 @@ test_that("a covariate model agrees with base R's lm on every node and query", {
     pu_bank()
   )
   layer <- population_uncertainty(fit)
-  expect_identical(layer$between$residual_df, 6L - 3L)
+  expect_true(all(layer$between$residual_df == 6L - 3L))
   expect_identical(layer$term, c("(Intercept)", "age", "motion"))
 
   # `lm()` is an independent court: it shares no code with the population
@@ -455,7 +459,8 @@ test_that("every printed and tabulated surface carries the uncalibrated label", 
 
   expect_match(format(layer), "^<effect_population_uncertainty:")
   expect_match(format(layer), "uncalibrated")
-  expect_output(print(fit), "between-subject SE, df 5 \\(uncalibrated\\)")
+  expect_output(print(fit),
+    "between-subject covariance classical/HC3, cell df 5 to 5")
   expect_output(print(fit), "population_uncertainty")
 })
 

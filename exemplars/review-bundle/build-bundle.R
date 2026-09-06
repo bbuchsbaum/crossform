@@ -151,6 +151,30 @@ expand <- function(root, directory, pattern, destination_directory,
   })
 }
 
+# Recursive expansion is used only for the deliberately small prospective
+# protocol tree. It is kept separate from exemplar data paths so fetched image
+# data can never enter the bundle through a broad traversal.
+expand_recursive <- function(root, directory, pattern, destination_directory,
+                             minimum = 1L) {
+  absolute <- file.path(root, directory)
+  files <- character()
+  if (dir.exists(absolute)) {
+    files <- sort(list.files(absolute, pattern = pattern, recursive = TRUE,
+                             all.files = FALSE), method = "radix")
+    files <- files[!dir.exists(file.path(absolute, files))]
+  }
+  if (length(files) < minimum) {
+    stop(sprintf(
+      "expected at least %d file(s) matching %s under %s, found %d",
+      minimum, pattern, directory, length(files)
+    ), call. = FALSE)
+  }
+  lapply(files, function(file) {
+    entry(file.path(directory, file),
+          file.path(destination_directory, file))
+  })
+}
+
 bundle_contents <- function(root) {
   contents <- list()
   push <- function(...) contents <<- c(contents, list(...))
@@ -161,12 +185,50 @@ bundle_contents <- function(root) {
   for (document in c(
     "conservative-geometry-contract.md",
     "population-form-contract.md",
+    "common-geometry-equivalence.md",
+    "unification-contract.md",
+    "population-estimand-contract.md",
+    "population-calibration-contract.md",
+    "population-interpretability-contract.md",
+    "matched-interpretability-simulation-contract.md",
+    "evidence-status-ledger.md",
+    "evidence-promotion-history.md",
+    "terminology.md",
+    "cross-node-covariance-contract.md",
+    "transport-uncertainty-contract.md",
     "crossform-execution-design.md",
     "architecture.md",
     "api-tiers.md",
     "certification-report.md"
   )) {
     push(entry(file.path("design", document)))
+  }
+  push(entry("README.md", "PUBLIC-SCOPE.md"))
+
+  # Executable article sources are shipped beside the rendered HTML. The
+  # render step below creates review/articles/*.html from these exact inputs.
+  for (article in c(
+    "common-geometry-equivalence.Rmd",
+    "matched-interpretability.Rmd",
+    "population-form.Rmd"
+  )) {
+    push(entry(file.path("vignettes", article),
+               file.path("review", "article-sources", article)))
+  }
+
+  # The entire small, frozen protocol tree is review evidence. Rehearsal
+  # outputs are synthetic and remain visibly nested under rehearsal/.
+  push_all(expand_recursive(root, "protocols/prospective", ".",
+                            "protocols/prospective", minimum = 12L))
+
+  # Certification sources, including declared parameters and seeds.
+  for (directory in c(
+    "benchmarks/matched-interpretability",
+    "benchmarks/population-calibration",
+    "benchmarks/population-interpretability"
+  )) {
+    push_all(expand(root, directory, "\\.(R|md|csv)$", directory,
+                    minimum = 1L))
   }
 
   # (b) The oracles. Standalone-runnable; the three population-* ones do not
@@ -574,6 +636,136 @@ write_binding <- function(staging, binding, current_digest) {
   invisible(binding)
 }
 
+# --------------------------------------------------- rendered review surface --
+
+render_review_articles <- function(root, staging) {
+  for (package in c("pkgload", "rmarkdown", "knitr")) {
+    if (!requireNamespace(package, quietly = TRUE)) {
+      stop("the '", package, "' package is required to render the review bundle",
+           call. = FALSE)
+    }
+  }
+  pkgload::load_all(root, quiet = TRUE, helpers = FALSE)
+  destination <- file.path(staging, "review", "articles")
+  dir.create(destination, recursive = TRUE, showWarnings = FALSE)
+  articles <- c(
+    derivation = "common-geometry-equivalence.Rmd",
+    matched_simulation = "matched-interpretability.Rmd",
+    population = "population-form.Rmd"
+  )
+  for (name in names(articles)) {
+    input <- file.path(root, "vignettes", articles[[name]])
+    output <- paste0(name, ".html")
+    say("  render  : ", articles[[name]], " -> review/articles/", output)
+    rmarkdown::render(
+      input,
+      output_format = rmarkdown::html_document(
+        self_contained = TRUE, toc = TRUE, toc_depth = 3
+      ),
+      output_file = output,
+      output_dir = destination,
+      quiet = TRUE,
+      envir = new.env(parent = globalenv())
+    )
+  }
+  invisible(file.path("review", "articles", paste0(names(articles), ".html")))
+}
+
+package_version_or_na <- function(package) {
+  if (!requireNamespace(package, quietly = TRUE)) return(NA_character_)
+  as.character(utils::packageVersion(package))
+}
+
+write_environment <- function(staging, provenance) {
+  packages <- c("crossform", "digest", "knitr", "rmarkdown", "testthat")
+  lines <- c(
+    "# Review-bundle build environment",
+    "",
+    paste0("built_at_utc: ", provenance$built_at),
+    paste0("package: crossform ", provenance$version),
+    paste0("git_commit: ", provenance$git_commit),
+    paste0("git_branch: ", provenance$git_branch),
+    paste0("git_state: ", provenance$git_state),
+    paste0("r_version: ", provenance$r_version),
+    paste0("platform: ", provenance$platform),
+    paste0("R_source_digest: ", provenance$source_digest),
+    "",
+    "packages:"
+  )
+  lines <- c(lines, paste0("  ", packages, ": ",
+                           vapply(packages, package_version_or_na,
+                                  character(1))))
+  lines <- c(lines, "", "Rebuild command:",
+             "  Rscript exemplars/review-bundle/build-bundle.R --force",
+             "Verify command:",
+             "  Rscript build-bundle.R --verify=<tarball>")
+  writeLines(lines, file.path(staging, "ENVIRONMENT.txt"))
+}
+
+write_source_to_artifact <- function(root, staging, version) {
+  rows <- data.frame(
+    evidence_class = c(
+      "algebraic_theorem", "matched_simulation", "matched_simulation",
+      "matched_simulation", "prospective_protocol", "governance"
+    ),
+    source = c(
+      "vignettes/common-geometry-equivalence.Rmd",
+      "benchmarks/matched-interpretability/05-certify.R",
+      "benchmarks/population-calibration/01-certify.R",
+      "benchmarks/population-interpretability/00-certify.R",
+      "protocols/prospective/rehearsal/run.R",
+      "design/evidence-status-ledger.md"
+    ),
+    artifact = c(
+      "review/articles/derivation.html",
+      "certification/artifacts/matched-interpretability-metrics.csv",
+      "certification/artifacts/population-calibration-results.csv",
+      "certification/artifacts/population-interpretability-results.csv",
+      "protocols/prospective/rehearsal/results/execution-manifest.csv",
+      "certification/artifacts/evidence-claim-registry.csv"
+    ),
+    command = c(
+      "Rscript exemplars/review-bundle/build-bundle.R --force",
+      "Rscript benchmarks/matched-interpretability/05-certify.R",
+      "Rscript benchmarks/population-calibration/01-certify.R",
+      "Rscript benchmarks/population-interpretability/00-certify.R",
+      "Rscript protocols/prospective/rehearsal/run.R --output-dir=<new-dir>",
+      "Rscript -e 'testthat::test_file(\"tests/testthat/test-evidence-status-ledger.R\")'"
+    ),
+    seed_or_rule = c(
+      "article chunks use declared local seeds",
+      "48 paired seeds; see matched-interpretability-parameters.csv",
+      "500 paired datasets per regime; see population-calibration-parameters.csv",
+      "200 paired 24-subject replications; seed declared in certifier",
+      "synthetic rehearsal seed declared in run.R; not eligible real data",
+      "not stochastic"
+    ),
+    package_version = rep(version, 6L),
+    boundary = c(
+      "fixed linear queries only",
+      "synthetic line-domain organization only",
+      "declared synthetic coverage regimes; informative coverage fails marginal target",
+      "synthetic hierarchy conditional on realized transport",
+      "rehearsal only; readiness BLOCKED; no result or replication",
+      "one current status per governed claim"
+    ),
+    stringsAsFactors = FALSE
+  )
+  source_paths <- file.path(root, rows$source)
+  artifact_paths <- file.path(staging, rows$artifact)
+  missing <- c(rows$source[!file.exists(source_paths)],
+               rows$artifact[!file.exists(artifact_paths)])
+  if (length(missing)) {
+    stop("source-to-artifact input missing: ", paste(missing, collapse = ", "),
+         call. = FALSE)
+  }
+  rows$source_sha256 <- vapply(source_paths, file_sha256, character(1))
+  rows$artifact_sha256 <- vapply(artifact_paths, file_sha256, character(1))
+  utils::write.csv(rows, file.path(staging, "SOURCE-TO-ARTIFACT.csv"),
+                   row.names = FALSE, na = "")
+  invisible(rows)
+}
+
 # -------------------------------------------------------------------- verify --
 
 verify_bundle <- function(path) {
@@ -732,6 +924,9 @@ main <- function() {
     file.path(staging, "RUNNING-TESTS.md"))
   write_binding(staging, certification_binding(root, current_digest),
     current_digest)
+  render_review_articles(root, staging)
+  write_environment(staging, provenance)
+  write_source_to_artifact(root, staging, version)
 
   manifest <- write_manifest(staging, provenance, staged$oversized)
 

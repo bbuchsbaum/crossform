@@ -252,29 +252,24 @@
 
 # Sign prevalence, per group node and query.
 #
-# The denominator is the number of participants with a *finite* value at the
-# cell, counted per cell rather than fixed at `N`: density semantics returns
-# `NA` at a group node reached by no native mass and `unit_budget` returns
-# `NA` for a participant whose divisor was not admitted, and dividing by `N`
-# through either would report a fraction of a population that was not there.
+# The denominator is the number of participants admitted by the result's exact
+# operator-and-query availability mask and carrying a finite value at the cell.
+# Under `available_at_node` it is cell-specific; under `all_planned` the whole
+# cell is withheld unless every planned participant is available.
 # A cell with no finite value at all is `NA`, not `0`, on
 # `.coherence_fraction()`'s discipline: a fraction that was not earned is
 # withheld.
 #
-# An exactly zero value is counted in the denominator and not in the numerator.
-# Under budget semantics that is the honest reading -- a group node no native
-# mass reached received budget zero, and zero is a measurement -- but it does
-# mean a node with poor coverage reports a low prevalence for a reason that is
-# not about the effect. `$coverage$contributing` is the number that separates
-# the two, and the print carries it beside the fraction rather than below it.
-.population_prevalence_sign <- function(values, threshold) {
-  finite <- is.finite(values)
+# An exactly zero value is counted only when its subject is available there:
+# observed zero is a measurement, while zero transported mass is absence.
+.population_prevalence_sign <- function(values, threshold, availability) {
+  finite <- is.finite(values) & availability
   resolved <- apply(finite, c(1L, 2L), sum)
   above <- finite & values > threshold
   count <- apply(above, c(1L, 2L), sum)
   fraction <- count / resolved
   fraction[resolved == 0L] <- NA_real_
-  contributing <- apply(finite & values != 0, c(1L, 2L), sum)
+  contributing <- apply(availability, c(1L, 2L), sum)
   storage.mode(resolved) <- "integer"
   storage.mode(count) <- "integer"
   storage.mode(contributing) <- "integer"
@@ -298,14 +293,17 @@
 # queries is finite: an inner product taken over the subset of coordinates that
 # happened to resolve is an inner product in a different space for every
 # participant.
-.population_prevalence_alignment <- function(values) {
+.population_prevalence_alignment <- function(
+    values, availability = array(TRUE, dim(values))) {
   nodes <- dim(values)[[1L]]
   fraction <- rep(NA_real_, nodes)
   count <- rep(NA_integer_, nodes)
   resolved <- integer(nodes)
   for (u in seq_len(nodes)) {
     profile <- matrix(values[u, , ], dim(values)[[2L]], dim(values)[[3L]])
-    ok <- colSums(!is.finite(profile)) == 0L
+    admitted <- matrix(availability[u, , ], dim(values)[[2L]],
+      dim(values)[[3L]])
+    ok <- colSums(!is.finite(profile) | !admitted) == 0L
     n <- sum(ok)
     resolved[[u]] <- n
     if (n < 2L) next
@@ -321,30 +319,30 @@
 
 # Section 7.5's coverage number, and section 14.3's open floor.
 #
-# What is counted here is what the shipped result can support: participants
-# whose transported value at a node is finite and not exactly zero. Section
-# 7.5's `group_node_subject_coverage` is a property of the transport operators
-# themselves -- participants contributing nonzero *mass* -- and a population
-# result does not carry them, so this is a proxy read off the values and is
-# named as one. It agrees with the definition except where a participant's own
-# native ledger vanishes at every native row the node draws from.
+# What is counted here is the shipped result's exact availability: positive
+# transported operator mass at an ordinary node, combined with query-level
+# admission. It is independent of whether an observed ledger value happens to
+# equal zero. The sink is excluded before this record is built.
 #
 # The floor is an argument with no default, because section 14.3 records the
 # threshold as an open maintainer decision: the contract requires the number to
 # be reported and the marking mechanism to exist, and legislating a constant
 # here would be this file deciding a study-design question on the reader's
 # behalf.
-.population_prevalence_coverage <- function(sign, nodes, floor) {
-  minimum <- if (length(sign$contributing)) {
-    apply(sign$contributing, 1L, min)
+.population_prevalence_coverage <- function(result, keep, queries, nodes,
+                                            floor) {
+  contributing <- result$n[keep, queries, drop = FALSE]
+  dimnames(contributing) <- list(node = nodes, query = queries)
+  minimum <- if (length(contributing)) {
+    apply(contributing, 1L, min)
   } else {
     integer(0)
   }
   below <- if (is.null(floor)) character(0) else nodes[minimum < floor]
   list(
-    definition = "participants_with_a_finite_nonzero_transported_value",
-    proxy_for = "population-form-v1_section_7.5_group_node_subject_coverage",
-    contributing = sign$contributing,
+    definition = "subjects_available_by_realized_transport_and_query_admission",
+    proxy_for = NA_character_,
+    contributing = contributing,
     minimum = as.integer(minimum),
     floor = if (is.null(floor)) NA_integer_ else as.integer(floor),
     below_floor = below
@@ -364,7 +362,7 @@
 #   $sign       node x query: $fraction, $count, $resolved, $contributing
 #   $alignment  per node: $fraction, $count, $resolved, plus the reference and
 #               the readout inner product this bank defines
-#   $coverage   the section 7.5 proxy, its minimum, the declared floor and the
+#   $coverage   exact cell coverage, its minimum, the declared floor and the
 #               nodes below it
 #   $threshold  the comparison value, in ledger units, applied strictly
 #   $index      the retained group nodes; the sink is never among them
@@ -641,13 +639,11 @@
 #' stays readable at `$receipt$sink_budget`.
 #'
 #' A prevalence is uninterpretable without the number of participants behind
-#' it. `$coverage$contributing` counts, per node and query, the participants
-#' whose transported value is finite and not exactly zero --- a proxy, read off
-#' the shipped values, for `population-form-v1` section 7.5's
-#' `group_node_subject_coverage`, which is a property of the transport
-#' operators a result does not carry. `coverage_floor` marks the nodes below a
-#' declared floor; it has no default because section 14.3 records the threshold
-#' itself as an open maintainer decision.
+#' it. `$coverage$contributing` is the result's exact node-query availability,
+#' derived from realized transported mass and query admission rather than from
+#' whether the observed value is nonzero. `coverage_floor` marks the nodes
+#' below a declared floor; it has no default because section 14.3 records the
+#' threshold itself as an open maintainer decision.
 #'
 #' @section Refusals:
 #' Each is an `effect_capability_refusal` in namespace
@@ -776,11 +772,18 @@ population_prevalence <- function(x, query = NULL, threshold = 0,
   index <- x$index[keep, , drop = FALSE]
   rownames(index) <- NULL
   values <- x$values[keep, queries, , drop = FALSE]
+  availability <- x$coverage$availability[keep, queries, , drop = FALSE]
+  if (identical(x$coverage$policy, "all_planned")) {
+    complete <- apply(availability, c(1L, 2L), all)
+    for (subject in seq_len(dim(availability)[[3L]])) {
+      availability[, , subject] <- availability[, , subject] & complete
+    }
+  }
   node_labels <- as.character(index$node)
   subjects <- dimnames(x$values)[[3L]]
 
-  sign <- .population_prevalence_sign(values, threshold)
-  alignment <- .population_prevalence_alignment(values)
+  sign <- .population_prevalence_sign(values, threshold, availability)
+  alignment <- .population_prevalence_alignment(values, availability)
   for (field in c("fraction", "count", "resolved", "contributing")) {
     dimnames(sign[[field]]) <- list(node = node_labels, query = queries)
   }
@@ -789,8 +792,9 @@ population_prevalence <- function(x, query = NULL, threshold = 0,
   }
   weights <- x$queries[queries, , drop = FALSE]
   readout <- .population_prevalence_readout_gram(weights)
-  coverage <- .population_prevalence_coverage(sign, node_labels,
-    coverage_floor)
+  coverage <- .population_prevalence_coverage(x$coverage, keep, queries,
+    node_labels, coverage_floor)
+  sign$contributing <- coverage$contributing
   names(coverage$minimum) <- node_labels
 
   identity <- .population_prevalence_id(x$scientific_plan_id, queries,

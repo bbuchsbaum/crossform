@@ -1,0 +1,1205 @@
+{
+  "epic": "bd-01M1QMFAQJB9BVJZGKXR72FRYT",
+  "actor": "codex-predictive-geometry-implementation",
+  "session": "sess-01M1QMEPJ7K1VMZTVTABTXDGAS",
+  "baseline_archive": "/private/tmp/crossform-predictive-baseline-dz2i2luh/baseline.tar.gz",
+  "baseline_head": "1d93c857ec240154541e4c6283fa5542912e0f8a",
+  "baseline_r_digest": "sha256:24afa8ce392d71efa930c2dcb0afd9ac0951d100a424965c5a89a949355f1a8d",
+  "packages": {
+    "G01": {
+      "issue": "bd-01M1QMGBZNG9RYK6MT47MPAHYD",
+      "title": "Decide scope and migration from the existing partial work",
+      "dependencies": [],
+      "tests": [
+        "T59",
+        "T60"
+      ],
+      "status": "complete",
+      "evidence": [
+        "design/predictive-geometry-migration.md; original dirty tree archived"
+      ]
+    },
+    "G02": {
+      "issue": "bd-01M1QMGCFABAK1Z1TNPHP6F48P",
+      "title": "Freeze the objective, admissible inputs and score interpretation",
+      "dependencies": [
+        "G01"
+      ],
+      "tests": [
+        "T04",
+        "T07",
+        "T11",
+        "T16",
+        "T22",
+        "T30",
+        "T39",
+        "T55"
+      ],
+      "status": "complete",
+      "evidence": [
+        "design/predictive-geometry-contract.md, predictive-geometry-v1"
+      ]
+    },
+    "G03": {
+      "issue": "bd-01M1QMGCVYG7R7QWACR1WYS2YN",
+      "title": "Establish an independent mathematical court",
+      "dependencies": [
+        "G02"
+      ],
+      "tests": [
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T19",
+        "T20",
+        "T33",
+        "T34",
+        "T38",
+        "T62"
+      ],
+      "status": "complete",
+      "evidence": [
+        "Rscript design/oracles/predictive-geometry.R: 14 exact fixtures and 16 wrong alternatives; dense partition/minimum-norm/completed-square checks passed"
+      ]
+    },
+    "G04": {
+      "issue": "bd-01M1QMGDF54M13SHMAV9H7FY66",
+      "title": "Admit explicitly typed model kernels",
+      "dependencies": [
+        "G02"
+      ],
+      "tests": [
+        "T01",
+        "T02",
+        "T03",
+        "T04"
+      ],
+      "status": "complete",
+      "evidence": [
+        "test-predictive-kernel.R: 41 expectations; test-model-basis.R: 246 expectations; all pass; generated model_basis Rd updated"
+      ]
+    },
+    "G05": {
+      "issue": "bd-01M1QMGDZ3A55PZ40TDZDF2SVY",
+      "title": "Make model truncation and scale reproducible",
+      "dependencies": [
+        "G04"
+      ],
+      "tests": [
+        "T05",
+        "T06",
+        "T07",
+        "T10",
+        "T11",
+        "T23"
+      ],
+      "status": "complete",
+      "evidence": [
+        "95 predictive-kernel and 246 legacy model-basis assertions pass; retained-trace normalization, tie-cut policy, scales/centering and generated Rd verified"
+      ]
+    },
+    "G06": {
+      "issue": "bd-01M1QMGEEFDC2XCKJ6PX2280ME",
+      "title": "Admit overlap and pool inside fixed union coordinates",
+      "dependencies": [
+        "G05"
+      ],
+      "tests": [
+        "T08",
+        "T09",
+        "T18",
+        "T21",
+        "T23"
+      ],
+      "status": "complete",
+      "evidence": [
+        "134 predictive-kernel assertions plus model-basis/model-geometry/model-coordinate contract/lowering pass; one existing simulation skipped on CRAN. Rectangular factors, split duplicates, simplex vertices, conditioning, early coefficient refusal."
+      ]
+    },
+    "G07": {
+      "issue": "bd-01M1QMGEY3RPQVF28BBYT2AE3A",
+      "title": "Represent actual fitting dependencies",
+      "dependencies": [
+        "G02"
+      ],
+      "tests": [
+        "T26",
+        "T27",
+        "T28",
+        "T29",
+        "T30",
+        "T32"
+      ],
+      "status": "complete",
+      "evidence": [
+        "44 ancestry assertions plus relation/lowering/architecture tests pass. Origins survive aliases, source repacking, lowering and serialization; actual dependencies include upstream selections, exclude unused/zero-weight endpoints. Generated relation Rd updated."
+      ]
+    },
+    "G08": {
+      "issue": "bd-01M1QMGFFNS09BA6XZC48T6WRM",
+      "title": "Prepare the reduced geometry without a second execution design",
+      "dependencies": [
+        "G06",
+        "G07"
+      ],
+      "tests": [
+        "T24",
+        "T25",
+        "T26",
+        "T31",
+        "T58"
+      ],
+      "status": "complete",
+      "evidence": [
+        "93 dense/read/admission assertions pass for regional/searchlight frames, identity/dense fixed metrics and non-square extractors. Predictive-kernel, model-basis, source lowering, support and architecture regressions pass. Executor limits and effect-space identity are explicit."
+      ]
+    },
+    "G09": {
+      "issue": "bd-01M1QMGG2W9N4T8V4SBST486QM",
+      "title": "Implement the pure regularized spectral fit",
+      "dependencies": [
+        "G03",
+        "G06"
+      ],
+      "tests": [
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T18",
+        "T19",
+        "T20",
+        "T21",
+        "T22",
+        "T23"
+      ],
+      "status": "complete",
+      "evidence": [
+        "test-predictive-fit-numerics.R passes analytic, completed-square/minimum-norm/optimization and fixed-seed controlled-conditioning cases; latent tests pass (two designed on-CRAN skips); architecture passes."
+      ]
+    },
+    "G10": {
+      "issue": "bd-01M1QMGGS4P23XS5V71ASRP0F7",
+      "title": "Create a frozen fitted prediction value",
+      "dependencies": [
+        "G08",
+        "G09"
+      ],
+      "tests": [
+        "T16",
+        "T29",
+        "T39",
+        "T41",
+        "T42",
+        "T58"
+      ],
+      "status": "complete",
+      "evidence": [
+        "47 frozen-fit assertions plus 26 API and 12 architecture assertions pass. Memory/block round trips, rank zero, spectrum meanings, actual support, payload/metadata mutations verified."
+      ]
+    },
+    "G11": {
+      "issue": "bd-01M1QMGHDJ3AJ575ZSMHA8Z9EP",
+      "title": "Admit evaluation only for a matching, independent target",
+      "dependencies": [
+        "G07",
+        "G08"
+      ],
+      "tests": [
+        "T27",
+        "T28",
+        "T29",
+        "T30",
+        "T31",
+        "T32",
+        "T40",
+        "T55"
+      ],
+      "status": "complete",
+      "evidence": [
+        "22 metadata-only evaluation assertions pass; frozen-fit and architecture regressions pass. Stable ID remapping, actual-origin independence, semantic target differences and outcome perturbation verified."
+      ]
+    },
+    "G12": {
+      "issue": "bd-01M1QMGHXB55NNWPBJE1D56EZB",
+      "title": "Implement frozen gain and mode/group evidence",
+      "dependencies": [
+        "G03",
+        "G10",
+        "G11"
+      ],
+      "tests": [
+        "T32",
+        "T33",
+        "T34",
+        "T35",
+        "T36",
+        "T37",
+        "T38",
+        "T39",
+        "T40",
+        "T41",
+        "T42"
+      ],
+      "status": "complete",
+      "evidence": [
+        "63 score assertions pass, including independent dense/raw/packed/bilinear-query parity, exact risk identity, negative gains, tied groups, ID remapping and block reopen. Preflight/API/architecture regressions pass; score Rd generated."
+      ]
+    },
+    "G13": {
+      "issue": "bd-01M1QMGJP91R6Q7QVTRGMF6JR0",
+      "title": "Bound memory and handle partial execution honestly",
+      "dependencies": [
+        "G10",
+        "G12"
+      ],
+      "tests": [
+        "T25",
+        "T41",
+        "T43",
+        "T44",
+        "T57"
+      ],
+      "status": "complete",
+      "evidence": [
+        "44 bounded-store, byte-admission, route-parity and partial-write/read/interrupt assertions pass; fit/score/preflight/architecture regressions pass. Contract records workspace composition and fixed-metric block refusal."
+      ]
+    },
+    "G14": {
+      "issue": "bd-01M1QMGKA7PA0JXQJ8R5JQX7FT",
+      "title": "Deliver the fixed-split vertical slice",
+      "dependencies": [
+        "G13"
+      ],
+      "tests": [
+        "T01",
+        "T24",
+        "T31",
+        "T33",
+        "T38",
+        "T40",
+        "T42",
+        "T55",
+        "T60"
+      ],
+      "status": "complete",
+      "evidence": [
+        "10 exact exemplar assertions pass. Fresh isolated R CMD INSTALL succeeded and fixed-split.R ran under that library, with gains (4,-1), total 3, zero predictor and typed overlap/GLS refusals. Install evidence: /var/folders/9h/nkjq6vss7mqdl4ck7q1hd8ph0000gp/T/crossform-g14-install-c7crawvv."
+      ]
+    },
+    "G15": {
+      "issue": "bd-01M1QMGM03ZR877Z63D1M0W1B7",
+      "title": "Calibrate the fixed-fit predictive claim statistically",
+      "dependencies": [
+        "G14"
+      ],
+      "tests": [
+        "T38",
+        "T45",
+        "T46",
+        "T47",
+        "T54"
+      ],
+      "status": "complete",
+      "evidence": [
+        "38 deterministic generator/public-route assertions pass. Pilot froze 20000/27000/20000/20000 production datasets; all 12 risk equivalence checks, four exact generator-moment checks and null leakage control pass. Source/harness-bound RDS and CSV under benchmark-results; final-source rerun remains G22."
+      ]
+    },
+    "G16": {
+      "issue": "bd-01M1QMGMKHWZQ4T3J8677MVA8S",
+      "title": "Reuse the fitter/scorer over a declared cross-fit schedule",
+      "dependencies": [
+        "G14"
+      ],
+      "tests": [
+        "T26",
+        "T30",
+        "T48",
+        "T49"
+      ],
+      "status": "complete",
+      "evidence": [
+        "52 edge-schedule/manual-fold/storage assertions plus architecture pass. Own frozen fits and scores retained; unequal offsets sum correctly, valid disconnected schedules admit and stars/unsupported directed paths refuse before execution."
+      ]
+    },
+    "G17": {
+      "issue": "bd-01M1QMGN6ST2SGJT7N60MPHMAB",
+      "title": "Add inner selection with untouched outer evaluation",
+      "dependencies": [
+        "G15",
+        "G16"
+      ],
+      "tests": [
+        "T32",
+        "T36",
+        "T50",
+        "T51",
+        "T52",
+        "T55"
+      ],
+      "status": "complete",
+      "evidence": [
+        "54 deterministic selection/public-pipeline assertions plus architecture pass. Separately piloted 2000-null/5000-signal full nested simulations pass five-MCSE conditional-risk bias and 2-percent precision gates; outer-test-selection leakage control detected. Frozen candidate choices, both scopes, upstream dependencies and complete validators implemented. Source/harness-bound artifacts under benchmark-results; final rebinding remains G22."
+      ]
+    },
+    "G18": {
+      "issue": "bd-01M1QMGP6JDF27B8JN4MA7322M",
+      "title": "Reuse training products across compatible candidates",
+      "dependencies": [
+        "G16",
+        "G17"
+      ],
+      "tests": [
+        "T18",
+        "T32",
+        "T49",
+        "T53"
+      ],
+      "status": "complete",
+      "evidence": [
+        "77 cache assertions plus architecture pass; materialization/spectral counters prove rank reuse, cached/uncached predictions and nested choices agree, all declared context invalidations and memory/recipe preflight checks pass. Separate training/evaluation caches and conservative simultaneous-cache budgets. See design/predictive-geometry-cache.md."
+      ]
+    },
+    "G19": {
+      "issue": "bd-01M1QMGQ38JSNTK7PK57HY5QQW",
+      "title": "Finish the user workflow and migrate the partial API",
+      "dependencies": [
+        "G01",
+        "G14",
+        "G17"
+      ],
+      "tests": [
+        "T35",
+        "T36",
+        "T37",
+        "T39",
+        "T41",
+        "T55",
+        "T59",
+        "T60"
+      ],
+      "status": "complete",
+      "evidence": [
+        "Public fixed-split vignette, reference examples and standalone script execute. Score 80, fit 47, example 13, API 26, architecture 12 assertions pass; earlier storage/readme regressions pass. Rendered guide, math, output, navigation and three reference pages checked in /private/tmp/crossform-g19-site-1604c78786d15. Fixed seven pre-existing missing population reference entries. 123 exports preserved by role-based migration."
+      ]
+    },
+    "G20": {
+      "issue": "bd-01M1QMGRKRE3JNK7SQFWJR28VY",
+      "title": "Establish matched performance and memory evidence",
+      "dependencies": [
+        "G13",
+        "G18"
+      ],
+      "tests": [
+        "T25",
+        "T43",
+        "T44",
+        "T53",
+        "T56",
+        "T57"
+      ],
+      "status": "complete",
+      "evidence": [
+        "39 performance-harness assertions pass; all seven serial primary workloads pass independent dense and matched output/read parity. Source 10bfc4506bcf9c110f8ac10a0bfba425fb0f3eb4c5975e608bd1cd095690bf12; artifacts in benchmark-results/predictive-geometry-performance. Large block 65.949s, 145792120 planned bytes, 1335558144 incremental RSS bytes, max error 3.24e-14. Memory plan is explicitly not an OS cap. Medium cache counts 12->2 materializations, 12000->4000 paths; gains unchanged. Final source rebind remains G22."
+      ]
+    },
+    "G21": {
+      "issue": "bd-01M1QMGS9PD9B7E5J047J621MH",
+      "title": "Demonstrate that the test suite rejects wrong algorithms",
+      "dependencies": [
+        "G03",
+        "G14",
+        "G17"
+      ],
+      "tests": [
+        "T05",
+        "T09",
+        "T12",
+        "T14",
+        "T15",
+        "T25",
+        "T26",
+        "T27",
+        "T28",
+        "T32",
+        "T33",
+        "T34",
+        "T36",
+        "T37",
+        "T40",
+        "T43",
+        "T50",
+        "T53",
+        "T62"
+      ],
+      "status": "complete",
+      "evidence": [
+        "All 20 production-closure mutations killed by their named primary T-tests in disposable workers; unmodified and no-op instrumented controls pass, every changed function called. Seven new full-preclip and same-endpoint changed-edge cache witnesses pass. Source remains 10bfc4506bcf9c110f8ac10a0bfba425fb0f3eb4c5975e608bd1cd095690bf12. Complete changed bodies, original/test/harness digests, failures and hit counts in benchmark-results/predictive-geometry-mutations."
+      ]
+    },
+    "G22": {
+      "issue": "bd-01M1QMGT52GF90J80E8CZYVP93",
+      "title": "Verify the integrated feature and bind its evidence",
+      "dependencies": [
+        "G15",
+        "G19",
+        "G20",
+        "G21"
+      ],
+      "tests": [
+        "T23",
+        "T44",
+        "T45",
+        "T46",
+        "T47",
+        "T52",
+        "T54",
+        "T56",
+        "T57",
+        "T58",
+        "T59",
+        "T60",
+        "T61",
+        "T62"
+      ],
+      "status": "complete",
+      "evidence": [
+        "design/predictive-geometry-certification.md",
+        "design/predictive-geometry-test-evidence.md",
+        "11851 source assertions + final 18 source-tooling assertions pass; 9538 installed assertions pass",
+        "R CMD check 0 errors / 0 warnings / 1 explained incoming note",
+        "11 bound shipped artifacts current; designed shard refusal excluded",
+        "inst/extdata/certification/predictive-geometry-validation.rds"
+      ]
+    }
+  },
+  "tests": {
+    "T01": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-example.R:1",
+        "tests/testthat/test-predictive-kernel.R:21",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Kernel, feature and squared-distance equivalence compares retained spectra/forms and public held-out gain."
+    },
+    "T02": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-kernel.R:39",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Independent labelled-axis permutations align; ambiguous and missing coordinate declarations refuse before fitting."
+    },
+    "T03": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-kernel.R:61",
+        "tests/testthat/test-predictive-kernel.R:79",
+        "tests/testthat/test-predictive-kernel.R:190",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "PSD is checked before centering; invalid arrays refuse and admitted numerical negative mass is recorded."
+    },
+    "T04": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-kernel.R:98",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Effect identities, units/scales and explicit squared-distance convention define the Frobenius target."
+    },
+    "T05": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-kernel.R:125",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Analytic retained trace equals one only after truncation; raw/retained scales are separate."
+    },
+    "T06": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-integration-laws.R:1",
+        "tests/testthat/test-predictive-kernel.R:140",
+        "tests/testthat/test-predictive-kernel.R:268",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Independent model scale changes from 1e-8 to 1e8 preserve pooled kernels and public predictions/scores."
+    },
+    "T07": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-kernel.R:163",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Model rank admission/clamping is distinct from the valid response-rank-zero predictor."
+    },
+    "T08": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-integration-laws.R:1",
+        "tests/testthat/test-predictive-kernel.R:221",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Split duplicate weights preserve kernels and public forms/scores in independent, overlapping and near-overlapping spans."
+    },
+    "T09": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-cache.R:79",
+        "tests/testthat/test-predictive-kernel.R:241",
+        "tests/testthat/test-predictive-fit-numerics.R:65",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Simplex vertices reduce positive support; malformed weights refuse and null-space fitting is mutation-tested."
+    },
+    "T10": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-integration-laws.R:34",
+        "tests/testthat/test-predictive-kernel.R:140",
+        "tests/testthat/test-predictive-fit.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Feature offsets and condition-independent neural baselines leave centered compression and public prediction unchanged; small-scale centering regression retained."
+    },
+    "T11": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-kernel.R:175",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Positive model tie cuts refuse; full tied groups and rotated features retain the same kernel."
+    },
+    "T12": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit-numerics.R:41",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "F01 fixes inverse penalty, sign, shifted roots, objective and separate negative masses."
+    },
+    "T13": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit-numerics.R:65",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Noncommuting 2x2 analytic oracle and orthogonal coordinate rotation agree with the lifted result."
+    },
+    "T14": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-example.R:1",
+        "tests/testthat/test-predictive-mutation-witnesses.R:1",
+        "tests/testthat/test-predictive-fit-numerics.R:82",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Public signed-before-PSD witness gives 1; the deliberately preclipped full form gives 1.5."
+    },
+    "T15": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit-numerics.R:65",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Anisotropic noncommuting example distinguishes signed compression from premature compressed PSD projection."
+    },
+    "T16": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:91",
+        "tests/testthat/test-predictive-example.R:1",
+        "tests/testthat/test-predictive-fit.R:1",
+        "tests/testthat/test-predictive-fit.R:24",
+        "tests/testthat/test-predictive-fit-numerics.R:41",
+        "tests/testthat/test-predictive-fit-numerics.R:82",
+        "tests/testthat/test-predictive-fit-numerics.R:215",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Complete rank paths, empty predictors, all-negative sources and oversized rank budgets obey exact zero/clamp laws."
+    },
+    "T17": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit-numerics.R:107",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Training objectives and penalty traces obey optimization laws; no monotone held-out-gain law is asserted."
+    },
+    "T18": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-cache.R:1",
+        "tests/testthat/test-predictive-performance.R:47",
+        "tests/testthat/test-predictive-kernel.R:268",
+        "tests/testthat/test-predictive-fit-numerics.R:107",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Orthogonal/permutation and response/model scaling laws retain form and gain units."
+    },
+    "T19": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit-numerics.R:131",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Completed-square and full/compressed objective differences include the model-independent constant."
+    },
+    "T20": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit-numerics.R:152",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Redundant factor minimum-norm identity and three-start independent BFGS optimization match the global optimum."
+    },
+    "T21": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit.R:24",
+        "tests/testthat/test-predictive-fit-numerics.R:173",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Full-span zero-penalty fits coincide; anisotropic positive penalties retain model-specific forms and labels."
+    },
+    "T22": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:91",
+        "tests/testthat/test-predictive-fit-numerics.R:173",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Exact/near positive tie cuts refuse, resolved gaps admit, and retained tied groups have rotation-invariant aggregate scores."
+    },
+    "T23": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-integration-laws.R:1",
+        "tests/testthat/test-predictive-integration-laws.R:65",
+        "tests/testthat/test-predictive-kernel.R:190",
+        "tests/testthat/test-predictive-kernel.R:268",
+        "tests/testthat/test-predictive-fit-numerics.R:191",
+        "tests/testthat/test-predictive-fit-numerics.R:215",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Conditioned signed matrices, centered public fixtures at multiple dimensions/gaps/scales, overlap and explicit overflow refusals check dense objectives and support."
+    },
+    "T24": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:60",
+        "tests/testthat/test-predictive-lowering.R:58",
+        "tests/testthat/test-predictive-performance.R:27",
+        "tests/testthat/test-predictive-calibration.R:28",
+        "tests/testthat/test-predictive-example.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Raw dense weighted partition products match lowered total/coherent/configuration forms with rectangular extractors, SPD metrics and spatial supports."
+    },
+    "T25": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:33",
+        "tests/testthat/test-predictive-lowering.R:58",
+        "tests/testthat/test-predictive-lowering.R:83",
+        "tests/testthat/test-predictive-performance.R:10",
+        "tests/testthat/test-predictive-performance.R:27",
+        "tests/testthat/test-predictive-storage.R:9",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Read/materialization guards and production mutation counters require reduced width and prohibit original-space geometry/trace execution."
+    },
+    "T26": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-lowering.R:58",
+        "tests/testthat/test-predictive-training-support.R:28",
+        "tests/testthat/test-predictive-crossfit.R:6",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Unused and zero-weight endpoints cannot be read or counted as training observations."
+    },
+    "T27": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score-preflight.R:21",
+        "tests/testthat/test-predictive-training-support.R:49",
+        "tests/testthat/test-predictive-training-support.R:70",
+        "tests/testthat/test-predictive-training-support.R:141",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Declared raw origins and preprocessing dependencies detect overlap despite changed endpoint names."
+    },
+    "T28": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score-preflight.R:4",
+        "tests/testthat/test-predictive-score-preflight.R:21",
+        "tests/testthat/test-predictive-training-support.R:49",
+        "tests/testthat/test-predictive-training-support.R:119",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Copies/repacking preserve ancestry; explicitly independent equal-valued observations remain distinct."
+    },
+    "T29": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:118",
+        "tests/testthat/test-predictive-cache.R:38",
+        "tests/testthat/test-predictive-cache.R:109",
+        "tests/testthat/test-predictive-fit.R:42",
+        "tests/testthat/test-predictive-fit.R:62",
+        "tests/testthat/test-predictive-score-preflight.R:66",
+        "tests/testthat/test-predictive-training-support.R:89",
+        "tests/testthat/test-predictive-training-support.R:105",
+        "tests/testthat/test-predictive-training-support.R:119",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Changed provenance, revisions, transforms, selected recipes and sealed payload fields invalidate records/cache entries."
+    },
+    "T30": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit.R:88",
+        "tests/testthat/test-predictive-score-preflight.R:21",
+        "tests/testthat/test-predictive-training-support.R:70",
+        "tests/testthat/test-predictive-training-support.R:89",
+        "tests/testthat/test-predictive-training-support.R:141",
+        "tests/testthat/test-predictive-crossfit.R:6",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Within-product and training/evaluation independence are separate; unknown origins and insufficient graph schedules refuse."
+    },
+    "T31": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-lowering.R:102",
+        "tests/testthat/test-predictive-lowering.R:118",
+        "tests/testthat/test-predictive-lowering.R:139",
+        "tests/testthat/test-predictive-cache.R:109",
+        "tests/testthat/test-predictive-score-preflight.R:4",
+        "tests/testthat/test-predictive-score-preflight.R:46",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Matching scientific targets allow different pairings but refuse changed effect meaning, metric, component, domain or spatial support."
+    },
+    "T32": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:118",
+        "tests/testthat/test-predictive-selection.R:66",
+        "tests/testthat/test-predictive-cache.R:38",
+        "tests/testthat/test-predictive-cache.R:109",
+        "tests/testthat/test-predictive-cache.R:140",
+        "tests/testthat/test-predictive-score-preflight.R:66",
+        "tests/testthat/test-predictive-training-support.R:28",
+        "tests/testthat/test-predictive-training-support.R:105",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Outer/evaluation outcome perturbations change evidence while prediction semantics and all training choices remain fixed."
+    },
+    "T33": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:9",
+        "tests/testthat/test-predictive-score.R:60",
+        "tests/testthat/test-predictive-example.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "F05 requires inner product 1, squared cost 5 and gain -3; factor-two and offset mutants fail."
+    },
+    "T34": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:9",
+        "tests/testthat/test-predictive-score.R:43",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Dense Frobenius, isometric packing and a frozen public bilinear operator agree on off-diagonal evidence."
+    },
+    "T35": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:24",
+        "tests/testthat/test-predictive-score.R:155",
+        "tests/testthat/test-predictive-example.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Positive evidence can accompany negative predictive gain; signed negative evaluation modes remain negative."
+    },
+    "T36": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:24",
+        "tests/testthat/test-predictive-selection.R:66",
+        "tests/testthat/test-predictive-example.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Mode gains 4 and -1 sum to 3 without test-time pruning or rank reselection."
+    },
+    "T37": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:60",
+        "tests/testthat/test-predictive-example.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "One frozen operator yields additive coherent/configuration evidence with one cost; oracle F12 rejects nonlinear fit conservation."
+    },
+    "T38": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:24",
+        "tests/testthat/test-predictive-calibration.R:8",
+        "tests/testthat/test-predictive-example.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Finite two-point noise enumeration proves the conditional risk identity for zero and nonzero targets."
+    },
+    "T39": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-fit.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Oracle F11 exposes unidentifiable full residuals; outputs retain prediction cost and explicitly compressed residual/objective."
+    },
+    "T40": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:60",
+        "tests/testthat/test-predictive-example.R:1",
+        "tests/testthat/test-predictive-score-preflight.R:4",
+        "tests/testthat/test-predictive-score-preflight.R:46",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Stable measurement IDs realign evaluation order; missing/duplicate IDs and changed spatial support refuse."
+    },
+    "T41": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:91",
+        "tests/testthat/test-predictive-score.R:118",
+        "tests/testthat/test-predictive-score.R:155",
+        "tests/testthat/test-predictive-fit.R:42",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Memory/block serialization and validators preserve predictions/evidence and reject changed numerical/identity fields."
+    },
+    "T42": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:118",
+        "tests/testthat/test-predictive-integration-laws.R:50",
+        "tests/testthat/test-predictive-example.R:1",
+        "tests/testthat/test-predictive-fit.R:62",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Scientific payload bytes remain unchanged; scoring with fitting functions disabled succeeds and no raw-form inference inheritance is present."
+    },
+    "T43": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:33",
+        "tests/testthat/test-predictive-performance.R:10",
+        "tests/testthat/test-predictive-performance.R:27",
+        "tests/testthat/test-predictive-storage.R:9",
+        "tests/testthat/test-predictive-storage.R:41",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Guarded stores reject unbounded row reads; factor payloads and output views obey admitted blocks."
+    },
+    "T44": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-crossfit.R:66",
+        "tests/testthat/test-predictive-storage.R:70",
+        "tests/testthat/test-predictive-storage.R:100",
+        "tests/testthat/test-predictive-storage.R:126",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Memory/block and feature/row choices agree; injected partial writes, read errors and interrupts remove only owned incomplete output."
+    },
+    "T45": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:1",
+        "tests/testthat/test-predictive-calibration.R:8",
+        "tests/testthat/test-predictive-calibration.R:28",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Independent null datasets calibrate gain plus prediction cost using frozen five-MCSE and two-percent equivalence gates."
+    },
+    "T46": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:1",
+        "tests/testthat/test-predictive-calibration.R:8",
+        "tests/testthat/test-predictive-calibration.R:28",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Signal, outside-model and heterogeneous-metric arms calibrate against planted full geometry, with exact generator moments."
+    },
+    "T47": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:1",
+        "tests/testthat/test-predictive-calibration.R:59",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Known lineage overlap refuses; deliberately reused noise produces detectable optimism under explicitly violated assumptions."
+    },
+    "T48": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-lowering.R:139",
+        "tests/testthat/test-predictive-crossfit.R:6",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Only declared weighted undirected edges enter folds; complete/disconnected graphs admit, star/three-partition/zero-support graphs refuse."
+    },
+    "T49": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-cache.R:140",
+        "tests/testthat/test-predictive-crossfit.R:36",
+        "tests/testthat/test-predictive-crossfit.R:66",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Manual unequal-weight folds agree, retain all frozen fits, and use weighted individual squared costs rather than the averaged form cost."
+    },
+    "T50": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-selection.R:24",
+        "tests/testthat/test-predictive-selection.R:66",
+        "tests/testthat/test-predictive-selection.R:90",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Eight-run nested fixtures trace inner fits and final six-run refits; no outer-test observations enter any learning step."
+    },
+    "T51": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-selection.R:1",
+        "tests/testthat/test-predictive-selection.R:24",
+        "tests/testthat/test-predictive-selection.R:90",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Explicit candidates/fold weights select by gain; exact ties use lower rank, larger penalty and canonical candidate ID."
+    },
+    "T52": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-selection.R:112",
+        "tests/testthat/test-predictive-certification.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Complete inner-selection/outer-evaluation null and signal calibration uses each selected fit's conditional risk; test-selected optimism is a negative control."
+    },
+    "T53": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:33",
+        "tests/testthat/test-predictive-cache.R:1",
+        "tests/testthat/test-predictive-cache.R:38",
+        "tests/testthat/test-predictive-cache.R:79",
+        "tests/testthat/test-predictive-cache.R:109",
+        "tests/testthat/test-predictive-cache.R:140",
+        "tests/testthat/test-predictive-performance.R:47",
+        "tests/testthat/test-predictive-mutation-witnesses.R:19",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Actual source/eigen counters prove reuse and invalidate changed sources, weighted folds, effects, metrics, normalization and kernels."
+    },
+    "T54": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:1",
+        "tests/testthat/test-predictive-calibration.R:28",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Same-span anisotropic/isotropic/mismatched kernels share fixed tuning budgets; paired gains and MCSE report model preferences without universal superiority."
+    },
+    "T55": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-selection.R:90",
+        "tests/testthat/test-predictive-integration-laws.R:50",
+        "tests/testthat/test-predictive-lowering.R:118",
+        "tests/testthat/test-predictive-example.R:1",
+        "tests/testthat/test-predictive-example.R:16",
+        "tests/testthat/test-predictive-fit.R:88",
+        "tests/testthat/test-predictive-score-preflight.R:46",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "New condition identities, GLS, learned/unadmitted metrics and raw spectrum/covariance inference refuse; supported fixed-split scoring remains executable."
+    },
+    "T56": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:33",
+        "tests/testthat/test-predictive-performance.R:10",
+        "tests/testthat/test-predictive-performance.R:27",
+        "tests/testthat/test-predictive-performance.R:47",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Seven serial tiny/medium/large route measurements record reads, packed widths, RSS, wall time, retained bytes and dense numerical parity."
+    },
+    "T57": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:33",
+        "tests/testthat/test-predictive-cache.R:140",
+        "tests/testthat/test-predictive-performance.R:10",
+        "tests/testthat/test-predictive-storage.R:41",
+        "tests/testthat/test-predictive-storage.R:70",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Planned numerical-buffer budgets adapt rows or refuse before reads; worker/fixed-metric block limits are explicit. This is not a hard process RSS cap."
+    },
+    "T58": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-architecture.R",
+        "tests/testthat/test-api-surface.R",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Architecture court registers every new file, enforces acyclic layers and keeps score consumption below fit orchestration."
+    },
+    "T59": {
+      "status": "complete",
+      "evidence": [
+        "design/predictive-geometry-migration.md",
+        "tests/testthat/test-model-coordinate-contract.R",
+        "tests/testthat/test-model-coordinate-lowering.R",
+        "tests/testthat/test-model-geometry.R",
+        "tests/testthat/test-latent-geometry.R",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Migration document preserves signed/lowered laws and old descriptive semantics while replacing overlap/saturation assumptions deliberately."
+    },
+    "T60": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-score.R:155",
+        "tests/testthat/test-predictive-example.R:1",
+        "tests/testthat/test-predictive-example.R:16",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Installed public example and rendered guide separate amplitude, signed evidence and gain, with units, rank and origin scope; API/export/reference inventories agree."
+    },
+    "T61": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:1",
+        "tests/testthat/test-predictive-certification.R:33",
+        "tests/testthat/test-predictive-certification.R:65",
+        "tests/testthat/test-predictive-certification.R:94",
+        "tests/testthat/test-predictive-binding.R:1",
+        "tests/testthat/test-predictive-counts.R:1",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Final source/harness/test/configuration bindings, re-run calibration, promotion refusal and legacy/external parity receipts make stale evidence detectable."
+    },
+    "T62": {
+      "status": "complete",
+      "evidence": [
+        "tests/testthat/test-predictive-certification.R:65",
+        "design/predictive-geometry-test-evidence.md",
+        "design/predictive-geometry-certification.md"
+      ],
+      "claim": "Twenty real production-closure mutants require passing baseline/no-op controls, positive function-hit counters and named semantic primary failures."
+    }
+  },
+  "completion": {
+    "source_digest": "sha256:10bfc4506bcf9c110f8ac10a0bfba425fb0f3eb4c5975e608bd1cd095690bf12",
+    "completed_at": "2026-09-05T06:01:06Z",
+    "source_tests": {
+      "passed": 11851,
+      "failed": 0,
+      "warnings": 0,
+      "skipped": 7
+    },
+    "final_additional_tooling_assertions": 18,
+    "installed_tests": {
+      "passed": 9538,
+      "failed": 0,
+      "warnings": 0,
+      "skipped": 119
+    },
+    "r_cmd_check": {
+      "errors": 0,
+      "warnings": 0,
+      "notes": 1,
+      "note": "Explained CRAN incoming development metadata, optional repositories and hosted URL checks."
+    },
+    "commit_or_publication": false
+  }
+}

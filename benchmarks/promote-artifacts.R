@@ -29,6 +29,8 @@ dir.create(destination, recursive = TRUE, showWarnings = FALSE)
 # Artifact name -> runner that re-certifies it. Derived from the admission
 # coverage list; anything absent from that list is never promoted.
 source(file.path(repo, "benchmarks", "admission-coverage.R"), local = TRUE)
+source(file.path(repo, "benchmarks", "provenance.R"), local = TRUE)
+current_digest <- .crossform_source_tree_digest(repo)
 promotable <- .crossform_promotable_artifacts()
 
 # Compact tables promoted alongside their artifact. These are human-readable
@@ -72,6 +74,9 @@ promote <- function(name, runner) {
       return(sprintf(
         "REFUSE %-38s (no source digest: re-run benchmarks/%s)", name, runner
       ))
+    }
+    if (!identical(digest, current_digest)) {
+      return(sprintf("REFUSE %-38s (stale source: re-run benchmarks/%s)", name, runner))
     }
   }
   target <- file.path(destination, name)

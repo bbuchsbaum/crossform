@@ -1,0 +1,5 @@
+"rehearsal","observed","expected","passes"
+"expected_success","success","success",TRUE
+"missing_partition","missing_partition","missing_partition",TRUE
+"insufficient_coverage","coverage_below_floor","coverage_below_floor",TRUE
+"failed_transport_diagnostics","transport_quality_below_floor","transport_quality_below_floor",TRUE

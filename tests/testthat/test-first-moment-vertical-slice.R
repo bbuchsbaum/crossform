@@ -140,8 +140,8 @@ test_that("learned observation models keep points and withhold analytic law", {
 })
 
 test_that("the external fmrireg route reproduces points but not uncertainty", {
-  skip_if_not_installed("fmrireg", "0.1.2")
-  if (!identical(as.character(utils::packageVersion("fmrireg")), "0.1.2")) {
+  skip_if_not_installed("fmrireg", "0.2.0")
+  if (!identical(as.character(utils::packageVersion("fmrireg")), "0.2.0")) {
     skip("The installed fmrireg version is outside the certified court.")
   }
   fixture <- first_moment_vertical_fixture("cell", "qr", "ols")

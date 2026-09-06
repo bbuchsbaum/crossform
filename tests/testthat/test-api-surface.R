@@ -23,7 +23,7 @@ crossform_public_api <- c(
   "effect_coupling", "effect_extractor", "effect_map",
   "effect_space", "estimate_population", "estimate_relation",
   "evaluate_geometry",
-  "example_fmri_effects", "external_transport", "file_matrix_source",
+  "example_fmri_effects", "external_transport", "file_matrix_source", "fit_geometry",
   "fmridesign_design_model", "fmrireg_relation",
   "frame_conservation", "frame_family",
   "gaussian_covariance_model",
@@ -34,20 +34,24 @@ crossform_public_api <- c(
   "materialize_geometry", "materialize_population",
   "measurement_components",
   "measurement_form", "measurement_frame", "metric_capabilities",
+  "model_basis", "model_geometry",
   "metric_training_policy", "neural_metric", "neuroim2_searchlights",
   "neuroim2_volume_domain", "noise_precision", "numerical_agreement",
   "numerical_contract", "observation_confounds",
   "observation_events", "observation_index", "observation_model",
   "observations", "pair_lm_query", "pair_query", "pairing",
   "partition_hierarchy", "plan_crossnobis", "plan_geometry",
-  "plan_population", "plan_relation", "population_prevalence",
-  "population_uncertainty",
+  "plan_population", "plan_relation", "population_component_view",
+  "population_decomposition", "population_diagnostic_view",
+  "population_diagnostics", "population_influence", "population_prevalence",
+  "population_scale_profile", "population_uncertainty",
+  "population_wild_bootstrap",
   "query_geometry", "raw_design_model",
   "raw_effect_map", "rdm", "rdm_sampling_covariance",
   "reconstruct_evidence", "reduce_partitions", "regions", "relation",
   "relation_block", "relation_fit", "relation_fit_capabilities",
   "relation_plan_receipts", "residual_block", "residual_df", "rsa",
-  "sampling_capabilities", "sampling_covariance", "searchlights",
+  "sampling_capabilities", "sampling_covariance", "score_geometry", "searchlights",
   "shrinkage_precision", "source_capabilities", "study",
   "study_axis", "study_capabilities", "transport_values", "variation_query",
   "volume_domain", "voxelwise", "whole_brain"
@@ -74,8 +78,11 @@ test_that("the exported surface is exactly the ledgered set", {
   # rather than adding a capability: the extending vignette obliges an adapter
   # author to certify against installed versions, and the refusal that
   # discharges that obligation was reachable only with `:::`
-  # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 112L)
+  # (`design/api-tiers.md`, "Additions after the subtraction release"), and
+  # the model-coordinate program's `model_basis()` (ticket M2) and
+  # `model_geometry()` (ticket M5).
+  # Predictive geometry G10 adds the separately trained form estimator.
+  expect_identical(length(exports), 123L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

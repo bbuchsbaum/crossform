@@ -474,6 +474,46 @@ remaining skips are the two unbound or absent validation records, the
 supersedes the `PASS 1822` block under "Numerically verified" above, which is
 the 2026-08-15 source-checkout run.
 
+## Re-certification after the model-coordinate program (2026-09-04)
+
+Every artifact was re-recorded against the tree that landed tickets M2–M8 of
+the model-coordinate epic (`design/model-coordinate-geometry-contract.md`):
+`model_basis()`, the lowering entries and their gate, `latent_geometry(rank =)`,
+`model_geometry()` with the edge-disjoint cross-fit, the contract court, and
+the vocabulary. The frozen source digest is
+`sha256:24afa8ce392d71efa930c2dcb0afd9ac0951d100a424965c5a89a949355f1a8d`,
+superseding `sha256:346aba47b81e…` (2026-08-20); it was read before the first
+runner and after promotion and did not move. The tree was uncommitted at the
+time of the run, so the binding is to file contents, not to a commit; the
+commit that follows this re-certification carries the same `R/` bytes.
+
+All nine persisting runners were re-run in the `benchmarks/RECERTIFY.md`
+order and each passed its own gate; `benchmarks/promote-artifacts.R` promoted
+nine `.rds` artifacts and ten summary CSVs with no refusals, and the two
+`shard-admission` files were skipped as not present, the designed state. No
+runner needed repair: the program added files and exports and touched no
+field the harness reads. The first attempt at the sequence, run as one
+background job, was stopped by the host for system memory pressure during the
+sampling-covariance validation (other applications, not the runner); the
+remaining runners were then run one at a time in the foreground on the same
+digest.
+
+| Gate | This record | 2026-08-20 record |
+|---|---|---|
+| Brain-scale crossnobis analysis | 48.4 s (plan 15.1 s, crossnobis 32.6 s); incremental peak RSS 879 MB; memory, runtime and structure gates pass | 101.5 s |
+| Public map sampling gate | incremental peak RSS 48.9 MB; explicit-implicit error 0; pass | — |
+| Query-first scale gate | oracle error 4.4e-16; planned workspace 149 MB; pass | oracle error 4.4e-16 |
+| Sampling-covariance validation (10,000 reps) | null covariance relative error 0.0196; linear variance ratio 0.9952; linear coverage 0.9506 | within the same bands |
+| Learned-metric policy validation (500 reps) | every recorded equivalence TRUE; 280.5 s | pass |
+| First-moment vertical slice, population null coverage (2,000 reps), memory benchmarks, sampling-covariance scale | pass | pass |
+
+**Court after re-certification (2026-09-04).** `testthat::test_local(filter =
+"certification|scale|vertical|benchmark")`: 540 pass, 0 fail, 4 skips, exactly
+the designed set (the unbound shard-admission record, the two opt-in scale
+gates, the optional 48-seed matched-interpretability court). No
+`CERTIFICATION STALE` skip remains. Every promoted artifact was walked for
+empty leaves and carries the digest above.
+
 ## Re-certification after WS-B (2026-08-20)
 
 Every artifact above was re-recorded against the post-WS-B tree. The frozen
@@ -605,6 +645,18 @@ it is the one recorded number here that cannot be re-derived without running
 under "Scale-qualified" predate the gate runner and are likewise unheld by any
 artifact.
 
+## Predictive geometry integration (2026-09-05)
+
+The later regularized fit/independent-score implementation and final evidence
+are recorded in [predictive-geometry-certification.md](predictive-geometry-certification.md).
+Its frozen R digest is
+`sha256:10bfc4506bcf9c110f8ac10a0bfba425fb0f3eb4c5975e608bd1cd095690bf12`.
+All prior dated receipts above remain historical. The current run has 11,851
+source assertions passing, 20 exercised production mutants killed, 94,000
+independent calibration datasets, fresh legacy/external parity receipts and
+R CMD check 0 errors / 0 warnings / 1 explained CRAN incoming note. See that
+report for separate installed-test counts, optional skips, source bindings and
+measured memory limits. No publication or commit is implied.
 ## Hot-path epic closure (2026-08-21)
 
 The legacy native-kernel epic was reconstructed in the current Mote store as
@@ -640,3 +692,41 @@ clang passed with zero errors and zero warnings. Its single remaining note
 combines new-submission metadata with URLs for the not-yet-published site and
 files not yet on the hosted `main` branch; it is a release-state note, not a
 hot-path or package-correctness failure.
+
+## PR #3 merge verification (2026-09-06)
+
+Merging `main` at `215e860` into `elite-pass` preserves both the hot-path
+closure and the later predictive geometry work. No `R/` or `src/` code changes
+relative to the PR head were needed. The two documentation conflicts retain
+both contributions.
+
+The incoming measurement and native-allocation receipts were rerun with their
+original five repetitions on the current R source digest
+`sha256:10bfc4506bcf9c110f8ac10a0bfba425fb0f3eb4c5975e608bd1cd095690bf12`.
+Measurement oracle error is at most `7.10543e-15`, plan identity is stable,
+and the maximum classified R-loop share is 0.0128; the decision remains
+`no_rcpp_keep_blas`. Native cumulative allocation is 4,638,576 bytes against
+286,853,280 bytes for the oracle (ratio 0.0161706), with maximum numerical
+error `9.43690e-16`. These replace the shipped receipts; earlier dated numbers
+above remain historical.
+
+The merged admission registry and promotion script also changed two predictive
+harness hashes. The existing `predictive-geometry/certify.R` verified the
+preserved raw sampling, selection, performance and mutation records, reran its
+independent oracle, and regenerated the compact predictive receipt. No stale
+measurements were re-stamped. All 13 source-bound receipts pass the binding
+gate; the shard admission record remains intentionally unbound.
+
+The expanded checks caught a pre-existing documentation-binding omission in
+`2078630`: the matched-interpretability manifest still named the old vignette
+bytes. All other manifest entries, numerical artifacts and simulation sources
+were unchanged. Its checksum was regenerated for the reviewed vignette using
+the existing manifest generator, with equality of every other entry checked.
+The matched-interpretability and vignette tests were included in final merge
+validation.
+
+Final focused validation: 1,828 assertions passed, zero failures, errors or
+test warnings, and two declared skips (unbound shard admission and the opt-in
+48-seed matched simulation). The filter covered certification, admission
+coverage, predictive geometry, matched interpretability and vignette tests.
+Both benchmark runners passed independently; `git diff --check` also passed.

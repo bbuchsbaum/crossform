@@ -67,7 +67,7 @@
 #' # This adapter is certified against exactly one fmrireg version and refuses
 #' # any other, so the example runs only under that version.
 #' if (requireNamespace("fmrireg", quietly = TRUE) &&
-#'     identical(as.character(utils::packageVersion("fmrireg")), "0.1.2")) {
+#'     identical(as.character(utils::packageVersion("fmrireg")), "0.2.0")) {
 #'   set.seed(1)
 #'   domain <- abstract_domain(3L, id = "fmrireg-example")
 #'   index <- observation_index(paste0("scan-", 1:4), "run-1")
@@ -105,7 +105,15 @@
 #' }
 #' @export
 fmrireg_relation <- function(x) {
-  version <- adapter_version_certificate("fmrireg", "0.1.2")
+  # Certified against fmrireg 0.2.0, GitHub bbuchsbaum/fmrireg commit
+  # 886ae4bb8212f0eab4662d279fc5dc20d9364e28 (2026-08-24). The version string
+  # is the contract, but 0.2.0 is a moving GitHub target rather than a CRAN
+  # release, so the commit that parity was verified against is recorded here:
+  # a later 0.2.0 build satisfies this certificate without having been checked.
+  # The claim verified is that `fmri_ols_fit(I_n, X)$beta` is the OLS
+  # coefficient operator, and that `fmrireg_relation()` reproduces
+  # `estimate_relation()` blockwise (tests/testthat/test-adapter-fmrireg.R).
+  version <- adapter_version_certificate("fmrireg", "0.2.0")
   # `relation_plan_receipts()` is the public verb that makes a plan prove
   # itself: it runs the plan validator -- rebuilding the plan from its own
   # inputs and refusing anything that does not come back identical -- and
@@ -120,7 +128,7 @@ fmrireg_relation <- function(x) {
       namespace = "relation_compiler",
       reasons = paste0(
         "The plan declares `", plan$observation_model$kind,
-        "`; fmrireg 0.1.2 parity is certified only without whitening."
+        "`; fmrireg 0.2.0 parity is certified only without whitening."
       ),
       remedies = c(
         "Execute the plan with `estimate_relation()`.",

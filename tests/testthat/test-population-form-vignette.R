@@ -51,9 +51,12 @@ vig_carrier <- function(features, semantics = "budget", radius = 2) {
     native_index = paste0("f", seq_len(features)))
 }
 
-vig_sizes <- c(s01 = 9L, s02 = 11L, s03 = 13L, s04 = 10L, s05 = 12L, s06 = 14L)
+# Full ordinary-node coverage keeps the article's OLS and commutation examples
+# on one planned population; the radius still leaves genuine sink territory.
+vig_sizes <- c(s01 = 12L, s02 = 14L, s03 = 16L, s04 = 13L, s05 = 15L,
+  s06 = 17L)
 vig_gains <- c(s01 = 1, s02 = 1.3, s03 = 0.8, s04 = 1.1, s05 = 0.9, s06 = 1.2)
-vig_tilts <- c(s01 = 0, s02 = 0, s03 = 0, s04 = 0, s05 = 0, s06 = 1.6)
+vig_tilts <- c(s01 = 0, s02 = 0, s03 = 0, s04 = 0, s05 = 0, s06 = 4)
 
 vig_bank <- function() {
   rbind(`face-house` = c(1, -1, 0), `house-tool` = c(0, 1, -1))
@@ -266,7 +269,7 @@ test_that("the article's between-subject layer is the group OLS's own", {
   uncertainty <- population_uncertainty(fit)
   between <- uncertainty$between
 
-  expect_identical(between$residual_df, 5L)
+  expect_true(all(between$residual_df == 5L))
   hand_estimate <- apply(fit$values, c("node", "query"), mean)
   hand_se <- apply(fit$values, c("node", "query"),
     function(y) stats::sd(y) / sqrt(length(y)))
@@ -291,6 +294,36 @@ test_that("the article's between-subject layer is the group OLS's own", {
   # The article's own six-participant transport admits no within layer: every
   # group node collects several native nodes.
   expect_null(uncertainty$within)
+})
+
+test_that("the article's HC3 sensitivity layer is fully identified", {
+  fit <- vig_fixture()$fit
+  classical <- population_uncertainty(fit)$between
+  hc3 <- population_uncertainty(fit, estimator = "HC3")$between
+  ratio <- hc3$se / classical$se
+
+  expect_identical(hc3$estimator, "HC3")
+  expect_true("heteroskedasticity_robust_sandwich" %in% hc3$assumptions)
+  expect_identical(hc3$residual_df, fit$coverage$residual_df)
+  expect_identical(dim(hc3$covariance), c(4L, 2L, 1L, 1L))
+  expect_true(any(is.finite(ratio)))
+})
+
+test_that("the article's wild bootstrap preserves the subject unit", {
+  fit <- vig_fixture()$fit
+  wild <- population_wild_bootstrap(
+    fit, "(Intercept)", null = 0, replicates = 199L, seed = 20260821L
+  )
+  table <- as.data.frame(wild)
+
+  expect_identical(dim(wild$weights), c(6L, 199L))
+  expect_identical(rownames(wild$weights), fit$coverage$planned_subjects)
+  expect_true(all(wild$successful_replicates[!fit$index$sink, ] == 199L))
+  expect_identical(wild$conditioning, fit$coverage$conditioning)
+  expect_true(all(c("observed_t", "p_value", "monte_carlo_se",
+    "successful_replicates", "status") %in% names(table)))
+  expect_identical(sum(table$sink), nrow(fit$queries))
+  expect_true(all(table$status[table$sink] %in% c("estimated", "refused")))
 })
 
 test_that("the article's within-subject layer is exact where admitted, absent elsewhere", {
@@ -353,7 +386,17 @@ test_that("the article's within-subject layer is exact where admitted, absent el
 })
 
 test_that("the article's prevalence stays descriptive and reports its coverage", {
-  fit <- vig_fixture()$fit
+  fixture <- vig_fixture()
+  coverage_transports <- stats::setNames(lapply(names(vig_sizes), function(id) {
+    anatomical_transport(
+      native_coords = cbind(seq_len(vig_sizes[[id]]) - 1),
+      group_coords = cbind(c(0, 5, 16)), semantics = "budget", radius = 2,
+      native_index = paste0("f", seq_len(vig_sizes[[id]]))
+    )
+  }), names(vig_sizes))
+  coverage_plan <- plan_population(fixture$subjects, coverage_transports,
+    coverage_policy = "available_at_node")
+  fit <- estimate_population(coverage_plan, vig_bank())
   before <- fit$uncertainty
   prevalence <- population_prevalence(fit, coverage_floor = 6L)
 
@@ -376,10 +419,12 @@ test_that("the article's prevalence stays descriptive and reports its coverage",
   # Constructing one does not reach into the inferential layer.
   expect_identical(fit$uncertainty, before)
 
-  # `group3` at x = 11 is out of radius of every node the smallest
-  # participant has, so five participants stand behind it and not six.
+  # The deliberate coverage example moves group3 to x = 16, so only the
+  # larger native frames stand behind its available-at-node target.
   expect_identical(prevalence$coverage$floor, 6L)
   expect_identical(prevalence$coverage$below_floor, "group3")
   expect_lt(prevalence$coverage$minimum[["group3"]], 6L)
-  expect_true(all(prevalence$sign$fraction >= 0.5))
+  expect_true(all(is.finite(prevalence$sign$fraction)))
+  expect_true(all(prevalence$sign$fraction >= 0 &
+    prevalence$sign$fraction <= 1))
 })

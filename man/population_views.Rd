@@ -73,7 +73,9 @@ position. Meaningful only when \code{by} names one of its columns.}
 An \code{effect_population_view}: \verb{$values}, one row per group node plus
 the sink and one column per view column; \verb{$columns} naming those columns;
 \verb{$index}, the group node table with the sink marked and its units; the
-\verb{$ledger} name, \verb{$term}, \verb{$semantics}, \verb{$normalization}; a \verb{$receipt}
+\verb{$ledger} name, \verb{$term}, \verb{$semantics}, \verb{$normalization}; \verb{$coverage},
+preserving the exact subject set, rank, df, and estimability of each view
+cell (and refusing combinations with incompatible sets); a \verb{$receipt}
 carrying the transport, the native frame family, the budget certificate,
 the normalization and the basis coefficients that reached this view; and
 a \verb{$scientific_plan_id} derived from the population plan and the view's
@@ -173,6 +175,10 @@ a share of nothing.
 normalized.
 \item \code{sink_is_not_a_territory} --- a \code{by} that labels a group node \verb{<sink>}.
 The sink is appended as its own row automatically.
+\item \code{common_population_subject_set} --- a query recombination or spatial
+aggregation whose source coefficients were estimated from different
+subject sets. Re-estimate the desired query directly, or aggregate only
+cells with one common recoverable set.
 \item \code{nondestructive_decomposition} and \code{guaranteed_psd} --- \code{remove_univariate}
 and \code{normalize}, refused for the same reasons the per-participant views
 refuse them.
@@ -247,6 +253,7 @@ Other population transports:
 \code{\link{plan_population}()},
 \code{\link{population_prevalence}()},
 \code{\link{population_uncertainty}()},
+\code{\link{population_wild_bootstrap}()},
 \code{\link{transport_values}()}
 }
 \concept{population transports}

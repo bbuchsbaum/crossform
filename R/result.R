@@ -506,11 +506,16 @@ effect_view <- function(values, query, component, receipt, index = NULL,
     ),
     class = "effect_view"
   )
-  .validate_effect_view(value)
+  .validate_effect_view(value, values_checked = TRUE)
   value
 }
 
-.validate_effect_view <- function(x) {
+# `values_checked` is set only by `effect_view()`, which has just swept the same
+# matrix it is about to seal. At map scale that matrix is measurement-by-pair --
+# 1000 by 4950 at q = 100 -- and sweeping it twice per call cost 13 ms of every
+# evaluation. Every other caller validates a record it did not build and keeps
+# the full check.
+.validate_effect_view <- function(x, values_checked = FALSE) {
   expected <- c(
     "values", "query", "left_space", "right_space", "logical_shape",
     "effect_space", "component", "index", "metadata", "receipt",
@@ -536,8 +541,8 @@ effect_view <- function(values, query, component, receipt, index = NULL,
       "Effect-view compatibility space is inconsistent with its axes."
     )
   }
-  if (!.is_finite_matrix(x$values) || NROW(x$index) != nrow(x$values) ||
-      anyNA(x$index)) {
+  if ((!values_checked && !.is_finite_matrix(x$values)) ||
+      NROW(x$index) != nrow(x$values) || anyNA(x$index)) {
     .input_error("Effect-view values or measurement index are invalid.")
   }
   .validate_execution_receipt(x$receipt)

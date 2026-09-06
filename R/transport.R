@@ -63,7 +63,18 @@
 #' that is also used to evaluate it --- reports a transport gain roughly three
 #' times the honest one and is otherwise indistinguishable from it, so the
 #' field that would let a plan exclude those partitions is required rather
-#' than encouraged. Any further keys are kept as declared.
+#' than encouraged. `fitting_sample` and `cross_fit_folds` may distinguish the
+#' operator's full fitting sample from the named fold assignments; for
+#' compatibility they default to the required `cross_fit` declaration.
+#'
+#' Cross-fitting is a circularity control, not uncertainty propagation. Every
+#' transport receives a derived `$provenance$conditioning` record naming its
+#' source, fixed-versus-estimated status, fitting sample, folds, conditional
+#' inference scope, excluded uncertainty, and the future propagation
+#' capability. Current population inference is always conditional on the
+#' realized operator: `uncertainty_propagated` and
+#' `marginal_over_transport` are immutable `FALSE`. Any further non-reserved
+#' keys are kept as declared.
 #'
 #' @param matrix The `n_native` by `m` nonnegative group block, as a base
 #'   matrix or a `Matrix`. Row sums may be at most one; the shortfall becomes
@@ -79,7 +90,9 @@
 #'   column `m + 1` of the operator and has no index row.
 #' @param semantics `"budget"` or `"density"`. Required; there is no default.
 #' @param provenance A list carrying at least `method` and `details`, plus
-#'   `cross_fit` when `method` is `"functional"`.
+#'   `cross_fit` when `method` is `"functional"`. Optional `fitting_sample`
+#'   and `cross_fit_folds` refine that declaration. Conditioning fields are
+#'   derived and cannot be supplied by the caller.
 #' @param row_mass Optional declared positive territory measure, one entry per
 #'   native node. Defaults to the unit vector.
 #' @param tolerance Positive row-sum tolerance. Group mass above `1 +
@@ -264,6 +277,27 @@ location_transport <- function(matrix, native_index, group_index, semantics,
       !.is_string(x$semantics) || !is.numeric(x$row_mass) ||
       !is.list(x$provenance)) {
     .input_error("Location-transport fields are missing or noncanonical.")
+  }
+  provenance <- x$provenance
+  if (!.is_string(provenance$method) ||
+      !provenance$method %in% c("anatomical", "functional", "external") ||
+      !.is_string(provenance$details) ||
+      (identical(provenance$method, "functional") &&
+        !.is_strings(provenance[["cross_fit", exact = TRUE]]))) {
+    .contract_error("Location-transport provenance is noncanonical.")
+  }
+  expected_conditioning <- .transport_conditioning(
+    provenance$method, provenance$details, provenance$fitting_sample,
+    provenance$cross_fit_folds
+  )
+  if (!is.character(provenance$fitting_sample) ||
+      !is.character(provenance$cross_fit_folds) ||
+      !identical(provenance$conditioning, expected_conditioning)) {
+    .contract_error(paste0(
+      "Location-transport conditioning is missing or inconsistent. ",
+      "Transport inference must remain explicitly conditional on the ",
+      "realized operator."
+    ))
   }
   n_native <- nrow(x$matrix)
   if (nrow(x$native_index) != n_native ||
@@ -687,6 +721,43 @@ external_transport <- function(P, semantics, provenance, native_index = NULL,
   as.numeric(row_mass)
 }
 
+# Transport uncertainty is deliberately a future capability, not a label a
+# caller can assert. Cross-fitting limits reuse of the response data, but it
+# does not integrate over the fitted operator or its fold assignment. This
+# canonical record follows the operator into every population receipt.
+.transport_conditioning <- function(method, details, fitting_sample,
+                                    cross_fit_folds) {
+  estimated <- identical(method, "functional")
+  list(
+    source = details,
+    operator_status = if (estimated) "estimated" else "fixed",
+    fitting_sample = as.character(fitting_sample),
+    cross_fit_folds = as.character(cross_fit_folds),
+    circularity_control = if (estimated) {
+      "cross_fit_partitions_declared"
+    } else {
+      "fixed_operator"
+    },
+    inference_scope = "conditional_on_realized_transport",
+    uncertainty_propagated = FALSE,
+    marginal_over_transport = FALSE,
+    excluded_uncertainty = if (estimated) {
+      c("transport_operator_estimation", "cross_fit_fold_assignment")
+    } else {
+      "transport_source_choice"
+    },
+    future = list(
+      capability = "transport_uncertainty_propagation",
+      status = "not_implemented",
+      requires = c(
+        "transport_sampling_law",
+        "joint_transport_response_resampling",
+        "validated_propagation_operator"
+      )
+    )
+  )
+}
+
 # `method` and `details` lead the record so that two logically identical
 # provenances hash the same regardless of the order they were typed in; the
 # caller's remaining keys keep the order they were given.
@@ -711,7 +782,18 @@ external_transport <- function(P, semantics, provenance, native_index = NULL,
     ), arg = "provenance$details", received = .msg_value(details),
       expected = "one nonempty character string")
   }
-  cross_fit <- provenance$cross_fit
+  reserved <- intersect(names(provenance), c(
+    "conditioning", "uncertainty_propagated", "marginal_over_transport"
+  ))
+  if (length(reserved)) {
+    .input_error(paste0(
+      "Transport-conditioning fields are derived by crossform and cannot ",
+      "be supplied in provenance. Cross-fitting does not make inference ",
+      "marginal over transport estimation. Remove ", .msg_names(reserved),
+      "; the sealed record will declare the supported conditional scope."
+    ), arg = paste0("provenance$", reserved[[1L]]))
+  }
+  cross_fit <- provenance[["cross_fit", exact = TRUE]]
   if (identical(method, "functional")) {
     if (!.is_strings(cross_fit)) {
       .capability_refusal(paste0(
@@ -742,10 +824,48 @@ external_transport <- function(P, semantics, provenance, native_index = NULL,
     }
     cross_fit <- as.character(cross_fit)
   }
-  leading <- c("method", "details", "cross_fit")
+  fitting_sample <- provenance[["fitting_sample", exact = TRUE]]
+  if (is.null(fitting_sample) && identical(method, "functional")) {
+    fitting_sample <- cross_fit
+  }
+  if (is.null(fitting_sample)) fitting_sample <- character()
+  if (!is.character(fitting_sample) || anyNA(fitting_sample) ||
+      any(!nzchar(fitting_sample))) {
+    .input_error(paste0(
+      "`provenance$fitting_sample`, when given, must identify the sample ",
+      "that built the operator using nonempty strings."
+    ), arg = "provenance$fitting_sample")
+  }
+  cross_fit_folds <- provenance[["cross_fit_folds", exact = TRUE]]
+  if (is.null(cross_fit_folds) && identical(method, "functional")) {
+    cross_fit_folds <- cross_fit
+  }
+  if (is.null(cross_fit_folds)) cross_fit_folds <- character()
+  if (!is.character(cross_fit_folds) || anyNA(cross_fit_folds) ||
+      any(!nzchar(cross_fit_folds))) {
+    .input_error(paste0(
+      "`provenance$cross_fit_folds`, when given, must name each declared ",
+      "cross-fitting fold using nonempty strings."
+    ), arg = "provenance$cross_fit_folds")
+  }
+  conditioning <- .transport_conditioning(
+    method, details, fitting_sample, cross_fit_folds
+  )
+  leading <- c(
+    "method", "details", "fitting_sample", "cross_fit", "cross_fit_folds",
+    "conditioning"
+  )
   rest <- provenance[setdiff(names(provenance), leading)]
-  c(list(method = method, details = details),
+  c(list(
+      method = method,
+      details = details,
+      fitting_sample = as.character(fitting_sample)
+    ),
     if (is.null(cross_fit)) NULL else list(cross_fit = cross_fit),
+    list(
+      cross_fit_folds = as.character(cross_fit_folds),
+      conditioning = conditioning
+    ),
     rest)
 }
 

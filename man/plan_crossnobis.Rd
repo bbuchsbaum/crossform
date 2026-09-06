@@ -108,6 +108,7 @@ Other geometry plans and views:
 \code{\link{geometry_spectrum}()},
 \code{\link{latent_geometry}()},
 \code{\link{materialize_geometry}()},
+\code{\link{model_geometry}()},
 \code{\link{plan_geometry}()},
 \code{\link{plot_views}},
 \code{\link{query_geometry}()},

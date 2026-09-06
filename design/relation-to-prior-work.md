@@ -100,6 +100,80 @@ The coherent term is the common mode under the *effective* metric weights, so
 under a precision-weighted metric it is a precision-weighted common mode
 rather than an arithmetic regional mean.
 
+## Model-constrained low-rank geometry (Diedrichsen & Kriegeskorte, 2017; PCM; reduced-rank regression)
+
+Diedrichsen and Kriegeskorte (2017) put encoding models, pattern-component
+modelling (PCM) and RSA on one footing: every representational model is a
+statement about the second moment of the condition patterns, `G = T C T'`
+for a model factor `T` and a positive semidefinite `C`, and the three
+methods differ in what they fix, marginalize, or estimate about `C`. PCM
+fits `C` (or a parameterized family of it) by maximizing a Gaussian
+likelihood of the observed patterns, which requires a full-rank noise model
+and estimates the signal geometry as a within-sample second moment with the
+noise variance subtracted. Feature-reweighted RSA (Kaniuth & Hebart, 2022;
+Jozwik et al., 2016) learns nonnegative weights on the model's feature
+dimensions before comparing RDMs, and reduced-rank regression and envelope
+regression (Cook, 2018) constrain the rank of a coefficient matrix or of the
+subspace on which the response varies.
+
+crossform's descriptive model-coordinate reader (`model_basis()`, `model_geometry()`;
+`design/model-coordinate-geometry-contract.md`) takes the second-moment
+parameterization and changes where it is estimated. The model family enters
+as a declared, centered, rank-revealing basis `Q` of its joint span with
+`T = QR`, and the relation is *lowered* through it, `B~ = Q'B`; the ordinary
+cross-partition estimator then yields the complete compressed form
+`S_x = Q' G_x Q` at every measurement, which is a fixed linear query of the
+crossvalidated form and inherits its noise unbiasedness. No noise floor is
+subtracted, because no within-partition term is ever formed. The four model
+structures of the second-moment framework -- one weight per model
+(isotropic), one per model coordinate (diagonal, the feature-reweighting
+case), one PSD block per model, one PSD rank-limited matrix over the joint
+span (shared) -- are four readings of that one form: nonnegative quadratic
+programs in the model-only Gram for the first two, exact block coordinate
+descent for the third, and `latent_geometry()`'s rank-budgeted PSD
+truncation for the fourth, which is the closed-form Frobenius minimizer
+(Theorem 4 of the proposal the contract answers). Every fit returns `C`,
+never a factor `W`, because `W` is identified only up to rotation; and every
+fit is a latent projection reported apart from the signed
+model-addressable energy `tr(S_x)` and the signed model-orthogonal energy
+`tr((H - P) G_x)`, whose sum is the centered total exactly. The learned
+readout of the shared structure is cross-fitted over partition edges under
+the same `metric_training_policy("exclude_evaluation")` discipline that keeps
+a learned neural metric honest, restoring a signed, zero-mean-under-noise
+energy.
+
+Two things are not claimed. A basis that spans every centered direction
+reproduces the best rank-limited PSD approximation of the centered geometry
+whatever models produced it (Theorem 3 of the proposal), so the shared fit
+is refused at saturation and labelled near it. And a response envelope in
+the sense of envelope regression is not identifiable from the
+cross-generalized form: the form fixes the span of the signal second moment
+but not a complementary subspace on which the response is invariant
+(Theorem 5 of the proposal), so crossform reports spans and energies and
+never an envelope.
+
+The predictive workflow (`model_basis()` -> `fit_geometry()` ->
+`score_geometry()`; `design/predictive-geometry-contract.md`) uses that same
+lowering and retains each model's spectrum. Named simplex weights pool the
+retained kernels. On their positive support `K = Q U D U' Q'`, the prediction
+is `F = Q U [U' S U - penalty * D^-1]_{+,rank} U' Q'`. This is the exact
+Frobenius geometry minimizer with inverse-kernel trace penalty and a PSD rank
+budget, as established by completing the square in the contract. It is not
+the solution to a generic RDM-weighted objective. Full-span positive-penalty
+models remain meaningful predictive hypotheses; a zero-penalty full-span
+fit is instead labelled a generic baseline.
+
+The invariant prediction is the form `F`; its retained reduced factor is a
+storage representation with arbitrary latent rotation. Independent scoring
+freezes it and reads `2<F,G_test> - ||F||^2`. Conditional on training and an
+independent unbiased test form, this estimates squared-error improvement
+over zero. Its null expectation is `-||F||^2`, unlike the descriptive
+reader's zero-mean cross-fitted projector energy. The code therefore keeps
+these results as different classes and estimands. The contribution claimed
+here is their composition through a reduced effect form and frozen readout,
+with explicit fitting/evaluation dependencies; no new principle of spectral
+truncation, kernel regularization or condition transfer is claimed.
+
 ## What is therefore claimed
 
 Only this, at theorem strength: the voxel-axis partition is exact, its parts
@@ -130,6 +204,17 @@ mean-versus-pattern distinction, or any inferential procedure.
   common framework for understanding encoding, pattern-component, and
   representational-similarity analysis. *PLOS Computational Biology*, 13(4),
   e1005508. <https://doi.org/10.1371/journal.pcbi.1005508>
+- Cook, R. D. (2018). *An introduction to envelopes: dimension reduction for
+  efficient estimation in multivariate statistics*. Wiley.
+  <https://doi.org/10.1002/9781119422976>
+- Jozwik, K. M., Kriegeskorte, N., & Mur, M. (2016). Visual features as
+  stepping stones toward semantics: explaining object similarity in IT and
+  perception with non-negative least squares. *Neuropsychologia*, 83,
+  201–226. <https://doi.org/10.1016/j.neuropsychologia.2015.10.023>
+- Kaniuth, P., & Hebart, M. N. (2022). Feature-reweighted representational
+  similarity analysis: a method for improving the fit between computational
+  models, brains, and behavior. *NeuroImage*, 257, 119294.
+  <https://doi.org/10.1016/j.neuroimage.2022.119294>
 - Diedrichsen, J., Provost, S., & Zareamoghaddam, H. (2016). On the
   distribution of cross-validated Mahalanobis distances. *arXiv*:1607.01371.
   <https://doi.org/10.48550/arXiv.1607.01371>

@@ -69,7 +69,10 @@ hx_carrier <- function(features, semantics = "budget", radius = 1.5, ...) {
   )
 }
 
-hx_sizes <- c(s01 = 6L, s02 = 8L, s03 = 10L, s04 = 12L, s05 = 7L)
+# The general Gram oracle uses one common participant set at every ordinary
+# node. Coverage-varying targets are tested at the population-result layer and
+# must not become an NA-filled covariance geometry by accident.
+hx_sizes <- c(s01 = 10L, s02 = 11L, s03 = 12L, s04 = 13L, s05 = 14L)
 hx_gains <- c(s01 = 1, s02 = 1.6, s03 = 0.6, s04 = 1.2, s05 = 0.9)
 
 hx_plan <- function(sizes = hx_sizes, runs = 4L, semantics = "budget", ...) {
@@ -297,7 +300,8 @@ test_that("a node nobody measured is held out, not zeroed", {
   # and it is `NA` rather than `0` because zero is a measurement and absence is
   # not. The third group centre sits at x = 9 with radius 1.5, so the three
   # smaller participants reach it with nothing at all.
-  plan <- hx_plan(semantics = "density")
+  partial_sizes <- c(s01 = 6L, s02 = 8L, s03 = 10L, s04 = 12L, s05 = 7L)
+  plan <- hx_plan(sizes = partial_sizes, semantics = "density")
   split <- heterogeneity(plan, estimator = "plug_in", nodes = 1:3, modes = 2L)
   width <- nrow(split$coordinates)
 
@@ -541,7 +545,8 @@ test_that("nonnegative functionals live only on the cross-fitted projection", {
   expect_gt(cross$latent$n_eff, 0)
   expect_lte(cross$latent$n_eff, length(cross$subjects))
   expect_equal(cross$latent$cumulative[[length(cross$subjects)]], 1)
-  expect_identical(cross$latent$negative_modes, sum(cross$spectrum < 0))
+  expect_identical(cross$latent$negative_modes,
+    crossform:::.heterogeneity_negative_modes(cross$spectrum))
 
   # `nearest_psd` is a declared member of the closed set and is not
   # implemented; it refuses here for the same reason it refuses in

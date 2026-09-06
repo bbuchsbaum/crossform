@@ -26,7 +26,7 @@ refuses rather than borrowing unsupported standard-error output.
 # This adapter is certified against exactly one fmrireg version and refuses
 # any other, so the example runs only under that version.
 if (requireNamespace("fmrireg", quietly = TRUE) &&
-    identical(as.character(utils::packageVersion("fmrireg")), "0.1.2")) {
+    identical(as.character(utils::packageVersion("fmrireg")), "0.2.0")) {
   set.seed(1)
   domain <- abstract_domain(3L, id = "fmrireg-example")
   index <- observation_index(paste0("scan-", 1:4), "run-1")

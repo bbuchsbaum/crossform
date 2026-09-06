@@ -136,7 +136,7 @@
     }
     q_left * (q_left + 1L) / 2L
   }
-  .validate_task_query(
+  structured_query <- .validate_task_query(
     query, physical_width, left_effects, right_effects, same_relation
   )
   feature_block <- .validate_tile_size(feature_block, "feature_block")
@@ -159,6 +159,20 @@
   } else {
     .query_output_width(query)
   }
+  # One execution route, not a second estimand: when the query asks for most of
+  # the effect pairs, the pair-atom association pays for every pair at every
+  # feature, and the same numbers come out of one small matrix per support.
+  # The attempt declines, silently and without side effects, on anything it
+  # does not recognize, and the loop below then runs unchanged.
+  native <- .additive_gram_route(
+    frame, read_left, left_partitions, left_effects, ordered_edges,
+    codec = codec, same_relation = same_relation, query = query,
+    form_total = form_total, retain_first_moments = retain_first_moments,
+    accumulate_tile = accumulate_tile, task_observer = task_observer,
+    structured_query = structured_query, output_width = output_width
+  )
+  if (!is.null(native)) return(native)
+
   output <- if (form_total && is.null(accumulate_tile)) {
     matrix(0, measurements, output_width)
   } else {
@@ -415,6 +429,396 @@
   )
 }
 
+# Grouped-partner Gram route for support-streamed pair differences ----------
+#
+# `.support_streamed_metric_contraction()` evaluates one row-difference product
+# per requested effect pair per ordered edge per support. That is the right
+# association when a query names a few pairs, and the wrong one when it names
+# most of them: the same numbers are the entries of one effect-by-effect matrix
+# per support, formed by grouping the edge sum on its left partition. The
+# grouping is a re-association of a sum of like-signed terms, so it introduces
+# no cancellation the estimand does not already carry, and it factors no
+# metric, so an indefinite local metric is contracted rather than refused --
+# which is what the reference loop does too. `src/support-metric-gram.cpp`
+# carries the derivation.
+#
+# Everything below is admission. The route declines by returning NULL, which is
+# not an error and not a refusal: the reference loop then runs and produces the
+# behaviour, the diagnostics, and any refusal the caller would have seen
+# anyway. Declining is therefore always safe, and every condition it cannot
+# cheaply prove is a decline.
+
+# Reading whole partition blocks once, rather than one overlapping local block
+# per support, is strictly less I/O but it makes the blocks resident, alongside
+# the partner-sum staging they are folded into. This is the ceiling on that
+# residency; above it the route declines and the reference loop keeps its
+# per-support bound.
+.support_gram_block_budget_bytes <- function() 256 * 1024^2
+
+# The one resource in which the Gram route is genuinely worse than the
+# difference route: it forms a q-by-q accumulator per measurement, where the
+# difference route's live working set is only the pair-by-support block. At
+# large q that is real memory, and it is what bounds the route in practice --
+# on the frames measured below, this ceiling is reached before the cost
+# comparison ever prefers the difference route. Above it the route declines.
+.support_gram_accumulator_budget_bytes <- function() 64 * 1024^2
+
+# Cost of the interpreted difference route for one measurement, in operation
+# equivalents. An operation count alone gets this wrong, because two of the
+# three terms are not flops at all. Measured on a 1000-node searchlight frame,
+# four partitions, mean support 26.75, R 4.5.1 with Accelerate and threads
+# pinned: a fixed per-edge dispatch and allocation cost of about 1.7e5
+# equivalents; a term of about 64 equivalents per element of the q-by-support
+# block, which is the two row differences the route takes before it contracts
+# anything and the reason a one-pair query does not get cheaper as q grows; and
+# the 2 k m^2 the flop count already had. Fitting only the third term is what
+# sent a 28-of-4950 query down a route measured 15x slower than the one it
+# declined.
+.support_gram_difference_operations <- function(edges, q, pairs, support) {
+  edges * (1.7e5 + 64 * q * support + 2 * pairs * support^2)
+}
+
+# The difference route is interpreted R and the Gram route is compiled, so a
+# unit of work does not cost the same in each and their operation counts are
+# not comparable as they stand. This is the measured ratio, from the marginal
+# seconds per operation equivalent of each route on the frame above: 2.8e-10 s
+# for the difference route against 4.5e-12 s for the Gram route, a ratio of 62,
+# taken down to 32 so the constant is not the most favourable reading of the
+# measurement. It reproduces every routing decision measured: across q in
+# 8, 32, 100, 200, 400, 800, 1200 and 1600 against one, 28 and all pairs, the
+# Gram route was faster by between 4.1x (q = 1600, one pair) and 230x
+# (q = 100, all pairs), and this comparison admits all of them, with the margin
+# narrowing to 1.4x exactly where the accumulator budget above cuts in.
+.support_gram_interpreted_penalty <- function() 32
+
+.support_gram_admits_metric <- function(metric) {
+  !isTRUE(metric$capabilities$native_diagonal) &&
+    is.matrix(metric$value) && is.double(metric$value) &&
+    nrow(metric$value) == ncol(metric$value) && nrow(metric$value) >= 1L
+}
+
+# Two layouts of the same arithmetic. Below the threshold the gather is one
+# contiguous copy per support feature and the collapse is one small product per
+# partition; above it the wider per-partition gather pays for itself, because
+# the collapse becomes a single symmetric rank-2k update whose inner dimension
+# is the whole support-by-partition extent. The threshold is measured on one
+# BLAS rather than derived, and the two layouts agree to rounding, so a wrong
+# call here costs a few per cent and nothing else.
+.support_gram_layout <- function(q) if (q >= 64L) 2L else 1L
+
+# The half-edge expansion carries each unordered partition pair twice, forward
+# then reversed at one weight, so the odd rows name every unordered pair once.
+# The grouping needs each pair oriented on its smaller endpoint; the ordered
+# sum is symmetric in the pair, so orienting it is free. A self pair has no
+# smaller endpoint and is declined.
+.support_gram_unordered_edges <- function(ordered_edges, partitions) {
+  forward <- seq.int(1L, nrow(ordered_edges), by = 2L)
+  left <- match(ordered_edges$left[forward], partitions)
+  right <- match(ordered_edges$right[forward], partitions)
+  if (anyNA(left) || anyNA(right) || any(left == right)) return(NULL)
+  list(left = pmin(left, right), right = pmax(left, right),
+    weight = ordered_edges$weight[forward])
+}
+
+# The work both callers share: prove the query, the edges and the frame are the
+# shape this route handles, read the partition blocks once, and run the kernel.
+# `metric` NULL selects the diagonal reading, where the frame weights are the
+# whole local operator. Returns NULL to decline, or the kernel's own output
+# plus the numbers each caller needs to account for what it did.
+.support_gram_prepare <- function(frame, metric, read_relation, partitions,
+                                  ordered_edges, query, structured_query,
+                                  measurements, q, output_width) {
+  if (is.null(query) || !isTRUE(structured_query)) return(NULL)
+  if (!is.null(query$coefficients)) return(NULL)
+  if (!identical(attr(ordered_edges, "expansion", exact = TRUE),
+      "self_adjoint_half_edges")) {
+    return(NULL)
+  }
+  diagonal <- is.null(metric)
+  if (!diagonal && !.support_gram_admits_metric(metric)) return(NULL)
+  weights <- frame$weights
+  if (!inherits(weights, "sparseMatrix")) return(NULL)
+  n_features <- ncol(weights)
+  n_partitions <- length(partitions)
+  n_pairs <- length(query$pair_left)
+  if (n_pairs != output_width || n_partitions < 2L || q < 2L) return(NULL)
+
+  # The resident blocks plus the partner-sum staging they are folded into.
+  block_bytes <- 8 * (n_partitions + 2 * (n_partitions - 1L)) * q * n_features
+  if (block_bytes > .support_gram_block_budget_bytes()) return(NULL)
+  accumulator_bytes <- 8 * as.numeric(q) * q
+  if (accumulator_bytes > .support_gram_accumulator_budget_bytes()) {
+    return(NULL)
+  }
+
+  edges <- .support_gram_unordered_edges(ordered_edges, partitions)
+  if (is.null(edges)) return(NULL)
+
+  rows <- methods::as(weights, "RsparseMatrix")
+  if (!inherits(rows, "dgRMatrix") || length(rows@x) < 1L) return(NULL)
+  if (any(rows@x <= 0)) return(NULL)
+  if (length(rows@p) != measurements + 1L) return(NULL)
+  support_sizes <- diff(rows@p)
+  if (any(support_sizes < 1L)) return(NULL)
+
+  metric_row <- if (diagonal) {
+    integer()
+  } else if (identical(metric$support, frame$domain$feature_ids)) {
+    seq_len(n_features)
+  } else {
+    match(as.character(frame$domain$feature_ids),
+      as.character(metric$support))
+  }
+  if (!diagonal && (length(metric_row) != n_features || anyNA(metric_row))) {
+    return(NULL)
+  }
+
+  list(rows = rows, edges = edges, diagonal = diagonal,
+    n_features = n_features, n_partitions = n_partitions, n_pairs = n_pairs,
+    support_sizes = support_sizes, block_bytes = block_bytes,
+    mean_support = length(rows@x) / measurements,
+    metric_row = metric_row)
+}
+
+.support_gram_evaluate <- function(prepared, metric, read_relation, partitions,
+                                   query, q) {
+  feature_ids <- seq_len(prepared$n_features)
+  blocks <- vector("list", prepared$n_partitions)
+  for (index in seq_len(prepared$n_partitions)) {
+    value <- read_relation(partitions[[index]], feature_ids)
+    if (!.is_finite_matrix(value) ||
+        !identical(dim(value), c(q, prepared$n_features))) {
+      return(NULL)
+    }
+    blocks[[index]] <- value
+  }
+  rows <- prepared$rows
+  edges <- prepared$edges
+  native <- .support_metric_gram_pairs_cpp(
+    rows@p, rows@j, rows@x,
+    if (prepared$diagonal) matrix(0) else metric$value,
+    as.integer(prepared$metric_row - 1L), blocks,
+    as.integer(edges$left - 1L), as.integer(edges$right - 1L),
+    as.numeric(edges$weight), as.integer(query$pair_left - 1L),
+    as.integer(query$pair_right - 1L), .support_gram_layout(q),
+    prepared$diagonal
+  )
+  native
+}
+
+# Each lowering counts a task its own way, and the route reports in the units
+# its caller's kernel uses: one task per spatial measurement where the
+# reference streams supports, one per pass over the feature axis where it
+# streams feature blocks. The route makes exactly one such pass, and the
+# feature total both report is the same.
+.support_gram_observe_supports <- function(prepared, task_observer,
+                                           measurements) {
+  if (is.null(task_observer)) return(invisible(NULL))
+  supports <- split(as.integer(prepared$rows@j + 1L),
+    rep.int(seq_len(measurements), prepared$support_sizes))
+  for (node_index in seq_len(measurements)) {
+    support_positions <- supports[[node_index]]
+    task_observer("started", support_positions)
+    task_observer("completed", support_positions)
+  }
+  invisible(NULL)
+}
+
+.support_gram_work_bytes <- function(native, prepared, q) {
+  8 * (
+    (native$stage_rows + 2 * (prepared$n_partitions - 1L) * q) *
+      as.numeric(native$max_support) +
+      (if (prepared$diagonal) 0 else native$max_support^2) +
+      native$node_block * as.numeric(q) * q
+  )
+}
+
+# The same route for the feature-additive lowering, where there is no declared
+# metric (or a diagonal one already folded into the frame) and the local
+# operator is therefore diag(frame weights). The association the additive
+# kernel uses -- form one pair atom per feature, then contract against the
+# frame -- costs E k V for the atoms whatever the frame looks like, so a query
+# naming most of the pairs pays for every pair at every feature. The Gram route
+# pays q^2 per support instead, and does it in one symmetric rank-2k update.
+#
+# The comparison is between two compiled kernels here, not against interpreted
+# R, so it carries its own constant rather than the interpreted penalty: the
+# atom loop is a strided scalar triple loop and the collapse is BLAS, so one
+# Gram operation equivalent buys several atom ones. Measured by forcing each
+# route on the same query, four configurations, threads pinned:
+#
+#   q    V     P  support  pairs   additive   Gram    ratio   per-operation
+#   20   512   4     15.4    190    0.0260  0.0240     1.1x             3.4
+#   60   512   4     15.4   1770    0.0910  0.0370     2.5x             7.1
+#  100  1000   8      6.4   4950    1.3580  0.1040    13.1x            13.3
+#  100  1000   8     26.8   4950    1.3730  0.1370    10.0x            34.7
+#
+# The Gram route was faster in every one. The constant is the conservative end
+# of the measured range rather than its middle, and it reproduces all four
+# decisions, including declining for a query naming a hundred pairs of 4950 --
+# which is the selective reading the fused pair-difference kernel exists for.
+.support_gram_additive_penalty <- function() 6
+
+.support_gram_additive_operations <- function(edges, pairs, features, stored) {
+  3 * edges * pairs * features + 2 * stored * pairs
+}
+
+.additive_gram_route <- function(frame, read_left, left_partitions,
+                                 left_effects, ordered_edges, codec,
+                                 same_relation, query, form_total,
+                                 retain_first_moments, accumulate_tile,
+                                 task_observer, structured_query,
+                                 output_width) {
+  if (!form_total || retain_first_moments) return(NULL)
+  if (!is.null(accumulate_tile)) return(NULL)
+  if (!isTRUE(same_relation) || !identical(codec, "symmetric_packed")) {
+    return(NULL)
+  }
+  measurements <- nrow(frame$weights)
+  q <- length(left_effects)
+  prepared <- .support_gram_prepare(
+    frame, NULL, read_left, left_partitions, ordered_edges, query,
+    structured_query, measurements, q, output_width
+  )
+  if (is.null(prepared)) return(NULL)
+
+  partners <- prepared$n_partitions - 1L
+  mean_support <- prepared$mean_support
+  additive_cost <- .support_gram_additive_operations(
+    nrow(ordered_edges), prepared$n_pairs, prepared$n_features,
+    length(prepared$rows@x)
+  )
+  gram_cost <- measurements * partners * mean_support *
+    (2 * q^2 + 3 * q)
+  if (gram_cost >= additive_cost * .support_gram_additive_penalty()) {
+    return(NULL)
+  }
+
+  native <- .support_gram_evaluate(
+    prepared, NULL, read_left, left_partitions, query, q
+  )
+  # Reported only once the pass has actually happened: a decline must leave
+  # the counters untouched, because the reference loop then runs and reports
+  # its own tasks over the same features.
+  if (is.null(native)) return(NULL)
+  if (!is.null(task_observer)) {
+    feature_ids <- seq_len(prepared$n_features)
+    task_observer("started", feature_ids)
+    task_observer("completed", feature_ids)
+  }
+
+  work_bytes <- .support_gram_work_bytes(native, prepared, q)
+  zero_fields <- c("max_atom_bytes", "max_query_atom_bytes",
+    "max_atom_work_bytes", "max_frame_block_bytes", "max_weight_slice_bytes",
+    "max_atom_slice_bytes", "max_product_bytes", "max_existing_slice_bytes",
+    "max_replacement_bytes", "max_left_first_product_bytes",
+    "max_left_first_existing_bytes", "max_left_first_replacement_bytes",
+    "max_right_first_product_bytes", "max_right_first_existing_bytes",
+    "max_right_first_replacement_bytes", "durable_left_first_moment_bytes",
+    "durable_right_first_moment_bytes")
+  diagnostics <- c(
+    list(
+      feature_blocks = 1L,
+      relation_reads = prepared$n_partitions,
+      atom_count = 0L,
+      contraction_tiles = 0L,
+      max_relation_bytes = prepared$block_bytes
+    ),
+    stats::setNames(as.list(rep(0, length(zero_fields))), zero_fields),
+    list(
+      max_live_temporary_bytes = prepared$block_bytes + work_bytes,
+      durable_output_bytes = 8 * length(native$value),
+      first_moment_sides_share_storage = FALSE,
+      measurement_kind = "static-owned-buffer-accounting",
+      external_accumulator_memory_measured = TRUE
+    )
+  )
+  expected <- c("feature_blocks", "relation_reads", "atom_count",
+    "contraction_tiles", "max_relation_bytes", "max_atom_bytes",
+    "max_query_atom_bytes", "max_atom_work_bytes", "max_frame_block_bytes",
+    "max_weight_slice_bytes", "max_atom_slice_bytes", "max_product_bytes",
+    "max_existing_slice_bytes", "max_replacement_bytes",
+    "max_left_first_product_bytes", "max_left_first_existing_bytes",
+    "max_left_first_replacement_bytes", "max_right_first_product_bytes",
+    "max_right_first_existing_bytes", "max_right_first_replacement_bytes",
+    "max_live_temporary_bytes", "durable_output_bytes",
+    "durable_left_first_moment_bytes", "durable_right_first_moment_bytes",
+    "first_moment_sides_share_storage", "measurement_kind",
+    "external_accumulator_memory_measured")
+  list(
+    value = native$value,
+    first_moments = NULL,
+    mass = Matrix::rowSums(frame$weights),
+    codec = codec,
+    logical_shape = as.integer(c(q, q)),
+    diagnostics = diagnostics[expected]
+  )
+}
+
+.support_metric_gram_route <- function(frame, metric, read_relation,
+                                       partitions, effects, ordered_edges,
+                                       query, structured_query, form_total,
+                                       form_coherent, retain_first_moments,
+                                       task_observer, measurements, q,
+                                       output_width) {
+  if (!form_total || form_coherent || retain_first_moments) return(NULL)
+  prepared <- .support_gram_prepare(
+    frame, metric, read_relation, partitions, ordered_edges, query,
+    structured_query, measurements, q, output_width
+  )
+  if (is.null(prepared)) return(NULL)
+
+  # Which route is cheaper, in operation equivalents corrected for the fact
+  # that one of them is interpreted. The Gram route is 2 (P-1) q m^2 for the
+  # metric products plus 2 (P-1) q^2 m for the collapse; the difference route
+  # carries two terms beyond its flops, which is why it is modelled rather than
+  # counted. The q^2 term is what eventually makes the Gram route the worse
+  # choice, and the accumulator budget above reaches that point first.
+  mean_support <- prepared$mean_support
+  partners <- prepared$n_partitions - 1L
+  difference_cost <- .support_gram_difference_operations(
+    nrow(ordered_edges), q, prepared$n_pairs, mean_support
+  )
+  gram_cost <- 2 * partners * q * mean_support^2 +
+    2 * partners * q^2 * mean_support
+  if (gram_cost >= difference_cost * .support_gram_interpreted_penalty()) {
+    return(NULL)
+  }
+
+  native <- .support_gram_evaluate(
+    prepared, metric, read_relation, partitions, query, q
+  )
+  if (is.null(native)) return(NULL)
+  .support_gram_observe_supports(prepared, task_observer, measurements)
+
+  max_support <- as.integer(native$max_support)
+  list(
+    value = native$value,
+    coherent = NULL,
+    first_moments = NULL,
+    mass = native$mass,
+    codec = "symmetric_packed",
+    logical_shape = as.integer(c(q, q)),
+    diagnostics = list(
+      support_tasks = measurements,
+      relation_reads = prepared$n_partitions,
+      pair_atoms_materialized = FALSE,
+      pair_frame_materialized = FALSE,
+      max_support_size = max_support,
+      max_relation_block_bytes = prepared$block_bytes,
+      max_metric_bytes = 8 * max_support^2,
+      # The live working set of one support: the gathered partition and
+      # partner slabs, the composed local metric, the metric products, and the
+      # staged matrices the kernel fills before writing.
+      max_query_work_bytes = .support_gram_work_bytes(native, prepared, q),
+      metric_factorizations = 0L,
+      durable_output_bytes = 8 * length(native$value),
+      durable_first_moment_bytes = 0,
+      measurement_kind = "static-owned-buffer-accounting"
+    )
+  )
+}
+
 # Support-streamed lowering for a fixed non-diagonal metric. Unlike the
 # feature-additive route, this kernel never materializes feature-pair atoms or
 # an m-by-p-squared pair frame. One support, its local metric, and the relation
@@ -461,6 +865,21 @@
   } else {
     .query_output_width(query)
   }
+  # One execution route, not a second estimand: when the query asks for most
+  # of the effect pairs the same numbers come out of one small Gram matrix per
+  # support instead of one row-difference product per pair per edge. The
+  # attempt declines, silently and without side effects, on anything it does
+  # not recognize, and the reference loop below then runs unchanged.
+  native <- .support_metric_gram_route(
+    frame, metric, read_relation, partitions, effects, ordered_edges,
+    query = query, structured_query = structured_query,
+    form_total = form_total, form_coherent = form_coherent,
+    retain_first_moments = retain_first_moments,
+    task_observer = task_observer, measurements = measurements, q = q,
+    output_width = output_width
+  )
+  if (!is.null(native)) return(native)
+
   total <- if (form_total) matrix(0, measurements, output_width) else NULL
   coherent <- if (form_coherent) {
     matrix(0, measurements, output_width)

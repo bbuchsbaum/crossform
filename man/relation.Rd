@@ -20,7 +20,11 @@ relation(
 \item{sources}{A matrix, or a named list of matrix, function, or
 \code{effect_source_descriptor} response sources.}
 
-\item{extract}{NULL, one \code{effect_extractor}, or one extractor per partition.}
+\item{extract}{NULL, one \code{effect_extractor}, one extractor per partition, or
+a \code{\link[=model_basis]{model_basis()}}, which lowers every partition's condition betas into
+model coordinates through its \verb{$extractor}. Labelled beta rows are then
+aligned to the basis's \verb{$conditions} by name in any order and a mismatch
+is refused; unlabelled rows are taken in the basis's condition order.}
 
 \item{effects}{An \code{effect_space()} for already estimated sources, or unique
 names used as shorthand for an unspecified-basis effect space.}
@@ -37,7 +41,15 @@ resampling or changing neural features.}
 
 \item{capabilities}{Optional source-capability values, one per partition.}
 
-\item{provenance}{Optional provenance metadata.}
+\item{provenance}{Optional provenance metadata. For independent predictive
+scoring, \code{observation_origins} declares a common parent manifest: a list
+with \code{id}, a named \code{partitions} list of raw observation-origin identifiers,
+\code{independence = "independent"} or \code{"undeclared"}, and an \code{assumption}
+describing the sampling/preprocessing independence claim. Optional
+\code{dependencies} names each partition's upstream observation origins.
+The manifest is sealed and ancestry is attached to each source. Copies,
+aliases and reprocessed estimates must retain their actual origin IDs;
+neither endpoint names nor equal numeric values establish independence.}
 }
 \value{
 An \code{effect_relation}: a list with the compiled \verb{$sources}, one
@@ -75,7 +87,8 @@ its \code{id}, \code{n_features}, and \code{feature_ids}; \verb{$domain_id} repe
 \code{id}.
 \item \verb{$capabilities}: one \code{\link[=source_capabilities]{source_capabilities()}} per partition when the
 sources declared them, otherwise \code{NULL}.
-\item \verb{$provenance}: the metadata supplied at construction, unchanged.
+\item \verb{$provenance}: the supplied metadata; an \code{observation_origins} declaration
+is canonicalized into a sealed parent manifest.
 }
 
 \verb{$sources} and \verb{$extractors} are the compiled read path \code{\link[=relation_block]{relation_block()}}
@@ -106,22 +119,6 @@ channel is needed, \code{\link[=relation_block]{relation_block()}} to read one b
 \code{\link[=plan_geometry]{plan_geometry()}} for the next step.
 
 Other relation planning and fitting: 
-\code{\link{adapter_version_certificate}()},
-\code{\link{compiler_conformance}()},
-\code{\link{effect_extractor}()},
-\code{\link{estimate_relation}()},
-\code{\link{file_matrix_source}()},
-\code{\link{fmridesign_design_model}()},
-\code{\link{fmrireg_relation}()},
-\code{\link{lm_extractor}()},
-\code{\link{lm_relation_fit}()},
-\code{\link{plan_relation}()},
-\code{\link{relation_block}()},
-\code{\link{relation_fit}()},
-\code{\link{relation_fit_capabilities}()},
-\code{\link{relation_plan_receipts}()},
-\code{\link{residual_block}()},
-\code{\link{residual_df}()},
-\code{\link{source_capabilities}()}
+\code{\link{relation_block}()}
 }
 \concept{relation planning and fitting}

@@ -137,4 +137,111 @@ pooled_precision <- function(fixture) {
   )
 }
 
+## ---- Downstream comparison statistics -----------------------------------
+# rsatoolbox's `rsatoolbox.rdm.compare` methods, computed here in base R from
+# a vectorised RDM. crossform deliberately exports no normalizer
+# (design/api-tiers.md:305), and design/common-geometry-equivalence.md:156
+# excludes rank transforms and cosine/correlation normalization of the
+# observed RDM from the equivalence theorem. So these statistics are shown to
+# be reproducible *downstream* from `rdm()$values` rather than added to the
+# public surface. Each definition below is rsatoolbox's own.
+
+#' Square a vectorised RDM given in row-major upper-triangle order.
+rdm_square <- function(v, q) {
+  m <- matrix(0, q, q)
+  p <- utils::combn(q, 2L)
+  m[cbind(p[1L, ], p[2L, ])] <- v
+  m[cbind(p[2L, ], p[1L, ])] <- v
+  m
+}
+
+#' Double-centred second-moment matrix behind a distance vector.
+#'
+#' `G = -0.5 * H D H` with `H = I - 11'/q`. rsatoolbox's `_cov_weighting`
+#' builds the same object; its cov-weighted cosine is the linear CKA of these
+#' Grams, which is why `cosine_cov` below is a Frobenius cosine.
+centered_gram <- function(v, q) {
+  h <- diag(q) - 1 / q
+  -0.5 * (h %*% rdm_square(v, q) %*% h)
+}
+
+#' Kendall tau-a: (concordant - discordant) / (n(n-1)/2), ties contribute 0.
+kendall_tau_a <- function(x, y) {
+  n <- length(x)
+  i <- utils::combn(n, 2L)
+  sum(sign(x[i[1L, ]] - x[i[2L, ]]) * sign(y[i[1L, ]] - y[i[2L, ]])) /
+    (n * (n - 1L) / 2)
+}
+
+#' Spearman rho-a: rank correlation under random tie-breaking.
+#'
+#' rsatoolbox's `compare_rho_a` centres average ranks and divides by
+#' `(n^3 - n)/12`; it does NOT apply the tie correction that ordinary
+#' Spearman uses, which is exactly what distinguishes the two on tied data.
+spearman_rho_a <- function(x, y) {
+  n <- length(x)
+  rx <- rank(x) - mean(rank(x))
+  ry <- rank(y) - mean(rank(y))
+  12 * sum(rx * ry) / (n^3 - n)
+}
+
+#' All eight rsatoolbox `compare()` methods, from two vectorised RDMs.
+similarity_statistics <- function(data_rdm, model_rdm, q) {
+  cov_cosine <- function(a, b) {
+    ga <- centered_gram(a, q)
+    gb <- centered_gram(b, q)
+    sum(ga * gb) / sqrt(sum(ga * ga) * sum(gb * gb))
+  }
+  c(
+    cosine     = sum(data_rdm * model_rdm) /
+                   sqrt(sum(data_rdm^2) * sum(model_rdm^2)),
+    corr       = stats::cor(data_rdm, model_rdm),
+    spearman   = stats::cor(data_rdm, model_rdm, method = "spearman"),
+    kendall    = stats::cor(data_rdm, model_rdm, method = "kendall"),
+    tau_a      = kendall_tau_a(data_rdm, model_rdm),
+    rho_a      = spearman_rho_a(data_rdm, model_rdm),
+    cosine_cov = cov_cosine(data_rdm, model_rdm),
+    corr_cov   = cov_cosine(data_rdm - mean(data_rdm),
+                            model_rdm - mean(model_rdm))
+  )
+}
+
+#' A third model RDM with no ties, so the tie-sensitive statistics are
+#' exercised on both branches.
+#'
+#' `category` and `animacy` are binary and therefore heavily tied (13 of 15
+#' entries duplicate). Without an untied comparator, `tau_a` would equal
+#' `kendall` and `rho_a` would equal `spearman`, and four of the eight rows
+#' would silently test nothing.
+graded_model <- function() {
+  position <- seq_along(CONDITIONS)
+  m <- outer(position, position, function(a, b) (a - b)^2 / 4)
+  dimnames(m) <- list(CONDITIONS, CONDITIONS)
+  m
+}
+
+#' Correlation distance from a guaranteed-PSD within-sample self form.
+#'
+#' `rdm()` reports `d_ij = G_ii + G_jj - 2 G_ij`, and `contrast_energy()` with
+#' a unit weight reports `G_ii`, so `G_ij = (G_ii + G_jj - d_ij)/2` and
+#' `1 - G_ij / sqrt(G_ii G_jj)` is conventional correlation distance.
+#'
+#' This does NOT reopen the `rdm(normalize=)` refusal, which is about signed
+#' *cross-generalized* diagonals that may be zero or negative. Here the self
+#' form is within-sample and PSD, the case
+#' vignettes/correlation-distance-policy.Rmd already classifies as a
+#' legitimate disciplined nonlinear view. The positivity precondition is
+#' checked rather than assumed.
+correlation_distance <- function(distances, diagonals, q) {
+  if (any(diagonals <= 0)) {
+    stop("Correlation distance requires strictly positive self-form ",
+         "diagonals; smallest is ", format(min(diagonals), digits = 4),
+         ". This is the precondition vignette(\"correlation-distance-policy\") ",
+         "requires, and it is checked rather than assumed.")
+  }
+  p <- utils::combn(q, 2L)
+  gij <- (diagonals[p[1L, ]] + diagonals[p[2L, ]] - distances) / 2
+  1 - gij / sqrt(diagonals[p[1L, ]] * diagonals[p[2L, ]])
+}
+
 TOLERANCE <- 1e-10

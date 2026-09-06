@@ -296,9 +296,11 @@
       paste0(
         "The refusal lifts for a group column fed by exactly one native row, ",
         "where the cross-node terms carry weight zero; a general transport ",
-        "has no such column."
+        "has no such column. The future dense/sparse admission law is in ",
+        "`design/cross-node-covariance-contract.md`."
       )
     ),
+    future = .population_cross_node_future_contract(),
     message = paste0(
       "The sampling covariance of a transported value is refused. A group ",
       "node's value is a weighted sum over many native nodes, so its ",
@@ -327,25 +329,32 @@
 # standard error indexed differently from its estimate is a bug waiting to be
 # printed.
 .population_between_uncertainty <- function(model) {
-  rank <- as.integer(model$rank)
   columns <- model$columns
-  unscaled <- matrix(NA_real_, length(columns), length(columns),
-    dimnames = list(columns, columns))
-  # `plan_population()` refuses a rank-deficient design, so the pivot is a
-  # permutation of every column and the inverse exists; the guard is here so
-  # that a future admission of aliasing degrades to `NA` rather than to a
-  # silently wrong block.
-  if (rank == length(columns)) {
-    pivot <- model$pivot[seq_len(rank)]
-    triangle <- qr.R(model$qr)[seq_len(rank), seq_len(rank), drop = FALSE]
-    unscaled[pivot, pivot] <- chol2inv(triangle)
-  }
-  list(
+  fields <- list(
     scope = "between_subject",
     basis = "group_ols_residual",
-    estimator = "subject_residual_covariance_about_the_group_fit",
+    default_estimator = "classical",
+    available_estimators = c("classical", "HC3"),
+    estimator = "selected_by_population_uncertainty",
+    assumptions = list(
+      common = c(
+        "independent_subjects",
+        "fixed_group_design",
+        "conditional_on_realized_transport",
+        "conditional_on_realized_coverage"
+      ),
+      classical = c(
+        "homoskedastic_subject_errors",
+        "correctly_specified_conditional_mean"
+      ),
+      HC3 = c(
+        "heteroskedasticity_robust_sandwich",
+        "finite_sample_leverage_adjustment"
+      )
+    ),
     terms = columns,
-    unscaled_covariance = unscaled,
+    subjects = rownames(model$matrix),
+    design = model$matrix,
     # Not a hedge and not conditional on anything: the ratio of a transported
     # ledger to a between-subject standard error is a t *statistic*, and
     # calling its tail probability a p-value would import a normal-errors,
@@ -353,11 +362,40 @@
     # of this package has checked on real data.
     calibration = "uncalibrated",
     calibration_evidence = paste0(
-      "benchmarks/run-population-null-coverage.R measures the coverage of ",
-      "the nominal 95% interval under a correctly specified group model; ",
-      "see benchmarks/POPULATION-NULL-COVERAGE.md."
+      "The classical estimator is measured by benchmarks/",
+      "run-population-null-coverage.R; HC3 has an independent randomized ",
+      "covariance oracle and adversarial leverage court, but no finite-sample ",
+      "coverage calibration."
     )
   )
+  fields$signature <- .sha256_signature(fields, "population-hc3-sha256:")
+  fields
+}
+
+.validate_population_between_recipe <- function(x) {
+  expected <- c(
+    "scope", "basis", "default_estimator", "available_estimators",
+    "estimator", "assumptions", "terms", "subjects", "design",
+    "calibration", "calibration_evidence", "signature"
+  )
+  if (!is.list(x) || !identical(names(x), expected) ||
+      !identical(x$scope, "between_subject") ||
+      !identical(x$basis, "group_ols_residual") ||
+      !identical(x$default_estimator, "classical") ||
+      !identical(x$available_estimators, c("classical", "HC3")) ||
+      !is.list(x$assumptions) || !is.matrix(x$design) ||
+      !identical(rownames(x$design), x$subjects) ||
+      !identical(colnames(x$design), x$terms) ||
+      any(!is.finite(x$design)) || qr(x$design)$rank != ncol(x$design) ||
+      !.strong_sha256(sub("^population-hc3-", "", x$signature))) {
+    .input_error("Population between-subject uncertainty recipe is noncanonical.")
+  }
+  fields <- x[names(x) != "signature"]
+  if (!identical(x$signature,
+      .sha256_signature(fields, "population-hc3-sha256:"))) {
+    .contract_error("Population uncertainty recipe identity is inconsistent.")
+  }
+  invisible(x)
 }
 
 # The within-subject layer, admitted only where it is exact.
@@ -673,13 +711,31 @@
 #' are computed against a total read from the same data as the ledger, which
 #' the receipt declares (`budget_estimate = "same_data_ratio"`).
 #'
+#' @section Coverage and the population target:
+#' Ordinary-node availability is derived from positive realized transported
+#' mass and query admission, never from whether a numeric response equals
+#' zero. Under the default `coverage_policy = "all_planned"`, a cell is
+#' unresolved if any planned participant is unavailable. The explicit
+#' `"available_at_node"` policy fits the exact local subject set and therefore
+#' names a different target. `$coverage` records the policy, planned subjects,
+#' stable plan and transport identifiers, operator coverage, exact analytic
+#' availability, recoverable dictionary-encoded subject sets, `n`, `n_eff`,
+#' `mass_n_eff`, local design rank and residual df, status, and
+#' coefficient-specific estimability and exclusion reasons. The estimates are
+#' conditional on the realized transport and coverage. `$coverage$conditioning`
+#' retains every participant's transport source, fitting sample, cross-fitting
+#' folds, and fixed-versus-estimated status. Transport-estimation uncertainty
+#' is not propagated by this contract, and cross-fitting does not make the
+#' result marginal over it.
+#'
 #' @section Uncertainty:
 #' `$uncertainty` always carries `$between`, the ingredients of the
-#' between-subject layer: the group design's unscaled covariance
-#' \eqn{(X'X)^{-1}}{(X'X)^-1} and the terms it is indexed by. That is what
-#' [population_uncertainty()] needs and the result does not otherwise hold;
-#' the standard errors themselves are computed when they are read rather than
-#' stored as three more `node`-by-`query`-by-`term` arrays.
+#' between-subject layer: the subject-aligned group design, available
+#' estimators, estimator assumptions, and the terms they are indexed by. That
+#' is what [population_uncertainty()] needs to reconstruct each node-query
+#' cell's exact local design and return either classical OLS or HC3 sandwich
+#' covariance. The covariances themselves are computed when read rather than
+#' stored beside every point estimate.
 #'
 #' Supplying `uncertainty` adds two more blocks. `$native` is D8's own
 #' per-native-node covariance per participant, carried **untransported**, with
@@ -689,6 +745,14 @@
 #' column fed by exactly one native row, where the cross-node terms carry
 #' weight zero --- admitted per participant and per column and absent
 #' elsewhere. No independence assumption is made anywhere.
+#'
+#' The missing joint covariance does not gate ordinary population point
+#' estimation: unweighted OLS operates across participants separately at each
+#' node-query cell. It gates covariance-dependent operations such as
+#' transported within-subject precision, conserved-budget variance, or later
+#' joint spatial inference. The future admission law is recorded in
+#' `design/cross-node-covariance-contract.md` and on the transported refusal's
+#' `$future` field with status `"not_implemented"`.
 #'
 #' The two layers are reported separately and are never pooled; there is no
 #' field holding their sum. See [population_uncertainty()].
@@ -728,7 +792,8 @@
 #' @return An `effect_population_result`: a sealed record carrying
 #'   `$coefficients` (a `node`-by-`query`-by-`term` array), `$values`,
 #'   `$fitted` and `$residuals` (`node`-by-`query`-by-`subject`), the
-#'   `$index` of group nodes plus the sink, `$queries`, `$ledger`,
+#'   `$index` of group nodes plus the sink, `$queries`, `$ledger`, `$coverage`
+#'   (the exact node/readout population target and provenance),
 #'   `$uncertainty` (see the section above; read it through
 #'   [population_uncertainty()]), and a `$receipt` recording every
 #'   participant's read, its
@@ -848,7 +913,12 @@ estimate_population <- function(plan, queries,
     rm(view, native, carried)
   }
 
-  fit <- .population_ols(plan$model, stack)
+  availability <- .population_availability(
+    plan, stack, admitted, n_query
+  )
+  fit <- .population_ols(
+    plan$model, stack, availability, plan$coverage_policy
+  )
   shape <- function(values, third, third_name) {
     array(t(values), dim = c(nodes, n_query, length(third)),
       dimnames = stats::setNames(
@@ -858,6 +928,9 @@ estimate_population <- function(plan, queries,
   }
 
   readout <- .population_readout("query_bank", bank$labels, bank$matrix)
+  coverage <- .population_coverage_record(
+    plan, availability, fit, readout
+  )
   value <- structure(list(
     basis = "query_bank",
     coefficients = shape(fit$coefficients, plan$model$columns, "term"),
@@ -871,6 +944,7 @@ estimate_population <- function(plan, queries,
     ledger = unname(.population_ledger_names[[component]]),
     semantics = plan$semantics,
     normalization = plan$normalization,
+    coverage = coverage,
     uncertainty = .population_uncertainty(plan, bank, index, uncertainty),
     receipt = .population_receipt(
       plan, readout, component, budget_floor, receipts, native_totals,
@@ -1248,14 +1322,42 @@ materialize_population <- function(plan,
   unresolved <- 0L
   starts <- .tile_starts(width, tile)
   state <- .population_tile_state(plan, width, coordinate_labels)
+  coverage_availability <- matrix(FALSE, n_subject, nodes * width)
+  coverage_fit <- list(
+    n = integer(nodes * width),
+    rank = integer(nodes * width),
+    residual_df = integer(nodes * width),
+    status = character(nodes * width),
+    estimable = matrix(FALSE, length(terms), nodes * width,
+      dimnames = list(terms, NULL)),
+    reason = matrix(NA_character_, length(terms), nodes * width,
+      dimnames = list(terms, NULL))
+  )
 
   for (start in starts) {
     columns <- start:min(start + tile - 1L, width)
     streamed <- .population_stream_tile(plan, component, columns, width,
       coordinate_labels, nodes, state)
     state <- streamed$state
-    fit <- .population_ols(plan$model, streamed$stack, coefficients_only = TRUE)
+    availability <- .population_availability(
+      plan, streamed$stack,
+      matrix(TRUE, n_subject, length(columns)), length(columns)
+    )
+    fit <- .population_ols(
+      plan$model, streamed$stack, availability, plan$coverage_policy,
+      coefficients_only = TRUE
+    )
     unresolved <- unresolved + fit$unresolved
+    cells <- unlist(lapply(columns, function(column) {
+      (column - 1L) * nodes + seq_len(nodes)
+    }), use.names = FALSE)
+    coverage_availability[, cells] <- availability
+    coverage_fit$n[cells] <- fit$n
+    coverage_fit$rank[cells] <- fit$rank
+    coverage_fit$residual_df[cells] <- fit$residual_df
+    coverage_fit$status[cells] <- fit$status
+    coverage_fit$estimable[, cells] <- fit$estimable
+    coverage_fit$reason[, cells] <- fit$reason
     # `as.numeric(carried)` stacked the tile column-major with the node index
     # fastest, so the fit's response columns unfold as `node` by `coordinate`;
     # the permutation puts the packed axis last, where every slice along it is
@@ -1273,6 +1375,13 @@ materialize_population <- function(plan,
   native_rows <- state$native_rows
 
   readout <- .population_readout("complete_form", coordinate_labels)
+  coverage_fit$coefficients <- matrix(
+    NA_real_, length(terms), nodes * width,
+    dimnames = list(terms, NULL)
+  )
+  coverage <- .population_coverage_record(
+    plan, coverage_availability, coverage_fit, readout
+  )
   value <- structure(list(
     basis = "complete_form",
     coefficient_forms = forms,
@@ -1284,6 +1393,7 @@ materialize_population <- function(plan,
     ledger = unname(.population_ledger_names[[component]]),
     semantics = plan$semantics,
     normalization = plan$normalization,
+    coverage = coverage,
     uncertainty = NULL,
     receipt = .population_receipt(
       plan, readout, component, 0, receipts, native_totals, sink_budget,
@@ -1327,26 +1437,200 @@ materialize_population <- function(plan,
 # `(m + 1) * tile` each, and retaining them would triple the one array whose
 # size the tile is there to bound; the route documents their absence from the
 # result rather than paying for them and dropping them.
-.population_ols <- function(model, stack, coefficients_only = FALSE) {
-  finite <- apply(is.finite(stack), 2L, all)
-  coefficients <- matrix(NA_real_, ncol(model$matrix), ncol(stack),
+.population_availability <- function(plan, stack, admitted, width) {
+  nodes <- ncol(plan$operator_coverage)
+  if (!is.matrix(stack) || ncol(stack) != nodes * width ||
+      !is.matrix(admitted) || !identical(dim(admitted),
+        c(nrow(stack), width))) {
+    .invariant_error("Population availability inputs are misaligned.")
+  }
+  operator <- plan$operator_coverage[
+    , rep(seq_len(nodes), times = width), drop = FALSE
+  ]
+  normalized <- admitted[, rep(seq_len(width), each = nodes), drop = FALSE]
+  operator & normalized & is.finite(stack)
+}
+
+.population_estimable_columns <- function(design, tolerance = 1e-10) {
+  p <- ncol(design)
+  if (!nrow(design) || !p) return(rep(FALSE, p))
+  factor <- qr(t(design), tol = tolerance)
+  rank <- factor$rank
+  if (!rank) return(rep(FALSE, p))
+  basis <- qr.Q(factor, complete = FALSE)[, seq_len(rank), drop = FALSE]
+  residual <- diag(p) - tcrossprod(basis)
+  sqrt(colSums(residual^2)) <= tolerance
+}
+
+# Fit each node-readout cell against the exact subject set named by the plan's
+# coverage policy. Excluded subjects retain NA fitted values and residuals.
+# Rank and coefficient estimability are properties of the admitted design,
+# never copied from the full planned design.
+.population_ols <- function(model, stack, availability, coverage_policy,
+                            coefficients_only = FALSE) {
+  subjects <- nrow(stack)
+  cells <- ncol(stack)
+  terms <- ncol(model$matrix)
+  coefficients <- matrix(NA_real_, terms, cells,
     dimnames = list(model$columns, NULL))
-  fitted <- NULL
-  residuals <- NULL
+  estimable <- matrix(FALSE, terms, cells,
+    dimnames = list(model$columns, NULL))
+  reason <- matrix(NA_character_, terms, cells,
+    dimnames = list(model$columns, NULL))
+  fitted <- residuals <- NULL
   if (!coefficients_only) {
-    fitted <- matrix(NA_real_, nrow(stack), ncol(stack))
+    fitted <- matrix(NA_real_, subjects, cells)
     residuals <- fitted
   }
-  if (any(finite)) {
-    responses <- stack[, finite, drop = FALSE]
-    coefficients[, finite] <- qr.coef(model$qr, responses)
+  n <- integer(cells)
+  rank <- integer(cells)
+  residual_df <- integer(cells)
+  status <- character(cells)
+
+  for (cell in seq_len(cells)) {
+    available <- availability[, cell]
+    n[[cell]] <- sum(available)
+    design <- model$matrix[available, , drop = FALSE]
+    rank[[cell]] <- if (n[[cell]]) as.integer(qr(design)$rank) else 0L
+    residual_df[[cell]] <- as.integer(n[[cell]] - rank[[cell]])
+
+    if (!n[[cell]]) {
+      status[[cell]] <- "empty_subject_set"
+      reason[, cell] <- "empty_subject_set"
+      next
+    }
+    if (identical(coverage_policy, "all_planned") && !all(available)) {
+      status[[cell]] <- "planned_subject_unavailable"
+      reason[, cell] <- "planned_subject_unavailable"
+      next
+    }
+
+    cell_qr <- qr(design)
+    cell_estimable <- .population_estimable_columns(design)
+    estimable[, cell] <- cell_estimable
+    coefficients[, cell] <- qr.coef(cell_qr, stack[available, cell])
+    coefficients[!cell_estimable, cell] <- NA_real_
+    reason[!cell_estimable, cell] <- "coefficient_not_estimable"
     if (!coefficients_only) {
-      fitted[, finite] <- qr.fitted(model$qr, responses)
-      residuals[, finite] <- qr.resid(model$qr, responses)
+      fitted[available, cell] <- qr.fitted(cell_qr, stack[available, cell])
+      residuals[available, cell] <- qr.resid(cell_qr, stack[available, cell])
+    }
+    status[[cell]] <- if (rank[[cell]] < terms) {
+      "rank_deficient"
+    } else if (residual_df[[cell]] == 0L) {
+      "saturated"
+    } else {
+      "estimated"
     }
   }
-  list(coefficients = coefficients, fitted = fitted, residuals = residuals,
-    unresolved = as.integer(sum(!finite)))
+
+  list(
+    coefficients = coefficients, fitted = fitted, residuals = residuals,
+    n = n, rank = rank, residual_df = residual_df, estimable = estimable,
+    reason = reason, status = status,
+    unresolved = as.integer(sum(colSums(is.finite(coefficients)) == 0L))
+  )
+}
+
+.population_subject_sets <- function(availability, nodes, width, labels) {
+  keys <- vapply(seq_len(ncol(availability)), function(cell) {
+    paste0(as.integer(availability[, cell]), collapse = "")
+  }, character(1))
+  unique_keys <- unique(keys)
+  dictionary <- stats::setNames(lapply(unique_keys, function(key) {
+    labels[as.logical(as.integer(strsplit(key, "", fixed = TRUE)[[1L]]))]
+  }), paste0("set", seq_along(unique_keys)))
+  ids <- names(dictionary)[match(keys, unique_keys)]
+  list(
+    id = matrix(ids, nodes, width),
+    dictionary = dictionary
+  )
+}
+
+.population_mass_n_eff <- function(plan) {
+  mass <- plan$operator_mass
+  value <- vapply(seq_len(ncol(mass) - 1L), function(node) {
+    positive <- mass[, node] > plan$coverage_threshold
+    observed <- mass[positive, node]
+    if (!length(observed) || sum(observed^2) == 0) return(0)
+    sum(observed)^2 / sum(observed^2)
+  }, numeric(1))
+  c(value, NA_real_)
+}
+
+.population_coverage_record <- function(plan, availability, fit, readout) {
+  labels <- names(plan$subjects)
+  transport_conditioning <- lapply(
+    plan$transport, function(x) x$provenance$conditioning
+  )
+  names(transport_conditioning) <- labels
+  nodes <- ncol(plan$operator_coverage)
+  width <- length(readout$labels)
+  sets <- .population_subject_sets(availability, nodes, width, labels)
+  cell_matrix <- function(value) matrix(value, nodes, width,
+    dimnames = list(colnames(plan$operator_coverage), readout$labels))
+  term_array <- function(value) {
+    array(t(value), c(nodes, width, nrow(value)),
+      dimnames = list(
+        node = colnames(plan$operator_coverage),
+        readout = readout$labels,
+        term = rownames(value)
+      ))
+  }
+  dimnames(sets$id) <- list(
+    node = colnames(plan$operator_coverage), readout = readout$labels
+  )
+  availability_array <- array(
+    t(availability), c(nodes, width, length(labels)),
+    dimnames = list(
+      node = colnames(plan$operator_coverage),
+      readout = readout$labels,
+      subject = labels
+    )
+  )
+  list(
+    contract_version = "population-estimand-v1",
+    policy = plan$coverage_policy,
+    tolerance = plan$coverage_tolerance,
+    planned_subjects = labels,
+    subject_plan_id = stats::setNames(
+      plan$subject_index$plan_id, labels
+    ),
+    transport_signature = stats::setNames(
+      plan$subject_index$transport_signature, labels
+    ),
+    operator_mass = plan$operator_mass,
+    operator_coverage = plan$operator_coverage,
+    availability = availability_array,
+    subject_set_id = sets$id,
+    subject_sets = sets$dictionary,
+    n = cell_matrix(fit$n),
+    fraction = cell_matrix(fit$n / length(labels)),
+    n_eff = cell_matrix(fit$n),
+    mass_n_eff = stats::setNames(
+      .population_mass_n_eff(plan), colnames(plan$operator_mass)
+    ),
+    design_rank = cell_matrix(fit$rank),
+    residual_df = cell_matrix(fit$residual_df),
+    status = cell_matrix(fit$status),
+    coefficient_estimable = term_array(fit$estimable),
+    exclusion_reason = term_array(fit$reason),
+    conditioning = list(
+      transport = "conditional_on_realized_transport",
+      coverage = "conditional_on_realized_coverage",
+      transport_by_subject = transport_conditioning,
+      marginal_over_transport = FALSE,
+      uncertainty_propagated = FALSE,
+      excluded_uncertainty = unique(c(
+        unlist(lapply(transport_conditioning, `[[`, "excluded_uncertainty"),
+          use.names = FALSE),
+        "coverage_selection", "frame_estimation"
+      )),
+      future = .transport_conditioning(
+        "functional", "future interface", character(), character()
+      )$future
+    )
+  )
 }
 
 # The receipt ------------------------------------------------------------------
@@ -1513,12 +1797,194 @@ materialize_population <- function(plan,
   switch(basis,
     query_bank = c("basis", "coefficients", "values", "fitted", "residuals",
       "residual_df", "index", "queries", "component", "ledger", "semantics",
-      "normalization", "uncertainty", "receipt", "scientific_plan_id"),
+      "normalization", "coverage", "uncertainty", "receipt",
+      "scientific_plan_id"),
     complete_form = c("basis", "coefficient_forms", "residual_df", "index",
       "effects", "coordinates", "component", "ledger", "semantics",
-      "normalization", "uncertainty", "receipt", "scientific_plan_id"),
+      "normalization", "coverage", "uncertainty", "receipt",
+      "scientific_plan_id"),
     character()
   )
+}
+
+.population_coverage_fields <- c(
+  "contract_version", "policy", "tolerance", "planned_subjects",
+  "subject_plan_id", "transport_signature", "operator_mass",
+  "operator_coverage", "availability", "subject_set_id", "subject_sets",
+  "n", "fraction", "n_eff", "mass_n_eff", "design_rank", "residual_df",
+  "status", "coefficient_estimable", "exclusion_reason", "conditioning"
+)
+
+.validate_population_conditioning <- function(conditioning, subjects) {
+  expected <- c(
+    "transport", "coverage", "transport_by_subject",
+    "marginal_over_transport", "uncertainty_propagated",
+    "excluded_uncertainty", "future"
+  )
+  if (!is.list(conditioning) || !identical(names(conditioning), expected) ||
+      !identical(conditioning$transport,
+        "conditional_on_realized_transport") ||
+      !identical(conditioning$coverage,
+        "conditional_on_realized_coverage") ||
+      !isFALSE(conditioning$marginal_over_transport) ||
+      !isFALSE(conditioning$uncertainty_propagated) ||
+      !is.list(conditioning$transport_by_subject) ||
+      !identical(names(conditioning$transport_by_subject), subjects) ||
+      !is.character(conditioning$excluded_uncertainty) ||
+      !identical(conditioning$future,
+        .transport_conditioning(
+          "functional", "future interface", character(), character()
+        )$future)) {
+    .contract_error(paste0(
+      "Population transport-conditioning metadata is missing or ",
+      "noncanonical. Results are conditional on realized transport; ",
+      "transport-estimation uncertainty is not propagated."
+    ))
+  }
+  for (subject in subjects) {
+    value <- conditioning$transport_by_subject[[subject]]
+    if (!is.list(value) || !identical(value$inference_scope,
+        conditioning$transport) || !isFALSE(value$uncertainty_propagated) ||
+        !isFALSE(value$marginal_over_transport) ||
+        !identical(value, .transport_conditioning(
+          if (identical(value$operator_status, "estimated")) {
+            "functional"
+          } else {
+            "external"
+          },
+          value$source, value$fitting_sample, value$cross_fit_folds
+        ))) {
+      .contract_error(sprintf(
+        "Transport conditioning for subject `%s` is inconsistent.", subject
+      ))
+    }
+  }
+  invisible(conditioning)
+}
+
+.validate_population_coverage <- function(x) {
+  coverage <- x$coverage
+  nodes <- nrow(x$index)
+  width <- if (identical(x$basis, "complete_form")) {
+    nrow(x$coordinates)
+  } else {
+    nrow(x$queries)
+  }
+  terms <- if (identical(x$basis, "complete_form")) {
+    dim(x$coefficient_forms)[[2L]]
+  } else {
+    dim(x$coefficients)[[3L]]
+  }
+  subjects <- nrow(x$receipt$subjects)
+  if (!is.list(coverage) ||
+      !identical(names(coverage), .population_coverage_fields) ||
+      !identical(coverage$contract_version, "population-estimand-v1") ||
+      !.is_string(coverage$policy) ||
+      !coverage$policy %in% .population_coverage_policies ||
+      !.is_number(coverage$tolerance) || coverage$tolerance < 0 ||
+      !identical(dim(coverage$operator_mass), c(subjects, nodes)) ||
+      !identical(dim(coverage$operator_coverage), c(subjects, nodes)) ||
+      !identical(dim(coverage$availability), c(nodes, width, subjects)) ||
+      !identical(dim(coverage$subject_set_id), c(nodes, width)) ||
+      !identical(dim(coverage$n), c(nodes, width)) ||
+      !identical(dim(coverage$fraction), c(nodes, width)) ||
+      !identical(dim(coverage$n_eff), c(nodes, width)) ||
+      !identical(dim(coverage$design_rank), c(nodes, width)) ||
+      !identical(dim(coverage$residual_df), c(nodes, width)) ||
+      !identical(dim(coverage$status), c(nodes, width)) ||
+      !identical(dim(coverage$coefficient_estimable),
+        c(nodes, width, terms)) ||
+      !identical(dim(coverage$exclusion_reason), c(nodes, width, terms)) ||
+      !is.list(coverage$subject_sets) ||
+      !identical(coverage$planned_subjects,
+        as.character(x$receipt$subjects$subject)) ||
+      !identical(names(coverage$subject_plan_id), coverage$planned_subjects) ||
+      !identical(names(coverage$transport_signature),
+        coverage$planned_subjects) ||
+      !identical(unname(coverage$subject_plan_id),
+        unname(x$receipt$subjects$plan_id)) ||
+      !identical(unname(coverage$transport_signature),
+        unname(x$receipt$subjects$transport_signature)) ||
+      any(!is.finite(coverage$operator_mass)) ||
+      any(coverage$operator_mass < 0) ||
+      anyNA(coverage$operator_coverage)) {
+    .input_error("Population-result coverage fields are missing or noncanonical.")
+  }
+  .validate_population_conditioning(
+    coverage$conditioning, coverage$planned_subjects
+  )
+  counted <- apply(coverage$availability, c(1L, 2L), sum)
+  storage.mode(counted) <- "integer"
+  expected_status <- matrix("estimated", nodes, width,
+    dimnames = dimnames(coverage$status))
+  expected_status[coverage$design_rank < terms] <- "rank_deficient"
+  expected_status[coverage$residual_df == 0L &
+    coverage$design_rank == terms] <- "saturated"
+  if (identical(coverage$policy, "all_planned")) {
+    expected_status[coverage$n < subjects & coverage$n > 0L] <-
+      "planned_subject_unavailable"
+  }
+  expected_status[coverage$n == 0L] <- "empty_subject_set"
+  if (!identical(as.integer(coverage$n), as.integer(counted)) ||
+      !isTRUE(all.equal(coverage$fraction, coverage$n / subjects,
+        tolerance = 0, check.attributes = FALSE)) ||
+      !identical(as.numeric(coverage$n_eff), as.numeric(coverage$n)) ||
+      any(coverage$design_rank < 0L) ||
+      any(coverage$design_rank > pmin(coverage$n, terms)) ||
+      !identical(as.integer(coverage$residual_df),
+        as.integer(coverage$n - coverage$design_rank)) ||
+      !identical(as.character(coverage$status),
+        as.character(expected_status))) {
+    .contract_error("Population-result coverage arithmetic is inconsistent.")
+  }
+  for (subject in seq_len(subjects)) {
+    allowed <- matrix(
+      coverage$operator_coverage[subject, ], nodes, width,
+      dimnames = dimnames(coverage$n)
+    )
+    if (any(coverage$availability[, , subject] & !allowed)) {
+      .contract_error(paste0(
+        "Population-result availability exceeds realized transport coverage."
+      ))
+    }
+  }
+  for (node in seq_len(nodes)) {
+    for (readout in seq_len(width)) {
+      key <- coverage$subject_set_id[node, readout]
+      if (!key %in% names(coverage$subject_sets) ||
+          !identical(
+            coverage$subject_sets[[key]],
+            coverage$planned_subjects[
+              coverage$availability[node, readout, ]
+            ]
+          )) {
+        .contract_error("Population-result subject sets are not recoverable.")
+      }
+    }
+  }
+  finite <- if (identical(x$basis, "complete_form")) {
+    is.finite(aperm(x$coefficient_forms, c(1L, 3L, 2L)))
+  } else {
+    is.finite(x$coefficients)
+  }
+  if (!identical(
+      as.logical(finite), as.logical(coverage$coefficient_estimable)
+    )) {
+    .contract_error(paste0(
+      "Population coefficients disagree with their recorded estimability."
+    ))
+  }
+  if (identical(coverage$policy, "all_planned")) {
+    incomplete <- coverage$n < subjects
+    if (any(coverage$coefficient_estimable &
+        array(incomplete, dim(coverage$coefficient_estimable)))) {
+      .contract_error(paste0(
+        "The all-planned policy returned a coefficient from an incomplete ",
+        "subject set."
+      ))
+    }
+  }
+  invisible(coverage)
 }
 
 # The axis-shape check, one branch per basis. Both end at the same question:
@@ -1584,12 +2050,26 @@ materialize_population <- function(plan,
       !is.data.frame(x$index) ||
       !.is_string(x$component) || !.is_string(x$ledger) ||
       !.is_string(x$semantics) || !.is_string(x$normalization) ||
-      !is.integer(x$residual_df) || !is.list(x$receipt) ||
+      !is.integer(x$residual_df) || !is.list(x$coverage) ||
+      !is.list(x$receipt) ||
       !identical(x$receipt$basis, x$basis) ||
       !.strong_sha256(sub("^population-", "", x$scientific_plan_id))) {
     .input_error("Population-result fields are missing or noncanonical.")
   }
   .validate_population_result_shape(x)
+  .validate_population_coverage(x)
+  if (identical(x$basis, "query_bank")) {
+    .validate_population_between_recipe(x$uncertainty$between)
+    if (!identical(x$uncertainty$between$subjects,
+          as.character(x$receipt$subjects$subject)) ||
+        !identical(x$uncertainty$between$terms,
+          dimnames(x$coefficients)[[3L]])) {
+      .contract_error(paste0(
+        "The population uncertainty recipe is not aligned with the result's ",
+        "subjects and coefficient terms."
+      ))
+    }
+  }
   if (!identical(unname(.population_ledger_names[[x$component]]), x$ledger)) {
     .contract_error(paste0(
       "A transported component must carry the ledger name ",

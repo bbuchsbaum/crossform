@@ -7,8 +7,9 @@
         nodes:      5 native -> 2 group + sink
         semantics:  budget
         sink:       mass 1.3 of 5 rows, 26.0% of territory
-        provenance: anatomical (cross-fit: none)
+        provenance: anatomical, fixed (cross-fit: none)
         built:      fixed warp, atlas v1
+        inference:  conditional_on_realized_transport; uncertainty not propagated
         signature:  sha256:<digest>...
 
 ---
@@ -28,7 +29,8 @@
         semantics:  density
         row mass:   declared, total 15
         sink:       mass 1.3 of 5 rows, 41.3% of territory
-        provenance: anatomical (cross-fit: none)
+        provenance: anatomical, fixed (cross-fit: none)
         built:      fixed warp, atlas v1
+        inference:  conditional_on_realized_transport; uncertainty not propagated
         signature:  sha256:<digest>...
 

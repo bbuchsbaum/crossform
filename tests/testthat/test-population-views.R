@@ -44,7 +44,9 @@ pvw_subject <- function(id, features) {
 
 # Radius 1.5 around centres 0, 4 and 9 leaves native nodes at 2, 6, 7 and 11
 # out of reach of every centre, so the sink carries real mass and the additive
-# identity is a test of something rather than of an always-empty column.
+# identity is a test of something rather than of an always-empty column. Every
+# participant still reaches all three ordinary nodes: these tests isolate view
+# algebra, while `test-population-coverage.R` exercises changing subject sets.
 pvw_carrier <- function(features, semantics = "budget") {
   anatomical_transport(
     native_coords = cbind(seq_len(features) - 1),
@@ -53,7 +55,7 @@ pvw_carrier <- function(features, semantics = "budget") {
   )
 }
 
-pvw_sizes <- c(s01 = 6L, s02 = 8L, s03 = 10L, s04 = 12L)
+pvw_sizes <- c(s01 = 10L, s02 = 11L, s03 = 12L, s04 = 13L)
 
 pvw_plan <- function(semantics = "budget", ...) {
   plan_population(

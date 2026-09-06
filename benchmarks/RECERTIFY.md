@@ -24,11 +24,13 @@ bind to a digest that no longer exists, promotion ships evidence for a source
 state that is gone, and the tests skip `STALE` again. Nothing warns you except
 the skip.
 
-Check that the tree is quiet and remember the digest:
+Freeze changes to `R/` and remember the digest. Uncommitted source is allowed;
+the before/after digest must be identical. A clean Git status alone does not
+establish that a long-running job saw unchanged source.
 
 ```sh
 cd /path/to/crossform
-git status --porcelain -- R          # expect no output
+git status --porcelain -- R          # record the starting state
 Rscript -e 'source("benchmarks/provenance.R"); cat(.crossform_source_tree_digest("."), "\n")'
 ```
 
@@ -148,6 +150,49 @@ Notes that cost real time to rediscover:
 
 ## 3. Promote the small gate artifacts
 
+The predictive feature also requires its frozen production calibrations and
+the recorded scale/mutation jobs:
+
+```sh
+Rscript benchmarks/predictive-geometry/restore-counts.R
+Rscript benchmarks/predictive-geometry/run-sampling.R run
+Rscript benchmarks/predictive-geometry/run-selection.R run
+Rscript benchmarks/predictive-geometry/run-performance.R . benchmark-results/predictive-geometry-performance all
+Rscript benchmarks/predictive-geometry/run-mutations.R . benchmark-results/predictive-geometry-mutations all
+Rscript benchmarks/predictive-geometry/certify.R
+```
+
+Run these serially. The checked-in calibration configurations and separate
+pilot receipts fix the production seeds and counts; do not re-pilot or tune
+counts after looking at production results. Existing performance/mutation
+records can be reused only when their source and every harness/primary-test
+digest still match. `certify.R` verifies these bindings and the numerical
+gates before writing the compact `predictive-geometry-validation.rds`.
+The full arrays and mutation logs remain outside the package.
+
+`restore-counts.R` recovers only the frozen pilot-derived count contract from
+the shipped receipt when the local pilot files are absent. It verifies the
+configuration/harness bindings, preserves matching existing files and refuses
+conflicting counts. The restored record is explicitly labelled as metadata
+recovery; it does not pretend to contain a newly run pilot. Changes to the
+calibration design require a new prespecified pilot protocol.
+
+The external parity CSV must also be renewed on changed source. Create the
+pinned Python environment described in `exemplars/rsatoolbox-parity/README.md`
+and run the whole two-language pipeline:
+
+```sh
+RSA_PYTHON=/path/to/pinned/environment/bin/python bash exemplars/rsatoolbox-parity/run-all.sh
+```
+
+After promotion, run `Rscript benchmarks/check-certification-binding.R`.
+The predictive receipt binds its canonical mathematical oracle, calibration
+configuration, production test files and promotion/binding tools as well as
+the R source. The standalone CI gate checks these without installing the
+package. Planning drafts are not runtime certification dependencies.
+Only the explicitly listed `shard-admission.rds` may remain unbound; an
+unexpected unbound artifact is a failure.
+
 Runners write to `benchmark-results/`, which is never shipped. The artifacts
 the test suite reads under `R CMD check` live in
 `inst/extdata/certification/`:
@@ -156,7 +201,7 @@ the test suite reads under `R CMD check` live in
 Rscript benchmarks/promote-artifacts.R benchmark-results .
 ```
 
-Promotion refuses any artifact with no source digest and anything over the
+Promotion refuses any artifact with a missing or stale source digest and anything over the
 64 KiB shipped cap, and exits nonzero if it refused something. The two large
 validation records are never promoted; their tests read them from
 `benchmark-results/`.

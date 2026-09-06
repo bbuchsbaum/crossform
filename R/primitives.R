@@ -388,3 +388,51 @@
   }
   stats::setNames(as.numeric(value), effects)
 }
+
+# Session constants ----------------------------------------------------------
+#
+# A receipt records the package version, the R version and platform, and the
+# BLAS the run was linked against. None of those can change while the namespace
+# is loaded, but each execution was re-reading them: `utils::packageVersion()`
+# parses `DESCRIPTION` off disk through `packageDescription()`, and
+# `extSoftVersion()` re-queries the linked libraries. On a run whose arithmetic
+# takes a few milliseconds that was a measurable share of the whole call, and it
+# is the same answer every time.
+#
+# This caches the answers for the life of the loaded namespace. It records
+# exactly what a fresh read records; what it removes is the re-reading. If the
+# installed package is replaced under a running session the cached version
+# describes the namespace actually loaded, which is the honest reading of what
+# produced the receipt.
+.session_facts <- new.env(parent = emptyenv())
+
+.session_fact <- function(name, compute) {
+  cached <- .session_facts[[name]]
+  if (!is.null(cached)) return(cached)
+  value <- compute()
+  .session_facts[[name]] <- value
+  value
+}
+
+.session_runtime_record <- function() {
+  .session_fact("runtime", function() {
+    list(
+      package_version = as.character(utils::packageVersion("crossform")),
+      r_version = R.version.string,
+      platform = R.version$platform
+    )
+  })
+}
+
+.session_blas_vendor <- function() {
+  .session_fact("blas_vendor", function() {
+    vendor <- tryCatch(unname(extSoftVersion()[["BLAS"]]),
+      error = function(error) NULL)
+    if (is.character(vendor) && length(vendor) == 1L && !is.na(vendor) &&
+        nzchar(vendor)) {
+      vendor
+    } else {
+      "unknown"
+    }
+  })
+}
