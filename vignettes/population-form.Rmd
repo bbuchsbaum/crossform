@@ -1,7 +1,8 @@
 ---
 title: "Population form: one participant's ledger, carried to a group"
 description: >
-  Experimental. A group analysis of conservative geometry is three typed objects — a per-participant plan, a transport you supply, and a group model — and one theorem: the query, transport, and group fit act on different axes. This article builds the objects on a generated fixture, checks commutation and conservation, and exercises classical, HC3, wild-bootstrap, decomposition, diagnostic, scale-profile, and influence routes under their stated calibration boundaries.
+  Carry conservative participant maps to shared group nodes, estimate contrasts,
+  and interpret conservation, heterogeneity, and conditional uncertainty.
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Population form: one participant's ledger, carried to a group}
@@ -19,40 +20,42 @@ knitr::opts_chunk$set(
 library(crossform)
 ```
 
-**This layer is experimental.** The API and returned kinds may change. Its
-classical, HC3, and wild-bootstrap procedures have bounded matched-simulation
-evidence across declared regimes, but they are not universal guarantees:
-informative coverage supports no marginal population claim, every interval is
-conditional on realized transport, and simultaneous cross-node inference is
-not provided. The layer is a typed way to carry each participant's conservative
-attribution ledger onto shared group nodes, fit one group model, and read the
-result without any step quietly changing what was estimated.
+How can participants with different native measurement grids contribute to one
+group contrast estimate? Supply a conservative geometry plan for each
+participant, a transport to shared group nodes, and a group model. The result
+is a group estimate in budget units, with unmapped evidence retained in a
+separate sink node.
 
-Read `vignette("conservative-frames")` first. Everything here operates on the
-attribution instrument from that article: a map whose values are shares of one
-fixed budget, and which therefore *adds*. Adding is what makes a group-level
-ledger definable at all, and it is why this layer refuses a detection map.
+Read [Conservative frames](conservative-frames.html) first: this guide builds
+on maps that add to a fixed total. The first workflow fits two contrasts for
+six generated participants. Later sections check conservation, identify a
+planted participant difference, and separate between-participant uncertainty
+from within-participant measurement error.
 
-Every identity below is asserted in code you can see. If one stopped holding,
-this article would stop knitting. The governing document is
-[`design/population-form-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md)
-(`population-form-v1`), and section numbers refer to it.
+**The population API is experimental.** Its uncertainty procedures condition
+on the supplied transport; they do not account for learning that transport or
+provide simultaneous inference across nodes. Section 5 explains how to read
+the returned uncertainty and calibration labels. Derivations and simulation
+regimes are in the
+[population contract](https://github.com/bbuchsbaum/crossform/blob/main/design/population-form-contract.md)
+(`population-form-v1`); § references below point there.
 
 ## 1. The three objects
 
 ### 1.1 Six participants, six conservative geometry plans
 
-The fixture is generated, tiny, and deterministic. Six participants on
-**different native frame sizes** — that is the case §3 says forces transport to
-precede the fit, and a fixture where everyone shared a frame would never
-exercise it. Four runs each, because the cross-fitted subject Gram of section 4
-needs two disjoint halves and each half needs a cross-generalized estimate of
-its own.
+The generated participants have different native frame sizes, so their maps
+must reach shared nodes before a group model can be fitted. Each has four
+runs. This also lets section 4 form two disjoint pairs of runs for estimating
+participant heterogeneity.
 
 Every participant carries the same planted **consensus** direction in effect
 space (face above house, present in every run, so it survives the
 cross-partition product). One participant, `s06`, additionally carries a
 direction nobody else has. Section 4 is about finding it without being told.
+
+<details>
+<summary>Generated participant helper (expand to copy the complete setup)</summary>
 
 ```{r fixture}
 pop_effects <- effect_space(c("face", "house", "tool"),
@@ -79,22 +82,28 @@ pop_subject <- function(id, features, gain = 1, tilt = 0, runs = 4L,
     compile_frame(voxelwise(normalization = normalization), domain),
     cross_partitions(relation))
 }
+```
 
-# All participants reach every ordinary group node; the transport radius below
-# still leaves genuine sink territory. Variable-coverage targets are a separate
-# explicit policy rather than numeric zeroes in this introductory OLS example.
+</details>
+
+Every participant reaches each of the three ordinary group nodes. Some native
+territory remains unmapped and will enter the sink. The `tilts` vector gives
+`s06` its additional house-versus-tool direction.
+
+```{r participants}
 sizes <- c(s01 = 12L, s02 = 14L, s03 = 16L, s04 = 13L, s05 = 15L, s06 = 17L)
 gains <- c(s01 = 1, s02 = 1.3, s03 = 0.8, s04 = 1.1, s05 = 0.9, s06 = 1.2)
 tilts <- c(s01 = 0, s02 = 0, s03 = 0, s04 = 0, s05 = 0, s06 = 4)
 
 subjects <- stats::setNames(lapply(names(sizes), function(id)
   pop_subject(id, sizes[[id]], gains[[id]], tilts[[id]])), names(sizes))
-sizes
+knitr::kable(data.frame(participant = names(sizes), native_nodes = sizes,
+  noise_gain = gains, additional_direction = tilts), row.names = FALSE)
 ```
 
 These are ordinary single-participant objects: `plan_geometry()` sealed six
 estimands and read no data. `voxelwise()` is conservative by default, which is
-the gate section 1.3 enforces.
+the requirement checked by `plan_population()` below.
 
 ### 1.2 A transport is an input, and it is typed
 
@@ -122,9 +131,120 @@ transports <- stats::setNames(lapply(names(sizes), function(id)
 transports$s01
 ```
 
-Three things in that print are load-bearing.
+### 1.3 Fit on shared group nodes
 
-**The sink is a column, always.** The operator is `n × (m + 1)`, not `n × m`:
+```{r plan}
+plan <- plan_population(subjects, transports)
+plan
+```
+
+```{r plan-fields}
+c(
+  semantics = plan$semantics,
+  normalization = plan$normalization,
+  order = plan$fit$evaluation_order
+)
+plan$subject_index[, c("subject", "measurements", "declared_normalization",
+  "conserved", "sink_territory")]
+```
+
+```{r population-assert-1, include=FALSE}
+stopifnot(
+  all(plan$subject_index$conserved),
+  identical(plan$semantics, "budget"),
+  identical(plan$normalization, "none"),
+  identical(plan$fit$evaluation_order, "transport_then_fit"),
+  identical(plan$fit$commuting, TRUE),
+  identical(nrow(plan$group_index), 3L)
+)
+```
+
+Participants have different native frames, so transport first creates the
+shared node axis needed by the group model. The plan records this order.
+Section 2 checks that a fixed contrast query can be evaluated before or after
+the transport and group fit.
+
+### Estimate two group contrasts
+
+`estimate_population()` runs `query → transport → fit`: it contracts each
+participant's geometry against the bank first and carries **one number per node
+per query**.
+
+```{r estimate}
+bank <- rbind(`face-house` = c(1, -1, 0), `house-tool` = c(0, 1, -1))
+fit <- estimate_population(plan, bank)
+dim(fit$coefficients)
+dimnames(fit$coefficients)[c("query", "term")]
+fit$index
+```
+
+The coefficient array has axes **group node × query × model term**. Here the
+only term is the intercept, so each coefficient is the mean transported
+contrast across the six participants. The sink is retained as a fourth row.
+
+```{r first-estimates}
+knitr::kable(fit$coefficients[, , "(Intercept)"], digits = 3,
+  caption = "Group mean contrast evidence in budget units, including the sink.")
+```
+
+### Add a group covariate or check an unsupported input
+
+The conservative gate is the plan's headline refusal. A participant whose frame
+reports a density has no budget to partition, and the plan says so by name:
+
+```{r conservative-gate}
+loose <- subjects
+loose$s01 <- pop_subject("s01", sizes[["s01"]], gains[["s01"]],
+  normalization = "local")
+gate <- catch_refusal(plan_population(loose, transports))
+c(capability = gate$capability, reason = gate$reasons[[1L]])
+```
+
+```{r population-assert-2, include=FALSE}
+stopifnot(
+  identical(gate$capability, "conservative_subject_geometry"),
+  "normalization_not_conservative:s01:local" %in% gate$reasons,
+  any(grepl("allow_nonconservative", gate$remedies))
+)
+```
+
+The escape hatch exists, is named in the remedy, and is *recorded* — it enters
+the plan's scientific identity, because a non-conservative population estimand
+is a different estimand and not a relaxed setting on the same one.
+
+The group model is the last piece. It is one-sided, its rows bind to
+participants **by name** rather than by position, and it is factorized once on
+the plan:
+
+```{r group-model}
+covariates <- data.frame(
+  age = c(24, 31, 27, 44, 38, 22),
+  row.names = c("s02", "s01", "s04", "s03", "s06", "s05")
+)
+aged <- plan_population(subjects, transports, model = ~ age, data = covariates)
+aged$model$matrix
+```
+
+```{r population-assert-3, include=FALSE}
+stopifnot(
+  identical(aged$model$columns, c("(Intercept)", "age")),
+  identical(aged$model$rank, 2L),
+  identical(rownames(aged$model$matrix), names(sizes)),
+  # The shuffled `data` rows followed their participant, not their position.
+  identical(unname(aged$model$matrix[, "age"]), c(31, 24, 44, 27, 22, 38)),
+  # A different group model is a different estimand.
+  !identical(plan$scientific_plan_id, aged$scientific_plan_id)
+)
+```
+
+The subsequent analyses use the intercept-only `plan`, whose term is the
+group mean.
+
+### Transport options: unmapped territory, density, and learned alignment
+
+Three fields explain how a transport will treat the native map.
+
+**The sink is an accounting column.** The operator is `n × (m + 1)`, not `n × m`:
 group nodes plus one accounting column for native mass that reached no group
 node. It is materialized even when it is empty, so partial coverage is a number
 you read rather than budget that quietly went missing.
@@ -149,6 +269,9 @@ P <- rbind(
 carrier <- external_transport(P, semantics = "budget",
   provenance = list(details = "partial-volume warp, atlas-tool 2.1"))
 c(native = nrow(carrier$matrix), columns = ncol(carrier$matrix))
+```
+
+```{r population-assert-4, include=FALSE}
 stopifnot(
   identical(dim(carrier$matrix), c(4L, 3L)),
   identical(nrow(carrier$group_index), 2L),
@@ -169,6 +292,9 @@ c(
   closes = sum(carried) - sum(ledger),
   without_sink = sum(carried[c("anterior", "posterior")]) - sum(ledger)
 )
+```
+
+```{r population-assert-5, include=FALSE}
 stopifnot(
   abs(sum(carried) - sum(ledger)) <= 1e-12 * sum(abs(ledger)),
   abs(sum(carried[c("anterior", "posterior")]) - sum(ledger)) > 0.8
@@ -189,6 +315,9 @@ dense <- external_transport(P, semantics = "density",
 carried_density <- transport_values(dense, ledger)
 round(carried_density, 4)
 c(density_gap = sum(carried_density) - sum(ledger))
+```
+
+```{r population-assert-6, include=FALSE}
 stopifnot(abs(sum(carried_density) - sum(ledger)) > 1e-6)
 ```
 
@@ -206,12 +335,18 @@ refusal <- catch_refusal(external_transport(P, semantics = "budget",
   provenance = list(method = "functional",
     details = "hyperalignment on the analysis runs")))
 c(capability = refusal$capability, reason = refusal$reasons)
+```
+
+```{r population-assert-7, include=FALSE}
 stopifnot(
   inherits(refusal, "effect_capability_refusal"),
   identical(refusal$capability, "cross_fit_provenance"),
   identical(refusal$namespace, "location_transport"),
   identical(refusal$reasons, "cross_fit_partitions_not_declared")
 )
+```
+
+```{r population-resume-7}
 
 honest <- external_transport(P, semantics = "budget",
   provenance = list(method = "functional", details = "hyperalignment",
@@ -219,6 +354,9 @@ honest <- external_transport(P, semantics = "budget",
     cross_fit = c("run1", "run2"),
     cross_fit_folds = c("fold-A", "fold-B")))
 honest$provenance$conditioning
+```
+
+```{r population-assert-8, include=FALSE}
 stopifnot(
   identical(honest$provenance$cross_fit, c("run1", "run2")),
   identical(honest$provenance$conditioning$operator_status, "estimated"),
@@ -241,110 +379,20 @@ saw the responses, so it owes no cross-fit record — which is why the six
 carriers above passed without one — but it still declares the same conditional
 boundary for its fixed operator.
 
-### 1.3 `plan_population()`: the group estimand
+## 2. Why querying before or after the group fit agrees
 
-```{r plan}
-plan <- plan_population(subjects, transports)
-plan
-```
+The query combines experimental coordinates; transport combines spatial nodes;
+the group model combines participants. Under OLS with subject-constant weights,
+these linear operations commute wherever the relevant axes are shared. Native
+frames differ here, so transport must precede the group fit. The query can
+still be evaluated on either side of those operations.
 
-```{r plan-fields}
-c(
-  semantics = plan$semantics,
-  normalization = plan$normalization,
-  order = plan$fit$evaluation_order
-)
-plan$subject_index[, c("subject", "measurements", "declared_normalization",
-  "conserved", "sink_territory")]
-stopifnot(
-  all(plan$subject_index$conserved),
-  identical(plan$semantics, "budget"),
-  identical(plan$normalization, "none"),
-  identical(plan$fit$evaluation_order, "transport_then_fit"),
-  identical(plan$fit$commuting, TRUE),
-  identical(nrow(plan$group_index), 3L)
-)
-```
+### Check the transported values
 
-The evaluation order is **recorded, not chosen**. Participants have different
-native frames, so there is no common node axis to fit at before transporting:
-fit-then-transport is not definable here at all. Section 2 is about the orders
-that *are* definable.
-
-The conservative gate is the plan's headline refusal. A participant whose frame
-reports a density has no budget to partition, and the plan says so by name:
-
-```{r conservative-gate}
-loose <- subjects
-loose$s01 <- pop_subject("s01", sizes[["s01"]], gains[["s01"]],
-  normalization = "local")
-gate <- catch_refusal(plan_population(loose, transports))
-c(capability = gate$capability, reason = gate$reasons[[1L]])
-stopifnot(
-  identical(gate$capability, "conservative_subject_geometry"),
-  "normalization_not_conservative:s01:local" %in% gate$reasons,
-  any(grepl("allow_nonconservative", gate$remedies))
-)
-```
-
-The escape hatch exists, is named in the remedy, and is *recorded* — it enters
-the plan's scientific identity, because a non-conservative population estimand
-is a different estimand and not a relaxed setting on the same one.
-
-The group model is the last piece. It is one-sided, its rows bind to
-participants **by name** rather than by position, and it is factorized once on
-the plan:
-
-```{r group-model}
-covariates <- data.frame(
-  age = c(24, 31, 27, 44, 38, 22),
-  row.names = c("s02", "s01", "s04", "s03", "s06", "s05")
-)
-aged <- plan_population(subjects, transports, model = ~ age, data = covariates)
-aged$model$matrix
-stopifnot(
-  identical(aged$model$columns, c("(Intercept)", "age")),
-  identical(aged$model$rank, 2L),
-  identical(rownames(aged$model$matrix), names(sizes)),
-  # The shuffled `data` rows followed their participant, not their position.
-  identical(unname(aged$model$matrix[, "age"]), c(31, 24, 44, 27, 22, 38)),
-  # A different group model is a different estimand.
-  !identical(plan$scientific_plan_id, aged$scientific_plan_id)
-)
-```
-
-The rest of this article uses the intercept-only `plan`, whose single term is
-the group mean.
-
-## 2. Model then query is query then model
-
-This is the claim the layer rests on (§3). The query mixes **experimental**
-coordinates, the transport mixes **spatial** nodes, and the group fit mixes
-**participants**. Three different axes of the same array, so under the OLS
-default with subject-constant weights they commute — and the answer does not
-depend on the order you ran them in.
-
-`estimate_population()` runs `query → transport → fit`: it contracts each
-participant's geometry against the bank first and carries **one number per node
-per query**.
-
-```{r estimate}
-bank <- rbind(`face-house` = c(1, -1, 0), `house-tool` = c(0, 1, -1))
-fit <- estimate_population(plan, bank)
-dim(fit$coefficients)
-dimnames(fit$coefficients)[c("query", "term")]
-fit$index
-```
-
-### The check that is not a check
-
-Before the real one, the trap. Comparing `transport_values()` applied to a
-participant's own `contrast_energy()` against `fit$values` looks like a
-commutation test and is not: `contrast_energy()` lowers to exactly the packed
-operator the bank carries, so both sides are the *same call on the same
-numbers*. It is worth recording as what it is — evidence that the executor's
-plumbing does not rescale or reorder rows — and it is exactly zero, which is the
-tell.
+First compare the bank executor's participant values with individually queried
+and transported contrasts. This checks row alignment and scaling. Both routes
+use the same query operation, so agreement alone does not test a different
+order of evaluation.
 
 ```{r plumbing}
 one <- estimate_population(plan, rbind(`face-house` = c(1, -1, 0)))
@@ -354,10 +402,13 @@ plumbing <- max(vapply(names(plan$subjects), function(id) {
     one$values[, "face-house", id]))
 }, numeric(1)))
 c(executor_plumbing = plumbing)
+```
+
+```{r population-assert-9, include=FALSE}
 stopifnot(plumbing == 0)
 ```
 
-### The real order reversal
+### Reverse the query order
 
 `materialize_population()` runs the *other* order. It carries all six packed
 coordinates of the complete `3 × 3` form to the group nodes, fits the group
@@ -365,8 +416,8 @@ model at every one of them, and hands back a coefficient **form** per node. The
 `rdm()` view then contracts the (face, house) edge out of those coefficients —
 **afterwards**. That is `transport → fit → query`.
 
-The face − house contrast *is* that RDM edge. Two genuinely different sequences
-of arithmetic, one number.
+The face − house contrast is that RDM edge, so the two routes should agree
+at each group node.
 
 ```{r commutation}
 form <- materialize_population(plan)
@@ -376,7 +427,13 @@ node_ids <- as.character(fit$index$node)
 
 # One row per node: with a richer group model `rdm()` emits one row per node
 # per term, and `match()` would silently take the first.
+```
+
+```{r population-assert-10, include=FALSE}
 stopifnot(nrow(edge) == length(node_ids), !anyDuplicated(edge$node))
+```
+
+```{r population-resume-10}
 
 commutation <- max(abs(
   edge$estimate[match(node_ids, edge$node)] -
@@ -384,6 +441,9 @@ commutation <- max(abs(
 ))
 c(query_first = fit$basis, transport_first = form$basis)
 c(commutation = commutation)
+```
+
+```{r population-assert-11, include=FALSE}
 stopifnot(
   identical(fit$basis, "query_bank"),
   identical(form$basis, "complete_form"),
@@ -391,10 +451,9 @@ stopifnot(
 )
 ```
 
-`1e-12` is the tolerance §11 states for the commutation of query, transport and
-OLS under subject-constant weights. Unlike the plumbing check this one lands at
-a rounding scale rather than at exactly zero, because the two routes really are
-different arithmetic: one contraction before transport against six after it.
+The routes agree to the `1e-12` tolerance in §11. Their order of arithmetic
+differs: the first transports a queried value, while the second transports the
+complete form and queries the fitted result.
 
 This is what licenses the reader verbs. A population view is a fixed linear
 combination of estimated query columns, not a second execution — so
@@ -424,6 +483,9 @@ c(
   recorded = fit$receipt$budget$max_relative_deviation,
   recomputed = budget_deviation
 )
+```
+
+```{r population-assert-12, include=FALSE}
 stopifnot(
   isTRUE(fit$receipt$budget$asserted),
   identical(fit$receipt$budget$scale, "relative_to_ledger_l1_norm"),
@@ -432,8 +494,8 @@ stopifnot(
 )
 ```
 
-The sink is not a discarded remainder. Drop it and the identity breaks, by an
-amount that is a real number about a real failure of coverage:
+Removing the sink loses the evidence assigned to unmapped native territory.
+Compare the conservation gap with and without that row:
 
 ```{r sink}
 group_only <- apply(fit$values[!fit$index$sink, , , drop = FALSE],
@@ -444,6 +506,9 @@ c(
   without_sink = without_sink,
   sink_territory = max(plan$subject_index$sink_territory)
 )
+```
+
+```{r population-assert-13, include=FALSE}
 stopifnot(without_sink > 1e-3, all(plan$subject_index$sink_territory > 0))
 ```
 
@@ -460,6 +525,9 @@ column of unmapped mass.
 
 ```{r units}
 fit$index$units
+```
+
+```{r population-assert-14, include=FALSE}
 stopifnot(all(fit$index$units == "budget"))
 ```
 
@@ -476,6 +544,9 @@ diagnostics <- population_diagnostics(fit,
   material_change = 0.2)
 c(cells = nrow(diagnostics$cells), warnings = nrow(diagnostics$warnings))
 unique(diagnostics$sensitivity$target_status)
+```
+
+```{r population-assert-15, include=FALSE}
 stopifnot(
   identical(diagnostics$parent_result_id, fit$scientific_plan_id),
   all(diagnostics$associations$interpretation ==
@@ -498,6 +569,9 @@ decomposition <- population_decomposition(
   fit, coherent_fit, configuration_fit, estimator = "HC3")
 c(coefficient_gap = decomposition$max_coefficient_gap,
   covariance_gap = decomposition$direct_derived_total_covariance_gap)
+```
+
+```{r population-assert-16, include=FALSE}
 stopifnot(decomposition$max_coefficient_gap < 1e-10)
 ```
 
@@ -515,6 +589,9 @@ component_view <- population_component_view(decomposition, "(Intercept)",
 component_view$axis
 head(component_view$data[, c("component", "node", "estimate", "lower",
   "upper", "visual_magnitude")])
+```
+
+```{r population-assert-17, include=FALSE}
 stopifnot(
   component_view$axis$limits[[1]] == -component_view$axis$limits[[2]],
   identical(component_view$receipt$aggregation,
@@ -537,9 +614,17 @@ failed marginal target; see
 ```{r population-scale-profile}
 scale_profile <- population_scale_profile(decomposition, "(Intercept)",
   query = "face-house", interval = "HC3")
-scale_profile$interval
-head(scale_profile$data[, c("component", "node", "estimate", "lower",
-  "upper", "n", "fraction", "subject_set_id", "gap")])
+interval_record <- scale_profile$interval
+knitr::kable(data.frame(
+  field = c("Method", "Coverage", "Simultaneous coverage", "Calibration scope"),
+  value = c(interval_record$method, interval_record$semantics,
+    interval_record$simultaneous_coverage, interval_record$calibration_scope)
+))
+knitr::kable(head(scale_profile$data[, c("component", "node", "estimate",
+  "lower", "upper", "n", "fraction", "subject_set_id", "gap")]), digits = 3)
+```
+
+```{r population-assert-18, include=FALSE}
 stopifnot(
   identical(scale_profile$interval$semantics, "pointwise"),
   identical(scale_profile$receipt$interpolation,
@@ -557,6 +642,9 @@ diagnostic_view <- population_diagnostic_view(scale_profile, diagnostics,
   query = "face-house")
 names(diagnostic_view$panels)
 diagnostic_view$filters
+```
+
+```{r population-assert-19, include=FALSE}
 stopifnot(
   !anyNA(diagnostic_view$effect$support_key),
   identical(diagnostic_view$filters$operation,
@@ -579,6 +667,9 @@ het <- heterogeneity(plan, estimator = "cross_fit")
 c(estimator = het$estimator, space = het$space)
 c(residual_df = het$residual_df)
 round(het$spectrum, 3)
+```
+
+```{r population-assert-20, include=FALSE}
 stopifnot(
   identical(het$estimator, "cross_fit"),
   identical(het$space, "packed_form"),
@@ -598,6 +689,9 @@ c(
   moved_share = round(het$latent$moved_share, 4),
   n_eff = round(het$latent$n_eff, 3)
 )
+```
+
+```{r population-assert-21, include=FALSE}
 stopifnot(
   sum(het$spectrum < -1e-8) == 2L,
   identical(het$latent$negative_modes, 2L),
@@ -623,6 +717,9 @@ c(
   separation = round(max(abs(leading)) / max(abs(others)), 2),
   mode1_share = round(het$latent$cumulative[[1L]], 3)
 )
+```
+
+```{r population-assert-22, include=FALSE}
 stopifnot(
   identical(names(which.max(abs(leading))), "s06"),
   max(abs(leading)) > 4 * max(abs(others)),
@@ -646,6 +743,9 @@ rule:
 influence <- population_influence(decomposition, heterogeneity = het)
 head(influence$influence[, c("subject", "node", "query", "term",
   "component", "abs_delta", "primary_subject_set_id", "sink_territory")])
+```
+
+```{r population-assert-23, include=FALSE}
 stopifnot(
   identical(influence$heterogeneity$estimator, "cross_fit"),
   !any(influence$subject_provenance$transport_self_fit),
@@ -661,10 +761,9 @@ between-participant heterogeneity. The contract measures the consequence: over
 heterogeneity trace by **+62.7 %** (mean `tr Q^H` of `+17.61` against a true
 `+10.82`, predicted bias `+6.72` versus measured `+6.79`), while the
 cross-fitted estimator's bias is within one Monte Carlo standard error of zero
-(§6.2). That number is a property of the estimator, not of this fixture; one
-draw of a trace estimates nothing. What *this* fixture can show is the
-direction, and that the two Grams disagree about size while agreeing about
-direction.
+(§6.2). The bias mechanism is general; the 62.7 % magnitude belongs to that
+simulation's signal and noise regime. In this guide's single fixture, compare
+the trace estimates and the leading loading directions:
 
 ```{r plug-in}
 plug <- heterogeneity(plan, estimator = "plug_in")
@@ -673,6 +772,9 @@ c(
   plug_in_trace = round(sum(diag(plug$gram)), 3),
   mode1_agreement = round(abs(sum(het$loadings[, 1L] * plug$loadings[, 1L])), 4)
 )
+```
+
+```{r population-assert-24, include=FALSE}
 stopifnot(
   sum(diag(plug$gram)) > sum(diag(het$gram)),
   abs(sum(het$loadings[, 1L] * plug$loadings[, 1L])) > 0.99,
@@ -689,6 +791,9 @@ plug-in record carries no latent layer, and says why.
 ```{r plug-in-refusal}
 plug_refusal <- plug$receipt$latent_refusal
 c(capability = plug_refusal$capability, reasons = plug_refusal$reasons)
+```
+
+```{r population-assert-25, include=FALSE}
 stopifnot(
   is.null(plug$latent),
   identical(plug_refusal$capability, "plug_in_spectrum_functionals"),
@@ -697,7 +802,7 @@ stopifnot(
 )
 ```
 
-## 5. Two error bars, kept apart — and a count that is neither
+## 5. Uncertainty and descriptive prevalence
 
 ### 5.1 The between-subject layer
 
@@ -717,6 +822,9 @@ c(
   estimate_gap = max(abs(between$estimate[, , "(Intercept)"] - hand_estimate)),
   se_gap = max(abs(between$se[, , "(Intercept)"] - hand_se))
 )
+```
+
+```{r population-assert-26, include=FALSE}
 stopifnot(
   all(between$residual_df == 5L),
   max(abs(between$estimate[, , "(Intercept)"] - hand_estimate)) < 1e-12,
@@ -749,6 +857,9 @@ selected synthetic success into a universal guarantee.
 ```{r calibration}
 between$calibration
 c(level = between$level, t_max = round(max(abs(between$t), na.rm = TRUE), 3))
+```
+
+```{r population-assert-27, include=FALSE}
 stopifnot(identical(between$calibration, "uncalibrated"))
 ```
 
@@ -770,6 +881,9 @@ c(
   min_se_ratio = round(min(ratio, na.rm = TRUE), 3),
   max_se_ratio = round(max(ratio, na.rm = TRUE), 3)
 )
+```
+
+```{r population-assert-28, include=FALSE}
 stopifnot(
   identical(hc3$estimator, "HC3"),
   "heteroskedasticity_robust_sandwich" %in% hc3$assumptions,
@@ -802,6 +916,9 @@ wild <- population_wild_bootstrap(
 wild_table <- as.data.frame(wild)
 wild_table[, c("node", "query", "observed_t", "p_value",
   "monte_carlo_se", "successful_replicates", "status")]
+```
+
+```{r population-assert-29, include=FALSE}
 stopifnot(
   identical(dim(wild$weights), c(6L, 199L)),
   identical(rownames(wild$weights), fit$coverage$planned_subjects),
@@ -837,7 +954,7 @@ fixture arriving through the ingestion route. Group nodes sit on the native grid
 itself, so a four-node participant maps one-to-one; the five-node participant
 sends two native rows into the last group node.
 
-```{r within-fixture}
+```{r within-fixture, include=FALSE}
 wu_subject <- function(id, features, seed) {
   set.seed(seed)
   domain <- abstract_domain(features,
@@ -888,6 +1005,9 @@ within <- population_uncertainty(wfit)$within
 within$admitted
 c(scope = within$scope, assumption = within$assumption)
 c(admitted_columns = within$admitted_columns)
+```
+
+```{r population-assert-30, include=FALSE}
 stopifnot(
   identical(within$scope, "transported_single_source_column"),
   identical(within$assumption, "none: the cross-node terms carry weight zero"),
@@ -902,21 +1022,20 @@ stopifnot(
 )
 ```
 
-Where the column mixes native rows there is an **absence**, never a diagonal
-approximation standing in for the missing cross terms. Overlapping supports
-under spatially correlated noise are positively correlated, so a diagonal sum
-would under-estimate the variance in a known direction — worse than nothing.
-
-The six-participant population of sections 1 to 4 admits nothing at all: every
-group node there collects several native nodes. **That is the refusal being
-visible, not the layer being broken**, and it is the ordinary situation for a
-hard anatomical parcellation.
+A column that mixes native rows needs their cross-covariances. Omitting those
+terms can underestimate or overestimate variance, depending on their signs and
+the transport weights. The result therefore reports unavailable variance for
+those cells. In the six-participant example, every group node collects several
+native nodes, so none has an admitted within-participant variance.
 
 ### 5.3 The two are never pooled
 
 ```{r separation}
 uncertainty$layers
 uncertainty$separation
+```
+
+```{r population-assert-31, include=FALSE}
 stopifnot(
   identical(uncertainty$layers, c("between_subject", "within_subject")),
   # There is no field holding their sum, and `as.data.frame()` emits one
@@ -969,6 +1088,9 @@ named <- local({
   }
   flatten(prevalence[c("sign", "alignment", "coverage")])
 })
+```
+
+```{r population-assert-32, include=FALSE}
 stopifnot(
   identical(prevalence$layer, "latent_descriptive"),
   identical(prevalence$reading, "latent descriptive layer; not for inference"),
@@ -981,11 +1103,12 @@ stopifnot(
 )
 ```
 
-**A group node and query at which nothing reproduces reports a fraction near
-`0.5`, not near `0`.** Thresholding a signed crossvalidated estimate discards
-its magnitude and keeps its sign, and the sign is the noisy part; every
-participant contributes an independent coin flip. `$reference` carries that
-number so the comparison is not made against zero out of habit.
+The returned `$reference` uses `0.5` as a sign-balance comparison. This is a
+useful reference under a continuous, symmetric null distribution, not a
+universal null expectation: zero mean alone does not imply equal probabilities
+of positive and negative estimates. Shared partition products can produce
+asymmetric estimate distributions. Neither the observed positive fraction nor
+its distance from `0.5` is a prevalence test.
 
 Coverage is reported beside it, because a high prevalence at a node only a few
 participants reached is a different object from a high prevalence at a node they
@@ -994,6 +1117,9 @@ all reached:
 ```{r coverage}
 prevalence$coverage$minimum
 prevalence$coverage$below_floor
+```
+
+```{r population-assert-33, include=FALSE}
 stopifnot(
   identical(prevalence$coverage$floor, 6L),
   identical(prevalence$coverage$below_floor, "group3"),
@@ -1007,15 +1133,12 @@ beside the fraction — a fact about the realized transport, available before an
 of its numbers are interpreted, and explicitly a different target from the
 all-planned fit used earlier.
 
-## 6. What this article does not give you
+## 6. Boundaries of the group result
 
-**No calibrated group inference.** Section 5.1 is the whole story: the standard
-error is the group OLS's own and the `t` is arithmetically correct, but the
-recorded null simulation shows the interval losing coverage in exactly the
-regime a real population fit occupies — transport quality varying with the group
-covariates. Nothing in this package converts that `t` into a defensible
-p-value, and `population_prevalence()` is descriptive rather than an alternative
-route to one.
+**Calibration depends on the regime.** Classical, HC3, and wild-bootstrap
+outputs have the conditional interpretation described in section 5. They do
+not establish a marginal population claim under informative coverage.
+`population_prevalence()` remains descriptive.
 
 **No transport learning, and no registration.** §9.2 is a list of four things
 the package refuses and requires as typed input: image registration of any kind;
@@ -1036,13 +1159,16 @@ folds, included and excluded uncertainty, and the currently unimplemented
 ```{r ledger-names}
 c(total = fit$ledger,
   coherent = estimate_population(plan, bank, component = "coherent")$ledger)
+```
+
+```{r population-assert-34, include=FALSE}
 stopifnot(identical(fit$ledger, "transported_total"))
 ```
 
 **No cross-node sampling covariance**, and therefore no error bar on a conserved
-budget. Node estimates of an overlapping frame are strongly positively
-correlated; variances do not add. Section 5.2's carve-out is the whole of what
-exists.
+budget. Overlapping node estimates can have nonzero covariance; summing their
+variances omits these terms. Section 5.2 describes the supported single-node
+transport case.
 
 This absence does **not** block the ordinary unweighted population estimate.
 That OLS is performed across participants separately at each node and query; it
@@ -1058,6 +1184,9 @@ variance it would need is exactly the missing object above.
 weighted <- catch_refusal(plan_population(subjects, transports,
   normalization = "precision_weighted"))
 weighted$capability
+```
+
+```{r population-assert-35, include=FALSE}
 stopifnot(
   identical(weighted$capability, "precision_weighted_normalization"),
   "per_subject_budget_variance_unavailable" %in% weighted$reasons

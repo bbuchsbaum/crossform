@@ -68,11 +68,15 @@ rdm_matrix <- function(values, labels) {
 }
 ```
 
-This article makes one bounded claim: fixed contrast energy, pairwise
-crossvalidated squared distance, crossnobis under a declared precision, and a
-fixed linear RSA coefficient are linear queries of the same geometry. It does
-not say that every method called RSA, decoding, or multivariate inference is
-implemented by one formula.
+Why can one geometry plan return a contrast energy, an RDM and an RSA
+coefficient? Each is a fixed weighted reading of the same effect geometry.
+This guide derives that relationship, checks a small example, and compares
+the package outputs with independent calculations.
+
+Read the [introduction](introduction.html) first for the analysis workflow.
+Here the goal is to understand the algebra. The result covers fixed linear
+queries; nonlinear fitting and its independent evaluation are treated at the
+end.
 
 The normative derivation and exact independent implementation are
 [`design/common-geometry-equivalence.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/common-geometry-equivalence.md)
@@ -83,9 +87,9 @@ package internals or the oracle file.
 
 ## The theorem
 
-Let (B_r) be the effects-by-features matrix estimated in partition (r),
-(H) a fixed effect-side operator, (K) a fixed neural metric, and
-(\Gamma) the declared partition-pair weights. Define
+Let $B_r$ be the effects-by-features matrix estimated in partition $r$,
+$H$ a fixed effect-side operator, $K$ a fixed neural metric, and
+$\Gamma$ the declared partition-pair weights. Define
 
 \[
 G_K = \sum_{r,s} \Gamma_{rs} B_r K B_s^\top,
@@ -93,7 +97,10 @@ G_K = \sum_{r,s} \Gamma_{rs} B_r K B_s^\top,
 \mathcal E(H,K) = \langle H,G_K\rangle_F.
 \]
 
-Linearity of trace gives the equivalent direct expression
+The Frobenius inner product, $\langle H,G_K\rangle_F$, multiplies matching
+matrix entries and sums them. The operator $H$ therefore specifies which
+aspects of the geometry to read. Linearity of trace gives an equivalent
+expression in terms of the partition effects:
 
 \[
 \mathcal E(H,K)
@@ -103,13 +110,13 @@ Linearity of trace gives the equivalent direct expression
 
 Three substitutions give the familiar estimators.
 
-- A contrast (c) uses (H=cc^\top), so the output is (c^\top G_Kc).
-- An RDM entry for effects (i,j) uses (u_{ij}=e_i-e_j) and
-  (H=u_{ij}u_{ij}^\top). With a declared noise precision for (K), this is
+- A contrast $c$ uses $H=cc^\top$, so the output is $c^\top G_Kc$.
+- An RDM entry for effects $i,j$ uses $u_{ij}=e_i-e_j$ and
+  $H=u_{ij}u_{ij}^\top$. With a declared noise precision for $K$, this is
   crossnobis.
-- A fixed OLS RSA coefficient uses the row (a_\ell^\top) of
-  ((X^\top X)^{-1}X^\top) and the RDM adjoint
-  (H=\mathcal D^*(a_\ell)=\sum_{i<j}a_{\ell,ij}u_{ij}u_{ij}^\top).
+- A fixed OLS RSA coefficient uses the row $a_\ell^\top$ of
+  $(X^\top X)^{-1}X^\top$ and the RDM adjoint
+  $H=\mathcal D^*(a_\ell)=\sum_{i<j}a_{\ell,ij}u_{ij}u_{ij}^\top$.
 
 The equalities concern the estimand. Crossnobis additionally needs independent
 evaluated partitions and an honestly fixed or cross-fitted precision. RSA
@@ -136,7 +143,7 @@ geometry <- oracle_geometry(blocks, gamma, metric)
 knitr::kable(geometry, digits = 3, caption = "Generated common geometry")
 ```
 
-The pairwise squared distances are generated from (u^\top G_Ku). The direct
+The pairwise squared distances are generated from $u^\top G_Ku$. The direct
 court below independently expands every partition, effect, and feature index.
 
 ```{r hand-rdm}
@@ -160,7 +167,7 @@ knitr::kable(hand_rdm, digits = 15)
 ```
 
 Now fit a fixed linear RSA model to the generated RDM. The same coefficients
-are recovered by compiling each coefficient row back into an (H) operator.
+are recovered by compiling each coefficient row back into an $H$ operator.
 
 ```{r hand-rsa}
 rsa_design <- cbind(`(Intercept)` = 1, category = c(1, 0, 1))
@@ -208,17 +215,18 @@ stopifnot(
 )
 ```
 
-The hidden assertions above run the public `crossnobis()`, `rdm()`, and
-`rsa()` paths against the direct oracle. A build stops if any mapping differs.
+The public `crossnobis()`, `rdm()`, and `rsa()` results also agree with these
+direct calculations to the declared tolerance of `1e-12`; this is checked
+when the article runs.
 
 ## Randomized production-to-oracle evidence
 
-The hand case is exact but small. This bounded generated court changes blocks,
-SPD metrics, contrasts, and RSA models across replayable seeds. The oracle is
-the explicit matrix definition above; the candidate is the public package
-path.
+The same comparison can be repeated with different effect estimates, positive
+definite metrics, contrasts and model RDMs. The following summary compares
+six generated cases against the explicit matrix definition above. The full
+calculation remains in this vignette's R source.
 
-```{r randomized-court}
+```{r randomized-court, include=FALSE}
 run_case <- function(seed) {
   set.seed(seed)
   q <- 4L
@@ -286,8 +294,14 @@ randomized_summary <- data.frame(
   declared_tolerance = 5e-10,
   passes = max(court_errors) <= 5e-10
 )
-knitr::kable(randomized_summary, digits = 15)
 stopifnot(all(randomized_summary$passes))
+```
+
+```{r randomized-results, echo=FALSE}
+knitr::kable(
+  randomized_summary[c("cases", "worst_absolute_error", "declared_tolerance")],
+  digits = 15, col.names = c("Cases", "Largest absolute error", "Tolerance")
+)
 ```
 
 The package test court extends this article with rank-deficient PSD metrics,
@@ -298,13 +312,13 @@ and their independent oracle link above.
 
 ## External differential evidence
 
-The external court uses a deterministic six-condition, four-run fixture, a
+The external comparison uses a deterministic six-condition, four-run fixture, a
 fixed non-spherical pooled-residual precision, local support normalization,
 and pinned Python packages. It compares the same RDM vector and fixed OLS RSA
 coefficients to `rsatoolbox`. The table is read from the generated package
 certification artifact; no result is typed into this article.
 
-```{r external-parity}
+```{r external-parity, echo=FALSE}
 parity_candidates <- c(
   file.path("..", "inst", "extdata", "certification",
             "common-geometry-external-parity.csv"),
@@ -324,7 +338,14 @@ external_summary <- external_parity[
   c("rsatoolbox_version", "quantity", "comparator", "n_values",
     "max_abs_diff", "tolerance", "passes")
 ]
-knitr::kable(external_summary, digits = 15)
+external_display <- external_summary[c("quantity", "n_values", "max_abs_diff", "tolerance")]
+external_display$quantity <- c("Crossnobis distances", "OLS RSA coefficients")[
+  match(external_display$quantity, c("crossnobis_rdm", "linear_rsa_coefficients"))]
+knitr::kable(external_display, digits = 15, row.names = FALSE,
+  col.names = c("Quantity", "Entries", "Largest absolute error", "Tolerance"),
+  caption = paste("Fixed-estimand parity against rsatoolbox",
+    paste(unique(external_summary$rsatoolbox_version), collapse = ", ")))
+
 stopifnot(all(external_parity$passes))
 ```
 
@@ -340,76 +361,24 @@ revalidated.
 This generated table separates an algebraic mapping from the extra assumptions
 that license a familiar estimator name.
 
-```{r claim-table, results='asis'}
+```{r claim-table, results='asis', echo=FALSE}
 claim_table <- data.frame(
-  estimator = c(
-    "Fixed bilinear contrast energy",
-    "Pairwise crossvalidated squared-distance RDM",
-    "Crossnobis RDM",
-    "Fixed multiple-regression RSA coefficient",
-    "Correlation/cosine RDM or RSA",
-    "Spearman/Kendall RSA",
-    "Adaptive classifier, kernel, or embedding"
+  Estimator = c(
+    "Contrast energy", "Crossvalidated squared-distance RDM", "Crossnobis RDM",
+    "Multiple-regression RSA coefficient", "Correlation/cosine RDM or RSA",
+    "Spearman/Kendall RSA", "Adaptive classifier, kernel, or embedding"
   ),
-  H = c(
-    "`c c^T`",
-    "`u_ij u_ij^T`",
-    "`u_ij u_ij^T`",
-    "`D*(a_l)`",
-    "No fixed `H` in general",
-    "No fixed `H`",
-    "No fixed `H`"
+  `Mapping and requirements` = c(
+    "`H = c c^T`: fixed contrast, metric and partition weights; centering is needed for translation invariance.",
+    "`H = u_ij u_ij^T`: zero-sum pair differences, fixed metric, declared normalization and independent cross-partition estimates.",
+    "Same pair operator, with fixed or honestly cross-fitted noise precision and independent cross-partition estimates.",
+    "`H = D*(a_l)`: fixed full-rank OLS design, pair order, intercept and model scaling; inherits the source geometry's metric and partition weights.",
+    "Observed-pattern normalization is nonlinear; there is no fixed H in general.",
+    "Ranking is nonlinear and depends on the tie policy.",
+    "The operator is learned from evaluated data; the training rule changes the estimand."
   ),
-  K = c(
-    "Declared fixed metric",
-    "Declared fixed metric",
-    "Fixed or honestly cross-fitted noise precision",
-    "Same declared metric as the source RDM",
-    "Data-dependent norm",
-    "Any, followed by ranks",
-    "Learned from evaluated data"
-  ),
-  Gamma = c(
-    "Declared partition weights",
-    "Independent cross-partition weights",
-    "Independent cross-partition weights",
-    "Inherited unchanged from the source geometry",
-    "Not sufficient to linearize",
-    "Not sufficient to linearize",
-    "Data-adaptive"
-  ),
-  preprocessing_assumptions = c(
-    "Fixed contrast; centering only when translation invariance is claimed",
-    "Zero-sum pair differences; declared normalization",
-    "Same plus fixed/cross-fitted precision provenance",
-    "Fixed full-rank OLS design, pair order, intercept, and model scaling",
-    "Observed-pattern normalization is nonlinear",
-    "Ranking is nonlinear and tie policy matters",
-    "Training rule is part of a different estimand"
-  ),
-  output = c(
-    "Scalar contrast energy",
-    "One signed squared-distance estimate per pair",
-    "Noise-normalized signed squared-distance estimate",
-    "One scalar coefficient per fixed model term",
-    "Normalized dissimilarity/similarity",
-    "Rank association",
-    "Prediction or learned representation"
-  ),
-  evidence = c(
-    "Algebra + exact/randomized/adversarial courts",
-    "Algebra + exact/randomized/adversarial courts",
-    "Same courts + pinned external parity",
-    "Adjoint proof + same courts + pinned external parity",
-    "Explicit boundary/refusal",
-    "Explicit boundary/refusal",
-    "Explicit boundary only"
-  ),
-  status = c(
-    rep("Equivalent special case", 4L),
-    rep("Outside this theorem", 3L)
-  ),
-  stringsAsFactors = FALSE
+  Scope = c(rep("Equivalent special case", 4L), rep("Outside this theorem", 3L)),
+  check.names = FALSE
 )
 knitr::kable(claim_table, escape = FALSE)
 ```

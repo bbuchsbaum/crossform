@@ -1,7 +1,7 @@
 ---
 title: "Reading contrast energies, RDMs, and uncertainty"
 description: >
-  What each returned column means, how to read negatives and the coherence fraction, the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame, and how to read a real map when no ground truth marks the answer.
+  Interpret signed energies, coherent shares, RDMs, RSA coefficients and predictive gain, with worked examples of frame dependence and uncertainty.
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Reading contrast energies, RDMs, and uncertainty}
@@ -19,10 +19,10 @@ knitr::opts_chunk$set(
 library(crossform)
 ```
 
-This article introduces no new statistics. It is about reading the numbers the
-package already returns: what each column means, three ways a reader can be
-misled by the coherence fraction, and how to read a map when nothing marks the
-right answer. Everything below runs on the generated fixture, which plants two
+Use this guide after the [introduction](introduction.html) to interpret the
+numbers returned by a geometry plan. Start with the contrast columns, then
+follow the section relevant to your result: coherent shares, an exploratory
+map, RDMs, fixed RSA coefficients, predictive gain or uncertainty. Everything below runs on the generated fixture, which plants two
 blocks of equal amplitude at opposite ends of the volume — one whose sign
 alternates between neighboring voxels, one that shifts every voxel the same
 way — so each half of the energy decomposition has a known home.
@@ -48,8 +48,9 @@ c(
 )
 ```
 
-The two blocks are the same size and never touch the same searchlight, so
-every comparison below between them is a comparison of sign structure alone.
+The two blocks have equal planted amplitude and size, and their searchlights
+do not overlap. This controlled comparison lets us examine spatial sign
+structure while keeping those factors fixed.
 
 ## The four columns of a contrast view
 
@@ -103,8 +104,7 @@ stopifnot(
 Equal amplitude, equal block size, near-equal `total` — and opposite
 decompositions. The pattern block's energy is almost all `configuration`: a
 shape that reproduces across runs while the sphere's average barely moves,
-which is why its `signed` value is close to zero and a univariate contrast
-would find nothing there. The mean block's energy is almost all `coherent`,
+which is why its `signed` value is close to zero and its signed regional-mean contrast is small. The mean block's energy is almost all `coherent`,
 and its `signed` value is large, because the whole neighborhood shifts
 together.
 
@@ -115,9 +115,10 @@ next.
 
 ### Negatives are estimates, not errors
 
-Each energy is a product of estimates from two different runs. Under the null
-its expectation is zero, so roughly half the sampling distribution lies below
-zero.
+Each energy combines products of estimates from different runs. With
+independent, unbiased partition estimates, its expectation is zero under the
+null. Negative estimates are therefore legitimate. Zero expectation alone does
+not imply that positive and negative values are equally likely.
 
 ```{r negatives}
 c(
@@ -129,12 +130,10 @@ c(
 )
 ```
 
-Do not truncate them. Clipping at zero replaces an unbiased estimator with a
-positively biased one, and the bias is largest exactly where there is no
-effect — which is where a thresholded map does its talking. If you average
-energies over an ROI, over participants, or over searchlights, average the
-signed values. The negatives are what makes the average come out at zero when
-nothing is there.
+Keep the negative values in summaries. Clipping them at zero introduces
+positive bias, including where the true effect is absent. An average over
+prespecified measurements or participants should use the signed estimates;
+selecting only positive values changes the quantity being summarized.
 
 ## The coherence fraction and its validity flag
 
@@ -160,42 +159,41 @@ c(
 )
 ```
 
-The gate is not fussiness. A ratio of two quantities that can each be negative
-is not a share of anything: it can exceed 1, or be negative, or flip sign
-under an arbitrarily small change in the denominator. Rather than print such
-a number, the package withholds it. `NA` here means "this measurement has no
+Outside this gate the ratio can leave [0, 1], and a denominator near zero
+makes it unstable. The package therefore withholds it. `NA` here means "this measurement has no
 interpretable coherent share", not "missing data".
 
-Nor is the gate a signal detector. The peak of the pattern block above is the
-strongest measurement in the entire map and it is one of these `NA`s: an
-effect that is genuinely all configuration has nothing left over to form a
-nonnegative pair with.
+The gate is not a test for signal. The strongest pattern-block measurement
+above has an `NA` share because its coherent estimate is slightly negative,
+even though its total energy is large.
 
 The three sections below are the caveats that matter once you start reporting
 those fractions.
 
 ## Trap (a): the coherent share shrinks as the sphere grows
 
-The coherent share falls as a searchlight grows, with no change in the
-underlying neural data. It is worth being exact about *why*, because the
-obvious explanation is the wrong one.
+Changing the radius changes the spatial quantity being measured, even when
+the neural data stay fixed. In this example, a larger sphere dilutes a fixed
+block of mean-shift signal with surrounding voxels.
 
-It is not dimension counting. A larger sphere does give the configuration
-subspace more dimensions while the coherent subspace stays one-dimensional,
-but these are *crossvalidated* energies: extra noise dimensions add variance
-to the configuration estimate, not expectation. A configuration remainder over
-pure noise is centered on zero however many dimensions it spans. Counting
-dimensions cannot move a share whose numerator and denominator are both
-unbiased.
+A simple noise-free case explains the effect. Suppose a fraction $f$ of a
+uniformly weighted, locally normalized support carries contrast $a$, and the
+rest carries zero. Then
 
-What moves it is dilution of the weighted mean. The coherent component is the
-energy of the contrast carried by one average pattern, and that average runs
-over the whole support. Grow the sphere around a fixed block of signal and the
-block's share of the weighted support falls; the weighted mean's contrast
-falls with it, and the coherent energy — a squared quantity — falls with the
-square of that share. The configuration remainder keeps the block's departure
-from a mean that is now nearly zero, so it does not fall. The ratio slides
-because its numerator is being averaged away.
+\[
+\mathrm{total}=a^2 f,\qquad
+\mathrm{coherent}=a^2 f^2,\qquad
+\mathrm{configuration}=a^2 f(1-f).
+\]
+
+The coherent share is $f$. Enlarging the support lowers that share as the
+signal occupies less of it. Configuration need not stay constant; it is the
+remainder after the squared local mean is removed.
+
+Extra noise dimensions can change variability and which noisy ratios pass
+the validity gate. They do not, by themselves, add positive expected
+crossvalidated energy. Read the radius sweep as a change in the declared
+measurement, not as a count of neural dimensions.
 
 ```{r sphere-size}
 radii <- c(2, 3, 4.5, 6)
@@ -262,7 +260,7 @@ stopifnot(
 ```
 
 The coherent energy is almost a deterministic function of the squared planted
-share. The configuration energy is not. That is dilution, not dimensionality.
+share. The configuration energy is not. This is the dilution mechanism predicted by the simple mean-shift example.
 
 At radius 2 every support is a single voxel, so the weighted mean *is* the
 pattern and the fraction is exactly 1 by construction — in both blocks. It
@@ -361,16 +359,14 @@ stopifnot(
 
 Identical voxels, identical data, different numbers — but not equally
 different. The mean block's coherent energy barely moves: a shift that is the
-same in every voxel is the same shift under any nonnegative weights. The
-pattern block's coherent energy halves, because there it is not a signal at
-all. It is whatever failed to cancel, and how much fails to cancel is decided
-entirely by the weights. Both totals move.
+same in every voxel is the same shift under any nonnegative weights. The pattern block's coherent energy roughly halves because its alternating
+signal cancels differently under the two weightings. Both are valid weighted
+projections of the same spatial pattern. Both totals move.
 
 This is not instability: each frame defines a different, well-specified
 estimand, and the plan records which one you asked for. It does mean that "the
 coherent component" is not a property of the brain region. It is a property of
-the region *and* the weights you chose to average it with — and the smaller
-the coherent component, the more of it belongs to the weights.
+the region *and* the weights you chose to average it with.
 
 ## Trap (c): reported fractions are a selected sample
 
@@ -423,8 +419,8 @@ stopifnot(
 )
 ```
 
-Both blocks clear the gate at about the same rate, so the selection is not
-about which kind of effect you have; it is about having one. Under a quarter
+In this fixture, both blocks clear the gate at similar rates. That need not
+hold for every signal shape or noise regime. Under a quarter
 of the remaining measurements report a fraction, on noise alone. The result is
 that the average fraction "over the map" is really an average over a set that
 is 70% planted signal. That is fine if you say so, and misleading if you do
@@ -447,13 +443,14 @@ same picture tells you when nothing is marked.
 plot(effect)
 ```
 
-### The band at zero is the noise floor, and it comes free
+### Zero is a reference, not a threshold
 
-A crossvalidated energy is a product of estimates from two different
-partitions, so its expectation is zero wherever nothing reproduces. You do not
-have to model that floor or estimate it from a separate null run. It is already
-in the map, underneath your candidates, and about half of it is below the line
-because the negatives were kept.
+Independent, unbiased partition estimates give null energy an expectation of
+zero. That provides a useful reference line. It does not tell you which
+locations are null, how variable their estimates are, or what threshold
+controls false positives across the map.
+
+Here the generated truth lets us examine measurements without planted signal:
 
 ```{r floor-known}
 quiet <- setdiff(seq_along(effect$total), example$truth$signal_measurements)
@@ -466,8 +463,9 @@ round(c(
 ), 4)
 ```
 
-That used the truth. You can get close without it, because in a typical map the
-floor is the majority and a robust summary is dominated by it:
+Without the truth, the median and MAD summarize the observed map. Their
+meaning depends on its mixture of signal and noise; they are not automatically
+estimates of a null distribution:
 
 ```{r floor-blind}
 round(c(
@@ -485,11 +483,10 @@ stopifnot(
 )
 ```
 
-The blind median lands near the true floor's center, and both sit under 0.3% of
-the peak. The blind MAD is more than twice the floor's true spread, because 37%
-of these measurements carry planted signal — two blocks, not one — and inflate
-it. That is the right direction for a scale you are going to eyeball against,
-but it is a description, not an estimate of a null.
+In this fixture the blind median lies near the known null center, while the
+MAD is more than twice the standard deviation of the known null measurements.
+The two signal blocks occupy 37% of the map and affect that summary. A different
+signal prevalence or spatial noise pattern could change both comparisons.
 
 ### Candidates, not findings
 
@@ -511,22 +508,15 @@ stopifnot(
 )
 ```
 
-`crossform` deliberately gives you no way to turn that shoulder into a finding.
-There is no threshold, selected-peak p-value, permutation null, or spatial
-random-field correction in this single-participant view. Population inference
-requires a separate declared population plan and does not retroactively
-calibrate this selected map. The README's **Status and scope** section says so,
-and the failure gallery
-([online](failure-gallery.html), or `vignette("failure-gallery")` offline)
-treats manufactured uncertainty as an error to guard against. Measurements
-standing clear of the floor are **candidates**. What you may legitimately do
-with them:
+A visible shoulder is useful for exploration, but this view supplies no
+spatial threshold or selected-peak p-value. A population analysis has its own
+declared target and assumptions; it does not retroactively calibrate this map.
+Treat selected locations as candidates for further study:
 
-- **Say what kind of effect each one is.** The coherent/configuration split is
-  descriptive, not inferential, so it costs you nothing to read: a candidate
-  high in configuration is a reproducible pattern, one far along the coherent
-  axis is a regional mean that a univariate contrast would also have found.
-  This map has both, at opposite ends of the volume, with the same amplitude.
+- **Describe its estimated composition.** High configuration attributes more
+  estimated energy to departures from the local mean; high coherent energy
+  attributes more to that mean. Selection can exaggerate either component,
+  so the description does not establish replication.
 - **Attach a within-measurement standard error at a measurement you chose in
   advance**, using `rdm_sampling_covariance()` with `target = "null"` — and
   only if the relation kept its residual channel, which means fitting with
@@ -534,14 +524,13 @@ with them:
 - **Take the candidates somewhere else**: a held-out session, an independent
   dataset, or a group-level analysis performed outside this package.
 
-### The error bar at the peak is not an error bar
+### A pointwise error bar does not account for peak selection
 
-One trap deserves naming, because the package makes it easy to walk into. If
-you find `peak <- which.max(effect$total)` and then report a standard error at
-`peak`, that interval describes a measurement you selected *because* it was
-extreme. The estimate is conditioned on being the largest; the standard error
-is not. Every number in this article that uses `peak` is illustrative for that
-reason, not a result.
+If you find `peak <- which.max(effect$total)` and then report a standard error at
+`peak`, the pointwise standard error does not account for having chosen an extreme
+estimate. An interval formed from it need not retain its nominal coverage
+after selection. The peak summaries here illustrate the fixture; they do not
+perform inference for a selected location.
 
 Specify the measurement in advance, or treat the peak as a candidate and estimate it
 somewhere you did not select it.
@@ -595,8 +584,9 @@ stopifnot(
 )
 ```
 
-Only `contrast_energy()` separates coherent from configuration. If the
-distinction matters to your question, the RDM is not where you will find it.
+The total RDM alone cannot distinguish those spatial organizations. Use
+`contrast_energy()` for a contrast decomposition; `rdm()` also accepts a
+`component` when you want distances from a particular spatial component.
 
 ## Reading RSA coefficients
 
@@ -609,16 +599,11 @@ colnames(category$coefficients)
 round(category$coefficients[peak, ], 4)
 ```
 
-There are two columns for one model because an **intercept is fitted by
-default**. Keep it. Not because the distances need an offset removed — they
-are unbiased as they stand, which is the whole point of the cross-partition
-pairing — but because the *regression* has a level of its own. Every
-measurement has some mean signed distance across its pairs, and that mean is a
-property of how far apart the conditions sit there, not evidence for the shape
-your model RDM predicts. The intercept absorbs it as a nuisance level. Drop
-it and the fit is forced through the origin, so the model coefficient has to
-account for the mean as well as the shape, and a searchlight where everything
-is far from everything scores high on any model RDM with a positive mean.
+There are two columns because an **intercept is fitted by default**. It absorbs
+the overall level of signed distances, letting the model slope describe their
+relationship after accounting for that level. Without an intercept, the slope
+must explain both level and shape: uniformly large distances can increase the
+coefficient of a positive-valued model even when its shape matches poorly.
 
 ```{r rsa-nointercept}
 no_intercept <- rsa(
@@ -738,7 +723,7 @@ If the relation cannot support the analytic law, the package says so with a
 classed condition rather than returning a plausible-looking number. Ask
 before provoking:
 
-```{r refusal-setup}
+```{r refusal-setup, include=FALSE}
 set.seed(3)
 conditions <- c("a", "b", "c")
 domain <- volume_domain(array(1L, c(4, 4, 3)), spacing = c(3, 3, 3))
@@ -757,7 +742,15 @@ beta_plan <- plan_geometry(
                           generalizes_over = "run")
 )
 
-sampling_capabilities(beta_plan, beta_only)
+```
+
+```{r inspect-capabilities}
+capabilities <- sampling_capabilities(beta_plan, beta_only)
+capabilities$available
+```
+
+```{r capability-remedies, echo=FALSE}
+knitr::kable(capabilities$reasons[c("reason", "remedy")])
 ```
 
 A relation built only from precomputed beta matrices has no residuals and no
@@ -768,15 +761,13 @@ anyway yields a refusal you can inspect as data:
 refusal <- catch_refusal(
   rdm_sampling_covariance(beta_plan, beta_only, target = "null", at = 1)
 )
-class(refusal)
 refusal$capability
 refusal$reasons
-refusal$remedies
 ```
 
-"Refused" does not mean "not implemented". It means the specific claim you
-asked for is not supported by the evidence you supplied, and the condition
-carries every unmet requirement with a concrete remedy. The point estimates —
+Here the refusal identifies missing statistical information. Other refusals
+can identify unsupported operations; read `$reasons` and `$remedies` to tell
+which requirement failed. The point estimates —
 `contrast_energy()`, `rdm()`, `rsa()` — remain perfectly valid on such a
 relation; only the error bar is withheld.
 

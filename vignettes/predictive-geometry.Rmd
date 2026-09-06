@@ -19,6 +19,12 @@ prediction on independent runs. `fit_geometry()` learns a low-rank PSD form;
 `score_geometry()` measures its signed predictive gain over a zero-geometry
 prediction. A fitted dimension can help or harm prediction.
 
+The [introduction](introduction.html) explains relations, frames and geometry
+plans. Here a **form** is a condition-by-condition inner-product matrix. A
+positive-semidefinite (PSD) form assigns nonnegative energy to every contrast;
+it describes the fitted prediction. The signed crossvalidated geometry used
+to fit and score it can have negative eigenvalues.
+
 This example uses four conditions, two neural features and four runs. Its
 values are deterministic so that the score can be checked exactly. In an
 analysis, the matrices would contain your independently estimated effects.
@@ -26,8 +32,10 @@ The first pair of runs trains the prediction; the second pair evaluates it.
 
 ## Declare the model and the observations
 
-The model has two centered, orthonormal directions with strengths 0.6 and
-0.4. Its kernel is the inner-product matrix of its features.
+The model distinguishes face from body and house from tool. These two
+contrasts form centered, orthonormal directions: each has length one and
+they are mutually orthogonal. Their model strengths are 0.6 and 0.4.
+The kernel `K` records inner products among the four conditions.
 
 ```{r model-input}
 condition_names <- c("face", "body", "house", "tool")
@@ -152,11 +160,18 @@ stopifnot(score_geometry(zero_fit, test_plan)$table$gain == 0)
 
 ## Choose what the prediction is allowed to learn
 
-The `rank` in `model_basis()` limits dimensions admitted from each model.
-The `rank` in `fit_geometry()` limits dimensions of the learned neural
-prediction. The penalty makes amplitude in weak model directions more
-expensive. Setting it to zero keeps only the model span; an unregularized
-full-span fit is therefore labelled a generic baseline.
+There are two rank choices and one penalty:
+
+| Choice | What it controls |
+|---|---|
+| `model_basis(rank = ...)` | Dimensions retained from each supplied model |
+| `fit_geometry(rank = ...)` | Maximum dimensions in the learned neural prediction |
+| `fit_geometry(penalty = ...)` | How strongly weak model directions are discouraged |
+
+At zero penalty, only the model span matters. If that span covers the whole
+centered condition space, the model imposes no directional preference and the
+fit is labelled a generic baseline. A positive penalty preserves preferences
+from the model eigenvalues, even when the span is full.
 
 Choose model ranks, weights, response rank and penalty before final
 evaluation, or select them using inner validation contained entirely within
@@ -170,6 +185,8 @@ the penalty, then retains the largest positive eigenvalues within the rank
 budget. It never first clips the neural geometry. This objective differs
 from `rsa()`'s fixed linear regression on RDM entries and from the descriptive
 trace energies returned by `model_geometry()`.
+
+### How the model controls the fit
 
 More precisely, let $K_\alpha = \sum_i \alpha_i K_{i,r_i}$ be the weighted
 sum of the retained, normalized model kernels. In its positive eigenspace,
@@ -187,6 +204,8 @@ The package transforms each partition's effects into reduced coordinates
 before accumulating geometry, so fitting does not require a complete
 condition-by-condition neural form. Compressed residual diagnostics describe
 that reduced problem; they do not identify a whole-geometry explained fraction.
+
+### Starting with squared distances
 
 If you start with an RDM, declare that its entries are **squared** Euclidean
 distances. The same model in this example can be supplied as follows:
@@ -235,6 +254,8 @@ Prediction on new conditions needs a training-defined model transformation
 and a cross-kernel; it is outside this interface. Generic RDM/GLS losses and
 learned neural metric schedules are also outside the current spectral path.
 
+## Read the spatial components with the same prediction
+
 For a total-geometry prediction, `components = TRUE` retains coherent and
 configuration inner products read with the same frozen form. Their evidence
 adds before subtracting the prediction cost once. Separately fitting each
@@ -261,6 +282,8 @@ are each 2. Twice their sum is 8; subtracting the fitted squared norm of 5
 once gives the same gain of 3. These component inner products describe how
 the frozen prediction reads the two spatial forms. They are not two
 independently fitted predictive scores.
+
+## Larger analyses and next steps
 
 For many measurements, use a declared workspace budget and, with the
 implicit identity neural metric, `storage = "block"`. Supply a new directory
