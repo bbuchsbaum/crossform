@@ -138,7 +138,11 @@ test_that("every crossform function the README executes is core-tier", {
 
   # The README is supposed to *demonstrate* the core spine, not merely avoid
   # leaving it, so require that it exercises a real slice of it.
-  expect_gt(length(executed), 10L)
+  expect_true(all(c(
+    "example_fmri_effects", "plan_geometry", "cross_partitions",
+    "contrast_energy", "rdm", "rsa", "rdm_sampling_covariance",
+    "sampling_covariance"
+  ) %in% executed))
 })
 
 test_that("the embedded tier vectors still match the ledger's shape", {
