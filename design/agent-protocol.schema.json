@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:crossform:scientific-state-v1",
+  "title": "Minimum scientific-state interchange; proposed protocol",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "example_only", "artifact", "science", "implementation", "ancestry", "capabilities", "diagnostics", "actions", "evidence"],
+  "properties": {
+    "contract_version": {"const": "scientific-state-v1"},
+    "example_only": {"type": "boolean"},
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "completion", "parents", "identity"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["source", "plan", "fit", "prediction", "evidence", "view", "claim", "receipt"]},
+        "completion": {"enum": ["not_run", "partial", "complete", "failed"]},
+        "parents": {"$ref": "#/$defs/strings"},
+        "identity": {
+          "type": "object", "additionalProperties": false,
+          "required": ["scientific", "estimator", "inputs", "implementation", "execution", "content"],
+          "properties": {
+            "scientific": {"$ref": "#/$defs/maybeString"},
+            "estimator": {"$ref": "#/$defs/maybeString"},
+            "inputs": {"$ref": "#/$defs/maybeString"},
+            "implementation": {"$ref": "#/$defs/maybeString"},
+            "execution": {"$ref": "#/$defs/maybeString"},
+            "content": {"$ref": "#/$defs/maybeString"}
+          }
+        }
+      }
+    },
+    "science": {
+      "type": "object", "additionalProperties": false,
+      "required": ["quantity_id", "units", "generalizes_over", "baseline", "conditioning", "axes", "aggregation", "uncertainty_scope"],
+      "properties": {
+        "quantity_id": {"type": "string", "minLength": 1},
+        "units": {"type": "string"},
+        "generalizes_over": {"$ref": "#/$defs/strings"},
+        "baseline": {"$ref": "#/$defs/maybeString"},
+        "conditioning": {"$ref": "#/$defs/strings"},
+        "axes": {"$ref": "#/$defs/strings"},
+        "aggregation": {"type": "string"},
+        "uncertainty_scope": {"type": "string"}
+      }
+    },
+    "implementation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "source_refs", "numerical_tests_run"],
+      "properties": {
+        "status": {"enum": ["proposed", "implemented_unverified", "verified_scoped", "unavailable", "stale"]},
+        "source_refs": {"$ref": "#/$defs/strings"},
+        "numerical_tests_run": {"type": "boolean"}
+      }
+    },
+    "ancestry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["training_origins", "evaluation_origins", "upstream_origins", "independence", "outcome_exposure"],
+      "properties": {
+        "training_origins": {"$ref": "#/$defs/strings"},
+        "evaluation_origins": {"$ref": "#/$defs/strings"},
+        "upstream_origins": {"$ref": "#/$defs/strings"},
+        "independence": {"enum": ["asserted", "contradicted", "unknown", "not_required"]},
+        "outcome_exposure": {"enum": ["untouched_asserted", "exposed", "unknown", "not_applicable"]}
+      }
+    },
+    "capabilities": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "status", "reasons", "scope"],
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"enum": ["eligible", "refused", "unknown", "proposed"]},
+          "reasons": {"$ref": "#/$defs/strings"},
+          "scope": {"type": "string"}
+        }
+      }
+    },
+    "diagnostics": {"$ref": "#/$defs/strings"},
+    "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+    "evidence": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["claim_id", "status", "refs", "boundary", "invalidates_on"],
+        "properties": {
+          "claim_id": {"type": "string"},
+          "status": {"enum": ["proposed", "recorded_unverified", "verified_scoped", "invalidated", "refuted"]},
+          "refs": {"$ref": "#/$defs/strings"},
+          "boundary": {"type": "string"},
+          "invalidates_on": {"$ref": "#/$defs/strings"}
+        }
+      }
+    },
+    "extensions": {"type": "object"}
+  },
+  "$defs": {
+    "strings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "maybeString": {"type": ["string", "null"]},
+    "action": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "entry_point", "input_ids", "reads", "writes", "fits", "exposes_outcomes", "changes_estimand", "authorization", "resource", "reason", "remedy", "postconditions"],
+      "properties": {
+        "id": {"type": "string"},
+        "status": {"enum": ["proposed", "runnable", "refused", "completed"]},
+        "entry_point": {"$ref": "#/$defs/maybeString"},
+        "input_ids": {"$ref": "#/$defs/strings"},
+        "reads": {"$ref": "#/$defs/strings"},
+        "writes": {"$ref": "#/$defs/strings"},
+        "fits": {"type": "boolean"},
+        "exposes_outcomes": {"type": "boolean"},
+        "changes_estimand": {"type": "boolean"},
+        "authorization": {"enum": ["read_only", "already_authorized", "required"]},
+        "resource": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "planned_fit_count", "peak_bytes", "assumptions"],
+          "properties": {
+            "status": {"enum": ["unknown", "estimated", "measured"]},
+            "planned_fit_count": {"type": ["integer", "null"], "minimum": 0},
+            "peak_bytes": {"type": ["integer", "null"], "minimum": 0},
+            "assumptions": {"$ref": "#/$defs/strings"}
+          }
+        },
+        "reason": {"$ref": "#/$defs/maybeString"},
+        "remedy": {"$ref": "#/$defs/maybeString"},
+        "postconditions": {"$ref": "#/$defs/strings"}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "runnable"}}}, "then": {"properties": {"entry_point": {"type": "string", "minLength": 1}}}},
+        {"if": {"properties": {"status": {"const": "refused"}}}, "then": {"properties": {"reason": {"type": "string", "minLength": 1}, "remedy": {"type": "string", "minLength": 1}}}}
+      ]
+    }
+  }
+}

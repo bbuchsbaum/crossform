@@ -1,0 +1,295 @@
+[
+  {
+    "contract_version": "scientific-state-v1",
+    "example_only": true,
+    "artifact": {
+      "id": "example:local-query",
+      "kind": "plan",
+      "completion": "not_run",
+      "parents": [],
+      "identity": {
+        "scientific": null,
+        "estimator": null,
+        "inputs": null,
+        "implementation": null,
+        "execution": null,
+        "content": null
+      }
+    },
+    "science": {
+      "quantity_id": "local_restricted_predictive_loss",
+      "units": "squared target units",
+      "generalizes_over": [
+        "run"
+      ],
+      "baseline": "outer-training target mean",
+      "conditioning": [
+        "frozen whole-brain task subspace"
+      ],
+      "axes": [
+        "observation_id",
+        "response_id",
+        "region_id"
+      ],
+      "aggregation": "pooled observations; unweighted responses",
+      "uncertainty_scope": "none"
+    },
+    "implementation": {
+      "status": "implemented_unverified",
+      "source_refs": [
+        "bbuchsbaum/rMVPA@7c93f8d:R/pattern_result.R"
+      ],
+      "numerical_tests_run": false
+    },
+    "ancestry": {
+      "training_origins": [],
+      "evaluation_origins": [],
+      "upstream_origins": [],
+      "independence": "unknown",
+      "outcome_exposure": "unknown"
+    },
+    "capabilities": [
+      {
+        "name": "local_restricted_prediction",
+        "status": "refused",
+        "reasons": [
+          "fold_fits_not_retained"
+        ],
+        "scope": "Example of missing retention, not an executed analysis"
+      }
+    ],
+    "diagnostics": [
+      "Illustrative protocol payload; no human observations or numerical results."
+    ],
+    "actions": [
+      {
+        "id": "example:local",
+        "status": "refused",
+        "entry_point": "rMVPA::local_performance",
+        "input_ids": [
+          "example:global-result"
+        ],
+        "reads": [
+          "fold fits",
+          "assessment region columns"
+        ],
+        "writes": [],
+        "fits": false,
+        "exposes_outcomes": true,
+        "changes_estimand": false,
+        "authorization": "required",
+        "resource": {
+          "status": "unknown",
+          "planned_fit_count": 0,
+          "peak_bytes": null,
+          "assumptions": [
+            "Existing fold fits are required; they are absent in this example."
+          ]
+        },
+        "reason": "fold_fits_not_retained",
+        "remedy": "Recover compatible retained fits or explicitly plan a training-only rerun with retention; do not infer local predictions from global predictions.",
+        "postconditions": [
+          "Regional covariance is marginalized, not cropped precision."
+        ]
+      }
+    ],
+    "evidence": []
+  },
+  {
+    "contract_version": "scientific-state-v1",
+    "example_only": true,
+    "artifact": {
+      "id": "example:bridge",
+      "kind": "plan",
+      "completion": "not_run",
+      "parents": [],
+      "identity": {
+        "scientific": null,
+        "estimator": null,
+        "inputs": null,
+        "implementation": null,
+        "execution": null,
+        "content": null
+      }
+    },
+    "science": {
+      "quantity_id": "geometry_predictive_gain",
+      "units": "squared geometry units",
+      "generalizes_over": [
+        "run"
+      ],
+      "baseline": "zero geometry",
+      "conditioning": [
+        "frozen external geometry prediction"
+      ],
+      "axes": [
+        "effect_left_id",
+        "effect_right_id",
+        "measurement_id"
+      ],
+      "aggregation": "fixed frozen prediction scored against signed independent partition-pair geometry",
+      "uncertainty_scope": "none"
+    },
+    "implementation": {
+      "status": "proposed",
+      "source_refs": [
+        "design/pattern-model-interop-plan.md"
+      ],
+      "numerical_tests_run": false
+    },
+    "ancestry": {
+      "training_origins": [],
+      "evaluation_origins": [],
+      "upstream_origins": [],
+      "independence": "unknown",
+      "outcome_exposure": "unknown"
+    },
+    "capabilities": [
+      {
+        "name": "external_frozen_prediction_adapter",
+        "status": "proposed",
+        "reasons": [
+          "adapter_not_implemented"
+        ],
+        "scope": "I1 design"
+      }
+    ],
+    "diagnostics": [
+      "Illustrative protocol payload; no human observations or numerical results."
+    ],
+    "actions": [
+      {
+        "id": "example:implement-I1",
+        "status": "proposed",
+        "entry_point": null,
+        "input_ids": [],
+        "reads": [
+          "public fit/score contracts"
+        ],
+        "writes": [
+          "review branch only"
+        ],
+        "fits": false,
+        "exposes_outcomes": false,
+        "changes_estimand": false,
+        "authorization": "required",
+        "resource": {
+          "status": "unknown",
+          "planned_fit_count": null,
+          "peak_bytes": null,
+          "assumptions": []
+        },
+        "reason": "adapter_not_implemented",
+        "remedy": "Implement I1 and pass the independent conformance tests before advertising a runnable action.",
+        "postconditions": [
+          "No forged private fit class."
+        ]
+      }
+    ],
+    "evidence": []
+  },
+  {
+    "contract_version": "scientific-state-v1",
+    "example_only": true,
+    "artifact": {
+      "id": "example:confirmation-overlap",
+      "kind": "plan",
+      "completion": "not_run",
+      "parents": [
+        "example:discovery-fit",
+        "example:confirmation-source"
+      ],
+      "identity": {
+        "scientific": null,
+        "estimator": null,
+        "inputs": null,
+        "implementation": null,
+        "execution": null,
+        "content": null
+      }
+    },
+    "science": {
+      "quantity_id": "confirmed_forward_loading",
+      "units": "brain response per fixed task-score unit",
+      "generalizes_over": [
+        "run"
+      ],
+      "baseline": null,
+      "conditioning": [
+        "frozen discovery task basis",
+        "declared nuisance design"
+      ],
+      "axes": [
+        "feature_id",
+        "task_component_id"
+      ],
+      "aggregation": "mass regression on confirmation observations with a declared error model",
+      "uncertainty_scope": "requested block inference, refused"
+    },
+    "implementation": {
+      "status": "implemented_unverified",
+      "source_refs": [
+        "bbuchsbaum/rMVPA@7c93f8d:R/pattern_inference.R"
+      ],
+      "numerical_tests_run": false
+    },
+    "ancestry": {
+      "training_origins": [
+        "origin:run1"
+      ],
+      "evaluation_origins": [
+        "origin:run1"
+      ],
+      "upstream_origins": [],
+      "independence": "contradicted",
+      "outcome_exposure": "exposed"
+    },
+    "capabilities": [
+      {
+        "name": "independent_confirmation",
+        "status": "refused",
+        "reasons": [
+          "overlapping_training_evaluation_origins"
+        ],
+        "scope": "Shared origin cannot become independent by renaming it."
+      }
+    ],
+    "diagnostics": [
+      "Illustrative protocol payload; no human observations or numerical results."
+    ],
+    "actions": [
+      {
+        "id": "example:confirm",
+        "status": "refused",
+        "entry_point": "rMVPA::pattern_confirm",
+        "input_ids": [
+          "example:discovery-fit",
+          "example:confirmation-source"
+        ],
+        "reads": [
+          "frozen discovery basis and ancestry",
+          "confirmation measurements and target design"
+        ],
+        "writes": [],
+        "fits": true,
+        "exposes_outcomes": true,
+        "changes_estimand": false,
+        "authorization": "required",
+        "resource": {
+          "status": "unknown",
+          "planned_fit_count": null,
+          "peak_bytes": null,
+          "assumptions": [
+            "No fit may run while discovery and confirmation origins overlap."
+          ]
+        },
+        "reason": "overlapping_training_evaluation_origins",
+        "remedy": "Use genuinely independent eligible observations, or explicitly retain this analysis as exploratory without a confirmation claim.",
+        "postconditions": [
+          "No promotion of exploratory results to independent confirmation."
+        ]
+      }
+    ],
+    "evidence": []
+  }
+]
