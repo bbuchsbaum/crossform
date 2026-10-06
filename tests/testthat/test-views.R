@@ -165,6 +165,55 @@ test_that("thin QR coefficient maps equal the dense-identity oracle", {
   expect_identical(dim(got), c(ncol(design), nrow(design)))
 })
 
+test_that("thin QR coefficient map rows are named in design order", {
+  set.seed(2026100601L)
+  design <- cbind(
+    intercept = 1,
+    weak = stats::rnorm(50L, sd = 0.01),
+    strong = stats::rnorm(50L, sd = 10)
+  )
+  # LAPACK QR pivots full-rank columns, so the stored column names are in
+  # pivoted order.
+  decomposition <- qr(design, LAPACK = TRUE)
+  expect_false(identical(decomposition$pivot, seq_len(ncol(design))))
+  got <- crossform:::.thin_qr_coefficient_map(decomposition)
+  oracle <- qr.coef(decomposition, diag(nrow(design)))
+
+  expect_identical(rownames(got), colnames(design))
+  expect_equal(got, oracle[colnames(design), ], tolerance = 1e-10,
+    ignore_attr = TRUE)
+})
+
+test_that("a bare model and a bare nuisance RDM do not collide on names", {
+  fixture <- view_geometry_fixture()
+  model <- unname(as.matrix(dist(seq_len(4))))
+  nuisance <- matrix(c(
+    0, 0, 1, 1,
+    0, 0, 1, 1,
+    1, 1, 0, 0,
+    1, 1, 0, 0
+  ), 4, 4, byrow = TRUE)
+  got <- rsa(fixture$geometry, models = model, nuisance = nuisance)
+  expect_identical(got$terms$role, c("intercept", "model", "nuisance"))
+  expect_identical(colnames(got$coefficients),
+    c("(Intercept)", "model", "nuisance"))
+})
+
+test_that("rdm() accepts normalize = FALSE as no normalization", {
+  fixture <- view_geometry_fixture()
+  expect_equal(rdm(fixture$geometry, normalize = FALSE)$values,
+    rdm(fixture$geometry)$values, tolerance = 0)
+  expect_s3_class(
+    catch_refusal(rdm(fixture$geometry, normalize = "correlation")),
+    "effect_capability_refusal"
+  )
+})
+
+test_that("tile starts are empty for an empty axis", {
+  expect_identical(crossform:::.tile_starts(0L, 4L), integer())
+  expect_identical(crossform:::.tile_starts(5L, 2L), c(1L, 3L, 5L))
+})
+
 test_that("named RSA axes align by experimental identity", {
   fixture <- view_geometry_fixture()
   model <- as.matrix(dist(seq_len(4)))

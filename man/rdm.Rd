@@ -31,7 +31,7 @@ report, by effect name or index. The default reports every unordered
 pair. Selected pairs execute without materializing the remaining
 geometry: the RDM is a view, not a mandatory intermediate object.}
 
-\item{normalize}{Must be omitted. Correlation-style diagonal normalization
+\item{normalize}{Must be omitted (or \code{FALSE}). Correlation-style diagonal normalization
 of a signed cross-generalized form is refused: crossvalidated diagonals
 can be zero or negative, so \code{1 - r} here is not conventional Pearson
 distance. The boundary is documented in the correlation-distance policy.}

@@ -171,3 +171,34 @@ test_that("rectangular plans refuse what their contract does not cover", {
     "pair_query"
   , class = "effect_input_error")
 })
+
+test_that("rectangular compiler memory plans size q_left * q_right coordinates", {
+  fixture <- rectangular_fixture()
+  left <- fixture$encoding
+  # A wider right side (q_right = 3 > (q_left + 1) / 2) must cost more than
+  # the packed symmetric q(q+1)/2 width.
+  wide_right <- relation(
+    fixture$encoding_sources,
+    effects = effect_space(c("enc_face", "enc_house", "enc_tool"),
+      basis_id = "rect:wide"),
+    domain = fixture$domain
+  )
+  requirements <- crossform:::.component_requirements(NULL, "total")
+  plan_for <- function(right_relation, width) {
+    crossform:::.compiler_memory_plan(left, fixture$frame, compute_policy(),
+      6L, 6L, 6L, width, "memory", requirements,
+      right_relation = right_relation)
+  }
+  m <- nrow(fixture$frame$weights)
+  symmetric <- plan_for(NULL, 6L)
+  rectangular <- plan_for(wide_right, 9L)
+  expect_equal(symmetric$categories[["atom_block"]], 6 * 6 * 8)
+  expect_equal(rectangular$categories[["atom_block"]], 6 * 9 * 8)
+  expect_equal(rectangular$categories[["local_state"]],
+    (m * 3 * 2 + m * 3 * 2) * 8)
+  expect_gt(rectangular$planned_workspace_bytes,
+    symmetric$planned_workspace_bytes)
+  narrow <- plan_for(fixture$retrieval, 6L)
+  expect_equal(narrow$categories[["local_state"]],
+    (m * 3 * 2 + m * 2 * 2) * 8)
+})

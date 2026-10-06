@@ -264,7 +264,7 @@ contrast_energy.default <- function(x, weights, remove_univariate = FALSE,
 #'   report, by effect name or index. The default reports every unordered
 #'   pair. Selected pairs execute without materializing the remaining
 #'   geometry: the RDM is a view, not a mandatory intermediate object.
-#' @param normalize Must be omitted. Correlation-style diagonal normalization
+#' @param normalize Must be omitted (or `FALSE`). Correlation-style diagonal normalization
 #'   of a signed cross-generalized form is refused: crossvalidated diagonals
 #'   can be zero or negative, so `1 - r` here is not conventional Pearson
 #'   distance. The boundary is documented in the correlation-distance policy.
@@ -339,7 +339,7 @@ rdm <- function(x, ...) UseMethod("rdm")
 rdm.default <- function(x, component = c("total", "coherent", "configuration"),
                         pairs = NULL, normalize = NULL, ...) {
   .check_no_extra_arguments("rdm", ...)
-  if (!is.null(normalize)) {
+  if (!is.null(normalize) && !isFALSE(normalize)) {
     .capability_refusal(paste0(
       "`rdm()` reports signed squared distances and will not apply ",
       "correlation-style normalization: crossvalidated diagonal estimates ",
@@ -385,7 +385,12 @@ rdm.default <- function(x, component = c("total", "coherent", "configuration"),
 .validate_rdm_models <- function(models, effects, label) {
   q <- length(effects)
   if (is.null(models)) return(list())
-  if (is.matrix(models)) models <- list(model = models)
+  # A bare matrix is named after its role, so a single model and a single
+  # nuisance RDM never collide on one coefficient name.
+  if (is.matrix(models)) {
+    models <- stats::setNames(list(models),
+      if (identical(label, "models")) "model" else label)
+  }
   if (!is.list(models) || length(models) < 1L) {
     .input_error(sprintf(paste0(
       "`%s` must be one dissimilarity matrix or a nonempty named list of ",
@@ -567,7 +572,10 @@ rdm.default <- function(x, component = c("total", "coherent", "configuration"),
   pivoted <- backsolve(r, t(q))
   out <- matrix(0, nrow(pivoted), ncol(pivoted))
   out[qr_design$pivot, ] <- pivoted
-  dimnames(out) <- list(colnames(qr_design$qr), NULL)
+  # `qr$qr` stores its columns in pivoted order; the rows of `out` are in
+  # design order, so their names are un-pivoted too.
+  dimnames(out) <- list(
+    colnames(qr_design$qr)[order(qr_design$pivot)], NULL)
   out
 }
 
@@ -1145,9 +1153,27 @@ geometry_spectrum <- function(x,
     groups <- droplevels(values)
     return(list(groups = groups, keys = levels(groups)))
   }
-  levels <- as.character(sort(unique(values)))
-  groups <- factor(as.character(values), levels = levels)
-  list(groups = groups, keys = values[match(levels, as.character(values))])
+  # Group on the raw values: two distinct doubles can print alike at 15
+  # significant digits (0.3 and 0.1 + 0.2), so the printed form is only a
+  # label, and a clash between labels is resolved without merging groups.
+  keys <- sort(unique(values))
+  labels <- .distinct_group_labels(keys, as.character(keys))
+  groups <- factor(match(values, keys), levels = seq_along(keys),
+    labels = labels)
+  list(groups = groups, keys = keys)
+}
+
+# Printable labels for distinct group keys, made distinct themselves. A
+# numeric clash is first reprinted at full precision; anything still equal
+# (a composite key whose `::` join is ambiguous, say) gets a numeric suffix.
+.distinct_group_labels <- function(keys, labels) {
+  if (!anyDuplicated(labels)) return(labels)
+  if (is.numeric(keys)) {
+    clash <- labels %in% labels[duplicated(labels)]
+    labels[clash] <- sprintf("%.17g", keys[clash])
+  }
+  if (anyDuplicated(labels)) labels <- make.unique(labels, sep = "#")
+  labels
 }
 
 .contribution_group_sums <- function(values, rows) {
@@ -1173,7 +1199,8 @@ geometry_spectrum <- function(x,
 # it would be a verbatim copy, and the grouping's name is on the print line and
 # in `$metadata$aggregation$aggregated_by` either way.
 .contribution_index <- function(label, keys, rows) {
-  index <- data.frame(measurement = as.character(keys),
+  labels <- if (is.null(names(rows))) as.character(keys) else names(rows)
+  index <- data.frame(measurement = labels,
     stringsAsFactors = FALSE, check.names = FALSE)
   typed <- !is.character(keys) && !is.factor(keys)
   if (typed && !identical(label, "measurement")) index[[label]] <- keys
@@ -1382,7 +1409,7 @@ contribution.default <- function(x, by, using = NULL, ...) {
   receipt <- .projection_receipt(
     x$receipt,
     .contribution_scientific_id(x$receipt$scientific_plan_id,
-      resolved$label, grouped$keys)
+      resolved$label, levels(grouped$groups))
   )
   metadata <- if (is.list(x$metadata)) x$metadata else list()
   metadata$scientific_plan_id <- NULL
@@ -1703,12 +1730,24 @@ contribution.default <- function(x, by, using = NULL, ...) {
         .msg_count(length(values), "measurement")),
       expected = "one group label for every measurement")
   }
-  labels <- do.call(paste, c(
-    lapply(columns, .coherence_spectrum_key_strings), list(sep = "::")
-  ))
+  # Group on the raw key tuples (exact integer codes per column), never on
+  # their printed form: distinct doubles can print alike at 15 digits, and a
+  # `::` join of strings can collide. The printed form is only the label.
+  codes <- lapply(columns, function(values) match(values, unique(values)))
+  tuple <- do.call(paste, c(codes, list(sep = "\r")))
   ordering <- do.call(order, unname(columns))
-  levels <- unique(labels[ordering])
-  list(groups = factor(labels, levels = levels), keys = levels)
+  first <- ordering[!duplicated(tuple[ordering])]
+  parts <- lapply(seq_along(columns), function(position) {
+    distinct <- unique(columns[[position]])
+    strings <- .distinct_group_labels(distinct,
+      .coherence_spectrum_key_strings(distinct))
+    strings[codes[[position]][first]]
+  })
+  labels <- .distinct_group_labels(NULL,
+    do.call(paste, c(parts, list(sep = "::"))))
+  groups <- factor(match(tuple, tuple[first]), levels = seq_along(first),
+    labels = labels)
+  list(groups = groups, keys = labels)
 }
 
 # One row per group: the composite key under `measurement` (which is what
