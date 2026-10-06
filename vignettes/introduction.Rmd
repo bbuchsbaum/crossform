@@ -521,13 +521,13 @@ variance questions, and the package will not pick one for you.
   zero-effect null. It is exact there, so prefer it whenever the standard error
   is referenced to a test of no effect.
 - `target = "plugin"`, used above, substitutes the partition mean of the
-  *estimates* for the unknown signal. That substitution biases the signal term
-  upward, by an amount that shrinks like one over the squared number of
-  partitions and is largest when noise dominates the true distances. Use it
-  when reporting uncertainty around an estimated nonzero distance, and read it
-  as mildly conservative.
+  *estimates* for the unknown signal. Taken at face value that substitution
+  biases the signal term upward by as much as the whole noise term, so
+  crossform subtracts the bias exactly and clamps the corrected signal at
+  zero. Use it when reporting uncertainty around an estimated nonzero
+  distance.
 
-`?rdm_sampling_covariance` states the bias term exactly.
+`?rdm_sampling_covariance` states the correction exactly.
 
 The result is a within-searchlight covariance under an equal-partition,
 fixed-metric, separable error model. It is not a cross-location random-field

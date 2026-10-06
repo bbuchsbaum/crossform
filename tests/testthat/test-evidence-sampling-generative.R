@@ -65,8 +65,9 @@ test_that("null and plug-in targets have explicitly different calibration", {
   )) <= 1.96 * signal$plugin_se)
 
   expect_true(all(null_coverage > 0.92 & null_coverage < 0.98))
-  # The partition-mean plug-in target is intentionally reported as a distinct,
-  # mildly conservative policy rather than silently called exact 95% coverage.
+  # The bias-corrected plug-in clamps its signal Gram at zero, which leaves it
+  # slightly conservative where signal is weak; it is reported as a distinct
+  # policy rather than silently called exact 95% coverage.
   expect_true(all(plugin_coverage > 0.95 & plugin_coverage < 0.995))
 })
 

@@ -658,9 +658,11 @@ round(rbind(distance = distances$values[peak, ],
   the unknown signal. It tracks the actual distances — large where the
   distance is large, and back down toward the null value for the two
   within-category pairs — which is what you want when reporting an error bar
-  around a nonzero estimate. It is **biased upward**, by a term that shrinks
-  like 1/M² in the number of partitions and is largest when noise dominates
-  the true distances, so read it as mildly conservative. See
+  around a nonzero estimate. Taken at face value the partition mean carries
+  its own noise into the signal term, an upward bias as large as the whole
+  noise term; crossform subtracts that bias exactly and clamps the corrected
+  signal at zero, so the result is unbiased wherever nothing is clamped and
+  conservative where the signal is indistinguishable from noise. See
   `?rdm_sampling_covariance` for the exact expression.
 
 Both targets share one estimated ingredient: the residual covariance
@@ -681,9 +683,10 @@ c(residual_df = covariance$source$residual_df,
   ))
 ```
 
-A large support bought with few runs runs out of residual information, and
-when \(\nu\) falls below \(P_{\text{eff}}\) the call refuses rather than
-reporting a confidently small number.
+The correction stays ratio-consistent even when \(P_{\text{eff}}\) exceeds
+\(\nu\), so a large support is admitted; the call refuses only when
+\(\nu < 2\), where the correction is undefined, or when the corrected noise
+trace is not positive.
 
 There is no default. Choosing one silently would mean the same function
 reported two different quantities depending on context.
