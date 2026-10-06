@@ -68,3 +68,33 @@ test_that("observation-model identity binds sampling and whitener values", {
   expect_error(crossform:::.validate_observation_model(tampered),
     "inconsistent", class = "effect_contract_error")
 })
+
+test_that("full-axis non-diagonal whiteners restrict to the retained-row GLS", {
+  n <- 8L
+  rho <- 0.6
+  sigma <- rho^abs(outer(seq_len(n), seq_len(n), "-"))
+  whitener <- t(solve(chol(sigma)))
+  expect_equal(crossprod(whitener), solve(sigma), tolerance = 1e-10)
+  model <- observation_model("fixed_gls", "scan", whitener = whitener)
+  retained <- c(1L, 2L, 4L, 5L, 7L, 8L)
+  restricted <- crossform:::.observation_model_for_partitions(
+    model, "run1", c(run1 = n), list(run1 = retained)
+  )$whiteners$run1
+
+  x <- cbind(1, seq(-1, 1, length.out = n))[retained, , drop = FALSE]
+  y <- sin(seq_len(n))[retained]
+  sigma_r <- sigma[retained, retained]
+  gls <- solve(t(x) %*% solve(sigma_r) %*% x, t(x) %*% solve(sigma_r) %*% y)
+  whitened <- qr.solve(restricted %*% x, restricted %*% y)
+  expect_equal(as.numeric(whitened), as.numeric(gls), tolerance = 1e-10)
+  expect_equal(crossprod(restricted), solve(sigma_r), tolerance = 1e-10)
+  naive <- whitener[retained, retained]
+  expect_false(isTRUE(all.equal(crossprod(naive), solve(sigma_r))))
+
+  diagonal <- diag(seq(0.5, 1.2, length.out = n))
+  restricted_diag <- crossform:::.observation_model_for_partitions(
+    observation_model("fixed_gls", "scan", whitener = diagonal),
+    "run1", c(run1 = n), list(run1 = retained)
+  )$whiteners$run1
+  expect_identical(restricted_diag, diagonal[retained, retained])
+})

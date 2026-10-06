@@ -173,9 +173,13 @@ relation <- function(sources, extract = NULL, effects = NULL,
       arg = "sources", received = .msg_value(sources),
       expected = "one matrix, or a nonempty named list of them")
   }
-  if (is.null(partitions)) partitions <- names(sources)
-  if (is.null(partitions) || any(!nzchar(partitions))) {
-    partitions <- paste0("partition", seq_along(sources))
+  # Default names are supplied only when no source is named. A partial or
+  # blank naming is refused below rather than silently renamed.
+  if (is.null(partitions)) {
+    partitions <- names(sources)
+    if (is.null(partitions) || all(is.na(partitions) | !nzchar(partitions))) {
+      partitions <- paste0("partition", seq_along(sources))
+    }
   }
   if (!.is_strings(partitions, unique = TRUE) ||
       length(partitions) != length(sources)) {

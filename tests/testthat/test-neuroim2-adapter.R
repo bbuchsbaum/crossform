@@ -20,6 +20,24 @@ test_that("neuroim2 volume domains preserve full indices and spacing", {
     "^sha256:[[:xdigit:]]{64}$")
 })
 
+test_that("neuroim2 space identity hashes geometry, not serialization bytes", {
+  mask <- make_neuroim2_mask(active = c(1L, 2L, 6L, 55L))
+  space <- neuroim2::space(mask)
+  domain <- neuroim2_volume_domain(mask)
+  expected <- crossform:::.sha256_signature(list(
+    dim = as.integer(dim(space)),
+    spacing = as.numeric(neuroim2::spacing(space)),
+    origin = as.numeric(neuroim2::origin(space)),
+    trans = unname(matrix(as.numeric(neuroim2::trans(space)),
+      nrow = nrow(neuroim2::trans(space))))
+  ))
+  expect_identical(domain$metadata$neuroim2_space_sha256, expected)
+  moved <- neuroim2_volume_domain(make_neuroim2_mask(
+    spacing = c(2, 2, 4), active = c(1L, 2L, 6L, 55L)
+  ))
+  expect_false(identical(moved$metadata$neuroim2_space_sha256, expected))
+})
+
 test_that("neuroim2 neighborhoods map exactly into compact frame columns", {
   mask <- make_neuroim2_mask()
   domain <- neuroim2_volume_domain(mask)

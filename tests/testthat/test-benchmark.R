@@ -31,6 +31,19 @@ test_that("allocation benchmark emits a complete evidence record", {
     "sampled_only_until_child_process_runner_attaches_os_peak")
 })
 
+test_that("the benchmark fixture leaves the caller's RNG state untouched", {
+  scenario <- crossform:::.memory_benchmark_scenarios()[1, ]
+  set.seed(99)
+  before <- get(".Random.seed", envir = globalenv())
+  crossform:::.run_memory_benchmark_case(scenario)
+  expect_identical(get(".Random.seed", envir = globalenv()), before)
+  expect_false(exists("%||%", envir = asNamespace("crossform"),
+    inherits = FALSE))
+  expect_identical(crossform:::.first_present_or(character(), "y"), "y")
+  expect_identical(crossform:::.first_present_or(NA_character_, "y"), "y")
+  expect_identical(crossform:::.first_present_or("x", "y"), "x")
+})
+
 test_that("OS peak RSS parser recognizes GNU and macOS time formats", {
   expect_equal(
     crossform:::.parse_os_peak_rss(

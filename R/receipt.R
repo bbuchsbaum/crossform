@@ -230,7 +230,9 @@ execution_receipt <- function(scientific_plan_id, compute, sources, memory,
       !identical(names(x$cleanup), c("attempted", "success", "message")) ||
       !.is_flag(x$cleanup$attempted) || !is.logical(x$cleanup$success) ||
       length(x$cleanup$success) != 1L ||
-      !(is.na(x$cleanup$success) || !is.na(x$cleanup$success)) ||
+      # An attempted cleanup must report whether it succeeded; only a cleanup
+      # that was never attempted may leave its outcome unknown (NA).
+      (x$cleanup$attempted && is.na(x$cleanup$success)) ||
       !(is.null(x$cleanup$message) || (is.character(x$cleanup$message) && length(x$cleanup$message) == 1L && !is.na(x$cleanup$message)))) {
     .input_error("Observed cleanup outcome is invalid.")
   }

@@ -35,11 +35,65 @@
   files
 }
 
+# BIDS tables are read as text so that identifiers such as `trial_type = "01"`
+# survive exactly; types are then assigned explicitly by each adapter.
 .read_bids_table <- function(path) {
   utils::read.delim(
     path, header = TRUE, sep = "\t", quote = "", comment.char = "",
-    check.names = FALSE, stringsAsFactors = FALSE, na.strings = character()
+    check.names = FALSE, stringsAsFactors = FALSE, na.strings = character(),
+    colClasses = "character"
   )
+}
+
+# "n/a" is the BIDS missing-value marker. Study fact tables must be complete
+# (`observation_events()` and `observation_confounds()` refuse `NA`), so the
+# adapters never turn the marker into `NA`: a column that contains it stays
+# text and keeps the marker literally, and the caller decides what it means.
+.bids_missing <- "n/a"
+
+# Numeric conversion that refuses to guess: `NULL` unless every value is a
+# number, so the caller decides what an unresolved column means.
+.bids_as_numeric <- function(column) {
+  converted <- suppressWarnings(as.numeric(column))
+  if (!length(column) || anyNA(converted)) NULL else converted
+}
+
+# Confound columns are regressors or explicit retain flags: a column whose
+# values are all numbers becomes numeric, one whose values are all
+# `TRUE`/`FALSE` becomes logical, and anything else -- including a numeric
+# column with "n/a" entries -- stays text.
+.bids_type_confounds <- function(value) {
+  value[] <- lapply(value, function(column) {
+    if (length(column) && all(column %in% c("TRUE", "FALSE"))) {
+      return(as.logical(column))
+    }
+    converted <- .bids_as_numeric(column)
+    if (is.null(converted)) column else converted
+  })
+  value
+}
+
+# Runs may carry different optional columns; the union is kept, and a column
+# a run lacks is filled with the BIDS missing marker. Such a column becomes
+# text in every run so that the marker is not coerced into a number.
+.bind_bids_tables <- function(tables) {
+  columns <- unique(unlist(lapply(tables, names), use.names = FALSE))
+  partial <- columns[!vapply(columns, function(column) {
+    all(vapply(tables, function(table) column %in% names(table), logical(1)))
+  }, logical(1))]
+  tables <- lapply(tables, function(table) {
+    for (column in partial) {
+      table[[column]] <- if (column %in% names(table)) {
+        as.character(table[[column]])
+      } else {
+        rep(.bids_missing, nrow(table))
+      }
+    }
+    table[columns]
+  })
+  data <- do.call(rbind, tables)
+  rownames(data) <- NULL
+  data
 }
 
 .bids_file_provenance <- function(files) {
@@ -54,6 +108,11 @@
 #' The adapter preserves arbitrary BIDS columns and adds private partition and
 #' event-key columns required by the generic [observation_events()] contract.
 #' Partition identity is explicit rather than inferred from filenames.
+#' `onset` and `duration` are converted to numbers; every other column is kept
+#' as text (so a `trial_type` of `"01"` stays `"01"`), including the BIDS
+#' missing marker `"n/a"`, because study facts must be complete. Runs with
+#' different optional columns are bound on the union of columns, filling
+#' absent values with `"n/a"`.
 #'
 #' @param files Character event-TSV paths, one per partition.
 #' @param partitions Explicit ordered partition identifiers. Named `files` may
@@ -88,8 +147,19 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
   files <- .bids_partition_files(files, partitions, "files")
   tables <- lapply(names(files), function(partition) {
     value <- .read_bids_table(files[[partition]])
-    if (!all(c("onset", "duration") %in% names(value)) ||
-        !is.numeric(value$onset) || !is.numeric(value$duration)) {
+    if (!nrow(value)) {
+      .capability_refusal(
+        sprintf("BIDS events for `%s` contain no events.", partition),
+        capability = "timing_resolved",
+        namespace = "bids_adapter",
+        reasons = "The events table has a header but no event rows.",
+        remedies = "Omit the empty run or supply its events before import."
+      )
+    }
+    timing <- if (all(c("onset", "duration") %in% names(value))) {
+      list(.bids_as_numeric(value$onset), .bids_as_numeric(value$duration))
+    }
+    if (is.null(timing) || any(vapply(timing, is.null, logical(1)))) {
       .capability_refusal(
         sprintf("BIDS events for `%s` lack resolved numeric timing.", partition),
         capability = "timing_resolved",
@@ -98,6 +168,8 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
         remedies = "Resolve missing or nonnumeric event timing before import."
       )
     }
+    value$onset <- timing[[1L]]
+    value$duration <- timing[[2L]]
     if (any(c(".bids_partition", ".bids_event_id") %in% names(value))) {
       .input_error(
         "BIDS tables may not use crossform's private adapter columns."
@@ -107,8 +179,7 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
     value$.bids_event_id <- sprintf("event-%06d", seq_len(nrow(value)))
     value
   })
-  data <- do.call(rbind, tables)
-  rownames(data) <- NULL
+  data <- .bind_bids_tables(tables)
   observation_events(
     data,
     partition = ".bids_partition",
@@ -127,7 +198,11 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
 #'
 #' All columns are preserved without assigning them target or nuisance roles.
 #' If `censor` is supplied it must name a complete logical retain column; no
-#' censor policy is inferred from motion or outlier columns.
+#' censor policy is inferred from motion or outlier columns. Columns whose
+#' values are all numbers become numeric and columns of `TRUE`/`FALSE` become
+#' logical. Study facts must be complete, so a column holding the BIDS missing
+#' marker `"n/a"` (such as fMRIPrep's first `framewise_displacement` row) stays
+#' text; resolve it explicitly before using it as a regressor.
 #'
 #' @param files Character confound-TSV paths, one per partition.
 #' @param partitions Explicit ordered partition identifiers.
@@ -177,7 +252,7 @@ bids_confounds <- function(files, partitions = names(files),
     )
   }
   tables <- lapply(names(files), function(partition) {
-    value <- .read_bids_table(files[[partition]])
+    value <- .bids_type_confounds(.read_bids_table(files[[partition]]))
     if (any(c(".bids_partition", ".bids_observation_id") %in% names(value))) {
       .input_error(
         "Confound tables may not use crossform's private adapter columns."
@@ -213,8 +288,7 @@ bids_confounds <- function(files, partitions = names(files),
     value$.bids_observation_id <- ids
     value
   })
-  data <- do.call(rbind, tables)
-  rownames(data) <- NULL
+  data <- .bind_bids_tables(tables)
   observation_confounds(
     data,
     partition = ".bids_partition",

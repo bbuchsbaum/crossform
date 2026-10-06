@@ -42,21 +42,33 @@
       stdout = TRUE, stderr = FALSE),
     error = function(error) character()
   )
-  value <- suppressWarnings(as.numeric(trimws((lines %||% NA_character_)[[1L]])))
+  value <- suppressWarnings(as.numeric(trimws(
+    .first_present_or(lines, NA_character_)[[1L]]
+  )))
   if (is.finite(value)) value * 1024 else NA_real_
 }
 
-`%||%` <- function(x, y) if (length(x) && !is.na(x[[1L]])) x else y
+# Not base R's `%||%`: an empty value *or* one whose first element is `NA`
+# falls back to `y`. It was once defined as `%||%`, which shadowed base R's
+# null-default operator for the whole package namespace.
+.first_present_or <- function(x, y) {
+  if (length(x) && !is.na(x[[1L]])) x else y
+}
 
+# The benchmark draws its fixture under `seed`, then restores the caller's
+# global random-number state, as the example-data generators do.
 .run_memory_benchmark_case <- function(scenario, seed = 20260812L,
                                        ready_path = NULL) {
+  .with_example_seed(seed, .run_memory_benchmark_seeded(scenario, ready_path))
+}
+
+.run_memory_benchmark_seeded <- function(scenario, ready_path) {
   if (is.data.frame(scenario)) scenario <- as.list(scenario[1L, , drop = FALSE])
   required <- c("id", "features", "effects", "measurements", "partitions",
     "density", "row_tile", "coordinate_tile", "feature_tile", "storage", "phase")
   if (!is.list(scenario) || !all(required %in% names(scenario))) {
     .input_error("Invalid memory benchmark scenario.")
   }
-  set.seed(seed)
   p <- as.integer(scenario$features)
   q <- as.integer(scenario$effects)
   m <- as.integer(scenario$measurements)

@@ -34,6 +34,19 @@
       "`row_ids` must provide one ordered observation axis per design."
     )
   }
+  # Named axes bind by partition name; unnamed axes bind positionally. A
+  # partial naming is ambiguous and is refused rather than overwritten.
+  supplied <- names(row_ids)
+  if (!is.null(supplied) && any(!is.na(supplied) & nzchar(supplied))) {
+    if (anyNA(supplied) || any(!nzchar(supplied)) ||
+        anyDuplicated(supplied) || !setequal(supplied, partitions)) {
+      .input_error(sprintf(paste0(
+        "Named `row_ids` must name every design partition exactly once; ",
+        "expected %s, received %s."),
+        .msg_names(partitions), .msg_value(supplied)))
+    }
+    row_ids <- row_ids[partitions]
+  }
   names(row_ids) <- partitions
   for (partition in partitions) {
     ids <- row_ids[[partition]]

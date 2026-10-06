@@ -74,3 +74,31 @@ test_that("fmridesign compilation refuses a model built from other events", {
   expect_identical(refusal$capability, "study_bound_compilation")
   expect_match(conditionMessage(refusal), "disagrees")
 })
+
+test_that("fmridesign sampling frames must match the study observation clock", {
+  bound <- bound_study_fixture()
+  study_value <- study(
+    bound$observations, bound$events, bound$confounds, bound$hierarchy
+  )
+  counts <- bound$fixture$counts
+  partitions <- study_value$partitions
+  block_map <- stats::setNames(seq_along(partitions), partitions)
+  mock <- function(blocklens = counts, TR = 2, start_time = 0) {
+    structure(list(sampling_frame = list(
+      blocklens = blocklens, TR = rep(TR, length.out = length(blocklens)),
+      start_time = rep(start_time, length.out = length(blocklens))
+    )), class = "event_model")
+  }
+  expect_true(crossform:::.fmridesign_assert_sampling_frame(
+    mock(), study_value, block_map
+  ))
+
+  for (bad in list(mock(TR = 2.5), mock(start_time = 1),
+      mock(blocklens = counts + 1L), mock(blocklens = counts[[1L]]))) {
+    refusal <- catch_refusal(crossform:::.fmridesign_assert_sampling_frame(
+      bad, study_value, block_map
+    ))
+    expect_s3_class(refusal, "effect_capability_refusal")
+    expect_identical(refusal$capability, "timing_resolved")
+  }
+})

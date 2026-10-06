@@ -156,8 +156,18 @@
     onset <- events$data[[events$onset_column]][selected]
     duration <- events$data[[events$duration_column]][selected]
     ending <- onset + duration
+    # Observation times are volume (acquisition) onsets, so the last volume
+    # still covers one sampling interval after its onset. With a single
+    # observation no interval can be read off the clock, so coverage ends at
+    # that onset. `observation_range` keeps recording the onset range.
     lower <- min(index$time)
-    upper <- max(index$time)
+    last_onset <- max(index$time)
+    interval <- if (length(index$time) >= 2L) {
+      stats::median(diff(index$time))
+    } else {
+      0
+    }
+    upper <- last_onset + interval
     outside <- onset < lower - tolerance | ending > upper + tolerance
     if (any(outside)) {
       event_ids <- events$data[[events$event_id_column]][selected][outside]
@@ -181,7 +191,7 @@
       timing_resolved = TRUE,
       event_count = as.integer(sum(selected)),
       units = index$units,
-      observation_range = c(lower, upper),
+      observation_range = c(lower, last_onset),
       event_range = c(min(onset), max(ending))
     )
   }
@@ -205,6 +215,9 @@
 #' @param hierarchy Optional [partition_hierarchy()]. A leaf-only hierarchy is
 #'   constructed from observation partitions when omitted.
 #' @param clock_tolerance Nonnegative finite tolerance for clock coverage.
+#'   Observation times are read as volume onsets: a partition covers events
+#'   from its first onset to one sampling interval (the median spacing of its
+#'   observation times) after its last onset, plus this tolerance.
 #' @param provenance Portable binding provenance.
 #' @return An `effect_study`: a list with the validated `$observations`,
 #'   `$events`, `$confounds` and `$hierarchy`, the ordered `$partitions`, a
