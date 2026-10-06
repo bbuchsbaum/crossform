@@ -182,6 +182,17 @@ test_that("the threshold moves the count and never the denominator", {
   raised <- population_prevalence(fit, threshold = high / 2)
   expect_equal(unname(raised$sign$fraction),
     unname(pv_sign_oracle(values, high / 2)))
+
+  # The coin-flip reference is a property of threshold zero. Above it the
+  # pure-noise fraction depends on the noise scale, so no reference is
+  # reported and the print does not claim one.
+  expect_identical(at_zero$reference, 0.5)
+  expect_identical(at_zero$receipt$prevalence$null_reference, 0.5)
+  expect_identical(raised$reference, NA_real_)
+  expect_identical(raised$receipt$prevalence$null_reference, NA_real_)
+  printed <- paste(capture.output(print(raised)), collapse = " ")
+  expect_false(grepl("fraction near 0.5", printed, fixed = TRUE))
+  expect_true(grepl("no reference is given", printed, fixed = TRUE))
   expect_identical(raised$sign$resolved, at_zero$sign$resolved)
   expect_true(all(raised$sign$count <= at_zero$sign$count))
   expect_true(any(raised$sign$count < at_zero$sign$count))

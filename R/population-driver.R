@@ -499,6 +499,42 @@
   value
 }
 
+# `rdm_sampling_covariance()` is the sampling law of the crossvalidated
+# distance at one measurement --- the *total* geometry. The coherent and
+# configuration ledgers are different functionals of the partition estimates,
+# with their own variances, so attaching the total's variance to them would
+# print error bars for a quantity they do not describe.
+.population_admit_uncertainty_component <- function(component, uncertainty) {
+  if (is.null(uncertainty) || identical(component, "total")) {
+    return(invisible(NULL))
+  }
+  .capability_refusal(sprintf(paste0(
+    "`uncertainty` is the sampling covariance of the crossvalidated distance, ",
+    "which is the total geometry, so it describes `component = \"total\"` ",
+    "only. The %s ledger is a different functional of the partition ",
+    "estimates with a different variance, and crossform has no route that ",
+    "produces it; attaching the total's within-subject variance to it would ",
+    "label error bars with a quantity they do not measure."
+  ), .population_ledger_names[[component]]),
+    capability = "component_sampling_covariance",
+    namespace = "population_execution",
+    reasons = c(
+      "sampling_covariance_describes_total_only",
+      paste0("requested_component:", component)
+    ),
+    remedies = c(
+      paste0(
+        "Estimate with `component = \"total\"` to carry the within-subject ",
+        "layer."
+      ),
+      paste0(
+        "Or drop `uncertainty`; the between-subject layer of ",
+        "`population_uncertainty()` needs no sampling covariance and is ",
+        "available for every component."
+      )
+    ))
+}
+
 .population_uncertainty <- function(plan, bank, index, uncertainty) {
   layers <- list(
     between = .population_between_uncertainty(plan$model),
@@ -704,6 +740,10 @@
 #' * `distance_basis_query_bank` --- an uncentred contrast in the bank when
 #'   `uncertainty` is supplied. Point estimates admit uncentred contrasts;
 #'   their sampling law does not.
+#' * `component_sampling_covariance` --- `uncertainty` supplied with
+#'   `component = "coherent"` or `"configuration"`. The sampling covariance
+#'   is the crossvalidated distance's, which is the total geometry; it does
+#'   not describe the other two ledgers.
 #'
 #' @param plan An `effect_population_plan` from [plan_population()].
 #' @param queries The bank of contrasts to read: a numeric contrast vector, a
@@ -732,7 +772,9 @@
 #'   `$uncertainty` (see the section above; read it through
 #'   [population_uncertainty()]), and a `$receipt` recording every
 #'   participant's read, its
-#'   transport signature, the budget certificate, and the normalization.
+#'   transport signature, the budget certificate, the normalization, and
+#'   `$unresolved_cells`: one row per node-query column left unestimated,
+#'   naming the participants whose non-finite value withheld it.
 #'   `as.data.frame()` returns the coefficient table in long form.
 #' @references `design/population-form-contract.md` (`population-form-v1`),
 #'   sections 2, 3, 4 and 8.
@@ -792,6 +834,7 @@ estimate_population <- function(plan, queries,
     nonnegative = TRUE,
     what = "one nonnegative relative floor on the unit-budget divisor")
   .population_admit_normalization(plan)
+  .population_admit_uncertainty_component(component, uncertainty)
   bank <- .population_query_bank(plan, queries)
 
   labels <- names(plan$subjects)
@@ -874,7 +917,9 @@ estimate_population <- function(plan, queries,
     uncertainty = .population_uncertainty(plan, bank, index, uncertainty),
     receipt = .population_receipt(
       plan, readout, component, budget_floor, receipts, native_totals,
-      sink_budget, admitted, deviations, fit$unresolved
+      sink_budget, admitted, deviations, fit$unresolved,
+      unresolved_cells = .population_unresolved_cells(list(stack),
+        fit$finite, labels, node_labels, bank$labels)
     ),
     scientific_plan_id = .population_result_id(
       plan, readout, component, budget_floor
@@ -1246,6 +1291,7 @@ materialize_population <- function(plan,
     ))
 
   unresolved <- 0L
+  unresolved_cells <- list(.population_unresolved_template())
   starts <- .tile_starts(width, tile)
   state <- .population_tile_state(plan, width, coordinate_labels)
 
@@ -1256,6 +1302,11 @@ materialize_population <- function(plan,
     state <- streamed$state
     fit <- .population_ols(plan$model, streamed$stack, coefficients_only = TRUE)
     unresolved <- unresolved + fit$unresolved
+    if (fit$unresolved) {
+      unresolved_cells[[length(unresolved_cells) + 1L]] <-
+        .population_unresolved_cells(list(streamed$stack), fit$finite,
+          labels, as.character(index$node), coordinate_labels[columns])
+    }
     # `as.numeric(carried)` stacked the tile column-major with the node index
     # fastest, so the fit's response columns unfold as `node` by `coordinate`;
     # the permutation puts the packed axis last, where every slice along it is
@@ -1290,6 +1341,7 @@ materialize_population <- function(plan,
       matrix(TRUE, n_subject, width,
         dimnames = list(labels, coordinate_labels)),
       deviations, unresolved,
+      unresolved_cells = do.call(rbind, unresolved_cells),
       streaming = list(
         coordinate_tile = as.integer(tile),
         packed_width = as.integer(width),
@@ -1346,7 +1398,54 @@ materialize_population <- function(plan,
     }
   }
   list(coefficients = coefficients, fitted = fitted, residuals = residuals,
-    unresolved = as.integer(sum(!finite)))
+    unresolved = as.integer(sum(!finite)), finite = finite)
+}
+
+# Which participants made each unresolved column unresolved.
+#
+# The estimand is unchanged --- a column with any non-finite response is solved
+# around for *every* participant, because a complete-case fit at that column
+# would be a fit of a different population --- but one participant's `NA`
+# withholding a node from all of them is something a reader has to be able to
+# trace. One row per unresolved column, not per cell: the column is the unit
+# that was withheld, and a density result on a whole-brain grid would
+# otherwise carry `N` rows for every unreached node.
+#
+# `blocks` is a list of `N`-by-`(nodes * R)` response stacks laid out node
+# fastest, as `as.numeric(carried)` lays them out, and `finite` the per-column
+# verdict they were fitted under. `readout_labels` names the `R` readout
+# positions (queries, or packed coordinates for a tile). Two blocks are the
+# two partition halves of the cross-fitted Gram; a participant is listed when
+# its value was non-finite in either.
+.population_unresolved_template <- function() {
+  data.frame(node = character(), readout = character(),
+    subjects = character(), nonfinite = integer(),
+    stringsAsFactors = FALSE)
+}
+
+# The participants named anywhere in an unresolved-cell table, in first-seen
+# order, for a one-line print.
+.population_unresolved_subjects <- function(cells) {
+  if (!is.data.frame(cells) || !nrow(cells)) return(character())
+  unique(unlist(strsplit(cells$subjects, "; ", fixed = TRUE),
+    use.names = FALSE))
+}
+
+.population_unresolved_cells <- function(blocks, finite, subjects,
+                                         node_labels, readout_labels) {
+  bad <- which(!finite)
+  if (!length(bad)) return(.population_unresolved_template())
+  n_node <- length(node_labels)
+  nonfinite <- Reduce(`|`, lapply(blocks, function(block)
+    !is.finite(block[, bad, drop = FALSE])))
+  data.frame(
+    node = as.character(node_labels[(bad - 1L) %% n_node + 1L]),
+    readout = as.character(readout_labels[(bad - 1L) %/% n_node + 1L]),
+    subjects = vapply(seq_along(bad), function(column)
+      paste(subjects[nonfinite[, column]], collapse = "; "), character(1)),
+    nonfinite = as.integer(colSums(nonfinite)),
+    stringsAsFactors = FALSE
+  )
 }
 
 # The receipt ------------------------------------------------------------------
@@ -1360,6 +1459,8 @@ materialize_population <- function(plan,
 .population_receipt <- function(plan, readout, component, budget_floor,
                                 receipts, native_totals, sink_budget,
                                 admitted, deviations, unresolved,
+                                unresolved_cells =
+                                  .population_unresolved_template(),
                                 streaming = NULL) {
   # The per-query numbers stay as `subject`-by-`query` matrices rather than
   # becoming list columns of the audit table: a list column is not portable,
@@ -1435,7 +1536,11 @@ materialize_population <- function(plan,
         NA_real_
       }
     ),
-    unresolved_columns = unresolved
+    unresolved_columns = unresolved,
+    # One row per unresolved column: its group node, its readout position
+    # (query or packed coordinate), and the participants whose non-finite
+    # value withheld it from everyone. `nrow()` equals `unresolved_columns`.
+    unresolved_cells = unresolved_cells
   )
 }
 

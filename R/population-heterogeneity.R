@@ -167,8 +167,8 @@
     function(subject) subject$task$left_relation$partitions)
   if (is.null(partitions)) {
     split <- lapply(available, function(value) list(
-      a = value[seq.int(1L, length(value), by = 2L)],
-      b = value[seq.int(2L, length(value), by = 2L)]
+      a = value[seq_along(value) %% 2L == 1L],
+      b = value[seq_along(value) %% 2L == 0L]
     ))
     kind <- "interleaved_partitions"
   } else {
@@ -251,21 +251,17 @@
   half
 }
 
-# A functional transport that was itself learned from the data has seen some
-# partitions, and if those overlap a half then that half's inner product is not
-# fully held out. crossform cannot repair it, and it is not an error --- the
-# transport is a declared input --- so it is measured and recorded, and the
-# print says so.
+# A transport learned from the data has seen the partitions its
+# `provenance$cross_fit` names, and `population-form-v1` section 1.4 forbids
+# evaluating it on any of them. `plan_population()` already refuses a pairing
+# that reads one; the split is checked against the same rule because it reads
+# each relation's partitions directly, so a partition the full plan's pairing
+# held out could otherwise land in a half. The receipt keeps the (necessarily
+# empty) overlap so a reader can see the check was made.
 .heterogeneity_transport_overlap <- function(plan, split) {
-  labels <- names(plan$subjects)
-  overlap <- unlist(lapply(labels, function(label) {
-    declared <- plan$transport[[label]]$provenance$cross_fit
-    if (is.null(declared)) return(NULL)
-    shared <- intersect(as.character(declared),
-      unlist(split[[label]], use.names = FALSE))
-    if (length(shared)) paste0(label, ":", shared) else NULL
-  }), use.names = FALSE)
-  if (is.null(overlap)) character() else overlap
+  .population_admit_cross_fit(plan$subjects, plan$transport,
+    evaluated = split)
+  character()
 }
 
 # The Gram ---------------------------------------------------------------------
@@ -320,16 +316,22 @@
 # expectation: `E[M Gamma-hat M] = M Gamma_true M`, and the cross-fit's
 # unbiasedness survives the group fit unchanged.
 .heterogeneity_gram <- function(plans, model, component, width,
-                                coordinate_labels, nodes, keep, starts, tile) {
+                                coordinate_labels, nodes, keep, starts, tile,
+                                node_labels) {
   labels <- names(plans[[1L]]$subjects)
   gram <- matrix(0, length(labels), length(labels),
     dimnames = list(labels, labels))
   unresolved <- 0L
+  cells <- list(.population_unresolved_template())
   states <- .heterogeneity_stream(plans, component, width, coordinate_labels,
     nodes, keep, starts, tile, function(columns, blocks) {
       residual <- lapply(blocks, .heterogeneity_residual, model = model)
       finite <- Reduce(`&`, lapply(residual, `[[`, "finite"))
       unresolved <<- unresolved + sum(!finite)
+      if (!all(finite)) {
+        cells[[length(cells) + 1L]] <<- .population_unresolved_cells(blocks,
+          finite, labels, node_labels, coordinate_labels[columns])
+      }
       kept <- lapply(residual, function(value)
         value$residuals[, finite, drop = FALSE])
       gram <<- gram + if (length(kept) == 1L) {
@@ -342,7 +344,10 @@
   # Symmetric by construction; symmetrized anyway so that `eigen(symmetric =)`
   # is reading the matrix this function claims to have built and not a
   # floating-point neighbour of it.
-  list(gram = (gram + t(gram)) / 2, unresolved = unresolved, states = states)
+  cells <- do.call(rbind, cells)
+  rownames(cells) <- NULL
+  list(gram = (gram + t(gram)) / 2, unresolved = unresolved,
+    unresolved_cells = cells, states = states)
 }
 
 # Pass two: the mode geometry, at the nodes the caller named.
@@ -759,12 +764,14 @@
 # halves, what a PSD projection cost, and what the streaming bound actually was.
 .heterogeneity_receipt <- function(base, estimator, space, gram, split,
                                    overlap, half_ids, latent, streaming,
-                                   unresolved, nodes, divisor) {
+                                   unresolved, nodes, divisor,
+                                   unresolved_cells) {
   # The two fields this record redefines are dropped from the standard blocks
   # rather than shadowed: `c()` keeps both copies of a duplicated name and `$`
   # returns the first, so leaving them in would publish the executor's
   # streaming bound and its unresolved count under this run's names.
-  c(base[setdiff(names(base), c("streaming", "unresolved_columns"))], list(
+  c(base[setdiff(names(base),
+    c("streaming", "unresolved_columns", "unresolved_cells"))], list(
     estimator = estimator,
     estimator_reads = .heterogeneity_estimator_phrase(estimator),
     gram = list(
@@ -827,7 +834,10 @@
     },
     projection = latent,
     streaming = streaming,
-    unresolved_columns = as.integer(unresolved)
+    unresolved_columns = as.integer(unresolved),
+    # One row per Gram column held out: its group node, its coordinate, and
+    # the participants whose non-finite value (in either half) withheld it.
+    unresolved_cells = unresolved_cells
   ))
 }
 
@@ -974,7 +984,9 @@
 #'   `$mode_forms` is `NA` at a `(node, coordinate)` cell the Gram could not
 #'   see --- a group node reached by no native mass under density semantics ---
 #'   because zero there is a form and would read as agreement rather than as
-#'   absence. `$receipt$unresolved_columns` counts them.
+#'   absence. `$receipt$unresolved_columns` counts them, and
+#'   `$receipt$unresolved_cells` lists each one with the participants whose
+#'   non-finite value withheld it.
 #' @references `design/population-form-contract.md` (`population-form-v1`),
 #'   sections 5 and 6.
 #' @family population transports
@@ -1087,7 +1099,7 @@ heterogeneity.effect_population_plan <- function(x,
   }
 
   accumulated <- .heterogeneity_gram(plans, x$model, component, width,
-    coordinate_labels, nrow(full_index), keep, starts, tile)
+    coordinate_labels, nrow(full_index), keep, starts, tile, node_labels)
   gram <- accumulated$gram / residual_df
   decomposition <- .heterogeneity_decompose(gram)
   latent <- if (identical(estimator, "cross_fit")) {
@@ -1134,7 +1146,8 @@ heterogeneity.effect_population_plan <- function(x,
         refused_dense_doubles = as.double(length(x$subjects)) *
           nrow(index) * width
       ),
-      accumulated$unresolved, nrow(index), residual_df),
+      accumulated$unresolved, nrow(index), residual_df,
+      accumulated$unresolved_cells),
     identity)
 }
 
@@ -1208,6 +1221,12 @@ heterogeneity.effect_population_result <- function(x,
     sum(keep) * dim(x$residuals)[[2L]], length(labels),
     dimnames = list(NULL, labels)))
   finite <- apply(is.finite(block), 2L, all)
+  # The residual of an unresolved column is non-finite for every participant,
+  # so the participants who withheld it are read off the values instead.
+  unresolved_cells <- .population_unresolved_cells(
+    list(t(matrix(x$values[keep, , , drop = FALSE],
+      sum(keep) * dim(x$values)[[2L]], length(labels)))),
+    finite, labels, node_labels, rownames(x$queries))
   block[, !finite] <- 0
   gram <- tcrossprod(block) / residual_df
   gram <- (gram + t(gram)) / 2
@@ -1253,7 +1272,8 @@ heterogeneity.effect_population_result <- function(x,
         refused_dense_doubles = as.double(length(labels)) * nrow(index) *
           length(queries)
       ),
-      sum(!finite), nrow(index), residual_df),
+      sum(!finite), nrow(index), residual_df,
+      unresolved_cells),
     identity)
 }
 
@@ -1374,6 +1394,15 @@ print.effect_population_heterogeneity <- function(x, ...) {
     },
     estimand = .pf_sig(x$scientific_plan_id)
   ))
+  if (x$receipt$unresolved_columns) {
+    .pf_note(paste0(
+      "held-out cells were withheld from every participant by non-finite ",
+      "values of ",
+      .pf_set(.population_unresolved_subjects(x$receipt$unresolved_cells),
+        max = 3L),
+      "; x$receipt$unresolved_cells lists them by node and coordinate."
+    ))
+  }
   if (identical(x$estimator, "plug_in")) {
     .pf_note(paste0(
       "plug-in: within-subject sampling noise is booked as heterogeneity. ",
@@ -1386,13 +1415,6 @@ print.effect_population_heterogeneity <- function(x, ...) {
       "cross-fitted: indefinite by construction, and one draw of its trace ",
       "is not an estimate of the between-subject trace ",
       "(population-form-v1 section 6.4). Reported as-is."
-    ))
-  }
-  if (length(x$receipt$cross_fit$transport_partition_overlap)) {
-    .pf_note(paste0(
-      "a functional transport declares cross-fit partitions that overlap ",
-      "these halves, so those reads are not fully held out: ",
-      .pf_set(x$receipt$cross_fit$transport_partition_overlap, max = 3L)
     ))
   }
   cat(sprintf("  %-14s%s\n", "next:",

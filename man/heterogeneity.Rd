@@ -78,7 +78,9 @@ loadings in long form.
 \verb{$mode_forms} is \code{NA} at a \verb{(node, coordinate)} cell the Gram could not
 see --- a group node reached by no native mass under density semantics ---
 because zero there is a form and would read as agreement rather than as
-absence. \verb{$receipt$unresolved_columns} counts them.
+absence. \verb{$receipt$unresolved_columns} counts them, and
+\verb{$receipt$unresolved_cells} lists each one with the participants whose
+non-finite value withheld it.
 }
 \description{
 \code{heterogeneity()} builds the subject Gram of

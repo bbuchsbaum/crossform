@@ -118,15 +118,17 @@
   terms <- dimnames(x$coefficients)[[3L]]
   if (is.null(term)) return(terms)
   if (.is_number(term)) {
-    position <- as.integer(term)
-    if (position < 1L || position > length(terms)) {
-      .input_error(sprintf(
-        "`term` must select one of the %d group model columns; received %s.",
+    # A fractional position selects no column; `as.integer()` would truncate
+    # `1.5` to `1` and report a term nobody asked for.
+    if (!.is_count(term) || term > length(terms)) {
+      .input_error(sprintf(paste0(
+        "`term` must be a whole-number position selecting one of the %d ",
+        "group model columns; received %s."),
         length(terms), .msg_value(term)
       ), arg = "term", received = .msg_value(term),
         expected = paste0("one of ", .msg_names(terms)))
     }
-    return(terms[[position]])
+    return(terms[[as.integer(term)]])
   }
   if (!.is_string(term) || !term %in% terms) {
     .input_error(sprintf(

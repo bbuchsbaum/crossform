@@ -36,7 +36,8 @@ An \code{effect_population_prevalence}: \verb{$sign} holding \verb{$fraction},
 \verb{$count}, \verb{$resolved} and \verb{$contributing} (each a \code{node}-by-\code{query}
 matrix); \verb{$alignment} holding \verb{$fraction}, \verb{$count}, \verb{$resolved} and the
 inner product it was taken in, one entry per group node; \verb{$coverage};
-\verb{$reference}, the fraction a pure-noise cell reports; \verb{$layer} and
+\verb{$reference}, the fraction a pure-noise cell reports (\code{0.5} at
+\code{threshold = 0}, \code{NA} otherwise); \verb{$layer} and
 \verb{$reading}, which mark the record as descriptive; \verb{$queries} and
 \verb{$query_labels}, the selected rows of the bank it counted over; and the
 \verb{$index}, \verb{$ledger}, \verb{$semantics}, \verb{$normalization} and \verb{$receipt} of the
@@ -68,6 +69,9 @@ sign, which is the part that carries the noise. \strong{A group node and query a
 which nothing reproduces reports a fraction near \code{0.5}, not near \code{0}},
 because every participant contributes an independent coin flip. \verb{$reference}
 carries that number so the comparison is not made against zero by habit.
+The coin-flip argument holds at \code{threshold = 0}, for noise symmetric about
+zero; at any other threshold the pure-noise fraction depends on the noise
+scale, and \verb{$reference} is \code{NA} rather than a \code{0.5} that would be wrong.
 
 The threshold is applied strictly (\code{>}) and absolutely, in the ledger's own
 units, with no relative tolerance. That is the guard every per-node fraction
