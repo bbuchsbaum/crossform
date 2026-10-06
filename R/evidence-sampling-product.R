@@ -117,6 +117,9 @@
   # Euclidean inner product is exactly b K b'.
   signal_whitened <- signal %*% t(factor)
   residual_whitened <- factor %*% residual_covariance %*% t(factor)
+  # The triple product is symmetric only up to rounding proportional to its
+  # scale; symmetrize exactly so no downstream check sees the residue.
+  residual_whitened <- 0.5 * (residual_whitened + t(residual_whitened))
   list(signal = signal_whitened, residual = residual_whitened)
 }
 
@@ -246,6 +249,21 @@
   Reduce(`+`, residuals) / total_df
 }
 
+# Ratio of the largest to the smallest per-partition mean residual variance,
+# tr(S_m) / df_m, over one support. The sampling law assumes one residual
+# covariance common to every partition; this is a disclosed diagnostic of that
+# assumption, not a gate. It reads only the support's residual columns.
+.sampling_residual_partition_spread <- function(fit, positions) {
+  per_partition <- vapply(fit$relation$partitions, function(partition) {
+    block <- residual_block(fit, partition, positions)
+    sum(block * block) / residual_df(fit, partition)
+  }, numeric(1))
+  if (!all(is.finite(per_partition)) || min(per_partition) <= 0) {
+    return(NA_real_)
+  }
+  max(per_partition) / min(per_partition)
+}
+
 .fixed_metric_rdm_sampling_shared <- function(plan, resources = NULL) {
   .validate_evidence_sampling_plan(plan)
   .require_sampling_covariance(plan)
@@ -301,6 +319,14 @@
     metric = metric$signature,
     effect_covariance = shared$fit$error_models[[1L]]$signature,
     residual_df = as.integer(shared$total_df),
+    # The law pools one residual covariance over partitions; the equal-
+    # structure gate checks df and effect covariance but cannot check Sigma_R
+    # itself, so the assumption is named here and its plainest symptom, a
+    # spread in per-partition residual variance, is reported beside it.
+    residual_covariance_model = "common_across_partitions",
+    residual_partition_variance_ratio = .sampling_residual_partition_spread(
+      shared$fit, node_value$support_positions
+    ),
     target = shared$plan$target$signature,
     local_only = TRUE
   )
@@ -323,7 +349,15 @@
     xi_factor = shared$xi_factor,
     # The coordinates are crossvalidated squared distances, so the form says
     # so from the moment it is built rather than being relabelled afterwards.
-    basis = "rdm"
+    basis = "rdm",
+    # The plug-in signal is the partition mean of noisy estimates; the kernel
+    # removes its exact upward bias (see `.sampling_debiased_plugin_signal()`).
+    # The null signal is the fixed zero and needs nothing removed.
+    signal_target = if (identical(shared$plan$target$target, "null")) {
+      "fixed"
+    } else {
+      "partition_mean_plugin"
+    }
   )
 }
 
@@ -418,10 +452,25 @@
 #'
 #' Both numbers are reported: \eqn{\nu}{nu} is `$source$residual_df` and
 #' \eqn{P_{\mathrm{eff}}}{P_eff} is `$source$residual_effective_dimension`, and the
-#' `print()` method shows them. When \eqn{\nu<P_{\mathrm{eff}}}{nu < P_eff} there is no
-#' usable estimate of the quadratic term at all, and the call refuses with
-#' capability `"sufficient_residual_df"` rather than returning a confidently
-#' small number.
+#' `print()` method shows them. The estimator does not need
+#' \eqn{P_{\mathrm{eff}}\le\nu}{P_eff <= nu}: it is ratio-consistent as the
+#' support outgrows the residual df, and its relative error falls as
+#' \eqn{P_{\mathrm{eff}}}{P_eff} grows, so large supports are answered. The
+#' call refuses with capability `"sufficient_residual_df"` only where the
+#' estimator itself fails: \eqn{\nu<2}{nu < 2}, where it is undefined, or a
+#' zero estimate (a zero or exactly isotropic plug-in, as from a saturated
+#' fit), which would be a confidently small number.
+#'
+#' @section Common residual covariance:
+#' The law pools one residual covariance \eqn{\Sigma_w}{Sigma_w} over all
+#' partitions. The equal-partition requirement checks residual df and effect
+#' covariance but cannot check \eqn{\Sigma_w}{Sigma_w} itself, so the result
+#' names the assumption in `$source$residual_covariance_model`
+#' (`"common_across_partitions"`) and reports, in
+#' `$source$residual_partition_variance_ratio`, the ratio of the largest to the
+#' smallest per-partition mean residual variance over the support. A ratio far
+#' above what \eqn{\nu}{nu} would produce by chance signals partitions whose
+#' noise differs, which the law does not model.
 #'
 #' @section Independence within a partition:
 #' The sampling law assumes the observations within a partition are
@@ -459,19 +508,31 @@
 #'   \eqn{E[\hat\mu_r\Sigma_w\hat\mu_s^\top] = \mu_r\Sigma_w\mu_s^\top +
 #'   \Xi_{rs}\,\mathrm{tr}(\Sigma_w\Sigma_w)/M}{
 #'   E[mu_hat_r Sigma_w mu_hat_s^T] = mu_r Sigma_w mu_s^T + Xi_rs tr(Sigma_w Sigma_w)/M
-#' }, its signal term is biased
-#'   upward by \eqn{4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2}{4 Xi_rs^2 tr(Sigma_w Sigma_w)/M^2}, an
-#'   inflation that shrinks like \eqn{1/M^2}{1/M^2} and is largest when the noise
-#'   dominates the true distances. Prefer `"null"` for calibrating a test of
-#'   no effect, where it is exact; use `"plugin"` when reporting uncertainty
-#'   around an estimated nonzero distance and read it as mildly conservative.
+#' }, the face-value signal term would be biased upward by
+#'   \eqn{4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2}{4 Xi_rs^2 tr(Sigma_w Sigma_w)/M^2}.
+#'   That is \eqn{2(M-1)/M}{2(M - 1)/M} times the noise term itself, not a
+#'   small correction: at \eqn{M=4}{M = 4} under a null truth it would report
+#'   2.5 times the true variance. crossform therefore subtracts the bias,
+#'   using the same unbiased estimate of
+#'   \eqn{\mathrm{tr}(\Sigma_w^2)}{tr(Sigma_w^2)} as the noise term, and
+#'   projects the resulting effect-space signal Gram onto the positive
+#'   semidefinite cone (eigenvalue positive part in
+#'   \eqn{\Sigma_K}{Sigma_K}-whitened coordinates) so the reported covariance
+#'   stays a covariance. The result is unbiased whenever no direction is
+#'   clamped, and when the true signal is weak the clamp leaves a modest
+#'   conservative residue (never the face-value inflation). The number of
+#'   clamped directions is reported as `$source$signal_clamped_directions`.
+#'   Prefer `"null"` for calibrating a test of no effect, where it is exact;
+#'   use `"plugin"` when reporting uncertainty around an estimated nonzero
+#'   distance.
 #' @param at One measurement position, or a vector of positions, in the
 #'   compiled frame. Required, with no default: the analytic law is local, so
 #'   a covariance without a named measurement would be a covariance of
 #'   nothing in particular. A length-1 `at` keeps the historical single-node
 #'   object. A longer `at` compiles the plan, contrast transport, and any
 #'   eligible shared residual statistics once, then returns one covariance
-#'   object per requested node.
+#'   object per requested node. Each measurement may be named once; a
+#'   repeated index is refused because a batch is read by measurement.
 #' @param residual_strategy `"node_local"` reads residual blocks only for the
 #'   requested measurement. `"shared_pair_statistics"` explicitly compiles
 #'   reusable residual pair sufficient statistics for a batch of overlapping
@@ -598,6 +659,17 @@ rdm_sampling_covariance <- function(
     if (is.null(x$measurements)) nrow(x$frame$weights) else x$measurements,
     argument = "at", subject = "plan"
   )
+  # A batch is read by measurement (`values[[measurement]]`), so a repeated
+  # index would produce two elements under one name and every reader would
+  # silently see only the first.
+  if (anyDuplicated(at)) {
+    .input_error(sprintf(paste0(
+      "`at` must name each measurement once; %s repeated. A batch is ",
+      "indexed by measurement, so a repeat would be unreachable."
+    ), .msg_names(unique(at[duplicated(at)]))),
+      arg = "at", received = "repeated measurement indices",
+      expected = "unique measurement indices")
+  }
   if (length(at) > 1L && !explicit_strategy &&
       !is.null(x$frame$support_index)) {
     residual_strategy <- "shared_pair_statistics"
@@ -923,8 +995,9 @@ rdm_sampling_covariance <- function(
 #' Every requirement reported here is a property of the plan and its error
 #' channel, so it can be checked without touching neural values. One
 #' requirement of [rdm_sampling_covariance()] is not: whether a *particular*
-#' measurement has enough residual degrees of freedom for the number of
-#' residual directions its own support spends variance on
+#' measurement's plug-in residual covariance yields a usable (positive)
+#' estimate of the noise term, which fails for a zero or exactly isotropic
+#' residual covariance such as a saturated fit leaves
 #' (capability `"sufficient_residual_df"`). That depends on the local residual
 #' spectrum and can only be known once it is computed, so `available = TRUE`
 #' here does not promise that every measurement will be answerable.
@@ -1001,8 +1074,9 @@ print.effect_sampling_capabilities <- function(x, ...) {
 #' automatic confidence interval.
 #'
 #' The values returned inherit the calibration target chosen when `x` was
-#' built. Under `target = "plugin"` they carry the documented upward bias of
-#' the partition-mean plug-in policy; see the `target` argument of
+#' built. Under `target = "plugin"` the partition-mean plug-in's signal bias
+#' has been removed (with a positive-part projection that is conservative
+#' only when the signal is weak); see the `target` argument of
 #' [rdm_sampling_covariance()]. Under `target = "null"` the law is exact on
 #' the variance scale.
 #'
@@ -1167,9 +1241,17 @@ sampling_covariance <- function(
       values <- lapply(x, .sampling_query_bank_form, queries = queries)
       # Named by the measurement each block belongs to, so a population layer
       # can read `values[[measurement]]` rather than trusting position.
-      names(values) <- vapply(values, function(value) {
+      nodes <- vapply(values, function(value) {
         as.character(value$source$node)
       }, character(1))
+      if (anyDuplicated(nodes)) {
+        .input_error(sprintf(paste0(
+          "A sampling-covariance batch names measurement %s more than once, ",
+          "so `values[[measurement]]` could not reach every block. Build the ",
+          "batch from unique `at` indices."
+        ), .msg_names(unique(nodes[duplicated(nodes)]))))
+      }
+      names(values) <- nodes
       .sampling_covariance_batch(values)
     } else {
       .sampling_query_bank_form(x, queries)

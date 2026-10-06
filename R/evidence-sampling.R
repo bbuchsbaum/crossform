@@ -260,6 +260,13 @@
   list(record = record, source = x)
 }
 
+# "Equal" here means equal df, effect covariance, scale convention, and
+# sampling unit. It does NOT test that the residual covariance Sigma_R is
+# common across partitions: the analytic law pools one Sigma_R, and a fit whose
+# partitions differ in residual covariance passes this gate. That assumption is
+# disclosed on every product-path result (`$source$residual_covariance_model`)
+# with the per-partition residual-variance ratio beside it
+# (`$source$residual_partition_variance_ratio`); see contract section 4.
 .sampling_equal_error_structure <- function(channel) {
   .validate_sampling_record(channel$record, "error_channel")
   if (!isTRUE(channel$record$available) ||

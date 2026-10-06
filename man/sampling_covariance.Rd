@@ -54,8 +54,9 @@ automatic confidence interval.
 }
 \details{
 The values returned inherit the calibration target chosen when \code{x} was
-built. Under \code{target = "plugin"} they carry the documented upward bias of
-the partition-mean plug-in policy; see the \code{target} argument of
+built. Under \code{target = "plugin"} the partition-mean plug-in's signal bias
+has been removed (with a positive-part projection that is conservative
+only when the signal is weak); see the \code{target} argument of
 \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Under \code{target = "null"} the law is exact on
 the variance scale.
 

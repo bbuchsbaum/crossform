@@ -181,3 +181,14 @@ test_that("pairing use sites reject forged and mutated edge tables", {
   expect_error(crossform:::pairing_marginals(local, duplicate), "duplicate",
     class = "effect_input_error")
 })
+
+test_that("cross_partitions() refuses repeated partition identifiers", {
+  # Repeats used to be collapsed silently, pairing fewer folds than listed.
+  expect_error(
+    cross_partitions(c("run-1", "run-2", "run-1"), independence = "independent"),
+    "listed more than once", class = "effect_input_error"
+  )
+  expect_identical(
+    nrow(cross_partitions(c("run-1", "run-2", "run-3"))), 3L
+  )
+})

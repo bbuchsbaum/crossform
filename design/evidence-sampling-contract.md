@@ -342,12 +342,29 @@ plug-in. Three points are normative:
    test, a simulation with a declared truth — must *not* receive the
    correction. The distinction is carried explicitly by a `residual_df`
    argument whose `NULL` default means "this is the covariance itself".
-3. \(\nu\) buys information about at most \(\nu\) residual directions. When
-   \(\nu<P_{\mathrm{eff}}\) the corrected estimator's own sampling error is of
-   the order of the quantity and its clamp at zero converts an unusable
-   estimate into a confidently small standard error. The compiler refuses with
-   capability `sufficient_residual_df` rather than reporting one, and both
-   \(\nu\) and \(P_{\mathrm{eff}}\) are reported on every result.
+3. Sufficiency is set by the estimator, not by comparing \(\nu\) with
+   \(P_{\mathrm{eff}}\). The estimator is ratio-consistent as
+   \(P/\nu\to\infty\) (Srivastava 2005), and its relative error *falls* as
+   \(P_{\mathrm{eff}}\) grows. Simulated over Wishart draws with a mildly
+   anisotropic \(\Sigma_R\) at \(\nu=10\), its coefficient of variation is
+   about 0.94 at \(P_{\mathrm{eff}}=1\), 0.26 at \(P_{\mathrm{eff}}=41\), and
+   0.19 at \(P_{\mathrm{eff}}=327\); at \(P=800,\ \nu=168\) it is about
+   0.014. The worst case is therefore the voxelwise one, whose error is that
+   of an ordinary variance-of-a-variance at \(\nu\) df and which was always
+   admitted. The rule used until 2026-10, refuse when
+   \(\nu<P_{\mathrm{eff}}\), refused exactly the supports the estimator
+   handles best (including the 800-direction row of the table above) and is
+   retired. The compiler now refuses with capability `sufficient_residual_df`
+   only when (a) \(\nu<2\), where the \((\nu-1)\) denominator vanishes and
+   the estimator is undefined (reason `residual_df_below_two`), or (b) the
+   estimate is not positive (reason `noise_trace_estimate_nonpositive`).
+   Because \(\operatorname{rank}S_R\le\nu\) gives
+   \(\operatorname{tr}(S_R^2)\ge\operatorname{tr}(S_R)^2/\nu\), the bracket is
+   never negative, and it is zero only for a zero or exactly isotropic
+   plug-in (a saturated fit), where a zero noise term would be a confidently
+   small standard error. No stricter floor on \(\nu\) is imposed, because it
+   would have to apply to every support shape equally. Both \(\nu\) and
+   \(P_{\mathrm{eff}}\) are reported on every result.
 
 The defect survived the court in §11 because the court's own oracles
 recomputed \(\operatorname{tr}(S_R^2)\) from the same plug-in, and because the
@@ -503,7 +520,18 @@ Two distinct plug-ins occur in this law and they must not be conflated:
 
 Every result must report \(\nu\) and \(P_{\mathrm{eff}}\) so a reader can see
 how much residual information stands behind the second term, and must refuse
-when \(\nu<P_{\mathrm{eff}}\).
+where the §4 estimator is undefined (\(\nu<2\)) or its estimate is not
+positive.
+
+The residual-covariance plug-in pools one \(\Sigma_R\) over partitions. The
+equal-structure gate compares residual df, effect covariance, scale
+convention, and sampling unit, but cannot compare \(\Sigma_R\) itself, so a
+fit whose partitions differ in residual covariance passes it. The assumption
+is therefore disclosed on every product-path result,
+`$source$residual_covariance_model = "common_across_partitions"`, beside a
+light diagnostic, `$source$residual_partition_variance_ratio`: the ratio of
+the largest to the smallest per-partition \(\operatorname{tr}(S_m)/\mathrm{df}_m\)
+over the support. It is reported, not gated.
 
 The plug-in policy implemented here, `partition_mean_plugin`, substitutes the
 partition mean of the *estimates* \(\bar B\) for the unknown signal. Since
@@ -517,15 +545,51 @@ E\!\left[\widehat\mu_r\Sigma_R\widehat\mu_s^\top\right]
 \frac{\Xi_{rs}}{M}\operatorname{tr}(\Sigma_R^2),
 \]
 
-so the plug-in covariance is biased upward by
-\(4\Xi_{rs}^2\operatorname{tr}(\Sigma_R^2)/(M^2P^2)\). This is a policy, not a
-defect: the inflation is \(O(M^{-2})\), is largest when noise dominates the
-true distances, and makes plug-in intervals mildly conservative rather than
-anticonservative. It must be disclosed wherever the policy is offered, and
+so the face-value plug-in covariance is biased upward by
+\(4\Xi_{rs}^2\operatorname{tr}(\Sigma_R^2)/(M^2P^2)\). This is **not** a mild
+effect. Against the noise term
+\(2\Xi_{rs}^2\operatorname{tr}(\Sigma_R^2)/(M(M-1)P^2)\) it is a ratio of
+\(2(M-1)/M\to2\): both are \(O(M^{-2})\), so the bias is of the order of the
+noise term itself. At \(M=4\) under a null truth the face-value plug-in
+reports \(2.5\times\) the true variance; with a modest true signal an audit
+measured a mean diagonal of 0.766 against a true 0.481. Until 2026-10 crossform reported that face-value value and
+described it as mildly conservative; that description was wrong.
+
+The implemented `partition_mean_plugin` policy therefore removes the bias. In
+the effect coordinates, with \(\bar B\) the whitened partition mean and
+\(\widehat{\operatorname{tr}}(\Sigma_R^2)\) the §4 estimate,
+
+\[
+\widehat H
+=
+\bar B S_R \bar B^\top
+-
+\Sigma_K\,\frac{\widehat{\operatorname{tr}}(\Sigma_R^2)}{M},
+\qquad
+E\widehat H = B\Sigma_R B^\top ,
+\]
+
+since \(S_R\) is independent of \(\bar B\) and unbiased. The signal term is
+evaluated at \(C\widehat H C^\top\); this is exactly equivalent to using the
+noise coefficient \(2/(M(M-1))-4/M^2\) under the plug-in target. That
+coefficient is negative for \(M>2\), and \(\widehat H\) is often indefinite
+when the true signal is weak, so an unprojected estimate can report negative
+variances. \(\widehat H\) is therefore projected onto the PSD cone in
+\(\Sigma_K\)-whitened coordinates: with
+\(Z=\Sigma_K^{-1/2}\bar B S_R\bar B^\top\Sigma_K^{-1/2}=V\Lambda V^\top\), the
+retained Gram is
+\(\Sigma_K^{1/2}V\max(\Lambda-\widehat{\operatorname{tr}}/M,0)V^\top\Sigma_K^{1/2}\),
+the positive-part estimator of the signal-to-noise spectrum (Euclidean
+projection of \(\widehat H\) where \(\Sigma_K\) is singular). The projection is
+exactly unbiased whenever no eigenvalue is clamped, and in the Loewner order
+it lies between \(\widehat H\) and the face-value plug-in, so it is never more
+biased than what it replaced. Under weak signal the residue is conservative
+(simulated at \(M=4\), null truth, \(P=20\): about \(1.4\times\) the true
+variance, against \(2.5\times\) face-value). Every plug-in result records
+`$source$signal_target_correction = "partition_mean_bias_removed"` and the
+number of clamped directions, `$source$signal_clamped_directions`.
 `target = "null"` remains the exact choice for calibrating a test of no
-effect. Since 2026-08-16 this is the *only* remaining bias of the plug-in
-policy; the separate noise-trace inflation that used to accompany it is
-corrected in §4.
+effect. The separate noise-trace inflation is corrected in §4.
 
 An analytic z-test, confidence interval, contrast test, LD-t, bootstrap,
 permutation distribution, and population resampling are different calibration
