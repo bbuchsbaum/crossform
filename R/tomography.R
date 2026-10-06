@@ -259,6 +259,10 @@
     t(decomposition$u[, retained, drop = FALSE])
 }
 
+# The loosest relative residual a reference check may accept and still call
+# the reconstruction numerically certified.
+.tomography_certification_ceiling <- 1e-6
+
 .tomography_reject <- function(message, diagnostics) {
   condition <- structure(list(
     message = message,
@@ -427,6 +431,17 @@
   certification_tolerance <- max(tolerance,
     10 * prod(conditions) * .Machine$double.eps)
   certified <- !is.null(reference_operator)
+  if (certified && certification_tolerance > .tomography_certification_ceiling) {
+    # Past this point the round-off bound alone would admit errors no reader
+    # could call a numerical certificate, so the check refuses instead.
+    .tomography_reject(paste0(
+      "Tomographic frames are too ill-conditioned to certify numerically: ",
+      "round-off alone allows a relative residual of ",
+      format(signif(certification_tolerance, 3)), "."
+    ), c(frame_diagnostics, list(
+      certification_tolerance = certification_tolerance
+    )))
+  }
   if (certified) {
     if (!.is_finite_matrix(reference_operator) ||
         !identical(dim(reference_operator), dim(operator))) {

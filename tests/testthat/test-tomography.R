@@ -20,7 +20,7 @@ tomography_frame_from_operator <- function(operator, domain, node_widths,
 
 tomography_self_fixture <- function(
     kind = c("parseval", "general", "deficient", "ill_conditioned",
-             "moderate"),
+             "moderate", "steep"),
     complete = TRUE, seed = 2026081226) {
   kind <- match.arg(kind)
   set.seed(seed)
@@ -51,6 +51,8 @@ tomography_self_fixture <- function(
     ), 2L, 3L, byrow = TRUE),
     ill_conditioned = diag(c(1, 1e-12)),
     moderate = qr.Q(qr(matrix(rnorm(9L), 3L))) %*% diag(c(1, 1e-2, 1e-4)) %*%
+      t(qr.Q(qr(matrix(rnorm(9L), 3L)))),
+    steep = qr.Q(qr(matrix(rnorm(9L), 3L))) %*% diag(c(1, 1e-3, 1e-6)) %*%
       t(qr.Q(qr(matrix(rnorm(9L), 3L))))
   )
   widths <- switch(kind,
@@ -58,7 +60,8 @@ tomography_self_fixture <- function(
     general = c(2L, 2L),
     deficient = c(1L, 1L),
     ill_conditioned = 2L,
-    moderate = c(2L, 1L)
+    moderate = c(2L, 1L),
+    steep = c(2L, 1L)
   )
   frame <- tomography_frame_from_operator(
     operator, domain, widths, paste0("tomography:", kind)
@@ -319,6 +322,27 @@ test_that("certification tolerance scales with the frames' conditioning", {
   )
   expect_s3_class(error, "effect_tomography_rejection")
   expect_match(conditionMessage(error), "reference check")
+})
+
+test_that("tomography refuses to certify past its round-off ceiling", {
+  # Condition number 1e6 on both sides is admitted by `max_condition`, but
+  # round-off alone then allows a relative residual of about 2e-3, which no
+  # reference check can call a certificate.
+  fixture <- tomography_self_fixture("steep", seed = 7L)
+  error <- tryCatch(
+    crossform:::.reconstruct_neural_evidence(
+      fixture$form, fixture$frame,
+      reference_operator = fixture$reference
+    ),
+    effect_tomography_rejection = identity
+  )
+  expect_s3_class(error, "effect_tomography_rejection")
+  expect_match(conditionMessage(error), "too ill-conditioned to certify")
+  # Without a reference there is nothing to certify, so it still reconstructs.
+  result <- crossform:::.reconstruct_neural_evidence(
+    fixture$form, fixture$frame
+  )
+  expect_identical(result$status, "exact_algebraic_reconstruction")
 })
 
 test_that("tomography resource plans count every dense allocation", {
