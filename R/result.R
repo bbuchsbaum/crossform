@@ -879,6 +879,8 @@ query_geometry <- function(x, query, component = "total", row_block = 1024L) {
 # components, because a fraction of sums is not a sum of fractions.
 .coherence_fraction <- function(total, coherent, configuration) {
   valid <- is.finite(total) & total > 0 & coherent >= 0 & configuration >= 0
+  # A missing component makes the comparison NA; that node is not valid.
+  valid <- valid & !is.na(valid)
   fraction <- rep(NA_real_, length(total))
   fraction[valid] <- coherent[valid] / total[valid]
   list(fraction = fraction, valid = valid)

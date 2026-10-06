@@ -280,10 +280,15 @@ memory_plan <- function(frame_bytes = 0,
                                   requirements, query = NULL,
                                   right_relation = NULL) {
   q <- length(x$effects)
-  h <- q * (q + 1L) / 2L
   p <- x$n_features
   m <- nrow(at$weights)
   r <- length(x$partitions)
+  # A rectangular plan forms q_left * q_right coordinates per feature and
+  # retains first moments for both sides; a symmetric plan packs q(q+1)/2.
+  rectangular <- !is.null(right_relation)
+  q_right <- if (rectangular) length(right_relation$effects) else 0
+  r_right <- if (rectangular) length(right_relation$partitions) else 0
+  h <- if (rectangular) q * q_right else q * (q + 1L) / 2L
   f <- min(feature_block, p)
   rows <- min(row_tile, m)
   coordinates <- min(coordinate_tile, output_width)
@@ -336,7 +341,11 @@ memory_plan <- function(frame_bytes = 0,
   } else {
     0
   }
-  local_bytes <- if (requirements$coherent) m * q * r * 8 else 0
+  local_bytes <- if (requirements$coherent) {
+    (m * q * r + m * q_right * r_right) * 8
+  } else {
+    0
+  }
   marginal_bytes <- if (requirements$marginals) 2 * m * q * 8 else 0
   component_count <- as.integer(requirements$total) +
     as.integer(requirements$coherent)
@@ -347,11 +356,11 @@ memory_plan <- function(frame_bytes = 0,
   }
   output_bytes <- marginal_bytes + durable_geometry
   total_contraction <- if (requirements$total) (
-    rows * f + f * coordinates + rows * coordinates + rows * q +
+    rows * f + f * coordinates + rows * coordinates + rows * (q + q_right) +
       rows * h
   ) * 8 else 0
   coherent_contraction <- if (requirements$coherent) (
-    rows * f + rows * q * 3 + rows * h + rows * output_width
+    rows * f + rows * (q + q_right) * 3 + rows * h + rows * output_width
   ) * 8 else 0
   contraction <- max(total_contraction, coherent_contraction)
   replacement <- if (requirements$total) {
