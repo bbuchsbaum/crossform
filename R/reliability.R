@@ -112,6 +112,9 @@
 
   finalize <- function(requested_status) {
     if (state$finalized) return(invisible(NULL))
+    # Claimed before any step that can throw (receipt validation, the
+    # receipt sink), so the exit handler never reruns cleanup or the sink.
+    state$finalized <- TRUE
     state$cleanup_status <- .run_cleanup(cleanup)
     final_status <- if (requested_status == "complete" &&
       !state$cleanup_status$success) "failed" else requested_status
@@ -131,7 +134,6 @@
     state$receipt$observed$reporter_failures <- state$observer_failures
     .validate_execution_receipt(state$receipt)
     if (!is.null(receipt_sink)) receipt_sink(state$receipt)
-    state$finalized <- TRUE
     invisible(NULL)
   }
   on.exit({

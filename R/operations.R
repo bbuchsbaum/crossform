@@ -226,7 +226,15 @@ aggregate_first <- function() .new_partition_reducer("aggregate_first")
   if (transform$kind == "identity") return(value)
   if (transform$kind == "rank_edges") {
     return(matrix(rank(as.vector(value), ties.method = transform$ties),
-      nrow(value), ncol(value)))
+      nrow(value), ncol(value), dimnames = dimnames(value)))
+  }
+  # A missing correlation would otherwise reach `if()` as NA in the boundary
+  # check, or pass silently through clipping into `atanh()`.
+  if (anyNA(value)) {
+    .input_error(paste0(
+      "Fisher transformation requires every edge value to be a ",
+      "correlation; received a missing value."
+    ))
   }
   if (transform$boundary == "error" && any(abs(value) >= 1)) {
     .input_error(

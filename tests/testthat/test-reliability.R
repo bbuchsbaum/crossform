@@ -158,3 +158,23 @@ test_that("cleanup failure cannot replace interrupt semantics", {
   expect_false(condition$cleanup_status$success)
   expect_identical(condition$receipt$completion_status, "interrupted")
 })
+
+test_that("a failing receipt sink does not rerun cleanup or the sink", {
+  cleaned <- 0L
+  sunk <- 0L
+  expect_error(
+    crossform:::.execute_guarded(
+      compute = function() 42,
+      receipt = receipt_fixture(),
+      cleanup = function() cleaned <<- cleaned + 1L,
+      receipt_sink = function(receipt) {
+        sunk <<- sunk + 1L
+        stop("sink failed")
+      }
+    ),
+    "sink failed"
+  )
+
+  expect_identical(cleaned, 1L)
+  expect_identical(sunk, 1L)
+})

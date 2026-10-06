@@ -230,8 +230,10 @@ searchlights <- function(radius, normalization = "local", weights = NULL) {
 #' Declares one measurement per distinct label, so an atlas or region-label
 #' vector becomes a set of non-overlapping regional measurements.
 #'
-#' @param labels One region label per neural feature. Missing labels are
-#'   excluded unless conservative normalization is requested.
+#' @param labels One region label per neural feature. Features with a missing
+#'   (`NA`) or empty label are always excluded from every region, so
+#'   conservative normalization, which must cover every feature, is refused
+#'   when any label is missing.
 #' @param normalization Explicit frame normalization.
 #' @return An `effect_frame_spec` with `$kind` `"regions"`, the supplied
 #'   `$labels`, and `$normalization`. Pass it to [compile_frame()].

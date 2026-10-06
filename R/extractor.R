@@ -253,13 +253,17 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
     if (rank < 1L) {
       .input_error("The whitened design has zero estimable rank.")
     }
-    basis <- singular$v[, keep, drop = FALSE]
+    # `keep` indexes the min(n, p) singular values while `v` has all p
+    # columns, so a logical subscript would recycle when n < p.
+    kept <- which(keep)
+    basis <- singular$v[, kept, drop = FALSE]
     projected <- effects %*% basis %*% t(basis)
     scale <- pmax(1, sqrt(rowSums(effects^2)))
     estimability_error <- sqrt(rowSums((effects - projected)^2)) / scale
     if (any(estimability_error > tolerance * 10)) {
       bad <- coordinate_names[estimability_error > tolerance * 10]
-      null_basis <- singular$v[, !keep, drop = FALSE]
+      null_basis <- singular$v[, setdiff(seq_len(coefficients), kept),
+        drop = FALSE]
       coefficient_names <- colnames(design)
       if (is.null(coefficient_names)) {
         coefficient_names <- paste0("coefficient", seq_len(coefficients))
@@ -310,7 +314,7 @@ lm_extractor <- function(design, effects, observation_whitener = NULL,
         remedies = remedies
       )
     }
-    inverse <- singular$v[, keep, drop = FALSE] %*%
+    inverse <- singular$v[, kept, drop = FALSE] %*%
       (t(singular$u[, keep, drop = FALSE]) / singular$d[keep])
     coefficient_whitened_map <- inverse
     residual_basis <- singular$u[, keep, drop = FALSE]
