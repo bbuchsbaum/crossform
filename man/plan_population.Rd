@@ -101,6 +101,11 @@ unless \code{allow_nonconservative = TRUE}.
 \item \code{aligned_subject_transports} --- transport and subject names that do not
 match, or a transport whose native rows do not count the participant's
 frame measurements.
+\item \code{held_out_transport_evaluation} --- a transport whose
+\code{provenance$cross_fit} names a partition the participant's geometry plan
+evaluates (either endpoint of any pair in its pairing). A transport
+fitted on a partition is never evaluated on it (\code{population-form-v1}
+section 1.4).
 \item \code{shared_group_nodes} --- transports landing on different group node sets,
 or declaring different \code{semantics}.
 \item \code{aligned_subject_rows} --- a \code{data} table whose rows do not name their

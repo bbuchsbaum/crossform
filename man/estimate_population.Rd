@@ -46,7 +46,9 @@ An \code{effect_population_result}: a sealed record carrying
 \verb{$uncertainty} (see the section above; read it through
 \code{\link[=population_uncertainty]{population_uncertainty()}}), and a \verb{$receipt} recording every
 participant's read, its
-transport signature, the budget certificate, and the normalization.
+transport signature, the budget certificate, the normalization, and
+\verb{$unresolved_cells}: one row per node-query column left unestimated,
+naming the participants whose non-finite value withheld it.
 \code{as.data.frame()} returns the coefficient table in long form.
 }
 \description{
@@ -155,6 +157,10 @@ the participants.
 \item \code{distance_basis_query_bank} --- an uncentred contrast in the bank when
 \code{uncertainty} is supplied. Point estimates admit uncentred contrasts;
 their sampling law does not.
+\item \code{component_sampling_covariance} --- \code{uncertainty} supplied with
+\code{component = "coherent"} or \code{"configuration"}. The sampling covariance
+is the crossvalidated distance's, which is the total geometry; it does
+not describe the other two ledgers.
 }
 }
 

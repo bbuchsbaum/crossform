@@ -108,6 +108,43 @@ test_that("the constructor refuses an ill-formed operator", {
   )
 })
 
+test_that("a row admitted within tolerance passes the fit-time certificate", {
+  # A row whose group mass exceeds one by no more than `tolerance` used to be
+  # sealed as stated --- summing to `1 + eps` with a zero sink --- and then
+  # refused at fit time by the 1e-12 budget certificate. Within tolerance the
+  # constructor now rescales the row to unit mass and records that it did.
+  P <- rbind(c(0.33333333334, 0.66666666667), c(0.5, 0.25), c(1, 0))
+  transport <- external_transport(P, semantics = "budget",
+    provenance = list(details = "rounded export"))
+  rows <- as.numeric(Matrix::rowSums(transport$matrix))
+  expect_lt(max(abs(rows - 1)), 1e-15)
+  expect_identical(as.numeric(transport$matrix[1L, 3L]), 0)
+  expect_equal(as.numeric(transport$matrix[2L, 3L]), 0.25, tolerance = 1e-15)
+  renormalized <- transport$provenance$row_renormalization
+  expect_identical(renormalized$rows, 1L)
+  expect_equal(renormalized$max_excess, 1e-11, tolerance = 1e-3)
+  expect_identical(renormalized$tolerance, 1e-9)
+  # The ratio within the row is what was declared.
+  expect_equal(as.numeric(transport$matrix[1L, 2L] / transport$matrix[1L, 1L]),
+    0.66666666667 / 0.33333333334, tolerance = 1e-14)
+
+  # A row inside the unit mass is never touched, and no record appears.
+  untouched <- transport_fixture()
+  expect_null(untouched$provenance$row_renormalization)
+
+  # The certificate the population driver asserts now holds on a signed
+  # ledger, at its own tolerance.
+  ledger <- cbind(q = c(1e3, -2e3, 5e2))
+  carried <- transport_values(transport, ledger)
+  expect_lt(crossform:::.population_budget_certificate("s01", ledger, carried),
+    1e-12)
+
+  # The record is the constructor's, not the caller's.
+  expect_error(external_transport(P, semantics = "budget",
+    provenance = list(details = "x", row_renormalization = "mine")),
+    "row_renormalization", class = "effect_input_error")
+})
+
 test_that("semantics is required and closed", {
   expect_error(
     location_transport(transport_block(), c("v1", "v2", "v3", "v4", "v5"),

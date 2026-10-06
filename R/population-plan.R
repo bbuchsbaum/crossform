@@ -372,6 +372,65 @@
   transport
 }
 
+# The partitions a subject plan evaluates: both endpoints of every pair in its
+# pairing. A partition the relation carries but the pairing never reads is not
+# evaluated, so a transport fitted on it is honestly held out.
+.population_evaluated_partitions <- function(plan) {
+  pairing <- plan$pairing
+  unique(as.character(c(pairing$left, pairing$right)))
+}
+
+# `population-form-v1` sections 1.4 and 7.2: a transport fitted on a partition
+# that is also used to evaluate it reports roughly three times the honest
+# transport gain, lands at the oracle ceiling, and is indistinguishable from
+# an honest transport in the result. `cross_fit` is required on a functional
+# transport precisely so that the plan can refuse that evaluation, and so it
+# does --- for any transport that declares `cross_fit`, since an `"external"`
+# operator built from data carries the field too.
+#
+# `evaluated`, when given, is a named list of the partitions each participant
+# is about to be evaluated on (the heterogeneity split reads a relation's
+# partitions directly rather than through the pairing); by default it is each
+# subject plan's own pairing.
+.population_admit_cross_fit <- function(subjects, transport,
+                                        evaluated = NULL) {
+  labels <- names(subjects)
+  if (is.null(evaluated)) {
+    evaluated <- lapply(subjects, .population_evaluated_partitions)
+  }
+  overlap <- unlist(lapply(labels, function(label) {
+    declared <- transport[[label]]$provenance$cross_fit
+    if (is.null(declared)) return(NULL)
+    shared <- intersect(as.character(declared),
+      as.character(unlist(evaluated[[label]], use.names = FALSE)))
+    if (length(shared)) paste0(label, ":", shared) else NULL
+  }), use.names = FALSE)
+  if (!length(overlap)) return(invisible(character()))
+  .capability_refusal(paste0(
+    "A transport fitted on a partition cannot be evaluated on that ",
+    "partition. A circular transport reports roughly three times the honest ",
+    "transport gain and lands at the oracle ceiling, and in a result object ",
+    "the two numbers are indistinguishable, so the plan refuses every ",
+    "partition a transport's `provenance$cross_fit` names rather than ",
+    "recording the overlap. Overlapping participant partitions: ",
+    .msg_names(overlap), "."
+  ),
+    capability = "held_out_transport_evaluation",
+    namespace = "population_plans",
+    reasons = paste0("transport_cross_fit_partition_evaluated:", overlap),
+    remedies = c(
+      paste0(
+        "Re-plan each participant's geometry over a pairing that excludes ",
+        "the partitions its transport was fitted on, for example ",
+        "`cross_partitions(setdiff(partitions, cross_fit))`."
+      ),
+      paste0(
+        "Or refit the transport on partitions the geometry does not ",
+        "evaluate, and declare those in `cross_fit`."
+      )
+    ))
+}
+
 # All transports must land on one group node set, with the same semantics.
 # The group index carries the labels and coordinates every coverage and
 # displacement diagnostic is defined against, so two subjects reaching
@@ -743,6 +802,11 @@
 #' * `aligned_subject_transports` --- transport and subject names that do not
 #'   match, or a transport whose native rows do not count the participant's
 #'   frame measurements.
+#' * `held_out_transport_evaluation` --- a transport whose
+#'   `provenance$cross_fit` names a partition the participant's geometry plan
+#'   evaluates (either endpoint of any pair in its pairing). A transport
+#'   fitted on a partition is never evaluated on it (`population-form-v1`
+#'   section 1.4).
 #' * `shared_group_nodes` --- transports landing on different group node sets,
 #'   or declaring different `semantics`.
 #' * `aligned_subject_rows` --- a `data` table whose rows do not name their
@@ -855,6 +919,7 @@ plan_population <- function(subjects, transport, model = ~ 1, data = NULL,
   .population_admit_conservation(subjects, conservation, allow_nonconservative)
 
   transport <- .population_transports(transport, subjects)
+  .population_admit_cross_fit(subjects, transport)
   group_index <- .population_group_nodes(transport)
   semantics <- transport[[1L]]$semantics
 
