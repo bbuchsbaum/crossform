@@ -261,3 +261,47 @@ test_that("metric schedules refuse leakage and identity mutations", {
     "identity is inconsistent"
   , class = "effect_contract_error")
 })
+
+test_that("the spectral ridge meets its floor after the ridge", {
+  setup <- metric_learning_setup()
+  schedule <- crossform:::compile_metric_schedule(
+    shrinkage_precision(shrinkage = 1e-13, relative_spectral_floor = 0.05),
+    setup$statistics, setup$fixture$frame, setup$over
+  )
+  handle <- crossform:::.metric_schedule_provider(schedule, 1L)$at(10L)
+  spectrum <- eigen(handle$covariance, symmetric = TRUE,
+    only.values = TRUE)$values
+
+  expect_gt(handle$diagnostics$spectral_ridge, 0)
+  expect_gte(min(spectrum) / max(spectrum), 0.05)
+  expect_equal(handle$covariance,
+    oracle_shrinkage_covariance(
+      oracle_local_residual_covariance(setup$fixture, "run3",
+        handle$support_positions),
+      schedule$recipe
+    ), tolerance = 2e-13)
+})
+
+test_that("a ridge at the default floor yields a positive-definite metric", {
+  set.seed(8311)
+  domain <- abstract_domain(12, id = "ridge-default-floor")
+  for (draw in 1:20) {
+    factor <- matrix(rnorm(12 * 3), 12)
+    covariance <- tcrossprod(factor) * 10^runif(1, -3, 3)
+    diagnostics <- crossform:::.metric_covariance_diagnostics(covariance)
+    ridge <- crossform:::.metric_spectral_ridge(diagnostics, 1e-10)
+    regularized <- covariance + diag(ridge, 12)
+    after <- crossform:::.metric_covariance_diagnostics(regularized, 1e-10)
+
+    expect_gt(ridge, 0)
+    expect_true(is.finite(after$condition))
+    expect_true(metric_capabilities(
+      neural_metric(chol2inv(chol(regularized)), domain,
+        inverse = regularized)
+    )$positive_definite)
+  }
+  expect_error(shrinkage_precision(relative_spectral_floor = 1e-12),
+    "relative_spectral_floor", class = "effect_input_error")
+  expect_error(shrinkage_precision(relative_spectral_floor = 1),
+    "relative_spectral_floor", class = "effect_input_error")
+})

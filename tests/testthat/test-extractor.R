@@ -81,6 +81,28 @@ test_that("rank-deficient extraction admits only estimable targets", {
   expect_match(conditionMessage(refusal), "estimable contrasts")
 })
 
+test_that("wide designs refuse inestimable effects rather than recycling", {
+  set.seed(8402)
+  design <- matrix(rnorm(15), 3, 5,
+    dimnames = list(NULL, paste0("b", 1:5)))
+  refusal <- catch_refusal(
+    lm_extractor(design, matrix(c(1, 0, 0, 0, 0), 1,
+      dimnames = list("first_only", NULL)))
+  )
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "estimable_effects")
+  expect_match(conditionMessage(refusal), "rank 3 for 5 regressors")
+
+  estimable <- design[1, , drop = FALSE]
+  rownames(estimable) <- "row_space"
+  extractor <- lm_extractor(design, estimable)
+  expect_identical(extractor$diagnostics$rank, 3L)
+
+  aliases <- crossform:::.relation_plan_aliases(design, 1e-8)
+  expect_length(aliases, 1L)
+  expect_identical(aliases, "b1, b2, b3, b4, b5")
+})
+
 test_that("mutated extractor contracts fail closed", {
   extractor <- effect_extractor(diag(2), c("a", "b"))
   extractor$n_observations <- 3L

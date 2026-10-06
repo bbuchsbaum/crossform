@@ -397,3 +397,34 @@ test_that("a folded diagonal metric conserves local totals globally", {
   expect_equal(sum(local_view$values), unname(drop(global_view$values)),
     tolerance = 1e-12)
 })
+
+test_that("a one-feature node composes with a diagonal metric", {
+  domain <- abstract_domain(3, id = "single-feature-node")
+  weights <- rbind(c(0.5, 0, 0), c(0.5, 1, 1))
+  frame <- additive_frame(weights, normalization = "conservative",
+    domain = domain)
+  metrics <- list(
+    neural_metric(matrix(1, 1, 1), domain, support = 1L),
+    neural_metric(diag(c(2, 3, 4)), domain, support = 1:3)
+  )
+  composed <- crossform:::.compose_frame_metric(frame, metrics[[1]], 1)
+
+  expect_identical(dim(composed$metric$value), c(1L, 1L))
+  expect_equal(composed$metric$value, matrix(0.5, 1, 1), tolerance = 0)
+  certificate <- crossform:::.metric_frame_conservation(frame, metrics)
+  expect_true(certificate$feature_additive)
+  expect_equal(certificate$global_diagonal, c(1.5, 3, 4), tolerance = 0)
+})
+
+test_that("metric symmetry and definiteness checks are scale relative", {
+  domain <- abstract_domain(3, id = "small-scale-metric")
+  small <- neural_metric(1e-11 * diag(3), domain)
+  expect_true(metric_capabilities(small)$positive_definite)
+  root <- crossform:::.metric_symmetric_psd_root(small)
+  expect_equal(root %*% root, small$value, tolerance = 1e-12)
+  asymmetric <- matrix(c(1e-3, 1e-12, 0, 1e-3), 2)
+  expect_error(
+    neural_metric(asymmetric, abstract_domain(2, id = "asym-small")),
+    "symmetric", class = "effect_input_error"
+  )
+})

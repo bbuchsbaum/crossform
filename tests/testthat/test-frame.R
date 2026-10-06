@@ -60,6 +60,19 @@ test_that("searchlight neighborhoods respect domain geometry", {
   expect_equal(sizes[5], 5)
 })
 
+test_that("unit-mass checks scale with the number of summed weights", {
+  frame <- compile_frame(whole_brain(), abstract_domain(1e5))
+  expect_identical(frame$normalization, "local")
+  expect_identical(ncol(frame$weights), 100000L)
+
+  domain <- abstract_domain(3, id = "unit-mass-tolerance")
+  expect_error(
+    additive_frame(matrix(c(0.5, 0.5, 1e-9), 1), normalization = "local",
+      domain = domain),
+    "must sum to one", class = "effect_input_error"
+  )
+})
+
 test_that("frame compilation rejects mismatches and uncovered conservation", {
   domain <- grid_domain()
   expect_error(compile_frame(regions(c("a", "b")), domain),

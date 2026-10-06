@@ -20,8 +20,8 @@ local residual variance.}
 
 \item{absolute_variance_floor}{Nonnegative floor in squared response units.}
 
-\item{relative_spectral_floor}{Positive minimum eigenvalue relative to the
-local covariance scale.}
+\item{relative_spectral_floor}{Minimum eigenvalue relative to the local
+covariance scale after the spectral ridge, in \verb{[1e-10, 1)}.}
 
 \item{domain}{Optional exact neural domain. Omitting it defers domain binding
 until schedule compilation.}

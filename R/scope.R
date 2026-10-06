@@ -576,14 +576,24 @@ compile_lowering <- function(frame, query) {
     if (any(!is.finite(row_mass)) || any(row_mass <= 0)) {
       .input_error("Every additive frame row must have finite positive mass.")
     }
+    # Summation rounding grows with the number of summed entries, so the unit
+    # mass tolerance scales with each row's (or column's) nonzero count; a
+    # fixed 1e-12 would refuse a locally normalized whole-brain row.
     tolerance <- 1e-12
-    if (normalization == "local" && any(abs(row_mass - 1) > tolerance)) {
-      .input_error("Locally normalized frame rows must sum to one.")
+    if (normalization == "local") {
+      row_count <- if (inherits(weights, "Matrix"))
+        Matrix::rowSums(weights != 0) else rowSums(weights != 0)
+      if (any(abs(row_mass - 1) > tolerance * pmax(1, row_count))) {
+        .input_error("Locally normalized frame rows must sum to one.")
+      }
     }
     if (normalization == "conservative") {
       column_mass <- if (inherits(weights, "Matrix"))
         Matrix::colSums(weights) else colSums(weights)
-      if (any(!is.finite(column_mass)) || any(abs(column_mass - 1) > tolerance)) {
+      column_count <- if (inherits(weights, "Matrix"))
+        Matrix::colSums(weights != 0) else colSums(weights != 0)
+      if (any(!is.finite(column_mass)) ||
+          any(abs(column_mass - 1) > tolerance * pmax(1, column_count))) {
         .input_error("Conservative frame columns must sum to one.")
       }
     }

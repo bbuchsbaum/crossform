@@ -7,8 +7,10 @@
 regions(labels, normalization = "local")
 }
 \arguments{
-\item{labels}{One region label per neural feature. Missing labels are
-excluded unless conservative normalization is requested.}
+\item{labels}{One region label per neural feature. Features with a missing
+(\code{NA}) or empty label are always excluded from every region, so
+conservative normalization, which must cover every feature, is refused
+when any label is missing.}
 
 \item{normalization}{Explicit frame normalization.}
 }
