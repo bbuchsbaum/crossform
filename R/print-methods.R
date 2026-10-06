@@ -657,6 +657,18 @@ print.effect_geometry_plan <- function(x, detail = FALSE, ...) {
 # refusal names the thing that is missing; an admission names how much of the
 # transport it covers, because "exact" over two of forty columns is a different
 # report from "exact" over all forty.
+# Names the participants whose non-finite values left cells unestimated, so
+# the count is never printed without the subjects responsible for it.
+.pf_population_unresolved_by <- function(cells) {
+  subjects <- .population_unresolved_subjects(cells)
+  if (!length(subjects)) return("")
+  shown <- utils::head(subjects, 5L)
+  paste0(" (non-finite in ", paste(shown, collapse = ", "),
+    if (length(subjects) > length(shown)) {
+      sprintf(", and %d more", length(subjects) - length(shown))
+    }, ")")
+}
+
 .pf_population_within <- function(x) {
   within <- x$uncertainty$within
   if (is.null(within)) {
@@ -737,7 +749,8 @@ print.effect_population_result <- function(x, ...) {
     within = .pf_population_within(x),
     unresolved = if (x$receipt$unresolved_columns) {
       paste0(x$receipt$unresolved_columns, " node-",
-        if (form) "coordinate" else "query", " cells not estimated")
+        if (form) "coordinate" else "query", " cells not estimated",
+        .pf_population_unresolved_by(x$receipt$unresolved_cells))
     },
     estimand = .pf_sig(x$scientific_plan_id)
   )))

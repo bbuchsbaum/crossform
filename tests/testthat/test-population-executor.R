@@ -399,6 +399,9 @@ test_that("`unit_budget` marks a participant whose signed total is below the dec
   expect_identical(nrow(fit$receipt$unresolved_cells), 8L)
   expect_true(all(fit$receipt$unresolved_cells$subjects ==
     paste(names(sizes), collapse = "; ")))
+  printed <- paste(utils::capture.output(print(fit)), collapse = "\n")
+  expect_match(printed, "cells not estimated (non-finite in ", fixed = TRUE)
+  expect_match(printed, names(sizes)[[1L]], fixed = TRUE)
   expect_identical(nrow(estimate_population(plan,
     pex_bank())$receipt$unresolved_cells), 0L)
   expect_identical(fit$receipt$normalization$floor_criterion,
