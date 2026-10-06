@@ -283,11 +283,20 @@ test_that("the null target is exact and the plug-in target is algebraic", {
       setup$truth$partitions, normalization = 1,
       residual_df = residual_df_total
     )
-    plugin_law <- sampling_oracle_scalar_law(
-      differences, setup$xi, whitened_residual,
-      setup$truth$partitions, normalization = 1,
-      residual_df = residual_df_total
+    # The plug-in signal is the partition mean of the estimates, whose Gram
+    # carries Sigma_K tr(Sigma_w^2) / M of pure noise; the package removes it
+    # (positive part in Sigma_K-whitened coordinates) and so must the oracle.
+    noise_trace <- sampling_oracle_noise_trace(
+      whitened_residual, residual_df_total
     )
+    plugin_law <- sampling_oracle_eq13_terms(
+      sampling_oracle_plugin_signal_gram(
+        setup$truth$contrasts, partition_mean %*% t(setup$root),
+        whitened_residual, crossform:::effect_covariance(setup$fit, 1L),
+        noise_trace, setup$truth$partitions
+      ),
+      setup$xi, noise_trace, setup$truth$partitions
+    )$covariance
     null_package <- sampling_covariance(
       rdm_sampling_covariance(setup$evidence, setup$fit, target = "null",
         at = 1L),
@@ -301,7 +310,7 @@ test_that("the null target is exact and the plug-in target is algebraic", {
 
     expect_equal(unname(null_package), null_law, tolerance = 1e-12,
       info = configuration$label)
-    expect_equal(unname(plugin_package), plugin_law, tolerance = 1e-12,
+    expect_equal(unname(plugin_package), unname(plugin_law), tolerance = 1e-12,
       info = configuration$label)
   }
 })
@@ -330,18 +339,19 @@ test_that("the null target reproduces the Monte Carlo null covariance", {
   }
 })
 
-test_that("the plug-in target is biased upward by a stated amount", {
-  # Substituting the partition mean of the ESTIMATES for the signal inflates
-  # the signal term, because for M partitions
+test_that("the plug-in target removes the partition-mean signal bias", {
+  # Substituting the partition mean of the ESTIMATES for the signal would
+  # inflate the signal term, because for M partitions
   #
   #   E[mu-hat_r Sigma_w mu-hat_s'] = mu_r Sigma_w mu_s'
-  #                                   + Xi_rs tr(Sigma_w^2) / M.
+  #                                   + Xi_rs tr(Sigma_w^2) / M,
   #
-  # That is the whole remaining bias. Since 2026-08-16 the noise term uses the
-  # Wishart-unbiased estimator of tr(Sigma_w^2), so the pooled residual
-  # covariance contributes no bias of its own; before that correction it added
-  # tr(Sigma_w^2)/df + tr(Sigma_w)^2/df on top, which is pinned as the
-  # uncorrected alternative below.
+  # i.e. by 4 Xi_rs^2 tr(Sigma_w^2) / M^2, which is 2 (M - 1) / M times the
+  # noise term itself -- not a mild O(M^-2) effect. Until 2026-10 the package
+  # reported that biased `predicted` value; it now subtracts the bias, so
+  # its plug-in covariance is centred on the exact law. Since 2026-08-16 the
+  # noise term also uses the Wishart-unbiased estimator of tr(Sigma_w^2); the
+  # pre-correction noise trace is pinned algebraically below.
   configuration <- sampling_nonspherical_configurations()[[1L]]
   setup <- sampling_nonspherical_setup(configuration)
   partitions <- setup$truth$partitions
@@ -382,12 +392,12 @@ test_that("the plug-in target is biased upward by a stated amount", {
   observed_mean <- rowMeans(observed)
   standard_error <- apply(observed, 1L, stats::sd) / sqrt(replications)
 
-  # The inflation is real, not a rounding artifact.
+  # The face-value inflation would be real, not a rounding artifact ...
   expect_true(all(diag(predicted) > diag(exact) * 1.05))
-  # And it is exactly the stated amount: 4 standard errors of the mean over
-  # 20 independent datasets, with the replication count fixed here.
+  # ... and the reported plug-in covariance no longer carries it: 4 standard
+  # errors of the mean over 20 independent datasets, replication count fixed.
   expect_lt(
-    max(abs(observed_mean - diag(predicted)) / (4 * standard_error)), 1
+    max(abs(observed_mean - diag(exact)) / (4 * standard_error)), 1
   )
   # The pre-2026-08-16 noise trace is a strictly larger prediction, inflated
   # by exactly (1 + P_eff) / df with P_eff = tr(Sigma_w)^2 / tr(Sigma_w^2).

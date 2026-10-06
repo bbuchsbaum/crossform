@@ -314,3 +314,35 @@ test_that("evidence-task validation detects semantic mutation", {
   expect_error(crossform:::.validate_evidence_task(forged),
     "stage identity", class = "effect_contract_error")
 })
+
+test_that("a malformed same_relation flag is refused before it is read", {
+  # `same_relation` used to be read through `isTRUE()` before `.is_flag()`
+  # validated it, so NA silently meant FALSE and the right relation's
+  # capabilities were demanded first; a right relation without bounded block
+  # reads then failed with a message about its sources instead of the flag.
+  domain <- abstract_domain(3, id = "neural:shared:v1")
+  effects <- effect_space(c("a", "b"), basis_id = "conditions:v1")
+  rel <- evidence_ir_relation(c("r1", "r2"), effects, domain)
+  opaque <- relation(
+    stats::setNames(rep(list(function(features) {
+      matrix(1, 2L, length(features))
+    }), 2L), c("r1", "r2")),
+    source_dims = rep(list(c(2L, 3L)), 2L),
+    effects = effects, domain = domain,
+    capabilities = source_capabilities(FALSE, stable_revision = paste0(
+      "sha256:", paste(rep("b", 64), collapse = "")
+    ))
+  )
+  edges <- crossform:::.ordered_partition_edges(
+    cross_partitions(rel), rel$partitions, rel$partitions, TRUE
+  )
+  bridge <- crossform:::.identity_measurement_bridge(rel, rel)
+
+  expect_error(crossform:::.new_evidence_task(
+    rel, opaque, NA, edges,
+    crossform:::.open_experimental_boundary(effects, effects),
+    crossform:::.closed_neural_boundary(bridge, rel, rel),
+    crossform:::.evidence_stage_plan(),
+    crossform:::.evidence_materialization("effect_form", "complete_form")
+  ), "same_relation", class = "effect_input_error")
+})

@@ -158,6 +158,34 @@ sampling_oracle_eq13 <- function(differences, xi, sigma_r, partitions,
   )
 }
 
+# The signal Gram the `partition_mean_plugin` target must use. The partition
+# mean B_bar of M estimates with per-partition noise Sigma_K (x) Sigma_R has
+# E[B_bar Sigma_R B_bar'] = B Sigma_R B' + Sigma_K tr(Sigma_R^2) / M, so the
+# face-value plug-in inflates the signal term by 4 Xi^2 tr(Sigma_R^2) / M^2.
+# The unbiased effect-space Gram subtracts Sigma_K * noise_trace / M and is
+# then projected onto the PSD cone in Sigma_K-whitened coordinates (eigenvalue
+# positive part). Written with a Cholesky root, not the package's symmetric
+# root: the projection is invariant to that choice, so agreement is evidence.
+sampling_oracle_plugin_signal_gram <- function(contrasts, mean_patterns,
+                                               sigma_r, sigma_k, noise_trace,
+                                               partitions) {
+  mean_patterns <- sampling_oracle_matrix(mean_patterns, "mean patterns")
+  sigma_r <- sampling_oracle_matrix(sigma_r, "residual covariance",
+    symmetric = TRUE)
+  sigma_k <- sampling_oracle_matrix(sigma_k, "effect covariance",
+    symmetric = TRUE)
+  partitions <- sampling_oracle_partitions(partitions)
+  gram <- mean_patterns %*% sigma_r %*% t(mean_patterns)
+  lower <- t(chol(sigma_k))
+  lower_inverse <- solve(lower)
+  whitened <- lower_inverse %*% gram %*% t(lower_inverse)
+  spectrum <- eigen((whitened + t(whitened)) / 2, symmetric = TRUE)
+  kept <- pmax(spectrum$values - noise_trace / partitions, 0)
+  vectors <- lower %*% spectrum$vectors
+  effect_gram <- vectors %*% diag(kept, length(kept)) %*% t(vectors)
+  contrasts %*% effect_gram %*% t(contrasts)
+}
+
 sampling_oracle_endpoint_enumeration <- function(differences, xi, sigma_r,
                                                   partitions,
                                                   normalization =

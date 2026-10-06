@@ -384,7 +384,12 @@ measurement_form <- function(
   reducer <- .validate_partition_reducer(reducer)
   storage <- match.arg(storage)
   route <- match.arg(route)
-  same_relation <- identical(left, right)
+  # Sameness is the relation's identity, not R object identity: a copy that
+  # differs only in an attribute (or in a cached field) is the same relation,
+  # and treating it as distinct would make an undirected pairing refuse.
+  same_relation <- identical(
+    .relation_family_identity(left), .relation_family_identity(right)
+  )
   if (!.same_domain_reference(
       between$from_frame$source_domain, left$domain) ||
       !.same_domain_reference(

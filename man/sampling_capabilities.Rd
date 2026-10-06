@@ -28,8 +28,9 @@ every unmet requirement with its remedy, without computing anything.
 Every requirement reported here is a property of the plan and its error
 channel, so it can be checked without touching neural values. One
 requirement of \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}} is not: whether a \emph{particular}
-measurement has enough residual degrees of freedom for the number of
-residual directions its own support spends variance on
+measurement's plug-in residual covariance yields a usable (positive)
+estimate of the noise term, which fails for a zero or exactly isotropic
+residual covariance such as a saturated fit leaves
 (capability \code{"sufficient_residual_df"}). That depends on the local residual
 spectrum and can only be known once it is computed, so \code{available = TRUE}
 here does not promise that every measurement will be answerable.
