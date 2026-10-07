@@ -4,7 +4,11 @@ The adapter preserves arbitrary BIDS columns and adds private partition
 and event-key columns required by the generic
 [`observation_events()`](https://bbuchsbaum.github.io/crossform/reference/observation_events.md)
 contract. Partition identity is explicit rather than inferred from
-filenames.
+filenames. `onset` and `duration` are converted to numbers; every other
+column is kept as text (so a `trial_type` of `"01"` stays `"01"`),
+including the BIDS missing marker `"n/a"`, because study facts must be
+complete. Runs with different optional columns are bound on the union of
+columns, filling absent values with `"n/a"`.
 
 ## Usage
 

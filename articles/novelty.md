@@ -1,18 +1,15 @@
 # What is novel in crossform?
 
-`crossform` keeps condition effects, spatial weights and partition
-pairings in one declared geometry. Contrast energies, distances and
-fixed RSA coefficients read different aspects of that geometry.
-Retaining its structure also makes it possible to separate local-mean
-from spatial-pattern energy and to describe exactly what must generalize
-across runs or sessions.
+`crossform` is an estimand compiler for second-order neuroimaging
+analysis. Its primary architectural contribution is an
+**evidence-pairing calculus** in which familiar analyses arise by
+closing different experimental and neural boundaries. Its software
+contribution is the **executable estimand contract** that prevents those
+scientific objects from changing silently during execution.
 
-This guide explains what that organization adds to established methods
-and which claims have supporting evidence. For the analysis itself,
-start with the
-[introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.md);
-for the underlying equalities, read [the common-geometry
-derivation](https://bbuchsbaum.github.io/crossform/articles/common-geometry-equivalence.md).
+That is the claim being developed. This page distinguishes the parts
+already demonstrated from the stronger interpretations that still have
+to be earned.
 
 ## The category difference
 
@@ -168,18 +165,9 @@ architectural comparison, not a claim that every nonlinear dissimilarity
 or inferential method in `rsatoolbox` is contained in the bilinear core.
 
 In particular, Pearson correlation distance is outside that core because
-its per-pattern norm is nonlinear in the fitted patterns. That is a
-statement about the bilinear core, not about what can be reproduced: the
-parity exemplar does recover `rsatoolbox`’s within-sample correlation
-distance to `4.9e-15`, reading `G_ij = (G_ii + G_jj - d_ij)/2` from
-[`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md) and
-[`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md)
-downstream of a guaranteed-PSD self form with strictly positive
-diagonals – the case the correlation-distance policy already licenses.
-What stays refused is `rdm(normalize=)` over signed cross-generalized
-diagonals, which may be zero or negative. The package gives that
-boundary a named policy rather than a quiet escape hatch; see [the
-correlation-distance
+its per-pattern norm is nonlinear in the fitted patterns. The package
+gives that boundary a named policy rather than a quiet escape hatch; see
+[the correlation-distance
 policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md)
 ([`vignette("correlation-distance-policy", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md)
 offline).
@@ -335,12 +323,13 @@ conservative, feature-additive frame,
 \sum_x B L_x^\top L_x B^\top=B M_\Omega B^\top.
 ```
 
-The [conservative-frames
-guide](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md)
-demonstrates this accounting with overlapping searchlights and an
-unnormalized whole-domain comparator. The interpretation depends on a
-conservative, feature-additive frame; arbitrary dense or learned metrics
-do not inherit that guarantee.
+This law is implemented and tested. Today it should be read as structure
+the framework provides, not yet as a headline scientific contribution.
+The public demonstration still needs to show which overlap-accounting
+error the law prevents, compare against a mass-preserving global
+measurement, and state its feature-additive fixed-metric scope.
+Conservative feature weights do not by themselves certify arbitrary
+non-diagonal or learned metrics.
 
 ### 5. Query-first execution
 
@@ -348,14 +337,16 @@ Selected contrasts, distance edges, and fixed linear RSA coefficients
 compile without requiring the complete RDM as the public intermediate:
 every RDM edge is the rank-one operator $`(e_i-e_j)(e_i-e_j)^\top`$, and
 the kernels evaluate it as two row differences and a Hadamard product
-instead of materializing a dense packed query. The recorded
-large-condition benchmark compares selected pairs and complete RDMs
-under matched estimands. It supports the practical benefit of computing
-only requested quantities, with numerical and memory checks. Its timings
-compare execution routes within crossform, not speed against another
-package; R-heap measurements also differ from process resident memory.
-The exact workloads and receipts are in the [certification
-report](https://github.com/bbuchsbaum/crossform/blob/main/design/certification-report.md).
+instead of materializing a dense packed query. The recorded large-$`q`$
+gate measures the consequence at 100 conditions over 1,080 searchlights:
+one hundred selected pairs in 0.14 s, the full fused 4,950-coordinate
+RDM in 1.94 s against 2.73 s for materialize-then-project (ratio 0.71;
+the materialized comparator is now fast because the packed-form kernel
+is native), with a direct-oracle error of `4.4e-16`. In a fresh worker
+for each public query-first route, the maximum incremental R heap was
+258 MB (246 MiB), below the 512 MiB gate. This is a reset high-water
+heap measurement, not an OS RSS claim. Structured execution also avoided
+a separate ~200 MB (191 MiB) dense query allocation.
 
 ### 6. Generalization bound to estimand identity
 
@@ -369,51 +360,6 @@ and the same call with `"session"` produce distinct plan identities even
 under identical generic partition names and identical fold counts, and
 identity tests enforce it. Runs, sessions, tasks, item sets, sites, and
 ordered cross-domains can all be represented by named pairing relations.
-
-### 7. Learned forms with independent fixed-query evidence
-
-[`model_basis()`](https://bbuchsbaum.github.io/crossform/reference/model_basis.md)
-retains model directions and their strengths,
-[`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md)
-learns a regularized low-rank PSD form on training observations, and
-[`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
-evaluates the frozen result on independent observations. The fitting
-problem is nonlinear. Its evaluation is an ordinary fixed bilinear
-readout plus a known prediction cost:
-
-``` math
-\Delta=2\langle F,G_{\mathrm{test}}\rangle_F-\|F\|_F^2.
-```
-
-The model’s positive eigenvalues enter an inverse-kernel trace penalty,
-so an anisotropic full-span model still imposes directional preferences
-when the penalty is positive. At zero penalty only the admitted span
-matters; a full-span fit is labelled a generic baseline. Compression
-transforms each partition’s effects before geometry accumulation, and a
-small spectral solve learns the form without a complete neural RDM.
-
-Low-rank factorization, PSD projection and kernel regularization are not
-claimed as new ingredients. The package contribution is their
-integration with typed effect coordinates, observation-origin admission
-and a frozen predictive readout. Conditional on training, the expected
-gain equals improvement in squared geometry error when the test form is
-unbiased for the target signal. It is not a trace energy: under zero
-signal its expectation is $`-\|F\|_F^2`$, even though the signed test
-inner product is centered on zero.
-
-The [predictive geometry
-guide](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-([`vignette("predictive-geometry")`](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-offline) demonstrates the public fixed-split workflow. Its evidence
-concerns independent runs on the same conditions, with identity or fixed
-SPD neural metrics and Frobenius geometry loss. New-condition transfer,
-generic GLS, learned neural metrics and generic inference for selected
-eigenvalues are outside this public contract. The local statistical and
-numerical validation is recorded separately in the [predictive
-certification
-report](https://github.com/bbuchsbaum/crossform/blob/main/design/predictive-geometry-certification.md);
-it is not an empirical demonstration or a claim of universal speed
-advantage.
 
 ## The contract is the proof mechanism
 
@@ -448,126 +394,143 @@ answers the admission question before it is provoked. The executable
 gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md)
 ([`vignette("failure-gallery", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md)
 offline) shows six realistic errors that the package guards against.
-Callable unsupported interpretations return classed refusals. Raw
-crossvalidated estimates remain signed; explicitly named PSD projections
-produce separate descriptive objects. Changes in generalization produce
-distinct estimand identities.
+Callable unsupported interpretations return classed refusals; clipping
+is absent rather than offered as a biased option; and changes in
+generalization produce distinct estimand identities.
 
 ## Evidence ledger
 
-The canonical ledger uses eight evidence classes because proofs,
-internal oracles, external parity, simulations, retrospective
-illustrations, prospective protocols, completed real-data results, and
-independent replications answer different questions. The full ledger
-below is generated from the package certification artifact; expand it
-when you need the status of an individual governed claim. The
-definitions and promotion rules are in
-[`design/evidence-status-ledger.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/evidence-status-ledger.md).
-The companion claim registry assigns exactly one owner and current
-status to each claim, and the promotion history records why that status
-changed. The strongest new population evidence is matched simulation:
-the interval court covers the declared Gaussian, heteroskedastic,
-heavy-tailed, and informative coverage regimes, while the hierarchical
-interpretability court recovers its planted component ordering and scale
-profiles. Neither is empirical evidence. The discovery and replication
-protocols are frozen and rehearsed, but current readiness is `BLOCKED`;
-no completed real-data result or independent replication exists.
+Every claim carries one of four statuses — **established algebraically**
+(proved and independently law-tested as a mathematical identity),
+**implemented** (reachable through the public package path and executed
+by compiled plans), **demonstrated** (validated in a substantive
+comparison, generative recovery, or realistic example), or
+**prospective** — and every row links the machine-checkable artifact
+that certifies it, so the ledger can be audited rather than believed.
 
-Full governed claim ledger
-
-| Claim | Headline claim | Evidence class | Boundary |
-|:---|:---|:---|:---|
-| CF-H01 | Fixed linear first- and second-moment queries share one typed cross-generalized geometry. | algebraic_theorem | Fixed H, K, and Gamma only; no nonlinear or adaptive statistic. |
-| CF-H01 | Fixed linear first- and second-moment queries share one typed cross-generalized geometry. | internal_oracle | Independent base-matrix oracle and package property courts; this is computational evidence. |
-| CF-H01 | Fixed linear first- and second-moment queries share one typed cross-generalized geometry. | external_parity | One balanced fixed-crossnobis and fixed-OLS-RSA fixture, not every RSA method. |
-| CF-H02 | Total geometry decomposes exactly into coherent and configuration components and every fixed linear query inherits the split. | algebraic_theorem | Exact arithmetic does not make either finite-sample crossvalidated component nonnegative. |
-| CF-H02 | Total geometry decomposes exactly into coherent and configuration components and every fixed linear query inherits the split. | internal_oracle | Independent finite-matrix construction plus production recomposition tests. |
-| CF-H02 | Total geometry decomposes exactly into coherent and configuration components and every fixed linear query inherits the split. | matched_simulation | Generated planted truth validates interpretation only in the declared fixture. |
-| CF-H02 | Total geometry decomposes exactly into coherent and configuration components and every fixed linear query inherits the split. | existing_illustration | Retrospective one-subject Haxby illustration; no frozen hypothesis, population inference, or neuroscience replication. |
-| CF-H03 | Conservative frames preserve the declared total budget and frame-family alpha fixes each scale total. | algebraic_theorem | Total geometry under the admitted additive metric; coherent energy is not conserved across overlapping nodes. |
-| CF-H03 | Conservative frames preserve the declared total budget and frame-family alpha fixes each scale total. | internal_oracle | Independent conservation and overlap-accounting courts. |
-| CF-H04 | Typed observations can be compiled to an identified relation and then to geometry without changing the declared estimand. | matched_simulation | One versioned linear-model fixture; not universal BIDS, HRF, censoring, or GLM coverage. |
-| CF-H05 | Query-first execution preserves the estimand while avoiding full geometry materialization in the certified regime. | internal_oracle | Recorded q=100 searchlight regime and R-heap receipt; not a cross-package speed or OS-RSS claim. |
-| CF-H06 | Crossform reproduces mapped crossnobis outputs from independent implementations. | external_parity | Haxby subject 1 regression evidence and rMVPA parity on one matched squared-Euclidean estimand. |
-| CF-H06 | Crossform reproduces mapped crossnobis outputs from independent implementations. | external_parity | Pinned synthetic rsatoolbox case with source binding; no correlation distance or inference parity. |
-| CF-H07 | Rectangular cross-domain queries reuse the same bilinear geometry. | matched_simulation | Designed encoding-retrieval simulation with planted truth; no empirical encoding-retrieval result. |
-| CF-H08 | Fixed population queries commute with declared linear transport and group modeling. | algebraic_theorem | Conditional on the realized transport; no transport-estimation uncertainty is propagated. |
-| CF-H08 | Fixed population queries commute with declared linear transport and group modeling. | internal_oracle | Independent matrix oracle plus package route; no cross-node covariance estimator. |
-| CF-H08 | Fixed population queries commute with declared linear transport and group modeling. | existing_illustration | Retrospective ds003745 execution/diagnostic evidence; no frozen hypothesis and no scientific transport-superiority result. |
-| CF-H09 | Population point estimates, HC3 intervals, wild bootstrap, prevalence, and heterogeneity are available only under their declared conditional targets. | internal_oracle | Formula and product-oracle evidence; calibration and broad operating-characteristic claims require PE-C/PE-D simulations. |
-| CF-H09 | Population point estimates, HC3 intervals, wild bootstrap, prevalence, and heterogeneity are available only under their declared conditional targets. | matched_simulation | 500 paired datasets per regime quantify classical, HC3, and wild-bootstrap behavior; transport remains realized and informative coverage supports no marginal population claim. |
-| CF-H10 | Coherent/configuration mixtures can be interpreted as distinct planted regimes at fixed total energy. | matched_simulation | 48 paired seeds across three planted organizations, three noise regimes, two sample sizes, and three SNRs; synthetic line-domain evidence only, with no empirical interpretation, population coverage, or power claim. |
-| CF-H10 | Coherent/configuration mixtures can be interpreted as distinct planted regimes at fixed total energy. | matched_simulation | 200 paired 24-subject hierarchical replications recover planted population ordering and profiles conditional on realized transport; informative coverage remains an unsupported failure regime and no empirical claim is licensed. |
-| CF-H11 | Functionally informed transport improves population recovery relative to anatomical transport. | existing_illustration | The retrospective ds003745 eta ratio failed its interpretation audit; no superiority claim is supported. |
-| CF-H12 | A future prospective real-data analysis could establish a bounded neuroscience result. | prospective_protocol | Discovery and replication specifications are frozen and synthetically rehearsed, but readiness-current is BLOCKED; no eligible real-data result or independent replication exists. |
-| CF-H13 | Unsupported interpretations fail as typed refusals rather than changing estimands silently. | internal_oracle | Covers the executable refusal gallery and named gates, not every possible misuse. |
-| CF-H14 | Cross-node covariance can support precision weighting or joint spatial inference. | prospective_protocol | Future capability only; current population precision and joint cross-node inference refuse. |
-
-The following overview groups those claims by the reader’s question.
-Linked guides and receipts carry the numerical details and admission
-conditions.
-
-| Topic | Evidence | What it establishes and where to read it |
+| Claim | Status | Evidence artifact and boundary |
 |----|----|----|
-| Observation workflow | Implemented and checked | An executable [observation-to-relation workflow](https://bbuchsbaum.github.io/crossform/articles/from-observations.md) agrees with direct linear-model oracles. It covers an admitted linear design, not general preprocessing or GLM coverage. |
-| Shared bilinear algebra | Established algebraically | The [common-geometry guide](https://bbuchsbaum.github.io/crossform/articles/common-geometry-equivalence.md) derives and checks fixed contrast, RDM and RSA mappings. Algebra alone provides no sampling or population guarantee. |
-| External point parity | Demonstrated on matched estimands | [Haxby and rsatoolbox comparisons](https://github.com/bbuchsbaum/crossform/blob/main/design/relation-to-prior-work.md) reproduce specified distances and fixed coefficients. Matching one estimand does not equate complete toolboxes. |
-| Analytic uncertainty | Validated under admitted models | Residual-bearing fits support fixed-metric, within-measurement covariance and fixed linear transport. See [uncertainty interpretation](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#uncertainty-two-targets-and-what-refused-means). |
-| Selected-query execution | Measured within crossform | [Source-bound benchmarks](https://github.com/bbuchsbaum/crossform/blob/main/design/certification-report.md) compare complete and selected readouts with numerical, timing and memory receipts. No cross-package speed advantage is claimed. |
-| Coherent/configuration decomposition | Demonstrated | The [introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.md) checks exact recomposition and recovers two planted spatial organizations. Haxby illustrates the same reading in one participant, without inference. |
-| Rectangular cross-domain forms | Demonstrated in simulation | The [encoding–retrieval exemplar](https://github.com/bbuchsbaum/crossform/blob/main/exemplars/er-rsa/README.md) handles unequal item sets, controls and covariates. Its recovered ground truth is synthetic; fixed neural precision is not admitted on that rectangular path. |
-| Adjoint coupling | Implemented, small-node scope | The [evidence-pairing guide](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md) demonstrates node/edge forms and their adjoint. It does not establish brain-scale tomography or generic connectivity inference. |
-| Generalization and route identity | Implemented and tested | [Identity tests](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-generalization-axis.R) distinguish sampling axes; execution-route tests preserve an estimand across fused and materialized readings. |
-| Spatial conservation | Demonstrated for admitted frames | The [conservative-frame example](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md) checks that a spatial ledger adds to its global budget. This does not apply to arbitrary measurement densities or metrics. |
-| Refusal discipline | Implemented and executable | The [failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md) shows missing capabilities and unsupported requests. A refusal can check a declaration, but cannot discover hidden dependence in the observations. |
-| Descriptive model coordinates | Implemented and checked | [Model-coordinate oracles](https://github.com/bbuchsbaum/crossform/blob/main/design/model-coordinate-geometry-contract.md) check lowering, the signed trace split and latent fits. Cross-fitted projector energy is distinct from predictive gain; an unregularized full-span fit does not test model shape. |
-| Regularized geometry prediction | Implemented and locally validated | The [predictive guide](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md) learns a form on training runs and scores it independently. Calibration concerns the declared same-condition, Frobenius-loss designs; new-condition transfer and generic eigenvalue inference remain outside the interface. |
+| Raw observations to identified relation | **Demonstrated** | A versioned four-run fixture binds unequal observation axes, timed events, scan-level confounds, censoring, semantic effects, and fixed or learned observation models; it agrees with direct extractor/relation oracles, the legacy [`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md) route, and the installed `fmrireg` adapter before proceeding through geometry, RDM, RSA, and admitted covariance: [`test-first-moment-vertical-slice.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-first-moment-vertical-slice.R), [`run-first-moment-vertical-slice.R`](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-first-moment-vertical-slice.R), and the [from-observations vignette](https://bbuchsbaum.github.io/crossform/articles/from-observations.md) ([`vignette("from-observations", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/from-observations.md) offline). This proves one serious linear vertical slice, not general BIDS or GLM coverage. |
+| Two-sided evidence-pairing laws | **Established algebraically** | Forward, adjoint, scalar, rectangular, reversal, decomposition, and tomography identities against independent bounded oracles: [`helper-evidence-pairing-laws.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/helper-evidence-pairing-laws.R), [`helper-effect-form-laws.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/helper-effect-form-laws.R), [`test-tomography.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-tomography.R). Algebraic and software evidence, not a scientific benchmark. |
+| Crossnobis point parity | **Demonstrated** | The Haxby 2001 exemplar agrees with an independent loop to `1.33e-15` and rMVPA to `8.88e-16` over 577 VT searchlights: [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001). Matched crossvalidated squared-Euclidean/crossnobis estimand, not correlation distance. |
+| `rsatoolbox` parity and strict extension | **Demonstrated** | On one deterministic fixture (6 conditions, 4 runs, 40 voxels, non-spherical residual covariance with condition number 182, one whole-brain plus three region measurements), the fixed-metric crossnobis RDM agrees with version-pinned Python `rsatoolbox` 0.3.2 to `3.8e-15` over 60 entries and the linear RSA coefficients to `8.6e-16` over 20 terms, against a declared `1e-10` tolerance; an explicit all-pairs numpy oracle agrees to the same figure. Four conventions were matched exactly rather than conceded: `rsatoolbox`’s leave-one-fold-out folding equals [`cross_partitions()`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md)’s uniform C(P,2) pairing on a balanced design (checked to `3.3e-16`), its division by `n_channels` equals the frame’s `normalization = "local"` row-sum, its own `prec_from_residuals(method = "full", dof = 168)` reproduces the exemplar’s pooled precision to `2.3e-14`, and `fit_regress`’s cosine-normalised objective is `beta_OLS / sqrt(mean(d^2))`, rescaled before comparison. From the same fit, crossform additionally returns the signed contrast energy, the exact coherent/configuration/total partition (recomposition `0`), the same partition of every RDM entry, the RDM re-derived as [`crossnobis()`](https://bbuchsbaum.github.io/crossform/reference/crossnobis.md) of difference contrasts to `2.2e-16`, and analytic RDM and transported RSA standard errors: [`exemplars/rsatoolbox-parity`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/rsatoolbox-parity), ratcheted by [`test-rsatoolbox-parity.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-rsatoolbox-parity.R). Boundary: one simulated subject, the fixed-linear subset only, no group-level inference and no correlation distance, and no timing or speed claim. |
+| Error-bearing refit and linear uncertainty transport | **Demonstrated under an admitted model** | Refit reproduces the point RDM to `4.44e-16`; a fixed linear RSA coefficient consumes factorized analytic covariance: [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001), [`test-evidence-sampling-kernel.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-kernel.R), [`test-evidence-sampling-generative.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-evidence-sampling-generative.R). Boundary: the declared equal-partition, fixed-metric, separable plug-in model. |
+| Query-first execution at scale | **Demonstrated** | Recorded gate artifact at q = 100 over 1,080 searchlights: selected 100 pairs 0.14 s, full fused RDM 1.94 s vs 2.73 s materialize-then-project (ratio 0.71), oracle error `4.4e-16`, and a maximum fresh-worker incremental R heap of 258 MB (246 MiB): [`benchmarks/run-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-query-first-scale.R), [`inst/extdata/certification/query-first-scale-gate.rds`](https://github.com/bbuchsbaum/crossform/tree/main/inst/extdata/certification), [`test-query-first-scale.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-query-first-scale.R). The materialized comparator remains in the timing court but outside the query-first memory claim; the heap receipt is not presented as OS RSS. |
+| Coherent/configuration family | **Demonstrated** | One plan yields the signed contrast, the three energies with exact recomposition, the RDM, the RSA coefficient, and the admitted analytic SE, with planted-effect recovery (signal carried by configuration; null regions centered on zero): the [introduction vignette](https://bbuchsbaum.github.io/crossform/articles/introduction.md) ([`vignette("introduction", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/introduction.md) offline) with executable checks, plus [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R) and [`test-measurement-decomposition.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-measurement-decomposition.R). The real-data narrative has now run too: [`exemplars/haxby2001/06-coherent-configuration.R`](https://github.com/bbuchsbaum/crossform/blob/main/exemplars/haxby2001/06-coherent-configuration.R) decomposes face minus house and animate minus inanimate at 577 VT searchlights and at one whole-VT region, recomposing to `5.6e-17`, with a median coherent share of 0.53. Boundary: one subject, condition means rather than GLM betas, and no inference. |
+| Rectangular cross-domain analysis | **Demonstrated on a designed simulation** | Public constructor, query-first pair queries, oracle parity, and materialized recomposition: [`test-rectangular-plan.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-rectangular-plan.R). The match/control, pair-covariate analysis has now run: [`exemplars/er-rsa`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/er-rsa) compiles a 36-by-30 encoding-retrieval plan over two relations sharing one neural domain, with 12 studied items never retrieved, 6 probes never studied, run baseline/drift/motion as nuisance design columns in both fits, and six directed cross-cycle edges as the declared generalization. All five pair-query exports are load-bearing: [`match_coupling()`](https://bbuchsbaum.github.io/crossform/reference/match_coupling.md) carries the eligibility restriction that turns a spurious 1.03 into −0.01 in a category-only region, [`control_coupling()`](https://bbuchsbaum.github.io/crossform/reference/control_coupling.md) supplies both the control cells and the eligible-pair baseline, and [`coupling_contrast()`](https://bbuchsbaum.github.io/crossform/reference/coupling_contrast.md) (0.5272), [`match_control()`](https://bbuchsbaum.github.io/crossform/reference/match_control.md) (0.5166), and [`pair_lm_query()`](https://bbuchsbaum.github.io/crossform/reference/pair_lm_query.md) (0.5329, plus a study-duration slope of 0.2206 against a planted 0.2154) compile the same comparison under different adjustments. On this rectangular design the normalized coupling difference is *not* additive-baseline invariant while the regression forms are (`rank == columns`, 68 of 68), which is the recorded reason both constructors exist. Query-first and materialize-then-project agree to `6.66e-16` and the rectangular form recomposes to `2.22e-16`; 30 of 30 cross-run readouts contain their closed-form planted value in the 95% across-subject interval, largest bias `0.0093`. Ratcheted by [`test-er-rsa-exemplar.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-er-rsa-exemplar.R). Boundary: a designed simulation with recovered truth, 12 simulated subjects differing only in noise, no empirical dataset, and no fixed noise metric — rectangular plans refuse one, so there is no crossnobis-style normalization and no analytic sampling covariance for a rectangular readout. |
+| Adjoint coupling from the plan vocabulary | **Implemented** | `coupling(plan, between, by)` compiles the adjoint closure against the plan’s own frame and pairing, small-node contract enforced: [`test-coupling-views.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-coupling-views.R). |
+| Generalization axis in estimand identity | **Implemented** | Typed `generalizes_over` bound into task and metric-pairing identity; cross-run vs cross-session distinct under identical generic labels: [`test-generalization-axis.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-generalization-axis.R). |
+| Route-stable view identity | **Implemented** | Fused query-first and materialize-then-project executions of one estimand carry one scientific id with distinct execution receipts: [`test-route-identity.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-route-identity.R), [`test-effect-form-certification.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-effect-form-certification.R). |
+| Spatial conservation | **Implemented** | [`frame_conservation()`](https://bbuchsbaum.github.io/crossform/reference/frame_conservation.md) diagnostic plus public tests with the unnormalized global comparator and the total-only boundary stated: [`test-integrity-guards.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-integrity-guards.R). The overlap-accounting demonstration is Gate 4. |
+| Refusal discipline | **Implemented** | Classed `effect_capability_refusal` conditions with all-reasons reporting, [`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md), [`sampling_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/sampling_capabilities.md), and the executable [failure gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md) ([`vignette("failure-gallery", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md) offline): [`test-capability-refusals.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-capability-refusals.R). |
+| Cross-package speed advantage | **Not demonstrated** | The recorded matched-estimand comparison is internal (fused vs materialized routes of one plan). No cross-package speedup is claimed; that would require matched estimands, independent parity, warm-up, repeated timings, hardware, and map-scale budgets against the other implementation. |
 
 Reproducible Haxby scripts and qualifications are in
 [`exemplars/haxby2001`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001).
 Versioned performance evidence lives under
 [`benchmarks`](https://github.com/bbuchsbaum/crossform/tree/main/benchmarks).
 
-## What would strengthen the scientific case?
+## Claim-promotion gates
 
-Current algebra, software tests and matched simulations support the
-specific claims above. Stronger empirical claims require different
-evidence:
+The stronger novelty statement is a target, not a documentation
+shortcut. Its sections are promoted only as these gates land:
 
-- A prospective real-data analysis conducted under a protocol frozen
-  before its outcomes are inspected, followed by an independent
-  replication.
-- A demonstrated interpretive benefit on that data, beyond reproducing a
-  conventional distance or coefficient. Examples include meaningful
-  spatial accounting or a justified comparison across unequal
-  experimental axes.
-- For any cross-package speed claim, a matched-estimand comparison with
-  independent numerical parity and recorded hardware, runtime and
-  memory.
+1.  **`rsatoolbox` specialization:** reproduce a fixed crossnobis plus
+    linear-RSA result with a version-pinned environment and an
+    independent oracle. **Landed:**
+    [`exemplars/rsatoolbox-parity`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/rsatoolbox-parity)
+    runs R, then `rsatoolbox` 0.3.2 under a pinned Python 3.12
+    environment, then R again, exchanging only CSV. The crossnobis RDM
+    agrees to `3.8e-15` and the linear RSA coefficients to `8.6e-16`
+    against a declared `1e-10` tolerance, with an explicit all-pairs
+    numpy oracle as the third check; the folding, channel-count,
+    precision-estimator, and regression-objective conventions are each
+    matched exactly and recorded. The same fit then yields the signed
+    contrast, the coherent/configuration/total partition, and the
+    admitted analytic uncertainty that the external RDM does not carry.
+    The recorded tolerances are ratcheted by
+    [`test-rsatoolbox-parity.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-rsatoolbox-parity.R).
+2.  **Inherited decomposition family:** one plan yields signed,
+    coherent, configuration, total, RDM, and RSA outputs, with additive
+    recomposition and planted-effect interpretation. **Landed:** the
+    [introduction
+    vignette](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
+    ([`vignette("introduction", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
+    offline) demonstrates the full family from one plan with executable
+    recomposition and planted-truth checks.
+3.  **Real rectangular analysis:** distinct unequal axes, match/control
+    coding, pair-space covariates, missing items, and explicit operation
+    order. **Landed:**
+    [`exemplars/er-rsa`](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/er-rsa)
+    runs one encoding-retrieval analysis over a 36-effect left axis and
+    a 30-effect right axis, with 12 studied items never retrieved and 6
+    probes never studied.
+    [`match_coupling()`](https://bbuchsbaum.github.io/crossform/reference/match_coupling.md)
+    declares the correspondence and its eligible set,
+    [`control_coupling()`](https://bbuchsbaum.github.io/crossform/reference/control_coupling.md)
+    names the comparison cells,
+    [`coupling_contrast()`](https://bbuchsbaum.github.io/crossform/reference/coupling_contrast.md),
+    [`match_control()`](https://bbuchsbaum.github.io/crossform/reference/match_control.md),
+    and
+    [`pair_lm_query()`](https://bbuchsbaum.github.io/crossform/reference/pair_lm_query.md)
+    compile the item-specific reinstatement three ways, and the
+    covariate model carries an encoding study-duration term alongside 64
+    item nuisance columns. The estimand pairs runs across study-test
+    cycles only, which is what
+    `pairing(directed = TRUE, generalizes_over = "run")` and the default
+    `self_pairs = "forbid"` express. Three planted regional structures
+    are recovered against a closed-form ground truth: item-specific
+    reinstatement 0.5272 against a planted 0.5277 in the item region,
+    −0.0072 against −0.0024 in the category-only region, and 0.0062
+    against 0.0086 in the null region, with the planted value inside the
+    95% across-subject interval for 30 of 30 cross-run readouts and a
+    largest bias of 0.0093. Two operation-order consequences are
+    measured rather than asserted: an unrestricted control set reports a
+    reinstatement effect of 1.03 in a region that has no item structure
+    at all, and same-run pairing reports 0.256 in a region that has no
+    structure at all. Ratcheted by
+    [`test-er-rsa-exemplar.R`](https://github.com/bbuchsbaum/crossform/blob/main/tests/testthat/test-er-rsa-exemplar.R).
+    Boundary: a designed simulation with recovered truth; no empirical
+    dataset yet, and rectangular plans still refuse a fixed noise
+    metric. The upgrade is a public encoding-retrieval dataset with
+    per-trial betas, analysed with the same scripts.
+4.  **Operational spatial accounting:** overlapping searchlights,
+    coverage correction, a mass-preserving global comparator, and an
+    interpretive consequence. *Open.*
+5.  **Large-$`q`$ query-first execution:** selected queries without a
+    full RDM, with numerical, memory, and runtime receipts. **Landed:**
+    see the [query-first scale
+    gate](https://github.com/bbuchsbaum/crossform/blob/main/benchmarks/run-query-first-scale.R)
+    and its recorded result artifact.
+6.  **Failure gallery:** executable safeguards for correlation-distance
+    normalization, negative clipping, destructive demeaning claims,
+    generalization identity changes, undeclared independence, and
+    learned-metric leakage. **Landed:** see the [failure
+    gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md)
+    ([`vignette("failure-gallery", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md)
+    offline). Callable unsupported interpretations use classed refusals;
+    the gallery also documents absent transformations and
+    estimand-identity guards.
 
-The [evidence-status
-rules](https://github.com/bbuchsbaum/crossform/blob/main/design/evidence-status-ledger.md)
-keep these claims separate. A passing simulation or executable example
-cannot substitute for prospective or independently replicated evidence.
+The decisive comparison is not “which RSA toolbox has more methods?” It
+is: reproduce an established RDM-first result as a specialization, then
+obtain a scientifically meaningful result—such as inherited
+coherent/configuration accounting or a real rectangular cross-domain
+analysis—that requires retaining structure the square RDM view has
+already collapsed.
 
 ## What is not claimed
 
 `crossform` does not claim to have invented RSA, crossnobis,
 cross-validated MANOVA, analytic RDM covariance, searchlights, noise
 ceilings, condition/subject generalization, the regional-mean versus
-pattern distinction, or connectivity. It does not claim empirical
-superiority to `rsatoolbox`, a matched-estimator speed advantage,
-marginal inference under informative coverage, transport-superiority
-from the retrospective ds003745 illustration, cross-node covariance, or
-completed prospective or independently replicated evidence. Nor does it
-claim that every nonlinear RDM comparison belongs in the bilinear core.
+pattern distinction, or connectivity. It does not yet claim empirical
+superiority to `rsatoolbox`, a matched-estimator speed advantage, or a
+complete population-inference layer. Nor does it claim that every
+nonlinear RDM comparison belongs in the bilinear core.
 
-The current contribution is a common representation whose scientific
-identity, uncertainty preconditions and allowed readouts remain explicit
-through execution. Its value as an analysis tool can be explored in the
-[worked
-introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.md),
-[matched spatial
-simulation](https://bbuchsbaum.github.io/crossform/articles/matched-interpretability.md)
-and [predictive geometry
-guide](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md).
+The current, defensible novelty is the conjunction of a broader typed
+evidence-pairing architecture and an implementation that makes its
+scientific identity, uncertainty preconditions, and refusal boundaries
+executable. The scientific importance of its strict extensions will be
+upgraded only when the public gates above supply the evidence.

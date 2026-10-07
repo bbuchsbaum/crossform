@@ -11,9 +11,9 @@
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Conservative frames: attribution, not detection">
-<meta name="description" content="Partition a global contrast budget across space, compare coherent shares across scales, and distinguish signed attribution from latent descriptive summaries.
+<meta name="description" content="The second spatial instrument. A conservative frame partitions one fixed global budget instead of reporting a density per neighbourhood, so its map is a ledger you may add up over territories — and its per-scale totals are the analyst's own weights, which is why the coherence spectrum, not the energy spectrum, is the finding.
 ">
-<meta property="og:description" content="Partition a global contrast budget across space, compare coherent shares across scales, and distinguish signed attribution from latent descriptive summaries.
+<meta property="og:description" content="The second spatial instrument. A conservative frame partitions one fixed global budget instead of reporting a density per neighbourhood, so its map is a ledger you may add up over territories — and its per-scale totals are the analyst's own weights, which is why the coherence spectrum, not the energy spectrum, is the finding.
 ">
 </head>
 <body>
@@ -67,53 +67,31 @@
       <h1>Conservative frames: attribution, not detection</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/vignettes/conservative-frames.Rmd" class="external-link"><code>vignettes/conservative-frames.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/vignettes/conservative-frames.Rmd" class="external-link"><code>vignettes/conservative-frames.Rmd</code></a></small>
       <div class="d-none name"><code>conservative-frames.Rmd</code></div>
     </div>
 
     
     
-<p>How much of a contrast’s total evidence is assigned to each
-territory? A <strong>conservative frame</strong> answers this question
-by partitioning one global total among its spatial measurements. Its map
-can be added across territories.</p>
-<p>This guide assumes the
-<code>relation → frame → plan → contrast_energy()</code> workflow from
-<a href="introduction.html">the introduction</a>. It uses the same
-generated fMRI example to compare two normalizations:</p>
-<table class="table">
-<colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
-</colgroup>
-<thead><tr class="header">
-<th>Question</th>
-<th>Normalization</th>
-<th>Meaning of one node</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td>Where is evidence locally strong?</td>
-<td>
-<code>"local"</code>: normalize rows</td>
-<td>Mean evidence density in the node’s support</td>
-</tr>
-<tr class="even">
-<td>How is the global total distributed?</td>
-<td>
-<code>"conservative"</code>: normalize columns</td>
-<td>Evidence assigned to the node from a fixed global budget</td>
-</tr>
-</tbody>
-</table>
-<p>A frame has one row per measurement and one column per neural
-feature. Column normalization allocates each feature across the nodes
-that contain it. Start with the conservation check and territory ledger;
-the later sections explain scale, signed estimates, and metric choices.
-The outputs show the numerical identities; quiet assertions check their
-tolerances during rendering. Their derivations are in the <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/conservative-geometry-contract.md" class="external-link">geometry
-contract</a>. References marked § below point to that contract.</p>
+<p>Almost every searchlight analysis you have read answers one question:
+<em>where is there evidence?</em> This article is about the other one:
+<em>how is the total effect distributed?</em> They are different
+instruments, they are not comparable node-for-node, and choosing between
+them is a decision about the question rather than a preference about
+scaling.</p>
+<p>The difference is one argument. A frame is a nonnegative weight
+matrix, one row per measurement, one column per neural feature.
+<code>normalization = "local"</code> normalizes the
+<strong>rows</strong>, so a node reports the mean evidence density
+inside its own support — a detection map.
+<code>normalization = "conservative"</code> normalizes the
+<strong>columns</strong>, so every feature’s unit of evidence is
+<em>partitioned</em> among the nodes that see it, and a node reports its
+share of one fixed global budget — an attribution map.</p>
+<p>Everything below is asserted in code you can see. If an identity in
+this article stopped holding, the article would stop knitting. The
+governing document is <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/conservative-geometry-contract.md" class="external-link"><code>design/conservative-geometry-contract.md</code></a>,
+and section numbers below refer to it.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">example</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/example_fmri_effects.html">example_fmri_effects</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">domain</span> <span class="op">&lt;-</span> <span class="va">example</span><span class="op">$</span><span class="va">domain</span></span>
@@ -136,9 +114,9 @@ overlapping. They differ only in sign structure: in the
 <strong>pattern</strong> block the sign alternates between neighbouring
 voxels, so a neighbourhood average nearly cancels; in the
 <strong>mean</strong> block every voxel moves the same way. Same effect
-size, two different effect <em>geometries</em>. Section 3 compares their
-coherent shares across neighbourhood sizes. These are generated data,
-not evidence about a brain; the <a href="https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001" class="external-link">Haxby
+size, two different effect <em>geometries</em>. Section 3 is where that
+difference becomes the finding. These are generated data, not evidence
+about a brain; the <a href="https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001" class="external-link">Haxby
 2001 exemplar</a> (script <code>07</code>) is the real-data companion to
 this article.</p>
 <div class="section level2">
@@ -169,7 +147,13 @@ the usual source of a spurious conservation failure.</p>
 <span>  attribution_deviation <span class="op">=</span> <span class="va">attribution_mass</span><span class="op">$</span><span class="va">max_deviation</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;   detection_deviation attribution_deviation </span></span>
-<span><span class="co">#&gt;          1.500000e-01          2.220446e-16</span></span></code></pre></div>
+<span><span class="co">#&gt;          1.500000e-01          2.220446e-16</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="op">!</span><span class="va">detection_mass</span><span class="op">$</span><span class="va">conserved</span>,</span>
+<span>  <span class="va">attribution_mass</span><span class="op">$</span><span class="va">conserved</span>,</span>
+<span>  <span class="va">attribution_mass</span><span class="op">$</span><span class="va">max_deviation</span> <span class="op">&lt;</span> <span class="fl">1e-12</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">attribution_mass</span><span class="op">$</span><span class="va">component</span>, <span class="st">"total"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p><code><a href="../reference/frame_conservation.html">frame_conservation()</a></code> reports on the
 <strong>total</strong> component only, and it says so in
 <code>$component</code>. Section 4 below is why that scope is
@@ -187,7 +171,8 @@ load-bearing rather than an implementation detail.</p>
 <span>  identity <span class="op">=</span> <span class="va">identity_gap</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;         ledger_sum whole_domain_total           identity </span></span>
-<span><span class="co">#&gt;       1.552081e+02       1.552081e+02       5.684342e-14</span></span></code></pre></div>
+<span><span class="co">#&gt;       1.552081e+02       1.552081e+02       5.684342e-14</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">identity_gap</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">1e-12</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>That is claim 2 of the contract: for a column-normalized frame,
 <code>sum_x &lt;H, G_x&gt; = &lt;H, G_Omega&gt;</code> for every fixed
 query <code>H</code>, exactly. The 280 searchlight values are not 280
@@ -201,13 +186,19 @@ instructive.</p>
 <span>  ratio <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">detection_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span> <span class="op">/</span> <span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;      detection_sum whole_domain_total              ratio </span></span>
-<span><span class="co">#&gt;         157.987255         155.208072           1.017906</span></span></code></pre></div>
-<p>Here the detection sum happens to lie close to the global total. Row
-normalization does not guarantee this: a feature’s aggregate weight
-depends on all the overlapping neighbourhoods that include it. The sum
-therefore has no global-budget interpretation.
-<code><a href="../reference/contribution.html">contribution()</a></code> checks this requirement before aggregating a
-map:</p>
+<span><span class="co">#&gt;         157.987255         155.208072           1.017906</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">detection_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span> <span class="op">-</span> <span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1e-6</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">detection_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span> <span class="op">/</span> <span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fl">0.05</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Read that pair of assertions together. Summing the detection map
+lands within 2 % of the right number — and that is the trap, not a
+reassurance. The sum of a detection map estimates nothing: overlapping
+neighbourhoods double-count every voxel they share, and landing near the
+budget is an accident of how much these particular neighbourhoods happen
+to overlap. A frame with more overlap would miss by more, in a direction
+nothing in the analysis records. The package does not let you take that
+sum by accident.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">territory</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span></span>
 <span>  <span class="va">domain</span><span class="op">$</span><span class="va">feature_ids</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">example</span><span class="op">$</span><span class="va">truth</span><span class="op">$</span><span class="va">planted_feature_ids</span>, <span class="st">"pattern block"</span>,</span>
@@ -216,7 +207,8 @@ map:</p>
 <span><span class="op">)</span></span>
 <span><span class="va">refused</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/catch_refusal.html">catch_refusal</a></span><span class="op">(</span><span class="fu"><a href="../reference/contribution.html">contribution</a></span><span class="op">(</span><span class="va">detection_map</span>, by <span class="op">=</span> <span class="va">territory</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">refused</span><span class="op">$</span><span class="va">capability</span></span>
-<span><span class="co">#&gt; [1] "conservative_frame"</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] "conservative_frame"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">refused</span><span class="op">$</span><span class="va">capability</span>, <span class="st">"conservative_frame"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>Read the two maps for what each is. The detection map’s peak (4.103)
 is a density, comparable across nodes of different size and correctly
 reported as a peak. The attribution map’s peak is a <em>share of a
@@ -249,7 +241,11 @@ should reproduce the searchlight map exactly.</p>
 <span>  smoothed_equals_map <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">smoothed</span> <span class="op">-</span> <span class="va">attribution_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; ledger_sums_to_global   smoothed_equals_map </span></span>
-<span><span class="co">#&gt;          8.526513e-14          0.000000e+00</span></span></code></pre></div>
+<span><span class="co">#&gt;          8.526513e-14          0.000000e+00</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ledger</span><span class="op">$</span><span class="va">total</span><span class="op">)</span> <span class="op">-</span> <span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">1e-12</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">smoothed</span> <span class="op">-</span> <span class="va">attribution_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fl">1e-12</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p>The searchlight attribution map <em>is</em> the voxel ledger,
 reallocated. Nothing between the two steps mixes features. This is
 scoped to metrics for which
@@ -269,7 +265,12 @@ therefore conservative. Every row carries its own provenance.</p>
 <span><span class="co">#&gt;      measurement      family node scale center     alpha</span></span>
 <span><span class="co">#&gt; 1 radius-3.01::1 radius-3.01    1  3.01      1 0.3333333</span></span>
 <span><span class="co">#&gt; 2 radius-3.01::2 radius-3.01    2  3.01      2 0.3333333</span></span>
-<span><span class="co">#&gt; 3 radius-3.01::3 radius-3.01    3  3.01      3 0.3333333</span></span></code></pre></div>
+<span><span class="co">#&gt; 3 radius-3.01::3 radius-3.01    3  3.01      3 0.3333333</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">family</span><span class="op">$</span><span class="va">index</span><span class="op">)</span> <span class="op">==</span> <span class="fl">3L</span> <span class="op">*</span> <span class="va">domain</span><span class="op">$</span><span class="va">n_features</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"family"</span>, <span class="st">"scale"</span>, <span class="st">"center"</span>, <span class="st">"alpha"</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">family</span><span class="op">$</span><span class="va">index</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="../reference/frame_conservation.html">frame_conservation</a></span><span class="op">(</span><span class="va">family</span><span class="op">)</span><span class="op">$</span><span class="va">conserved</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p><code><a href="../reference/coherence_spectrum.html">coherence_spectrum()</a></code> aggregates that family by scale.
 Look at the <code>total</code> column first.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
@@ -286,21 +287,24 @@ Look at the <code>total</code> column first.</p>
 <span>  <span class="va">spectrum</span><span class="op">$</span><span class="va">total</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">spectrum</span><span class="op">)</span><span class="op">$</span><span class="va">alpha</span> <span class="op">*</span> <span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">per_scale_gap</span></span>
-<span><span class="co">#&gt; [1] 2.842171e-14</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 2.842171e-14</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="va">per_scale_gap</span> <span class="op">&lt;=</span> <span class="fl">1e-12</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>The <code>total</code> column is the same number three times, and it
 is exactly <code>alpha_s</code> times the whole-domain total —
 <strong>whatever the data say</strong> (§3.1). It is a picture of the
 <code>weights</code> argument you passed, not of spatial scale. Change
 the weights and the column changes with them, because you changed
 it.</p>
-<p>The plotting API makes this distinction explicit:</p>
+<p>This is normative, not advisory, and the package enforces it.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">panel</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/catch_refusal.html">catch_refusal</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">spectrum</span>, which <span class="op">=</span> <span class="st">"profile"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">panel</span><span class="op">$</span><span class="va">capability</span></span>
-<span><span class="co">#&gt; [1] "scale_energy_panel"</span></span></code></pre></div>
-<p>Use the decomposition view to see how the data divide each scale’s
-budget. The next section explains why its coherent fraction can vary
-with scale even when total energy is fixed.</p>
+<span><span class="co">#&gt; [1] "scale_energy_panel"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">panel</span><span class="op">$</span><span class="va">capability</span>, <span class="st">"scale_energy_panel"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>An unqualified <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> on a spectrum draws the
+decomposition instead, which is the panel whose content the data can
+move. <strong>A multiscale panel of total energy against scale is not a
+finding and may not be presented as one.</strong></p>
 </div>
 </div>
 <div class="section level2">
@@ -331,13 +335,17 @@ three radii under a lopsided weighting.</p>
 <span>  share_moved <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">skewed</span><span class="op">$</span><span class="va">coherence_fraction</span> <span class="op">-</span> <span class="va">spectrum</span><span class="op">$</span><span class="va">coherence_fraction</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; energy_moved  share_moved </span></span>
-<span><span class="co">#&gt; 4.138882e+01 2.775558e-17</span></span></code></pre></div>
-<p>Changing α moves total energy while leaving the coherent fraction
-unchanged within numerical precision. The fraction still depends on the
-chosen radii, frame, and metric, which should accompany its
-interpretation. The aggregation record names the weight-determined
-column as <code>alpha_fixed</code> and the invariant column as
-<code>alpha_invariant</code>.</p>
+<span><span class="co">#&gt; 4.138882e+01 2.775558e-17</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">skewed</span><span class="op">$</span><span class="va">total</span> <span class="op">-</span> <span class="va">spectrum</span><span class="op">$</span><span class="va">total</span><span class="op">)</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">skewed</span><span class="op">$</span><span class="va">coherence_fraction</span> <span class="op">-</span> <span class="va">spectrum</span><span class="op">$</span><span class="va">coherence_fraction</span><span class="op">)</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fl">1e-12</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The energy column moves by tens of units; the share moves by less
+than a part in <code>1e15</code>. That is why a coherence spectrum may
+be reported without disclosing α — the exact opposite of the energy
+panel — and it is what the aggregation records: <code>alpha_fixed</code>
+names the column the weights determine, <code>alpha_invariant</code>
+names the one they do not.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">spectrum_record</span> <span class="op">&lt;-</span> <span class="va">spectrum</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">aggregation</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -345,7 +353,11 @@ column as <code>alpha_fixed</code> and the invariant column as
 <span>  invariant <span class="op">=</span> <span class="va">spectrum_record</span><span class="op">$</span><span class="va">alpha_invariant</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;                fixed            invariant </span></span>
-<span><span class="co">#&gt;              "total" "coherence_fraction"</span></span></code></pre></div>
+<span><span class="co">#&gt;              "total" "coherence_fraction"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">spectrum_record</span><span class="op">$</span><span class="va">alpha_fixed</span>, <span class="st">"total"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">spectrum_record</span><span class="op">$</span><span class="va">alpha_invariant</span>, <span class="st">"coherence_fraction"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="two-effect-geometries-one-budget">Two effect geometries, one budget<a class="anchor" aria-label="anchor" href="#two-effect-geometries-one-budget"></a>
 </h3>
@@ -369,64 +381,54 @@ neighbouring voxels.</p>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">by_location</span><span class="op">$</span><span class="va">center</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">example</span><span class="op">$</span><span class="va">truth</span><span class="op">$</span><span class="va">mean_feature_ids</span><span class="op">)</span>,</span>
 <span>    <span class="st">"mean block"</span>, <span class="st">"elsewhere"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tapply.html" class="external-link">tapply</a></span><span class="op">(</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tapply.html" class="external-link">tapply</a></span><span class="op">(</span></span>
 <span>  <span class="va">by_location</span><span class="op">$</span><span class="va">coherence_fraction</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">by_location</span><span class="op">$</span><span class="va">block</span>, <span class="va">by_location</span><span class="op">$</span><span class="va">scale</span><span class="op">)</span>,</span>
 <span>  <span class="va">median</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span>, digits <span class="op">=</span> <span class="fl">3</span>, caption <span class="op">=</span> <span class="st">"Median valid coherent fraction by block and radius (mm)."</span><span class="op">)</span></span></code></pre></div>
-<table class="table">
-<caption>Median valid coherent fraction by block and radius
-(mm).</caption>
-<thead><tr class="header">
-<th align="left"></th>
-<th align="right">3.01</th>
-<th align="right">4.3</th>
-<th align="right">6.1</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="left">elsewhere</td>
-<td align="right">0.170</td>
-<td align="right">0.100</td>
-<td align="right">0.070</td>
-</tr>
-<tr class="even">
-<td align="left">mean block</td>
-<td align="right">0.466</td>
-<td align="right">0.478</td>
-<td align="right">0.407</td>
-</tr>
-<tr class="odd">
-<td align="left">pattern block</td>
-<td align="right">0.058</td>
-<td align="right">0.088</td>
-<td align="right">0.044</td>
-</tr>
-</tbody>
-</table>
-<p>Among nodes with valid fractions, the mean block’s median coherent
-share is roughly two fifths at each radius. The pattern block’s median
-is much smaller: alternating signs largely cancel under neighbourhood
-averaging. Its evidence is primarily configuration at these radii. The
-elsewhere median decreases as neighbourhoods grow in this fixture; it is
-a descriptive result for these data, not a general scale law for
-noise.</p>
+<span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;                3.01   4.3   6.1</span></span>
+<span><span class="co">#&gt; elsewhere     0.170 0.100 0.070</span></span>
+<span><span class="co">#&gt; mean block    0.466 0.478 0.407</span></span>
+<span><span class="co">#&gt; pattern block 0.058 0.088 0.044</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">shares</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tapply.html" class="external-link">tapply</a></span><span class="op">(</span></span>
+<span>  <span class="va">by_location</span><span class="op">$</span><span class="va">coherence_fraction</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">by_location</span><span class="op">$</span><span class="va">block</span>, <span class="va">by_location</span><span class="op">$</span><span class="va">scale</span><span class="op">)</span>, <span class="va">median</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">shares</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3L</span>, <span class="fl">3L</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="va">shares</span><span class="op">[</span><span class="st">"mean block"</span>, <span class="op">]</span> <span class="op">&gt;</span> <span class="fl">0.35</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="va">shares</span><span class="op">[</span><span class="st">"pattern block"</span>, <span class="op">]</span> <span class="op">&lt;</span> <span class="fl">0.15</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="va">shares</span><span class="op">[</span><span class="st">"mean block"</span>, <span class="op">]</span> <span class="op">&gt;</span> <span class="fl">4</span> <span class="op">*</span> <span class="va">shares</span><span class="op">[</span><span class="st">"pattern block"</span>, <span class="op">]</span><span class="op">)</span>,</span>
+<span>  <span class="va">shares</span><span class="op">[</span><span class="st">"elsewhere"</span>, <span class="fl">1L</span><span class="op">]</span> <span class="op">&gt;</span> <span class="va">shares</span><span class="op">[</span><span class="st">"elsewhere"</span>, <span class="fl">3L</span><span class="op">]</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The mean block keeps roughly two fifths of its budget in the common
+mode at every radius. The pattern block never has a common mode to find:
+an effect that alternates sign between neighbours has nearly nothing
+left after a neighbourhood average, at any radius the frame can resolve,
+and its budget sits almost entirely in configuration. Away from both
+blocks the share falls as the neighbourhood grows — the ordinary
+behaviour of noise plus a fixed budget, as a node takes in more
+territory over which nothing keeps one sign.</p>
 <p>Two disciplines apply to that table. Shares are <strong>masked, never
 clamped</strong>, wherever the components are not a nonnegative
 partition, so <code>NA</code> in this table means “this node’s
-decomposition does not admit a fraction”, not zero. A node’s fraction
-divides its coherent component by its own total. A territory’s share of
-summed coherent mass, introduced next, has a different denominator. That
-coherent budget is <strong>frame-relative</strong> (§4): changing the
-frame changes the common modes, so their sum is not a conserved global
-quantity.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+decomposition does not admit a fraction”, not zero. And a coherent
+budget is <strong>frame-relative</strong> (§4): the coherent parts of a
+frame’s nodes do not sum to any global quantity, so a coherent share is
+a share of <em>this frame’s</em> coherent mass and two frames give two
+incomparable denominators.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  rows <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">by_location</span><span class="op">)</span>,</span>
 <span>  valid_shares <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">by_location</span><span class="op">$</span><span class="va">coherence_fraction</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;         rows valid_shares </span></span>
-<span><span class="co">#&gt;          840          550</span></span></code></pre></div>
+<span><span class="co">#&gt;          840          550</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">by_location</span><span class="op">$</span><span class="va">coherence_fraction</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">by_location</span><span class="op">$</span><span class="va">coherence_fraction</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
@@ -442,8 +444,11 @@ second partition that can double-count, and it is deliberately not
 offered. The measurement labels of a centre-assigned searchlight frame
 are the centre feature identifiers, which is what makes the alignment
 checkable rather than assumed.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ledger_by_territory</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/contribution.html">contribution</a></span><span class="op">(</span><span class="va">attribution_map</span>, by <span class="op">=</span> <span class="va">territory</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">attribution</span><span class="op">$</span><span class="va">index</span><span class="op">$</span><span class="va">measurement</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">domain</span><span class="op">$</span><span class="va">feature_ids</span><span class="op">)</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">ledger_by_territory</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/contribution.html">contribution</a></span><span class="op">(</span><span class="va">attribution_map</span>, by <span class="op">=</span> <span class="va">territory</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">ledger_by_territory</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     measurement n_rows signed  coherent configuration    total</span></span>
 <span><span class="co">#&gt; 1     elsewhere    242     NA 11.957596      48.20155 60.15914</span></span>
@@ -453,10 +458,15 @@ checkable rather than assumed.</p>
 <span><span class="co">#&gt; 1         0.19876606</span></span>
 <span><span class="co">#&gt; 2         0.68330542</span></span>
 <span><span class="co">#&gt; 3         0.04295022</span></span></code></pre></div>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">territory_gap</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ledger_by_territory</span><span class="op">$</span><span class="va">total</span><span class="op">)</span> <span class="op">-</span> <span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span></span>
 <span><span class="va">territory_gap</span></span>
-<span><span class="co">#&gt; [1] 5.684342e-14</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 5.684342e-14</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">territory_gap</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">1e-12</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">whole_domain</span><span class="op">$</span><span class="va">total</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ledger_by_territory</span><span class="op">$</span><span class="va">index</span><span class="op">$</span><span class="va">n_rows</span><span class="op">)</span> <span class="op">==</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">attribution_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">ledger_by_territory</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">aggregation</span><span class="op">$</span><span class="va">overlap_split</span>, <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p>The territories re-add to the whole-domain total exactly. Two
 readings a detection map cannot give. First, the 19 nodes centred in the
 mean block — 7 % of the 280 — hold about 30 % of the whole contrast
@@ -466,13 +476,19 @@ of the mean block’s is coherent against about 4 % of the pattern
 block’s. Equal amplitude, equal extent, comparable share of the budget,
 opposite geometry.</p>
 <p>What the aggregate refuses to give is as important.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ledger_record</span> <span class="op">&lt;-</span> <span class="va">ledger_by_territory</span><span class="op">$</span><span class="va">metadata</span><span class="op">$</span><span class="va">aggregation</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>budget_exact <span class="op">=</span> <span class="va">ledger_record</span><span class="op">$</span><span class="va">budget_exact</span>, masked <span class="op">=</span> <span class="va">ledger_record</span><span class="op">$</span><span class="va">masked</span><span class="op">)</span></span>
 <span><span class="co">#&gt; budget_exact       masked </span></span>
 <span><span class="co">#&gt;      "total"     "signed"</span></span>
 <span><span class="va">ledger_record</span><span class="op">$</span><span class="va">frame_relative</span></span>
-<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">ledger_record</span><span class="op">$</span><span class="va">budget_exact</span>, <span class="st">"total"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">ledger_record</span><span class="op">$</span><span class="va">masked</span>, <span class="st">"signed"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/Logic.html" class="external-link">isTRUE</a></span><span class="op">(</span><span class="va">ledger_record</span><span class="op">$</span><span class="va">frame_relative</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">ledger_by_territory</span><span class="op">$</span><span class="va">signed</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p><code>signed</code> is masked rather than summed. A contrast view’s
 signed marginal is the local weighted <em>mean</em> contrast, already
 divided by the node’s own frame mass — a density — and adding densities
@@ -484,19 +500,20 @@ arithmetic but their sums are frame-relative, and the object says so
 rather than leaving it to the reader.</p>
 </div>
 <div class="section level2">
-<h2 id="descriptive-spectra-from-a-nonnegative-projection">5. Descriptive spectra from a nonnegative projection<a class="anchor" aria-label="anchor" href="#descriptive-spectra-from-a-nonnegative-projection"></a>
+<h2 id="the-latent-layer-and-what-its-projection-cost">5. The latent layer, and what its projection cost<a class="anchor" aria-label="anchor" href="#the-latent-layer-and-what-its-projection-cost"></a>
 </h2>
 <p>Crossvalidated estimates are <strong>signed</strong>. That is the
 visible cost of the cross-partition pairing that removes the noise term,
 and conservation is a statement about a signed sum: it does not make the
 summands nonnegative.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  negative_nodes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">attribution_map</span><span class="op">$</span><span class="va">total</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">)</span>,</span>
 <span>  nodes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">attribution_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; negative_nodes          nodes </span></span>
-<span><span class="co">#&gt;             77            280</span></span></code></pre></div>
+<span><span class="co">#&gt;             77            280</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/any.html" class="external-link">any</a></span><span class="op">(</span><span class="va">attribution_map</span><span class="op">$</span><span class="va">total</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>So the arithmetic that treats a node’s value as part of a nonnegative
 whole — fractions of the total, cumulative-contribution curves,
 effective counts, “top-k explains X %” — is invalid on this layer. The
@@ -506,7 +523,7 @@ identity along with it.</p>
 <p>Those functionals are legal on a <strong>declared</strong>
 nonnegative projection, which is a separate, labelled object that
 records the mass it moved (§6).</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">geometry</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/materialize_geometry.html">materialize_geometry</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span><span class="va">example</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>, <span class="va">attribution</span>, <span class="va">pairing</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
@@ -528,7 +545,7 @@ records the mass it moved (§6).</p>
 <span><span class="co">#&gt;            6 1.000   0.019517      0.7017 0.008298 0.000000 0.000000     0</span></span>
 <span><span class="co">#&gt;   ... 274 more measurements</span></span>
 <span><span class="co">#&gt;   next:         x$cumulative, x$projection</span></span></code></pre></div>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">peak</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.min.html" class="external-link">which.max</a></span><span class="op">(</span><span class="va">attribution_map</span><span class="op">$</span><span class="va">total</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">spectrum</span> <span class="op">&gt;=</span> <span class="fl">0</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span>
@@ -546,7 +563,13 @@ records the mass it moved (§6).</p>
 <span>  peak_C1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unname.html" class="external-link">unname</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">cumulative</span><span class="op">[</span><span class="va">peak</span>, <span class="fl">1L</span><span class="op">]</span><span class="op">)</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;       peak_n_eff peak_moved_share          peak_C1 </span></span>
-<span><span class="co">#&gt;           1.0060           0.0024           0.9971</span></span></code></pre></div>
+<span><span class="co">#&gt;           1.0060           0.0024           0.9971</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">spectrum</span> <span class="op">&gt;=</span> <span class="fl">0</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">projection</span><span class="op">$</span><span class="va">method</span>, <span class="st">"psd_projection"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">moved_mass</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">cumulative</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">n_eff</span><span class="op">)</span>, <span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p>The projection is not a formality on this fit: every node clipped
 something, the median node moved about a third of its absolute mass, and
 a handful of nodes had <strong>no</strong> nonnegative mass at all.
@@ -560,42 +583,26 @@ signed estimates of section 1. The object says so itself: its
 <code>reading:</code> line prints <em>latent descriptive layer; not for
 inference</em>. And the projection enters identity rather than sitting
 beside it.</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substring</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">receipt</span><span class="op">$</span><span class="va">task_partition_id</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar</a></span><span class="op">(</span><span class="va">latent</span><span class="op">$</span><span class="va">receipt</span><span class="op">$</span><span class="va">task_partition_id</span><span class="op">)</span> <span class="op">-</span> <span class="fl">14L</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "+psd_projection"</span></span>
 <span><span class="va">query_readout</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/catch_refusal.html">catch_refusal</a></span><span class="op">(</span><span class="fu"><a href="../reference/latent_geometry.html">latent_geometry</a></span><span class="op">(</span><span class="va">attribution_map</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">query_readout</span><span class="op">$</span><span class="va">capability</span></span>
-<span><span class="co">#&gt; [1] "latent_projection_source"</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] "latent_projection_source"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grepl</a></span><span class="op">(</span><span class="st">"psd_projection$"</span>, <span class="va">latent</span><span class="op">$</span><span class="va">receipt</span><span class="op">$</span><span class="va">task_partition_id</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">query_readout</span><span class="op">$</span><span class="va">capability</span>, <span class="st">"latent_projection_source"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p>A contrast view is refused because its values are already contracted
 against fixed weights: there is no spectrum left to truncate, and
 clamping such a value at zero would be a <em>different</em> projection
 moving different mass. The layer takes a named projection from a closed
 set rather than substituting one silently.</p>
-<p>A rank budget makes a second descriptive choice: retain at most that
-many positive modes. The receipt separates negative mass clipped for PSD
-admission from positive mass discarded by the rank budget.</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">rank_one</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/latent_geometry.html">latent_geometry</a></span><span class="op">(</span><span class="va">geometry</span>, rank <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  peak_clipped_negative <span class="op">=</span> <span class="va">rank_one</span><span class="op">$</span><span class="va">clipped_negative_mass</span><span class="op">[[</span><span class="va">peak</span><span class="op">]</span><span class="op">]</span>,</span>
-<span>  peak_truncated_positive <span class="op">=</span> <span class="va">rank_one</span><span class="op">$</span><span class="va">truncated_positive_mass</span><span class="op">[[</span><span class="va">peak</span><span class="op">]</span><span class="op">]</span>,</span>
-<span>  peak_moved <span class="op">=</span> <span class="va">rank_one</span><span class="op">$</span><span class="va">moved_mass</span><span class="op">[[</span><span class="va">peak</span><span class="op">]</span><span class="op">]</span></span>
-<span><span class="op">)</span></span>
-<span><span class="co">#&gt;   peak_clipped_negative peak_truncated_positive              peak_moved </span></span>
-<span><span class="co">#&gt;             0.009944622             0.012430189             0.022374811</span></span></code></pre></div>
-<p>This does not show that one dimension predicts independent data. For
-that question, <code><a href="../reference/fit_geometry.html">fit_geometry()</a></code> learns a regularized
-model-supported form and <code><a href="../reference/score_geometry.html">score_geometry()</a></code> reads it on
-separate observations. With the same frozen prediction, coherent and
-configuration test inner products still add; the prediction’s squared
-norm is subtracted once. Separately projected or fitted latent
-components need not add to a projection of their total. See <a href="predictive-geometry.html">Predictive geometry</a>
-(<code><a href="../articles/predictive-geometry.html">vignette("predictive-geometry")</a></code> offline) for an executable
-example.</p>
 </div>
 <div class="section level2">
-<h2 id="which-metrics-preserve-the-budget">6. Which metrics preserve the budget?<a class="anchor" aria-label="anchor" href="#which-metrics-preserve-the-budget"></a>
+<h2 id="metrics-what-folds-what-breaks-what-is-a-different-estimand">6. Metrics: what folds, what breaks, what is a different
+estimand<a class="anchor" aria-label="anchor" href="#metrics-what-folds-what-breaks-what-is-a-different-estimand"></a>
 </h2>
 <p>Everything above assumed the node metric is the identity. A metric
 composes with the frame by symmetric congruence in the square-root
@@ -638,7 +645,11 @@ whether the metric keeps the per-voxel ledger of section 2 intact.</p>
 <span>  dense <span class="op">=</span> <span class="fu"><a href="../reference/metric_capabilities.html">metric_capabilities</a></span><span class="op">(</span><span class="va">dense</span><span class="op">)</span><span class="op">$</span><span class="va">feature_additive</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; diagonal    dense </span></span>
-<span><span class="co">#&gt;     TRUE    FALSE</span></span></code></pre></div>
+<span><span class="co">#&gt;     TRUE    FALSE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/metric_capabilities.html">metric_capabilities</a></span><span class="op">(</span><span class="va">diagonal</span><span class="op">)</span><span class="op">$</span><span class="va">feature_additive</span>,</span>
+<span>  <span class="op">!</span><span class="fu"><a href="../reference/metric_capabilities.html">metric_capabilities</a></span><span class="op">(</span><span class="va">dense</span><span class="op">)</span><span class="op">$</span><span class="va">feature_additive</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p>A diagonal metric folds into the frame weights:
 <code>D(sqrt(w)) D(q) D(sqrt(w))</code> is <code>D(w q)</code>, still
 diagonal, still feature-additive, so <code>sum_x w_xv = 1</code> still
@@ -660,11 +671,19 @@ algebra rather than as tolerance.</p>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">signif</a></span><span class="op">(</span><span class="va">relative_gaps</span>, <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;       identity       diagonal   dense_native dense_whitened </span></span>
-<span><span class="co">#&gt;       0.00e+00      -1.50e-16      -4.32e-02       1.27e-16</span></span></code></pre></div>
-<p>The dense metric’s measured gap belongs to this fixture. Its size and
-sign can vary with the data, while the algebra explains why column
-normalization does not guarantee conservation. A small gap on one
-dataset would not establish a conservation law.</p>
+<span><span class="co">#&gt;       0.00e+00      -1.50e-16      -4.32e-02       1.27e-16</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">relative_gaps</span><span class="op">[[</span><span class="st">"identity"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">1e-12</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">relative_gaps</span><span class="op">[[</span><span class="st">"diagonal"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">1e-12</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">relative_gaps</span><span class="op">[[</span><span class="st">"dense_native"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0.01</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">relative_gaps</span><span class="op">[[</span><span class="st">"dense_whitened"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">1e-12</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The size and sign of the dense failure are fixture-specific — across
+draws it ranges over both signs and tens of percent, and a draw can land
+within 1 % of zero by chance. The claim is the algebraic law, never a
+percentage, which is why the assertion above reads <code>&gt; 1 %</code>
+and not an equality. A small measured deviation on one dataset is not
+evidence that a dense metric conserves.</p>
 <p><code>composition = "whitened"</code> places the frame in whitened
 coordinates, <code>Q^(1/2) D(w_x) Q^(1/2)</code>, whose sum over a
 conservative frame is <code>Q</code> exactly for any SPD <code>Q</code>.
@@ -675,7 +694,8 @@ fix</strong>.</p>
 <span><span class="va">whitened_nodes</span> <span class="op">&lt;-</span> <span class="fu">line_energy</span><span class="op">(</span><span class="va">line_frame</span>, <span class="va">dense</span>, <span class="st">"whitened"</span><span class="op">)</span><span class="op">$</span><span class="va">total</span></span>
 <span><span class="va">node_gap</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">native_nodes</span> <span class="op">-</span> <span class="va">whitened_nodes</span><span class="op">)</span><span class="op">)</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">native_nodes</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">node_gap</span>, <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 0.247</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 0.247</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="va">node_gap</span> <span class="op">&gt;</span> <span class="fl">0.01</span><span class="op">)</span></span></code></pre></div>
 <p>Under the native composition a node weights <em>features</em> and
 measures them in the <code>Q</code> geometry. Under the whitened
 composition it weights <em>whitened coordinates</em>, which are
@@ -691,7 +711,10 @@ is never mistaken for a native one after the fact.</p>
 <span><span class="va">whitened_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span><span class="va">line_relation</span>, <span class="va">line_frame</span>, <span class="va">line_pairing</span>,</span>
 <span>  metric <span class="op">=</span> <span class="va">dense</span>, composition <span class="op">=</span> <span class="st">"whitened"</span><span class="op">)</span></span>
 <span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">native_plan</span><span class="op">$</span><span class="va">scientific_plan_id</span>, <span class="va">whitened_plan</span><span class="op">$</span><span class="va">scientific_plan_id</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">native_plan</span><span class="op">$</span><span class="va">scientific_plan_id</span>, <span class="va">whitened_plan</span><span class="op">$</span><span class="va">scientific_plan_id</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p>The composition and the root convention — <code>"whitened"</code>
 means the symmetric positive semidefinite root, since conservation holds
 for <em>any</em> root <code>R R' = Q</code> while the node values do not
@@ -702,18 +725,18 @@ a failed conservation check: that is a change of estimand, and it
 belongs in the record.</p>
 </div>
 <div class="section level2">
-<h2 id="reporting-an-attribution-map">7. Reporting an attribution map<a class="anchor" aria-label="anchor" href="#reporting-an-attribution-map"></a>
+<h2 id="what-this-article-does-not-give-you">7. What this article does not give you<a class="anchor" aria-label="anchor" href="#what-this-article-does-not-give-you"></a>
 </h2>
 <p><strong>No inference.</strong> Conservation is a point-estimate law.
 <code>sum_x theta_x = theta_Omega</code> says nothing about uncertainty:
-node estimates of an overlapping frame can be correlated, variances do
-not generally add, and per-node standard errors must never be summed to
-put an error bar on a conserved budget (§7.6a). The cross-node sampling
-covariance that would license one does not exist yet;
-<code>sampling_covariance(scope = "cross_measurement")</code> refuses by
-capability rather than returning per-node margins that could be mistaken
-for a joint block. Until then a conservative attribution map is a point
-ledger reported without inference.</p>
+node estimates of an overlapping frame are strongly positively
+correlated, variances do not add, and per-node standard errors must
+never be summed to put an error bar on a conserved budget (§7.6a). The
+cross-node sampling covariance that would license one does not exist
+yet; <code>sampling_covariance(scope = "cross_measurement")</code>
+refuses by capability rather than returning per-node margins that could
+be mistaken for a joint block. Until then a conservative attribution map
+is a point ledger reported without inference.</p>
 <p><strong>No cross-voxel content in a total.</strong> Section 2 is a
 caveat as much as a demonstration: under a feature-additive metric,
 nothing in a <code>total</code> column at any radius is multivariate
@@ -748,16 +771,17 @@ detection-first workflow, and where the planted blocks come from.</li>
 <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/conservative-geometry-contract.md" class="external-link"><code>design/conservative-geometry-contract.md</code></a>
 — the normative document: the two estimands, the conservation theorem,
 the smoothed-ledger claim and its metric precondition, the α-invariance
-argument, and the numerical tolerances used by this guide’s checks.</li>
+argument, and the measured tolerances every assertion above is drawn
+from.</li>
 <li>
 <a href="https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001" class="external-link">Haxby
 2001 exemplar</a>, script <code>07-conservative-geometry.R</code> and
 section 07 of its README — the same four instruments on one subject’s
 ventral temporal cortex, with committed receipts.</li>
-<li>
-<a href="population-form.html">Population form</a> — carry each
-participant’s conservative ledger to shared group nodes and estimate a
-group model. This layer is experimental.</li>
+<li>The population layer, which carries a conservative ledger from one
+participant onto a group frame, is experimental and under construction;
+it is what the transport-readiness section of the contract is written
+for.</li>
 </ul>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

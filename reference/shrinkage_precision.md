@@ -33,7 +33,8 @@ shrinkage_precision(
 
 - relative_spectral_floor:
 
-  Positive minimum eigenvalue relative to the local covariance scale.
+  Minimum eigenvalue relative to the local covariance scale after the
+  spectral ridge, in `[1e-10, 1)`.
 
 - domain:
 

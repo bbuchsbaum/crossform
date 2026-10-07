@@ -51,7 +51,7 @@ latent_geometry() is the named operation that builds one."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Construct the latent PSD descriptive layer of a signed geometry</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/latent.R" class="external-link"><code>R/latent.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/latent.R" class="external-link"><code>R/latent.R</code></a></small>
       <div class="d-none name"><code>latent_geometry.Rd</code></div>
     </div>
 
@@ -72,8 +72,7 @@ only on a declared nonnegative projection of the estimates, and
 <span>  <span class="va">x</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"psd_projection"</span><span class="op">)</span>,</span>
 <span>  component <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"total"</span>, <span class="st">"coherent"</span>, <span class="st">"configuration"</span><span class="op">)</span>,</span>
-<span>  row_block <span class="op">=</span> <span class="fl">1024L</span>,</span>
-<span>  rank <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  row_block <span class="op">=</span> <span class="fl">1024L</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,17 +102,6 @@ is an <code>effect_spectrum_view</code>.</p></dd>
 <dt id="arg-row-block">row_block<a class="anchor" aria-label="anchor" href="#arg-row-block"></a></dt>
 <dd><p>Positive number of measurement rows read per block when
 <code>x</code> is a form.</p></dd>
-
-
-<dt id="arg-rank">rank<a class="anchor" aria-label="anchor" href="#arg-rank"></a></dt>
-<dd><p><code>NULL</code> for the plain PSD projection, or one positive whole
-number: the rank budget. After the negative roots are set to zero, the
-positive roots beyond the <code>rank</code> largest are set to zero as well. The
-result is <code>[S]_{+,rank}</code>, the closed-form minimizer of the Frobenius
-distance to the signed form over PSD forms of rank at most <code>rank</code>, and it is
-the same projection with a second reason to move mass: the receipt
-carries <code>clipped_negative_mass</code> and <code>truncated_positive_mass</code> apart, and
-the budget enters the latent layer's identity.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -145,28 +133,20 @@ through <code>Cq</code>, so <code>Cq</code> is <code>1</code> wherever the curve
 \((\sum_i \lambda_i)^2 / \sum_i \lambda_i^2\) of the projected
 spectrum, one per measurement.</p></li>
 <li><p><code>$moved_mass</code>: the absolute mass the projection removed from each
-measurement – the magnitudes of its negative roots plus, under a <code>rank</code>
-budget, the positive roots beyond the budget. Zero for a measurement
-whose source spectrum was already nonnegative and within the budget.</p></li>
+measurement – the sum of the magnitudes of its negative roots. Zero for
+a measurement whose source spectrum was already nonnegative.</p></li>
 <li><p><code>$moved_share</code>: that mass as a fraction of the source spectrum's total
 absolute mass, so a measurement that moved a lot in a large form is not
 confused with one that moved a little in a small one.</p></li>
-<li><p><code>$clipped_negative_mass</code>, <code>$truncated_positive_mass</code>: the two reasons
-mass was moved, per measurement. They add to <code>$moved_mass</code>; the second is
-identically zero unless a <code>rank</code> budget was declared, and the two are
-never summed into one number without both being on the record.</p></li>
-<li><p><code>$component</code>, <code>$method</code>, <code>$rank</code>: what was projected, by which named
-operator, and under which rank budget (<code>NA</code> when none).</p></li>
+<li><p><code>$component</code>, <code>$method</code>: what was projected, and by which named operator.</p></li>
 <li><p><code>$index</code>: the measurement identifiers, carried from the source.</p></li>
-<li><p><code>$projection</code>: the projection receipt – the operator, the rank budget,
-the per-measurement moved mass and share and their two parts, the counts
-of clipped, truncated and masked measurements, and the source identity it
-was derived from.</p></li>
+<li><p><code>$projection</code>: the projection receipt – the operator, the per-measurement
+moved mass and share, the counts of clipped and masked measurements, and
+the source identity it was derived from.</p></li>
 <li><p><code>$receipt</code>: the execution receipt. Its <code>$scientific_plan_id</code> is derived
-from the source's, the projection's name and the rank budget, so a
-latent layer never shares an identity with the signed estimates behind
-it, and its <code>$task_partition_id</code> ends in <code>+psd_projection</code>, or
-<code>+psd_projection+rank2</code> under a budget of two.</p></li>
+from the source's and the projection's name, so a latent layer never
+shares an identity with the signed estimates behind it, and its
+<code>$task_partition_id</code> ends in <code>+psd_projection</code>.</p></li>
 </ul><p>Any element not listed here is internal and may change.</p>
     </div>
     <div class="section level2">
@@ -226,7 +206,6 @@ additive ledger reading that stays on the signed layer.</p>
 <code><a href="geometry_component.html">geometry_component()</a></code>,
 <code><a href="geometry_spectrum.html">geometry_spectrum()</a></code>,
 <code><a href="materialize_geometry.html">materialize_geometry()</a></code>,
-<code><a href="model_geometry.html">model_geometry()</a></code>,
 <code><a href="plan_crossnobis.html">plan_crossnobis()</a></code>,
 <code><a href="plan_geometry.html">plan_geometry()</a></code>,
 <code><a href="plot_views.html">plot_views</a></code>,

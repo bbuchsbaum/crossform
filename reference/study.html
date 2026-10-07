@@ -41,7 +41,7 @@ generalizes_over axis."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Bind observations, events, confounds, clocks, and partition axes</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/study.R" class="external-link"><code>R/study.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/study.R" class="external-link"><code>R/study.R</code></a></small>
       <div class="d-none name"><code>study.Rd</code></div>
     </div>
 
@@ -85,7 +85,10 @@ constructed from observation partitions when omitted.</p></dd>
 
 
 <dt id="arg-clock-tolerance">clock_tolerance<a class="anchor" aria-label="anchor" href="#arg-clock-tolerance"></a></dt>
-<dd><p>Nonnegative finite tolerance for clock coverage.</p></dd>
+<dd><p>Nonnegative finite tolerance for clock coverage.
+Observation times are read as volume onsets: a partition covers events
+from its first onset to one sampling interval (the median spacing of its
+observation times) after its last onset, plus this tolerance.</p></dd>
 
 
 <dt id="arg-provenance">provenance<a class="anchor" aria-label="anchor" href="#arg-provenance"></a></dt>

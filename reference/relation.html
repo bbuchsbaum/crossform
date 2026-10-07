@@ -53,7 +53,7 @@ it does not recreate discarded first-level residual information."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Construct a lazy experimental-neural relation</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/relation.R" class="external-link"><code>R/relation.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/relation.R" class="external-link"><code>R/relation.R</code></a></small>
       <div class="d-none name"><code>relation.Rd</code></div>
     </div>
 
@@ -94,11 +94,7 @@ it does not recreate discarded first-level residual information.</p>
 
 
 <dt id="arg-extract">extract<a class="anchor" aria-label="anchor" href="#arg-extract"></a></dt>
-<dd><p>NULL, one <code>effect_extractor</code>, one extractor per partition, or
-a <code><a href="model_basis.html">model_basis()</a></code>, which lowers every partition's condition betas into
-model coordinates through its <code>$extractor</code>. Labelled beta rows are then
-aligned to the basis's <code>$conditions</code> by name in any order and a mismatch
-is refused; unlabelled rows are taken in the basis's condition order.</p></dd>
+<dd><p>NULL, one <code>effect_extractor</code>, or one extractor per partition.</p></dd>
 
 
 <dt id="arg-effects">effects<a class="anchor" aria-label="anchor" href="#arg-effects"></a></dt>
@@ -129,15 +125,7 @@ resampling or changing neural features.</p></dd>
 
 
 <dt id="arg-provenance">provenance<a class="anchor" aria-label="anchor" href="#arg-provenance"></a></dt>
-<dd><p>Optional provenance metadata. For independent predictive
-scoring, <code>observation_origins</code> declares a common parent manifest: a list
-with <code>id</code>, a named <code>partitions</code> list of raw observation-origin identifiers,
-<code>independence = "independent"</code> or <code>"undeclared"</code>, and an <code>assumption</code>
-describing the sampling/preprocessing independence claim. Optional
-<code>dependencies</code> names each partition's upstream observation origins.
-The manifest is sealed and ancestry is attached to each source. Copies,
-aliases and reprocessed estimates must retain their actual origin IDs;
-neither endpoint names nor equal numeric values establish independence.</p></dd>
+<dd><p>Optional provenance metadata.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -166,8 +154,7 @@ its <code>id</code>, <code>n_features</code>, and <code>feature_ids</code>; <cod
 <code>id</code>.</p></li>
 <li><p><code>$capabilities</code>: one <code><a href="source_capabilities.html">source_capabilities()</a></code> per partition when the
 sources declared them, otherwise <code>NULL</code>.</p></li>
-<li><p><code>$provenance</code>: the supplied metadata; an <code>observation_origins</code> declaration
-is canonicalized into a sealed parent manifest.</p></li>
+<li><p><code>$provenance</code>: the metadata supplied at construction, unchanged.</p></li>
 </ul><p><code>$sources</code> and <code>$extractors</code> are the compiled read path <code><a href="relation_block.html">relation_block()</a></code>
 uses; they and any element not listed here are internal and may change.</p>
     </div>
@@ -177,7 +164,23 @@ uses; they and any element not listed here are internal and may change.</p>
 channel is needed, <code><a href="relation_block.html">relation_block()</a></code> to read one block, and
 <code><a href="plan_geometry.html">plan_geometry()</a></code> for the next step.</p>
 <p>Other relation planning and fitting:
-<code><a href="relation_block.html">relation_block()</a></code></p></div>
+<code><a href="adapter_version_certificate.html">adapter_version_certificate()</a></code>,
+<code><a href="compiler_conformance.html">compiler_conformance()</a></code>,
+<code><a href="effect_extractor.html">effect_extractor()</a></code>,
+<code><a href="estimate_relation.html">estimate_relation()</a></code>,
+<code><a href="file_matrix_source.html">file_matrix_source()</a></code>,
+<code><a href="fmridesign_design_model.html">fmridesign_design_model()</a></code>,
+<code><a href="fmrireg_relation.html">fmrireg_relation()</a></code>,
+<code><a href="lm_extractor.html">lm_extractor()</a></code>,
+<code><a href="lm_relation_fit.html">lm_relation_fit()</a></code>,
+<code><a href="plan_relation.html">plan_relation()</a></code>,
+<code><a href="relation_block.html">relation_block()</a></code>,
+<code><a href="relation_fit.html">relation_fit()</a></code>,
+<code><a href="relation_fit_capabilities.html">relation_fit_capabilities()</a></code>,
+<code><a href="relation_plan_receipts.html">relation_plan_receipts()</a></code>,
+<code><a href="residual_block.html">residual_block()</a></code>,
+<code><a href="residual_df.html">residual_df()</a></code>,
+<code><a href="source_capabilities.html">source_capabilities()</a></code></p></div>
     </div>
 
     <div class="section level2">

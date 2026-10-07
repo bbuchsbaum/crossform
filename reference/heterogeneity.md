@@ -110,7 +110,9 @@ the subject loadings in long form.
 `$mode_forms` is `NA` at a `(node, coordinate)` cell the Gram could not
 see — a group node reached by no native mass under density semantics —
 because zero there is a form and would read as agreement rather than as
-absence. `$receipt$unresolved_columns` counts them.
+absence. `$receipt$unresolved_columns` counts them, and
+`$receipt$unresolved_cells` lists each one with the participants whose
+non-finite value withheld it.
 
 ## Details
 
@@ -245,7 +247,6 @@ Other population transports:
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
-[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -291,7 +292,7 @@ split
 #>   n_eff:     1 modes after psd_projection, moved mass 2.504 (84.52%)
 #>   cross-fit: interleaved: [run1, run3] x [run2, run4]
 #>   modes:     1 at group1 (direction: half average)
-#>   estimand:  population-sha256:779371766677...
+#>   estimand:  population-sha256:78c219ca45db...
 #>   cross-fitted: indefinite by construction, and one draw of its trace is
 #>     not an estimate of the between-subject trace (population-form-v1
 #>     section 6.4). Reported as-is.

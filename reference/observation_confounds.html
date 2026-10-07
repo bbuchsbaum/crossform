@@ -41,7 +41,7 @@ retain column."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Declare observation-level confounds and censor facts</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/study-facts.R" class="external-link"><code>R/study-facts.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/study-facts.R" class="external-link"><code>R/study-facts.R</code></a></small>
       <div class="d-none name"><code>observation_confounds.Rd</code></div>
     </div>
 
@@ -67,7 +67,9 @@ retain column.</p>
 
 
 <dl><dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
-<dd><p>A nonempty data frame with one row per observation.</p></dd>
+<dd><p>A nonempty data frame with one row per observation. Confound
+value columns may hold <code>NA</code> (for example a derivative with no first-row
+value); the partition, observation-id and censor columns must be complete.</p></dd>
 
 
 <dt id="arg-partition-observation-id">partition, observation_id<a class="anchor" aria-label="anchor" href="#arg-partition-observation-id"></a></dt>

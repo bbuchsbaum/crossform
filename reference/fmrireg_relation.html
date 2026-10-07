@@ -43,7 +43,7 @@ refuses rather than borrowing unsupported standard-error output."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Execute a relation plan with fmrireg</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/adapter-fmrireg.R" class="external-link"><code>R/adapter-fmrireg.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/adapter-fmrireg.R" class="external-link"><code>R/adapter-fmrireg.R</code></a></small>
       <div class="d-none name"><code>fmrireg_relation.Rd</code></div>
     </div>
 
@@ -105,7 +105,7 @@ difference.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># This adapter is certified against exactly one fmrireg version and refuses</span></span></span>
 <span class="r-in"><span><span class="co"># any other, so the example runs only under that version.</span></span></span>
 <span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"fmrireg"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
-<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/packageDescription.html" class="external-link">packageVersion</a></span><span class="op">(</span><span class="st">"fmrireg"</span><span class="op">)</span><span class="op">)</span>, <span class="st">"0.2.0"</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/packageDescription.html" class="external-link">packageVersion</a></span><span class="op">(</span><span class="st">"fmrireg"</span><span class="op">)</span><span class="op">)</span>, <span class="st">"0.1.2"</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">domain</span> <span class="op">&lt;-</span> <span class="fu"><a href="abstract_domain.html">abstract_domain</a></span><span class="op">(</span><span class="fl">3L</span>, id <span class="op">=</span> <span class="st">"fmrireg-example"</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="observation_index.html">observation_index</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"scan-"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">)</span>, <span class="st">"run-1"</span><span class="op">)</span></span></span>
@@ -141,9 +141,6 @@ difference.</p>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="catch_refusal.html">catch_refusal</a></span><span class="op">(</span><span class="fu">fmrireg_relation</span><span class="op">(</span><span class="va">gls</span><span class="op">)</span><span class="op">)</span><span class="op">$</span><span class="va">capability</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "supported_observation_model"</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

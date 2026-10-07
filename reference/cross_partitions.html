@@ -49,7 +49,7 @@ admitted analytic RDM covariance law."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Pair every distinct partition once</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/pairing.R" class="external-link"><code>R/pairing.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/pairing.R" class="external-link"><code>R/pairing.R</code></a></small>
       <div class="d-none name"><code>cross_partitions.Rd</code></div>
     </div>
 
@@ -74,7 +74,8 @@ admitted analytic RDM covariance law.</p>
 
 <dl><dt id="arg-partitions">partitions<a class="anchor" aria-label="anchor" href="#arg-partitions"></a></dt>
 <dd><p>Partition identifiers or an <code>effect_relation</code>. Pass
-<code>fit$relation</code> when starting from <code><a href="lm_relation_fit.html">lm_relation_fit()</a></code>.</p></dd>
+<code>fit$relation</code> when starting from <code><a href="lm_relation_fit.html">lm_relation_fit()</a></code>. Identifiers must be
+unique; a repeated identifier is refused rather than collapsed.</p></dd>
 
 
 <dt id="arg-independence">independence<a class="anchor" aria-label="anchor" href="#arg-independence"></a></dt>

@@ -1,141 +1,74 @@
-# Choosing distance: effect magnitude or pattern correlation
+# Correlation-distance policy
 
-Should two condition patterns count as different when one is a larger
-version of the other? **Squared distance retains that amplitude
-difference. Pearson correlation distance removes it**, along with each
-pattern’s mean across neural features. Choose according to the
-scientific question before constructing an RDM.
+**Status:** accepted design decision, 2026-08-14 **Applies to:** the
+public RDM and RSA surface
 
-This guide assumes you know what an RDM represents; the
-[introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
-shows how to compute one with `crossform`. The distinction matters for
-both the point estimate and its uncertainty.
+## Decision
 
-| Your question | Quantity | Current support |
-|----|----|----|
-| How far apart are the effects in a fixed feature metric? | Squared Euclidean or fixed-Mahalanobis distance | [`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md); crossnobis uses a declared noise metric |
-| How different are the patterns after removing their means and positive scales? | `1 - Pearson correlation` | Illustrative base R calculation below; no exported `correlation_rdm()` |
-| How does an RDM relate to a model? | RSA under a declared RDM and comparison rule | [`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md) does not silently replace the input geometry with correlation distance |
+[`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md)
+continues to mean squared Euclidean or fixed-Mahalanobis distance read
+from a bilinear geometry. It will not silently normalize each condition
+pattern to unit length, and
+[`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md) will
+not silently substitute correlation distance.
 
-## See what amplitude normalization removes
+Conventional correlation distance, `1 - Pearson correlation`, is a
+legitimate and important RSA view. It is not, however, a fixed linear
+query of the pattern bilinear form: its denominator depends on the
+observed norm of each pattern. It belongs in a named nonlinear view with
+a separate contract.
 
-Each row below is a condition and each column is a neural feature.
-Pattern `b` is twice pattern `a`, with five added to every feature.
-Pattern `c` changes the arrangement of the middle two features.
-
-``` r
-
-a <- c(-2, -1, 1, 2)
-patterns <- rbind(a = a, b = 2 * a + 5, c = c(-2, 1, -1, 2))
-knitr::kable(patterns, col.names = paste0("feature ", 1:4))
-```
-
-|     | feature 1 | feature 2 | feature 3 | feature 4 |
-|:----|----------:|----------:|----------:|----------:|
-| a   |        -2 |        -1 |         1 |         2 |
-| b   |         1 |         3 |         7 |         9 |
-| c   |        -2 |         1 |        -1 |         2 |
-
-Compute both distances on these observed patterns.
-[`cor()`](https://rdrr.io/r/stats/cor.html) correlates columns, so the
-transpose makes conditions its variables. These are ordinary self-data
-calculations, with no crossvalidation or uncertainty estimate.
-
-``` r
-
-squared <- as.matrix(stats::dist(patterns))^2
-correlation_distance <- 1 - stats::cor(t(patterns))
-pairs <- which(lower.tri(squared), arr.ind = TRUE)
-comparison <- data.frame(
-  pair = paste(rownames(patterns)[pairs[, 2]],
-    rownames(patterns)[pairs[, 1]], sep = " versus "),
-  squared_distance = squared[pairs],
-  correlation_distance = correlation_distance[pairs]
-)
-knitr::kable(comparison, digits = 3)
-```
-
-| pair       | squared_distance | correlation_distance |
-|:-----------|-----------------:|---------------------:|
-| a versus b |              110 |                  0.0 |
-| a versus c |                8 |                  0.4 |
-| b versus c |              126 |                  0.4 |
-
-The `a`–`b` pair has a much larger squared distance than `a`–`c`, yet
-its correlation distance is zero. That zero says that the centered
-patterns have the same direction. It does not say that their effects
-have equal magnitude. The `a`–`c` pair changes pattern direction, which
-both distances detect.
-
-## When can a form be normalized as Pearson correlation?
-
-Let `B` contain condition patterns in rows. First center each row across
-neural features, giving `B_c`. Its self form is `G = B_c B_c'`. This
-construction makes `G` positive semidefinite (PSD), and the
-correlation-distance formula is
+This is a boundary within the architecture, not a claim that correlation
+distance cannot be represented at all. For a positive-semidefinite self
+second moment `G`, feature-centered correlation distance is a
+deterministic nonlinear function of `G`:
 
 ``` math
 d_{ij}^{\mathrm{corr}}
 = 1 - \frac{G_{ij}}{\sqrt{G_{ii}G_{jj}}}.
 ```
 
-**The formula requires a feature-centered PSD self form and strictly
-positive relevant diagonal entries.** PSD alone does not supply feature
-centering. A constant pattern has zero centered norm and its Pearson
-correlation is undefined.
+The centering step itself is a fixed linear projection and can be
+represented by a declared neural metric. The diagonal normalization is
+the nonlinear step.
 
-``` r
+## Dispositions
 
-centered <- sweep(patterns, 1, rowMeans(patterns))
-G <- tcrossprod(centered)
-norms <- sqrt(diag(G))
-from_form <- 1 - G / outer(norms, norms)
-c(max_difference_from_cor = max(abs(from_form - correlation_distance)))
-#> max_difference_from_cor 
-#>            2.220446e-16
-```
+| Requested quantity | Disposition | Reason |
+|----|----|----|
+| Squared Euclidean or fixed-Mahalanobis RDM | Public bilinear core | Fixed contrast query; signed and unbiased under cross-generalization |
+| Conventional correlation distance from a guaranteed-PSD self form | Disciplined nonlinear view | Deterministic diagonal normalization is well defined when required diagonals are positive |
+| Diagonal normalization of a signed cross-generalized form | Refuse pending a named estimand | Crossvalidated diagonals may be zero or negative; this is not automatically conventional Pearson distance |
+| Normalization learned from the evaluation data | Estimator extension | The learned denominator changes the estimand and its sampling law |
+| RSA on correlation-distance RDMs | Future named view | Point computation is possible, but exact covariance transport from the linear RDM does not automatically follow |
 
-Feature centering is a fixed linear projection and can be represented by
-a neural metric. Dividing by the observed norms is nonlinear: its
-denominator changes with the data. Consequently, correlation distance is
-not a fixed linear query of the unnormalized form, even though it can be
-computed from a suitable self form.
+## Required contract for a future `correlation_rdm()`
 
-## Why does crossvalidation change the problem?
+Before export, the view must:
 
-A cross-generalized form uses independently estimated patterns on its
-two sides. It is signed: diagonal entries may be zero or negative, and
-the matrix need not be PSD. Substituting such a form into the Pearson
-formula can produce undefined denominators or values outside the usual
-correlation range. Clipping diagonals changes the estimator and does not
-recover ordinary Pearson distance.
+- state whether feature centering occurs and identify its exact metric;
+- require a guaranteed-PSD self form and strictly positive relevant
+  diagonals;
+- return a first-class refusal for zero, negative, or undefined
+  normalization;
+- record that it is a nonlinear view rather than a bilinear query;
+- define behavior for spatial frames and units;
+- provide an independent numerical oracle and a map-scale performance
+  gate;
+- make no analytic-standard-error claim without a delta-method,
+  bootstrap, or other separately validated sampling contract.
 
-For independent partitions and a correctly specified fixed metric,
-squared cross-distances estimate the corresponding signal distance
-without the self-noise term. Their signed behavior around a zero effect
-is useful for inference. Normalizing by a denominator estimated from the
-evaluation data introduces a new estimator and requires its own sampling
-analysis. The covariance of a linear RDM does not automatically become
-the covariance of a normalized one.
+There will be no private normalizer routed through
+[`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md), no
+clipping of crossvalidated diagonals to make the formula run, and no
+relabeling of a different cross-partition normalization as ordinary
+Pearson distance.
 
-## What is available, and what would a future view need?
+## Recommended default
 
-[`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md) reads
-squared Euclidean or fixed-Mahalanobis distances from bilinear geometry.
-It does not normalize condition patterns to unit length. The base R
-example above illustrates a distinct estimand; it is not an alternate
-`crossform` RDM route.
-
-A proposed `correlation_rdm()` would need to declare centering and its
-metric, require an appropriate PSD self form with positive diagonals,
-and refuse undefined normalization. It would also need explicit
-spatial-frame and unit semantics, independent numerical checks, and
-performance validation. Any standard errors would require a separately
-validated delta-method, bootstrap, or other sampling procedure. This
-named view is **not currently exported**.
-
-Use the existing squared-distance workflow when effect magnitude in a
-fixed metric is the target. Use the pattern-correlation estimand when
-invariance to positive scaling and feature means is itself the question,
-while keeping its construction and uncertainty separate from
-crossvalidated squared distances.
+For cross-generalized inference, use squared Euclidean distance or
+crossnobis. These estimators are signed, unbiased around zero under
+independent partitions, and compatible with the package’s admitted
+fixed-metric calibration. Use correlation distance when its scale
+invariance is itself the scientific estimand, through the future
+explicit view rather than an implicit option.

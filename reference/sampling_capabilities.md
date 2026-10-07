@@ -35,9 +35,10 @@ Every requirement reported here is a property of the plan and its error
 channel, so it can be checked without touching neural values. One
 requirement of
 [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
-is not: whether a *particular* measurement has enough residual degrees
-of freedom for the number of residual directions its own support spends
-variance on (capability `"sufficient_residual_df"`). That depends on the
+is not: whether a *particular* measurement's plug-in residual covariance
+yields a usable (positive) estimate of the noise term, which fails for a
+zero or exactly isotropic residual covariance such as a saturated fit
+leaves (capability `"sufficient_residual_df"`). That depends on the
 local residual spectrum and can only be known once it is computed, so
 `available = TRUE` here does not promise that every measurement will be
 answerable.

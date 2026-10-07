@@ -146,7 +146,4 @@ if (requireNamespace("fmridesign", quietly = TRUE) &&
   )
   print(all(as.matrix(compiler_conformance(plan)[-1L])))
 }
-#> [1] "condition.face" "condition.body"
-#> [1] TRUE
-#> [1] TRUE
 ```

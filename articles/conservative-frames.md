@@ -1,28 +1,25 @@
 # Conservative frames: attribution, not detection
 
-How much of a contrast’s total evidence is assigned to each territory? A
-**conservative frame** answers this question by partitioning one global
-total among its spatial measurements. Its map can be added across
-territories.
+Almost every searchlight analysis you have read answers one question:
+*where is there evidence?* This article is about the other one: *how is
+the total effect distributed?* They are different instruments, they are
+not comparable node-for-node, and choosing between them is a decision
+about the question rather than a preference about scaling.
 
-This guide assumes the `relation → frame → plan → contrast_energy()`
-workflow from [the
-introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.md).
-It uses the same generated fMRI example to compare two normalizations:
+The difference is one argument. A frame is a nonnegative weight matrix,
+one row per measurement, one column per neural feature.
+`normalization = "local"` normalizes the **rows**, so a node reports the
+mean evidence density inside its own support — a detection map.
+`normalization = "conservative"` normalizes the **columns**, so every
+feature’s unit of evidence is *partitioned* among the nodes that see it,
+and a node reports its share of one fixed global budget — an attribution
+map.
 
-| Question | Normalization | Meaning of one node |
-|----|----|----|
-| Where is evidence locally strong? | `"local"`: normalize rows | Mean evidence density in the node’s support |
-| How is the global total distributed? | `"conservative"`: normalize columns | Evidence assigned to the node from a fixed global budget |
-
-A frame has one row per measurement and one column per neural feature.
-Column normalization allocates each feature across the nodes that
-contain it. Start with the conservation check and territory ledger; the
-later sections explain scale, signed estimates, and metric choices. The
-outputs show the numerical identities; quiet assertions check their
-tolerances during rendering. Their derivations are in the [geometry
-contract](https://github.com/bbuchsbaum/crossform/blob/main/design/conservative-geometry-contract.md).
-References marked § below point to that contract.
+Everything below is asserted in code you can see. If an identity in this
+article stopped holding, the article would stop knitting. The governing
+document is
+[`design/conservative-geometry-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/conservative-geometry-contract.md),
+and section numbers below refer to it.
 
 ``` r
 
@@ -48,9 +45,9 @@ an 8 × 7 × 5 volume, at the same per-voxel amplitude, never overlapping.
 They differ only in sign structure: in the **pattern** block the sign
 alternates between neighbouring voxels, so a neighbourhood average
 nearly cancels; in the **mean** block every voxel moves the same way.
-Same effect size, two different effect *geometries*. Section 3 compares
-their coherent shares across neighbourhood sizes. These are generated
-data, not evidence about a brain; the [Haxby 2001
+Same effect size, two different effect *geometries*. Section 3 is where
+that difference becomes the finding. These are generated data, not
+evidence about a brain; the [Haxby 2001
 exemplar](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001)
 (script `07`) is the real-data companion to this article.
 
@@ -88,6 +85,12 @@ c(
 )
 #>   detection_deviation attribution_deviation 
 #>          1.500000e-01          2.220446e-16
+stopifnot(
+  !detection_mass$conserved,
+  attribution_mass$conserved,
+  attribution_mass$max_deviation < 1e-12,
+  identical(attribution_mass$component, "total")
+)
 ```
 
 [`frame_conservation()`](https://bbuchsbaum.github.io/crossform/reference/frame_conservation.md)
@@ -111,6 +114,7 @@ c(
 )
 #>         ledger_sum whole_domain_total           identity 
 #>       1.552081e+02       1.552081e+02       5.684342e-14
+stopifnot(abs(identity_gap) <= 1e-12 * abs(whole_domain$total))
 ```
 
 That is claim 2 of the contract: for a column-normalized frame,
@@ -130,14 +134,20 @@ c(
 )
 #>      detection_sum whole_domain_total              ratio 
 #>         157.987255         155.208072           1.017906
+stopifnot(
+  abs(sum(detection_map$total) - whole_domain$total) > 1e-6,
+  abs(sum(detection_map$total) / whole_domain$total - 1) < 0.05
+)
 ```
 
-Here the detection sum happens to lie close to the global total. Row
-normalization does not guarantee this: a feature’s aggregate weight
-depends on all the overlapping neighbourhoods that include it. The sum
-therefore has no global-budget interpretation.
-[`contribution()`](https://bbuchsbaum.github.io/crossform/reference/contribution.md)
-checks this requirement before aggregating a map:
+Read that pair of assertions together. Summing the detection map lands
+within 2 % of the right number — and that is the trap, not a
+reassurance. The sum of a detection map estimates nothing: overlapping
+neighbourhoods double-count every voxel they share, and landing near the
+budget is an accident of how much these particular neighbourhoods happen
+to overlap. A frame with more overlap would miss by more, in a direction
+nothing in the analysis records. The package does not let you take that
+sum by accident.
 
 ``` r
 
@@ -149,6 +159,7 @@ territory <- ifelse(
 refused <- catch_refusal(contribution(detection_map, by = territory))
 refused$capability
 #> [1] "conservative_frame"
+stopifnot(identical(refused$capability, "conservative_frame"))
 ```
 
 Read the two maps for what each is. The detection map’s peak (4.103) is
@@ -185,6 +196,10 @@ c(
 )
 #> ledger_sums_to_global   smoothed_equals_map 
 #>          8.526513e-14          0.000000e+00
+stopifnot(
+  abs(sum(ledger$total) - whole_domain$total) <= 1e-12 * abs(whole_domain$total),
+  max(abs(smoothed - attribution_map$total)) < 1e-12
+)
 ```
 
 The searchlight attribution map *is* the voxel ledger, reallocated.
@@ -209,6 +224,11 @@ head(family$index, 3)
 #> 1 radius-3.01::1 radius-3.01    1  3.01      1 0.3333333
 #> 2 radius-3.01::2 radius-3.01    2  3.01      2 0.3333333
 #> 3 radius-3.01::3 radius-3.01    3  3.01      3 0.3333333
+stopifnot(
+  nrow(family$index) == 3L * domain$n_features,
+  all(c("family", "scale", "center", "alpha") %in% names(family$index)),
+  frame_conservation(family)$conserved
+)
 ```
 
 [`coherence_spectrum()`](https://bbuchsbaum.github.io/crossform/reference/coherence_spectrum.md)
@@ -230,6 +250,7 @@ per_scale_gap <- max(abs(
 ))
 per_scale_gap
 #> [1] 2.842171e-14
+stopifnot(per_scale_gap <= 1e-12 * abs(whole_domain$total))
 ```
 
 The `total` column is the same number three times, and it is exactly
@@ -238,18 +259,20 @@ The `total` column is the same number three times, and it is exactly
 spatial scale. Change the weights and the column changes with them,
 because you changed it.
 
-The plotting API makes this distinction explicit:
+This is normative, not advisory, and the package enforces it.
 
 ``` r
 
 panel <- catch_refusal(plot(spectrum, which = "profile"))
 panel$capability
 #> [1] "scale_energy_panel"
+stopifnot(identical(panel$capability, "scale_energy_panel"))
 ```
 
-Use the decomposition view to see how the data divide each scale’s
-budget. The next section explains why its coherent fraction can vary
-with scale even when total energy is fixed.
+An unqualified [`plot()`](https://rdrr.io/r/graphics/plot.default.html)
+on a spectrum draws the decomposition instead, which is the panel whose
+content the data can move. **A multiscale panel of total energy against
+scale is not a finding and may not be presented as one.**
 
 ## 3. The coherence spectrum is the informative object
 
@@ -281,13 +304,17 @@ c(
 )
 #> energy_moved  share_moved 
 #> 4.138882e+01 2.775558e-17
+stopifnot(
+  max(abs(skewed$total - spectrum$total)) > 1,
+  max(abs(skewed$coherence_fraction - spectrum$coherence_fraction)) < 1e-12
+)
 ```
 
-Changing α moves total energy while leaving the coherent fraction
-unchanged within numerical precision. The fraction still depends on the
-chosen radii, frame, and metric, which should accompany its
-interpretation. The aggregation record names the weight-determined
-column as `alpha_fixed` and the invariant column as `alpha_invariant`.
+The energy column moves by tens of units; the share moves by less than a
+part in `1e15`. That is why a coherence spectrum may be reported without
+disclosing α — the exact opposite of the energy panel — and it is what
+the aggregation records: `alpha_fixed` names the column the weights
+determine, `alpha_invariant` names the one they do not.
 
 ``` r
 
@@ -298,6 +325,10 @@ c(
 )
 #>                fixed            invariant 
 #>              "total" "coherence_fraction"
+stopifnot(
+  identical(spectrum_record$alpha_fixed, "total"),
+  identical(spectrum_record$alpha_invariant, "coherence_fraction")
+)
 ```
 
 ### Two effect geometries, one budget
@@ -324,36 +355,48 @@ by_location$block <- ifelse(
   ifelse(by_location$center %in% as.character(example$truth$mean_feature_ids),
     "mean block", "elsewhere")
 )
-knitr::kable(tapply(
+round(tapply(
   by_location$coherence_fraction,
   list(by_location$block, by_location$scale),
   median, na.rm = TRUE
-), digits = 3, caption = "Median valid coherent fraction by block and radius (mm).")
+), 3)
+#>                3.01   4.3   6.1
+#> elsewhere     0.170 0.100 0.070
+#> mean block    0.466 0.478 0.407
+#> pattern block 0.058 0.088 0.044
 ```
 
-|               |  3.01 |   4.3 |   6.1 |
-|:--------------|------:|------:|------:|
-| elsewhere     | 0.170 | 0.100 | 0.070 |
-| mean block    | 0.466 | 0.478 | 0.407 |
-| pattern block | 0.058 | 0.088 | 0.044 |
+``` r
 
-Median valid coherent fraction by block and radius (mm). {.table}
+shares <- tapply(
+  by_location$coherence_fraction,
+  list(by_location$block, by_location$scale), median, na.rm = TRUE
+)
+stopifnot(
+  identical(dim(shares), c(3L, 3L)),
+  all(shares["mean block", ] > 0.35),
+  all(shares["pattern block", ] < 0.15),
+  all(shares["mean block", ] > 4 * shares["pattern block", ]),
+  shares["elsewhere", 1L] > shares["elsewhere", 3L]
+)
+```
 
-Among nodes with valid fractions, the mean block’s median coherent share
-is roughly two fifths at each radius. The pattern block’s median is much
-smaller: alternating signs largely cancel under neighbourhood averaging.
-Its evidence is primarily configuration at these radii. The elsewhere
-median decreases as neighbourhoods grow in this fixture; it is a
-descriptive result for these data, not a general scale law for noise.
+The mean block keeps roughly two fifths of its budget in the common mode
+at every radius. The pattern block never has a common mode to find: an
+effect that alternates sign between neighbours has nearly nothing left
+after a neighbourhood average, at any radius the frame can resolve, and
+its budget sits almost entirely in configuration. Away from both blocks
+the share falls as the neighbourhood grows — the ordinary behaviour of
+noise plus a fixed budget, as a node takes in more territory over which
+nothing keeps one sign.
 
 Two disciplines apply to that table. Shares are **masked, never
 clamped**, wherever the components are not a nonnegative partition, so
 `NA` in this table means “this node’s decomposition does not admit a
-fraction”, not zero. A node’s fraction divides its coherent component by
-its own total. A territory’s share of summed coherent mass, introduced
-next, has a different denominator. That coherent budget is
-**frame-relative** (§4): changing the frame changes the common modes, so
-their sum is not a conserved global quantity.
+fraction”, not zero. And a coherent budget is **frame-relative** (§4):
+the coherent parts of a frame’s nodes do not sum to any global quantity,
+so a coherent share is a share of *this frame’s* coherent mass and two
+frames give two incomparable denominators.
 
 ``` r
 
@@ -363,6 +406,10 @@ c(
 )
 #>         rows valid_shares 
 #>          840          550
+stopifnot(
+  any(is.na(by_location$coherence_fraction)),
+  !all(is.na(by_location$coherence_fraction))
+)
 ```
 
 ## 4. Territory ledgers
@@ -382,6 +429,9 @@ than assumed.
 
 ``` r
 
+stopifnot(identical(
+  as.character(attribution$index$measurement), as.character(domain$feature_ids)
+))
 ledger_by_territory <- contribution(attribution_map, by = territory)
 as.data.frame(ledger_by_territory)
 #>     measurement n_rows signed  coherent configuration    total
@@ -399,6 +449,11 @@ as.data.frame(ledger_by_territory)
 territory_gap <- sum(ledger_by_territory$total) - whole_domain$total
 territory_gap
 #> [1] 5.684342e-14
+stopifnot(
+  abs(territory_gap) <= 1e-12 * abs(whole_domain$total),
+  sum(ledger_by_territory$index$n_rows) == length(attribution_map$total),
+  identical(ledger_by_territory$metadata$aggregation$overlap_split, FALSE)
+)
 ```
 
 The territories re-add to the whole-domain total exactly. Two readings a
@@ -420,6 +475,12 @@ c(budget_exact = ledger_record$budget_exact, masked = ledger_record$masked)
 #>      "total"     "signed"
 ledger_record$frame_relative
 #> [1] TRUE
+stopifnot(
+  identical(ledger_record$budget_exact, "total"),
+  identical(ledger_record$masked, "signed"),
+  isTRUE(ledger_record$frame_relative),
+  all(is.na(ledger_by_territory$signed))
+)
 ```
 
 `signed` is masked rather than summed. A contrast view’s signed marginal
@@ -433,7 +494,7 @@ signed map.
 frame-relative, and the object says so rather than leaving it to the
 reader.
 
-## 5. Descriptive spectra from a nonnegative projection
+## 5. The latent layer, and what its projection cost
 
 Crossvalidated estimates are **signed**. That is the visible cost of the
 cross-partition pairing that removes the noise term, and conservation is
@@ -448,6 +509,7 @@ c(
 )
 #> negative_nodes          nodes 
 #>             77            280
+stopifnot(any(attribution_map$total < 0))
 ```
 
 So the arithmetic that treats a node’s value as part of a nonnegative
@@ -506,6 +568,12 @@ c(
 )
 #>       peak_n_eff peak_moved_share          peak_C1 
 #>           1.0060           0.0024           0.9971
+stopifnot(
+  all(latent$spectrum >= 0),
+  identical(latent$projection$method, "psd_projection"),
+  sum(latent$moved_mass > 0) > 0,
+  all(is.na(latent$cumulative[is.na(latent$n_eff), ]))
+)
 ```
 
 The projection is not a formality on this fit: every node clipped
@@ -530,6 +598,10 @@ substring(latent$receipt$task_partition_id,
 query_readout <- catch_refusal(latent_geometry(attribution_map))
 query_readout$capability
 #> [1] "latent_projection_source"
+stopifnot(
+  grepl("psd_projection$", latent$receipt$task_partition_id),
+  identical(query_readout$capability, "latent_projection_source")
+)
 ```
 
 A contrast view is refused because its values are already contracted
@@ -538,37 +610,7 @@ clamping such a value at zero would be a *different* projection moving
 different mass. The layer takes a named projection from a closed set
 rather than substituting one silently.
 
-A rank budget makes a second descriptive choice: retain at most that
-many positive modes. The receipt separates negative mass clipped for PSD
-admission from positive mass discarded by the rank budget.
-
-``` r
-
-rank_one <- latent_geometry(geometry, rank = 1)
-c(
-  peak_clipped_negative = rank_one$clipped_negative_mass[[peak]],
-  peak_truncated_positive = rank_one$truncated_positive_mass[[peak]],
-  peak_moved = rank_one$moved_mass[[peak]]
-)
-#>   peak_clipped_negative peak_truncated_positive              peak_moved 
-#>             0.009944622             0.012430189             0.022374811
-```
-
-This does not show that one dimension predicts independent data. For
-that question,
-[`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md)
-learns a regularized model-supported form and
-[`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
-reads it on separate observations. With the same frozen prediction,
-coherent and configuration test inner products still add; the
-prediction’s squared norm is subtracted once. Separately projected or
-fitted latent components need not add to a projection of their total.
-See [Predictive
-geometry](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-([`vignette("predictive-geometry")`](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-offline) for an executable example.
-
-## 6. Which metrics preserve the budget?
+## 6. Metrics: what folds, what breaks, what is a different estimand
 
 Everything above assumed the node metric is the identity. A metric
 composes with the frame by symmetric congruence in the square-root
@@ -619,6 +661,10 @@ c(
 )
 #> diagonal    dense 
 #>     TRUE    FALSE
+stopifnot(
+  metric_capabilities(diagonal)$feature_additive,
+  !metric_capabilities(dense)$feature_additive
+)
 ```
 
 A diagonal metric folds into the frame weights:
@@ -644,12 +690,20 @@ relative_gaps <- c(
 signif(relative_gaps, 3)
 #>       identity       diagonal   dense_native dense_whitened 
 #>       0.00e+00      -1.50e-16      -4.32e-02       1.27e-16
+stopifnot(
+  abs(relative_gaps[["identity"]]) <= 1e-12,
+  abs(relative_gaps[["diagonal"]]) <= 1e-12,
+  abs(relative_gaps[["dense_native"]]) > 0.01,
+  abs(relative_gaps[["dense_whitened"]]) <= 1e-12
+)
 ```
 
-The dense metric’s measured gap belongs to this fixture. Its size and
-sign can vary with the data, while the algebra explains why column
-normalization does not guarantee conservation. A small gap on one
-dataset would not establish a conservation law.
+The size and sign of the dense failure are fixture-specific — across
+draws it ranges over both signs and tens of percent, and a draw can land
+within 1 % of zero by chance. The claim is the algebraic law, never a
+percentage, which is why the assertion above reads `> 1 %` and not an
+equality. A small measured deviation on one dataset is not evidence that
+a dense metric conserves.
 
 `composition = "whitened"` places the frame in whitened coordinates,
 `Q^(1/2) D(w_x) Q^(1/2)`, whose sum over a conservative frame is `Q`
@@ -663,6 +717,7 @@ whitened_nodes <- line_energy(line_frame, dense, "whitened")$total
 node_gap <- max(abs(native_nodes - whitened_nodes)) / max(abs(native_nodes))
 round(node_gap, 3)
 #> [1] 0.247
+stopifnot(node_gap > 0.01)
 ```
 
 Under the native composition a node weights *features* and measures them
@@ -683,6 +738,9 @@ whitened_plan <- plan_geometry(line_relation, line_frame, line_pairing,
   metric = dense, composition = "whitened")
 !identical(native_plan$scientific_plan_id, whitened_plan$scientific_plan_id)
 #> [1] TRUE
+stopifnot(
+  !identical(native_plan$scientific_plan_id, whitened_plan$scientific_plan_id)
+)
 ```
 
 The composition and the root convention — `"whitened"` means the
@@ -694,14 +752,14 @@ And the switch must never be applied silently to repair a failed
 conservation check: that is a change of estimand, and it belongs in the
 record.
 
-## 7. Reporting an attribution map
+## 7. What this article does not give you
 
 **No inference.** Conservation is a point-estimate law.
 `sum_x theta_x = theta_Omega` says nothing about uncertainty: node
-estimates of an overlapping frame can be correlated, variances do not
-generally add, and per-node standard errors must never be summed to put
-an error bar on a conserved budget (§7.6a). The cross-node sampling
-covariance that would license one does not exist yet;
+estimates of an overlapping frame are strongly positively correlated,
+variances do not add, and per-node standard errors must never be summed
+to put an error bar on a conserved budget (§7.6a). The cross-node
+sampling covariance that would license one does not exist yet;
 `sampling_covariance(scope = "cross_measurement")` refuses by capability
 rather than returning per-node margins that could be mistaken for a
 joint block. Until then a conservative attribution map is a point ledger
@@ -749,14 +807,14 @@ and
 - [`design/conservative-geometry-contract.md`](https://github.com/bbuchsbaum/crossform/blob/main/design/conservative-geometry-contract.md)
   — the normative document: the two estimands, the conservation theorem,
   the smoothed-ledger claim and its metric precondition, the
-  α-invariance argument, and the numerical tolerances used by this
-  guide’s checks.
+  α-invariance argument, and the measured tolerances every assertion
+  above is drawn from.
 - [Haxby 2001
   exemplar](https://github.com/bbuchsbaum/crossform/tree/main/exemplars/haxby2001),
   script `07-conservative-geometry.R` and section 07 of its README — the
   same four instruments on one subject’s ventral temporal cortex, with
   committed receipts.
-- [Population
-  form](https://bbuchsbaum.github.io/crossform/articles/population-form.md)
-  — carry each participant’s conservative ledger to shared group nodes
-  and estimate a group model. This layer is experimental.
+- The population layer, which carries a conservative ledger from one
+  participant onto a group frame, is experimental and under
+  construction; it is what the transport-readiness section of the
+  contract is written for.

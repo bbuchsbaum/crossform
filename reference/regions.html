@@ -39,7 +39,7 @@ vector becomes a set of non-overlapping regional measurements."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Specify region measurements</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/frame.R" class="external-link"><code>R/frame.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/frame.R" class="external-link"><code>R/frame.R</code></a></small>
       <div class="d-none name"><code>regions.Rd</code></div>
     </div>
 
@@ -58,8 +58,10 @@ vector becomes a set of non-overlapping regional measurements.</p>
 
 
 <dl><dt id="arg-labels">labels<a class="anchor" aria-label="anchor" href="#arg-labels"></a></dt>
-<dd><p>One region label per neural feature. Missing labels are
-excluded unless conservative normalization is requested.</p></dd>
+<dd><p>One region label per neural feature. Features with a missing
+(<code>NA</code>) or empty label are always excluded from every region, so
+conservative normalization, which must cover every feature, is refused
+when any label is missing.</p></dd>
 
 
 <dt id="arg-normalization">normalization<a class="anchor" aria-label="anchor" href="#arg-normalization"></a></dt>

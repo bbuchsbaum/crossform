@@ -49,7 +49,7 @@ distance covariance."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Construct exact analytic sampling covariance for crossvalidated distances</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/evidence-sampling-product.R" class="external-link"><code>R/evidence-sampling-product.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/evidence-sampling-product.R" class="external-link"><code>R/evidence-sampling-product.R</code></a></small>
       <div class="d-none name"><code>rdm_sampling_covariance.Rd</code></div>
     </div>
 
@@ -96,12 +96,23 @@ partition-mean plug-in estimate (<code>"plugin"</code>) or at the fixed zero nul
 chosen implicitly. <code>"plugin"</code> substitutes the partition mean of the
 <em>estimates</em> for the unknown signal, and because
 \(E[\hat\mu_r\Sigma_w\hat\mu_s^\top] = \mu_r\Sigma_w\mu_s^\top +
-  \Xi_{rs}\,\mathrm{tr}(\Sigma_w\Sigma_w)/M\), its signal term is biased
-upward by \(4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2\), an
-inflation that shrinks like \(1/M^2\) and is largest when the noise
-dominates the true distances. Prefer <code>"null"</code> for calibrating a test of
-no effect, where it is exact; use <code>"plugin"</code> when reporting uncertainty
-around an estimated nonzero distance and read it as mildly conservative.</p></dd>
+  \Xi_{rs}\,\mathrm{tr}(\Sigma_w\Sigma_w)/M\), the face-value signal term would be biased upward by
+\(4\Xi_{rs}^2\mathrm{tr}(\Sigma_w\Sigma_w)/M^2\).
+That is \(2(M-1)/M\) times the noise term itself, not a
+small correction: at \(M=4\) under a null truth it would report
+2.5 times the true variance. crossform therefore subtracts the bias,
+using the same unbiased estimate of
+\(\mathrm{tr}(\Sigma_w^2)\) as the noise term, and
+projects the resulting effect-space signal Gram onto the positive
+semidefinite cone (eigenvalue positive part in
+\(\Sigma_K\)-whitened coordinates) so the reported covariance
+stays a covariance. The result is unbiased whenever no direction is
+clamped, and when the true signal is weak the clamp leaves a modest
+conservative residue (never the face-value inflation). The number of
+clamped directions is reported as <code>$source$signal_clamped_directions</code>.
+Prefer <code>"null"</code> for calibrating a test of no effect, where it is exact;
+use <code>"plugin"</code> when reporting uncertainty around an estimated nonzero
+distance.</p></dd>
 
 
 <dt id="arg-at">at<a class="anchor" aria-label="anchor" href="#arg-at"></a></dt>
@@ -111,7 +122,8 @@ a covariance without a named measurement would be a covariance of
 nothing in particular. A length-1 <code>at</code> keeps the historical single-node
 object. A longer <code>at</code> compiles the plan, contrast transport, and any
 eligible shared residual statistics once, then returns one covariance
-object per requested node.</p></dd>
+object per requested node. Each measurement may be named once; a
+repeated index is refused because a batch is read by measurement.</p></dd>
 
 
 <dt id="arg-residual-strategy">residual_strategy<a class="anchor" aria-label="anchor" href="#arg-residual-strategy"></a></dt>
@@ -181,10 +193,28 @@ affected; a 50-voxel searchlight at \(\nu=168\) was reporting standard
 errors 14% too large and an 800-voxel one more than twice too large.</p>
 <p>Both numbers are reported: \(\nu\) is <code>$source$residual_df</code> and
 \(P_{\mathrm{eff}}\) is <code>$source$residual_effective_dimension</code>, and the
-<code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> method shows them. When \(\nu&lt;P_{\mathrm{eff}}\) there is no
-usable estimate of the quadratic term at all, and the call refuses with
-capability <code>"sufficient_residual_df"</code> rather than returning a confidently
-small number.</p>
+<code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> method shows them. The estimator does not need
+\(P_{\mathrm{eff}}\le\nu\): it is ratio-consistent as the
+support outgrows the residual df, and its relative error falls as
+\(P_{\mathrm{eff}}\) grows, so large supports are answered. The
+call refuses with capability <code>"sufficient_residual_df"</code> only where the
+estimator itself fails: \(\nu&lt;2\), where it is undefined, or a
+zero estimate (a zero or exactly isotropic plug-in, as from a saturated
+fit), which would be a confidently small number.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="common-residual-covariance">Common residual covariance<a class="anchor" aria-label="anchor" href="#common-residual-covariance"></a></h2>
+
+
+<p>The law pools one residual covariance \(\Sigma_w\) over all
+partitions. The equal-partition requirement checks residual df and effect
+covariance but cannot check \(\Sigma_w\) itself, so the result
+names the assumption in <code>$source$residual_covariance_model</code>
+(<code>"common_across_partitions"</code>) and reports, in
+<code>$source$residual_partition_variance_ratio</code>, the ratio of the largest to the
+smallest per-partition mean residual variance over the support. A ratio far
+above what \(\nu\) would produce by chance signals partitions whose
+noise differs, which the law does not model.</p>
     </div>
     <div class="section level2">
     <h2 id="independence-within-a-partition">Independence within a partition<a class="anchor" aria-label="anchor" href="#independence-within-a-partition"></a></h2>

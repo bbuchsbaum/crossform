@@ -63,19 +63,19 @@
       <h1>Bring your own neuroim2 data</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/vignettes/neuroim2-data.Rmd" class="external-link"><code>vignettes/neuroim2-data.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/vignettes/neuroim2-data.Rmd" class="external-link"><code>vignettes/neuroim2-data.Rmd</code></a></small>
       <div class="d-none name"><code>neuroim2-data.Rmd</code></div>
     </div>
 
     
     
 <p>You already have per-run condition estimates as <a href="https://github.com/bbuchsbaum/neuroim2" class="external-link">neuroim2</a> images and a
-brain mask. This guide converts those objects into a cross-run contrast
-map and returns it as a <code>NeuroVol</code>. The main steps are the
-orientation of the matrices <code><a href="../reference/relation.html">relation()</a></code> expects, which
-searchlight provider to use, the difference between a
-<em>measurement</em> and a <em>feature</em>, and how to expand region
-results back to voxels.</p>
+brain mask. This guide is the shortest correct path from those objects
+to a contrast map written back as a <code>NeuroVol</code>. It covers
+four things that are easy to get wrong: the orientation of the matrices
+<code><a href="../reference/relation.html">relation()</a></code> expects, which searchlight provider to use, the
+difference between a <em>measurement</em> and a <em>feature</em>, and
+how to expand region results back to voxels.</p>
 <p>The <code>crossform</code> side is the same as in
 <code><a href="../articles/introduction.html">vignette("introduction", package = "crossform")</a></code>; only the
 input and output adapters are new.</p>
@@ -163,7 +163,7 @@ reinterpretation of the coordinate frame.</p>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="convert-images-to-one-condition-by-feature-matrix-per-run">Convert images to one condition-by-feature matrix per run<a class="anchor" aria-label="anchor" href="#convert-images-to-one-condition-by-feature-matrix-per-run"></a>
+<h2 id="convert-images-to-run-by-condition-matrices">Convert images to run-by-condition matrices<a class="anchor" aria-label="anchor" href="#convert-images-to-run-by-condition-matrices"></a>
 </h2>
 <p><code><a href="../reference/relation.html">relation()</a></code> wants a named list with one matrix per run,
 each <strong>condition-by-feature</strong>: rows are the named
@@ -175,10 +175,9 @@ That is already the orientation <code>crossform</code> wants, so no
 transpose is needed — just index the rows for one run’s volumes and
 index the columns with the domain’s feature ids.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">volume_by_voxel</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://bbuchsbaum.github.io/neuroim2/reference/series-methods.html" class="external-link">series</a></span><span class="op">(</span><span class="va">runs_vec</span>, <span class="va">domain</span><span class="op">$</span><span class="va">feature_ids</span><span class="op">)</span></span>
-<span><span class="va">run_matrices</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_run</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">run</span><span class="op">)</span> <span class="op">{</span></span>
+<code class="sourceCode R"><span><span class="va">run_matrices</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_run</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">run</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">volumes</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="op">(</span><span class="va">run</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">conditions</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1L</span><span class="op">)</span><span class="op">:</span><span class="op">(</span><span class="va">run</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">conditions</span><span class="op">)</span><span class="op">)</span></span>
-<span>  <span class="va">m</span> <span class="op">&lt;-</span> <span class="va">volume_by_voxel</span><span class="op">[</span><span class="va">volumes</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span></span>
+<span>  <span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://bbuchsbaum.github.io/neuroim2/reference/series-methods.html" class="external-link">series</a></span><span class="op">(</span><span class="va">runs_vec</span>, <span class="va">domain</span><span class="op">$</span><span class="va">feature_ids</span><span class="op">)</span><span class="op">[</span><span class="va">volumes</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">conditions</span></span>
 <span>  <span class="va">m</span></span>
 <span><span class="op">}</span><span class="op">)</span></span>
@@ -222,9 +221,8 @@ that built the domain.</p>
 <div class="section level2">
 <h2 id="two-searchlight-providers-one-support-index">Two searchlight providers, one support index<a class="anchor" aria-label="anchor" href="#two-searchlight-providers-one-support-index"></a>
 </h2>
-<p>Use <code><a href="../reference/neuroim2_searchlights.html">neuroim2_searchlights()</a></code> when you need the same
-neighborhoods as other neuroim2 tools. A built-in grid provider is also
-available:</p>
+<p>There are two ways to get spheres over this domain, and they are not
+redundant.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">frame_neuroim2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/neuroim2_searchlights.html">neuroim2_searchlights</a></span><span class="op">(</span><span class="va">mask</span>, radius <span class="op">=</span> <span class="fl">6</span>, domain <span class="op">=</span> <span class="va">domain</span><span class="op">)</span></span>
 <span><span class="va">frame_grid</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/searchlights.html">searchlights</a></span><span class="op">(</span>radius <span class="op">=</span> <span class="fl">6</span><span class="op">)</span>, <span class="va">domain</span><span class="op">)</span></span>
@@ -252,7 +250,7 @@ array — which is what the rest of the documentation uses.</li>
 <code>effect_frame</code> carrying a <strong>support index</strong>
 (which features each measurement reads) and a sparse
 measurement-by-feature weight matrix. On a regular grid with a Euclidean
-ball the providers agree for this example:</p>
+ball they agree, and you can check it rather than trust it:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">frame_neuroim2</span><span class="op">$</span><span class="va">weights</span><span class="op">)</span>,</span>
@@ -260,7 +258,22 @@ ball the providers agree for this example:</p>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu">Matrix</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/colSums-methods.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">frame_neuroim2</span><span class="op">$</span><span class="va">weights</span> <span class="op">!=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">frame_neuroim2</span><span class="op">$</span><span class="va">specification</span></span>
+<span><span class="co">#&gt; $kind</span></span>
+<span><span class="co">#&gt; [1] "neuroim2_searchlights"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $radius</span></span>
+<span><span class="co">#&gt; [1] 6</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $units</span></span>
+<span><span class="co">#&gt; [1] "mm"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $nonzero</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $upstream_commit</span></span>
+<span><span class="co">#&gt; [1] "77b1ddb"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu">Matrix</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/colSums-methods.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">frame_neuroim2</span><span class="op">$</span><span class="va">weights</span> <span class="op">!=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 11 33</span></span></code></pre></div>
 <p>The radius is in millimeters for both, and both clip spheres at the
 mask edge, so the sphere sizes vary. Use whichever provider matches the
@@ -307,8 +320,9 @@ planted voxel carry most of the reproducible energy:</p>
 <span><span class="co">#&gt;                88.00000000                 0.65743727 </span></span>
 <span><span class="co">#&gt;      mean_energy_elsewhere          peak_touches_blob </span></span>
 <span><span class="co">#&gt;                -0.04201012                 1.00000000</span></span></code></pre></div>
-<p>Away from the blob the mean energy is near zero. Individual
-crossvalidated estimates can be negative; see
+<p>Away from the blob the estimate is centered near zero and is negative
+about as often as not. That is the crossvalidated estimator behaving
+correctly, not a bug; see
 <code><a href="../articles/introduction.html">vignette("introduction", package = "crossform")</a></code> for why
 those values are kept rather than truncated.</p>
 </div>
@@ -356,7 +370,13 @@ because each sphere is labeled by its center voxel.</p>
 <span><span class="co">#&gt;   Orientation   : RAS</span></span>
 <span><span class="co">#&gt; ── Data ──────────────────────────────────────────────────────────────────────── </span></span>
 <span><span class="co">#&gt;   Range         : [-0.452, 1.870]</span></span>
-<span><span class="co">#&gt;   NAs           : 416</span></span></code></pre></div>
+<span><span class="co">#&gt;   NAs           : 416</span></span>
+<span></span>
+<span><span class="co"># Values land at exactly the domain's voxels; everything else is `fill`.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Logic.html" class="external-link">isTRUE</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/all.equal-methods.html" class="external-link">all.equal</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">energy_vol</span><span class="op">[</span><span class="va">domain</span><span class="op">$</span><span class="va">feature_ids</span><span class="op">]</span><span class="op">)</span>, <span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">as.array</a></span><span class="op">(</span><span class="va">energy_vol</span><span class="op">)</span><span class="op">[</span><span class="va">mask_array</span> <span class="op">==</span> <span class="fl">0</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <p><code><a href="../reference/as_neurovol.html">as_neurovol()</a></code> re-derives the domain from
 <code>mask</code> and refuses if the geometry does not match the domain
 that produced the values, so a mask/result mismatch is an error rather
@@ -406,9 +426,8 @@ it:</p>
 <p>Now there are only 3 measurements but still
 <code>domain$n_features</code> features, so
 <code>as_neurovol(region_effect$total, ...)</code> would be an error.
-Expand the region values to voxels first. For these disjoint regions,
-the frame’s membership pattern assigns each region value to its member
-voxels:</p>
+Expand the region values to voxels first. The general route uses the
+frame’s own membership pattern, which works for any additive frame:</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">region_membership</span> <span class="op">&lt;-</span> <span class="va">frame_regions</span><span class="op">$</span><span class="va">weights</span> <span class="op">!=</span> <span class="fl">0</span></span>
 <span><span class="va">voxel_values</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span></span>
@@ -431,16 +450,13 @@ read:</p>
 <span><span class="op">]</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Logic.html" class="external-link">isTRUE</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/all.equal-methods.html" class="external-link">all.equal</a></span><span class="op">(</span><span class="va">by_lookup</span>, <span class="va">voxel_values</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
-<p>For a partially labeled atlas, decide which voxels belong in the
-analysis before building the domain. Numeric zero is a region label in
-<code><a href="../reference/regions.html">regions()</a></code>; only missing or empty labels are excluded. If
-zero denotes background in your atlas, intersect its nonzero coverage
-with the analysis mask and use that mask throughout the workflow.
-Missing labels otherwise yield <code>NA</code> in the lookup, which
-<code><a href="../reference/as_neurovol.html">as_neurovol()</a></code> does not accept.</p>
-<p>The membership expansion above is for disjoint regions. For
-overlapping measurements it sums their values at shared voxels, so it is
-not a general method for reconstructing a voxel map.</p>
+<p>One caveat. If your atlas does not cover the whole mask,
+<code><a href="../reference/regions.html">regions()</a></code> drops the unlabeled features, and the lookup
+above yields <code>NA</code> there — which <code><a href="../reference/as_neurovol.html">as_neurovol()</a></code>
+refuses. Build the domain from the atlas coverage
+(<code>neuroim2_volume_domain(NeuroVol((atlas_array != 0) * 1, volume_space))</code>)
+so that domain and results describe the same voxels, rather than filling
+missing regions with a number that will later be read as data.</p>
 </div>
 <div class="section level2">
 <h2 id="tidy-output">Tidy output<a class="anchor" aria-label="anchor" href="#tidy-output"></a>

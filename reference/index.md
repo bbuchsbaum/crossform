@@ -186,33 +186,6 @@ measurement rather than absorbed.
 - [`latent_geometry()`](https://bbuchsbaum.github.io/crossform/reference/latent_geometry.md)
   : Construct the latent PSD descriptive layer of a signed geometry
 
-## Advanced — predictive geometry
-
-Declare model kernels, features or squared Euclidean distances, learn a
-regularized low-rank prediction on training runs, and score its signed
-gain on independent runs. Model strengths enter the penalty; source
-geometry stays signed. Prediction is for the same conditions.
-
-- [`model_basis()`](https://bbuchsbaum.github.io/crossform/reference/model_basis.md)
-  : Declare a model family as a basis of the effect axis
-- [`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md)
-  : Fit a regularized representational form
-- [`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
-  : Score a frozen representational prediction on independent geometry
-
-## Advanced — descriptive model-coordinate geometry
-
-A family of model RDMs or feature matrices as a declared, centered,
-rank-revealing basis of the effect axis. Lowering a relation through it
-gives the complete geometry in model coordinates, on which the spectrum,
-the latent layer, the sampling covariance and the population layer apply
-unchanged; the basis itself contains no neural data and enters plan
-identity.
-
-- [`model_geometry()`](https://bbuchsbaum.github.io/crossform/reference/model_geometry.md)
-  : Read a geometry in model coordinates: the trace split and a
-  structure fit
-
 ## Advanced — metrics and crossnobis
 
 Fixed and learned neural metrics, the leakage guard on metric training,
@@ -391,22 +364,6 @@ at which nothing reproduces reports a fraction near 0.5, not near 0. See
   : Admit a transport built outside crossform
 - [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
   : Carry native node values onto the group nodes
-- [`population_component_view()`](https://bbuchsbaum.github.io/crossform/reference/population_component_view.md)
-  : Build an equal-axis population component view
-- [`population_decomposition()`](https://bbuchsbaum.github.io/crossform/reference/population_decomposition.md)
-  : Enforce the population coefficient decomposition law
-- [`population_diagnostic_view()`](https://bbuchsbaum.github.io/crossform/reference/population_diagnostic_view.md)
-  : Bind population effects to coverage and transport diagnostics
-- [`population_diagnostics()`](https://bbuchsbaum.github.io/crossform/reference/population_diagnostics.md)
-  : Diagnose population coverage, sink exposure, and transport
-  sensitivity
-- [`population_influence()`](https://bbuchsbaum.github.io/crossform/reference/population_influence.md)
-  : Diagnose leave-one-subject population influence
-- [`population_scale_profile()`](https://bbuchsbaum.github.io/crossform/reference/population_scale_profile.md)
-  : Build a population scale profile with explicit pointwise uncertainty
-- [`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md)
-  : Null-imposed subject-level wild bootstrap for population
-  coefficients
 - [`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md)
   : Plan a population form over transported conservative geometry
 - [`estimate_population()`](https://bbuchsbaum.github.io/crossform/reference/estimate_population.md)

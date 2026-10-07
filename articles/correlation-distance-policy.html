@@ -5,15 +5,15 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Choosing distance: effect magnitude or pattern correlation • crossform</title>
+<title>Correlation-distance policy • crossform</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Choosing distance: effect magnitude or pattern correlation">
-<meta name="description" content="Choose between squared distance and Pearson correlation distance, understand their different scale behavior, and identify the views crossform supports.
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Correlation-distance policy">
+<meta name="description" content="Why rdm() means squared Euclidean or fixed-Mahalanobis distance and never silently substitutes 1 - Pearson correlation.
 ">
-<meta property="og:description" content="Choose between squared distance and Pearson correlation distance, understand their different scale behavior, and identify the views crossform supports.
+<meta property="og:description" content="Why rdm() means squared Euclidean or fixed-Mahalanobis distance and never silently substitutes 1 - Pearson correlation.
 ">
 </head>
 <body>
@@ -64,23 +64,46 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Choosing distance: effect magnitude or pattern correlation</h1>
+      <h1>Correlation-distance policy</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/vignettes/correlation-distance-policy.Rmd" class="external-link"><code>vignettes/correlation-distance-policy.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/vignettes/correlation-distance-policy.Rmd" class="external-link"><code>vignettes/correlation-distance-policy.Rmd</code></a></small>
       <div class="d-none name"><code>correlation-distance-policy.Rmd</code></div>
     </div>
 
     
     
-<p>Should two condition patterns count as different when one is a larger
-version of the other? <strong>Squared distance retains that amplitude
-difference. Pearson correlation distance removes it</strong>, along with
-each pattern’s mean across neural features. Choose according to the
-scientific question before constructing an RDM.</p>
-<p>This guide assumes you know what an RDM represents; the <a href="introduction.html">introduction</a> shows how to compute one with
-<code>crossform</code>. The distinction matters for both the point
-estimate and its uncertainty.</p>
+<p><strong>Status:</strong> accepted design decision, 2026-08-14
+<strong>Applies to:</strong> the public RDM and RSA surface</p>
+<div class="section level2">
+<h2 id="decision">Decision<a class="anchor" aria-label="anchor" href="#decision"></a>
+</h2>
+<p><code><a href="../reference/rdm.html">rdm()</a></code> continues to mean squared Euclidean or
+fixed-Mahalanobis distance read from a bilinear geometry. It will not
+silently normalize each condition pattern to unit length, and
+<code><a href="../reference/rsa.html">rsa()</a></code> will not silently substitute correlation
+distance.</p>
+<p>Conventional correlation distance,
+<code>1 - Pearson correlation</code>, is a legitimate and important RSA
+view. It is not, however, a fixed linear query of the pattern bilinear
+form: its denominator depends on the observed norm of each pattern. It
+belongs in a named nonlinear view with a separate contract.</p>
+<p>This is a boundary within the architecture, not a claim that
+correlation distance cannot be represented at all. For a
+positive-semidefinite self second moment <code>G</code>,
+feature-centered correlation distance is a deterministic nonlinear
+function of <code>G</code>:</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msubsup><mi>d</mi><mrow><mi>i</mi><mi>j</mi></mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">r</mi></mrow></msubsup><mo>=</mo><mn>1</mn><mo>−</mo><mfrac><msub><mi>G</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><msqrt><mrow><msub><mi>G</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub><msub><mi>G</mi><mrow><mi>j</mi><mi>j</mi></mrow></msub></mrow></msqrt></mfrac><mi>.</mi></mrow><annotation encoding="application/x-tex">
+d_{ij}^{\mathrm{corr}}
+= 1 - \frac{G_{ij}}{\sqrt{G_{ii}G_{jj}}}.
+</annotation></semantics></math></p>
+<p>The centering step itself is a fixed linear projection and can be
+represented by a declared neural metric. The diagonal normalization is
+the nonlinear step.</p>
+</div>
+<div class="section level2">
+<h2 id="dispositions">Dispositions<a class="anchor" aria-label="anchor" href="#dispositions"></a>
+</h2>
 <table class="table">
 <colgroup>
 <col width="33%">
@@ -88,189 +111,78 @@ estimate and its uncertainty.</p>
 <col width="33%">
 </colgroup>
 <thead><tr class="header">
-<th>Your question</th>
-<th>Quantity</th>
-<th>Current support</th>
+<th>Requested quantity</th>
+<th>Disposition</th>
+<th>Reason</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td>How far apart are the effects in a fixed feature metric?</td>
-<td>Squared Euclidean or fixed-Mahalanobis distance</td>
-<td>
-<code><a href="../reference/rdm.html">rdm()</a></code>; crossnobis uses a declared noise metric</td>
+<td>Squared Euclidean or fixed-Mahalanobis RDM</td>
+<td>Public bilinear core</td>
+<td>Fixed contrast query; signed and unbiased under
+cross-generalization</td>
 </tr>
 <tr class="even">
-<td>How different are the patterns after removing their means and
-positive scales?</td>
-<td><code>1 - Pearson correlation</code></td>
-<td>Illustrative base R calculation below; no exported
-<code>correlation_rdm()</code>
-</td>
+<td>Conventional correlation distance from a guaranteed-PSD self
+form</td>
+<td>Disciplined nonlinear view</td>
+<td>Deterministic diagonal normalization is well defined when required
+diagonals are positive</td>
 </tr>
 <tr class="odd">
-<td>How does an RDM relate to a model?</td>
-<td>RSA under a declared RDM and comparison rule</td>
-<td>
-<code><a href="../reference/rsa.html">rsa()</a></code> does not silently replace the input geometry with
-correlation distance</td>
+<td>Diagonal normalization of a signed cross-generalized form</td>
+<td>Refuse pending a named estimand</td>
+<td>Crossvalidated diagonals may be zero or negative; this is not
+automatically conventional Pearson distance</td>
+</tr>
+<tr class="even">
+<td>Normalization learned from the evaluation data</td>
+<td>Estimator extension</td>
+<td>The learned denominator changes the estimand and its sampling
+law</td>
+</tr>
+<tr class="odd">
+<td>RSA on correlation-distance RDMs</td>
+<td>Future named view</td>
+<td>Point computation is possible, but exact covariance transport from
+the linear RDM does not automatically follow</td>
 </tr>
 </tbody>
 </table>
-<div class="section level2">
-<h2 id="see-what-amplitude-normalization-removes">See what amplitude normalization removes<a class="anchor" aria-label="anchor" href="#see-what-amplitude-normalization-removes"></a>
-</h2>
-<p>Each row below is a condition and each column is a neural feature.
-Pattern <code>b</code> is twice pattern <code>a</code>, with five added
-to every feature. Pattern <code>c</code> changes the arrangement of the
-middle two features.</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">a</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">2</span>, <span class="op">-</span><span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span></span>
-<span><span class="va">patterns</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span>a <span class="op">=</span> <span class="va">a</span>, b <span class="op">=</span> <span class="fl">2</span> <span class="op">*</span> <span class="va">a</span> <span class="op">+</span> <span class="fl">5</span>, c <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">2</span>, <span class="fl">1</span>, <span class="op">-</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="va">patterns</span>, col.names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"feature "</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<table class="table">
-<thead><tr class="header">
-<th align="left"></th>
-<th align="right">feature 1</th>
-<th align="right">feature 2</th>
-<th align="right">feature 3</th>
-<th align="right">feature 4</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="left">a</td>
-<td align="right">-2</td>
-<td align="right">-1</td>
-<td align="right">1</td>
-<td align="right">2</td>
-</tr>
-<tr class="even">
-<td align="left">b</td>
-<td align="right">1</td>
-<td align="right">3</td>
-<td align="right">7</td>
-<td align="right">9</td>
-</tr>
-<tr class="odd">
-<td align="left">c</td>
-<td align="right">-2</td>
-<td align="right">1</td>
-<td align="right">-1</td>
-<td align="right">2</td>
-</tr>
-</tbody>
-</table>
-<p>Compute both distances on these observed patterns. <code><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor()</a></code>
-correlates columns, so the transpose makes conditions its variables.
-These are ordinary self-data calculations, with no crossvalidation or
-uncertainty estimate.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">squared</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">dist</a></span><span class="op">(</span><span class="va">patterns</span><span class="op">)</span><span class="op">)</span><span class="op">^</span><span class="fl">2</span></span>
-<span><span class="va">correlation_distance</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">-</span> <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">patterns</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">pairs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lower.tri.html" class="external-link">lower.tri</a></span><span class="op">(</span><span class="va">squared</span><span class="op">)</span>, arr.ind <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="va">comparison</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  pair <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">patterns</span><span class="op">)</span><span class="op">[</span><span class="va">pairs</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span><span class="op">]</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">patterns</span><span class="op">)</span><span class="op">[</span><span class="va">pairs</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span><span class="op">]</span>, sep <span class="op">=</span> <span class="st">" versus "</span><span class="op">)</span>,</span>
-<span>  squared_distance <span class="op">=</span> <span class="va">squared</span><span class="op">[</span><span class="va">pairs</span><span class="op">]</span>,</span>
-<span>  correlation_distance <span class="op">=</span> <span class="va">correlation_distance</span><span class="op">[</span><span class="va">pairs</span><span class="op">]</span></span>
-<span><span class="op">)</span></span>
-<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="va">comparison</span>, digits <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
-<table class="table">
-<thead><tr class="header">
-<th align="left">pair</th>
-<th align="right">squared_distance</th>
-<th align="right">correlation_distance</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="left">a versus b</td>
-<td align="right">110</td>
-<td align="right">0.0</td>
-</tr>
-<tr class="even">
-<td align="left">a versus c</td>
-<td align="right">8</td>
-<td align="right">0.4</td>
-</tr>
-<tr class="odd">
-<td align="left">b versus c</td>
-<td align="right">126</td>
-<td align="right">0.4</td>
-</tr>
-</tbody>
-</table>
-<p>The <code>a</code>–<code>b</code> pair has a much larger squared
-distance than <code>a</code>–<code>c</code>, yet its correlation
-distance is zero. That zero says that the centered patterns have the
-same direction. It does not say that their effects have equal magnitude.
-The <code>a</code>–<code>c</code> pair changes pattern direction, which
-both distances detect.</p>
 </div>
 <div class="section level2">
-<h2 id="when-can-a-form-be-normalized-as-pearson-correlation">When can a form be normalized as Pearson correlation?<a class="anchor" aria-label="anchor" href="#when-can-a-form-be-normalized-as-pearson-correlation"></a>
+<h2 id="required-contract-for-a-future-correlation_rdm">Required contract for a future <code>correlation_rdm()</code><a class="anchor" aria-label="anchor" href="#required-contract-for-a-future-correlation_rdm"></a>
 </h2>
-<p>Let <code>B</code> contain condition patterns in rows. First center
-each row across neural features, giving <code>B_c</code>. Its self form
-is <code>G = B_c B_c'</code>. This construction makes <code>G</code>
-positive semidefinite (PSD), and the correlation-distance formula is</p>
-<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msubsup><mi>d</mi><mrow><mi>i</mi><mi>j</mi></mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">r</mi></mrow></msubsup><mo>=</mo><mn>1</mn><mo>−</mo><mfrac><msub><mi>G</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><msqrt><mrow><msub><mi>G</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub><msub><mi>G</mi><mrow><mi>j</mi><mi>j</mi></mrow></msub></mrow></msqrt></mfrac><mi>.</mi></mrow><annotation encoding="application/x-tex">
-d_{ij}^{\mathrm{corr}}
-= 1 - \frac{G_{ij}}{\sqrt{G_{ii}G_{jj}}}.
-</annotation></semantics></math></p>
-<p><strong>The formula requires a feature-centered PSD self form and
-strictly positive relevant diagonal entries.</strong> PSD alone does not
-supply feature centering. A constant pattern has zero centered norm and
-its Pearson correlation is undefined.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">centered</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sweep.html" class="external-link">sweep</a></span><span class="op">(</span><span class="va">patterns</span>, <span class="fl">1</span>, <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">patterns</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">G</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/crossprod.html" class="external-link">tcrossprod</a></span><span class="op">(</span><span class="va">centered</span><span class="op">)</span></span>
-<span><span class="va">norms</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">G</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">from_form</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">G</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/outer.html" class="external-link">outer</a></span><span class="op">(</span><span class="va">norms</span>, <span class="va">norms</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>max_difference_from_cor <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">from_form</span> <span class="op">-</span> <span class="va">correlation_distance</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; max_difference_from_cor </span></span>
-<span><span class="co">#&gt;            2.220446e-16</span></span></code></pre></div>
-<p>Feature centering is a fixed linear projection and can be represented
-by a neural metric. Dividing by the observed norms is nonlinear: its
-denominator changes with the data. Consequently, correlation distance is
-not a fixed linear query of the unnormalized form, even though it can be
-computed from a suitable self form.</p>
+<p>Before export, the view must:</p>
+<ul>
+<li>state whether feature centering occurs and identify its exact
+metric;</li>
+<li>require a guaranteed-PSD self form and strictly positive relevant
+diagonals;</li>
+<li>return a first-class refusal for zero, negative, or undefined
+normalization;</li>
+<li>record that it is a nonlinear view rather than a bilinear
+query;</li>
+<li>define behavior for spatial frames and units;</li>
+<li>provide an independent numerical oracle and a map-scale performance
+gate;</li>
+<li>make no analytic-standard-error claim without a delta-method,
+bootstrap, or other separately validated sampling contract.</li>
+</ul>
+<p>There will be no private normalizer routed through
+<code><a href="../reference/rdm.html">rdm()</a></code>, no clipping of crossvalidated diagonals to make the
+formula run, and no relabeling of a different cross-partition
+normalization as ordinary Pearson distance.</p>
 </div>
 <div class="section level2">
-<h2 id="why-does-crossvalidation-change-the-problem">Why does crossvalidation change the problem?<a class="anchor" aria-label="anchor" href="#why-does-crossvalidation-change-the-problem"></a>
+<h2 id="recommended-default">Recommended default<a class="anchor" aria-label="anchor" href="#recommended-default"></a>
 </h2>
-<p>A cross-generalized form uses independently estimated patterns on its
-two sides. It is signed: diagonal entries may be zero or negative, and
-the matrix need not be PSD. Substituting such a form into the Pearson
-formula can produce undefined denominators or values outside the usual
-correlation range. Clipping diagonals changes the estimator and does not
-recover ordinary Pearson distance.</p>
-<p>For independent partitions and a correctly specified fixed metric,
-squared cross-distances estimate the corresponding signal distance
-without the self-noise term. Their signed behavior around a zero effect
-is useful for inference. Normalizing by a denominator estimated from the
-evaluation data introduces a new estimator and requires its own sampling
-analysis. The covariance of a linear RDM does not automatically become
-the covariance of a normalized one.</p>
-</div>
-<div class="section level2">
-<h2 id="what-is-available-and-what-would-a-future-view-need">What is available, and what would a future view need?<a class="anchor" aria-label="anchor" href="#what-is-available-and-what-would-a-future-view-need"></a>
-</h2>
-<p><code><a href="../reference/rdm.html">rdm()</a></code> reads squared Euclidean or fixed-Mahalanobis
-distances from bilinear geometry. It does not normalize condition
-patterns to unit length. The base R example above illustrates a distinct
-estimand; it is not an alternate <code>crossform</code> RDM route.</p>
-<p>A proposed <code>correlation_rdm()</code> would need to declare
-centering and its metric, require an appropriate PSD self form with
-positive diagonals, and refuse undefined normalization. It would also
-need explicit spatial-frame and unit semantics, independent numerical
-checks, and performance validation. Any standard errors would require a
-separately validated delta-method, bootstrap, or other sampling
-procedure. This named view is <strong>not currently
-exported</strong>.</p>
-<p>Use the existing squared-distance workflow when effect magnitude in a
-fixed metric is the target. Use the pattern-correlation estimand when
-invariance to positive scaling and feature means is itself the question,
-while keeping its construction and uncertainty separate from
-crossvalidated squared distances.</p>
+<p>For cross-generalized inference, use squared Euclidean distance or
+crossnobis. These estimators are signed, unbiased around zero under
+independent partitions, and compatible with the package’s admitted
+fixed-metric calibration. Use correlation distance when its scale
+invariance is itself the scientific estimand, through the future
+explicit view rather than an implicit option.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

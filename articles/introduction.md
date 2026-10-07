@@ -3,11 +3,11 @@
 ## The question
 
 You have condition estimates from repeated runs, and you want to know
-where an effect reproduces across those runs. This guide uses one fitted
-relation to ask where the effect is strongest, whether it is carried by
-a local mean or a spatial pattern, how the conditions are arranged, and
-which uncertainty calculations the fit supports. Each view reads the
-same declared geometry; the condition effects do not need refitting.
+where an effect reproduces across those runs. This guide answers that
+question, and then three more from the same fit without recomputing
+anything: what *kind* of effect it is, what the whole representational
+geometry looks like at the strongest location, and how much of that you
+are entitled to put an error bar on.
 
 One word to fix before starting: a **measurement** is one spatial unit
 of the frame, and every result below has one value per measurement. Here
@@ -37,15 +37,17 @@ c(
 `example$fit` contains four run-specific estimates for four conditions
 in a small 8 by 7 by 5 volume. `example$frame` defines the 280
 searchlights at which the analysis will report results, one centered on
-each voxel. The generator returns the frame separately so you can choose
-the measurement locations and weights independently of the fitted
-effects.
+each voxel. The generator returns the frame separately because a fitted
+relation records the neural domain but does not own a mutable
+searchlight definition.
 
 The fit provides two kinds of information:
 
-- `example$fit$relation` provides the condition estimates from each run;
-- its error channel retains the residual information needed for the
-  uncertainty calculations later in this guide.
+- `example$fit$relation` is the condition-by-feature relation used for
+  point estimates; it reads feature blocks only when a query needs them;
+- its error channel stores residual blocks, residual degrees of freedom,
+  and effect-coordinate covariance for uncertainty calculations whose
+  assumptions the fit can support.
 
 `example$truth` records what was planted: two blocks of 19 voxels, at
 opposite ends of the longest axis, never overlapping, at the same
@@ -77,14 +79,8 @@ is what the figures below highlight.
 
 ## Declare what must generalize
 
-A geometry plan combines three declarations. Together they define the
-**estimand**: the scientific quantity you intend to estimate.
-
-| Declaration | What you choose here |
-|----|----|
-| Relation | Four condition estimates in each of four runs |
-| Frame | One weighted neighborhood around each voxel |
-| Pairing | Products between different runs, under independent estimation errors |
+Three declarations make the estimand: the relation you fitted, the frame
+you want answers at, and the pairing that says what must reproduce.
 
 ``` r
 
@@ -117,10 +113,13 @@ pairs as six independent samples.
 checks that the relation, condition names, searchlight frame, metric,
 units, and neural domain agree before it reads neural values.
 
-The plan print summarizes those choices. It is **query-first**:
-declaring the plan has not yet computed a full geometry or RDM. Save it
-with the analysis record. Memory and storage settings affect how it
-executes; they do not change the scientific quantity it describes.
+Read the `execution` and `state` lines of that print. The plan is
+query-first: it holds the identity of the quantity, and nothing has been
+materialized yet. Save `plan` with the analysis record. It identifies
+the estimand: the scientific quantity the analysis is meant to estimate.
+Changing block size or storage changes the execution receipt, not this
+plan identity, and `print(plan, detail = TRUE)` is where those execution
+internals are shown.
 
 ### Choosing what must generalize
 
@@ -135,14 +134,12 @@ are different scientific quantities even at identical fold counts, so
 the declared axis is bound into every plan identity built from this
 pairing. If your partitions are sessions, pass `"session"`.
 
-`independence = "independent"` declares independent estimation errors
-across partitions. Separate runs are useful for constructing such
-estimates, but run labels alone do not establish independence: shared
-preprocessing, nuisance estimation or other fitted transformations can
-couple them. State the assumption only when your sampling and estimation
-design supports it. Leaving it undeclared still permits a point
-calculation, but does not establish cross-generalized or analytic
-sampling-law capabilities.
+`independence = "independent"` is your declaration that distinct
+partition estimates have independent estimation errors, which separate
+runs or sessions with separately estimated noise satisfy. It has to be
+stated explicitly: leaving it `NULL` records the endpoints as
+undeclared, which still yields a point estimand but earns neither
+cross-generalized nor analytic sampling-law capabilities.
 
 ``` r
 
@@ -164,12 +161,17 @@ The plan print’s `generalizes:` line is where you check that you
 declared what you meant. Left undeclared it reads
 `6 partition pairs (axis undeclared), endpoints undeclared` instead.
 
-Pairs sharing a run also share its estimation error. Their spread cannot
-be used as if it came from six independent replicates. For explicit or
-directed pair sets, see
-[`?pairing`](https://bbuchsbaum.github.io/crossform/reference/pairing.md).
+One thing the pairing is *not*: its six rows are estimator
+contributions, not six independent replicates. Pairs that share a run
+share that run’s estimation error, which is why the standard-error
+section below cannot simply take their spread.
+[`?cross_partitions`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md)
+states this;
+[`?pairing`](https://bbuchsbaum.github.io/crossform/reference/pairing.md)
+builds explicit or directed edge sets for designs that need one, such as
+nested or ordered axes.
 
-## Locate the contrast effect
+## The answer
 
 ``` r
 
@@ -200,8 +202,8 @@ cross-run reproducibility:
 - `total` is their sum.
 
 The peak sits inside the pattern block, and its energy is almost
-entirely `configuration` — its signed contrast is close to zero. The
-next section explains this difference.
+entirely `configuration` — its signed contrast is close to zero. Hold
+that; it is the subject of the next section.
 
 Because the fixture planted its signal in known searchlights, the answer
 can be drawn against the truth. `highlight` marks both planted blocks in
@@ -227,12 +229,14 @@ dashed guides at constant total energy. The two planted blocks separate
 along the two axes. Right: total energy along the searchlight index. The
 planted searchlights are filled.
 
-The right panel shows total energy at each searchlight. The planted
-searchlights stand above the others, whose values fluctuate around zero.
-Under independent, unbiased partition estimates, a null energy has
-expectation zero; its observed values can be negative. Clipping those
-values would introduce positive bias. In this fixture, roughly half the
-null measurements fall below zero.
+The right panel is the map. The planted searchlights are the spikes;
+everything else lies on zero rather than above it. That is deliberate.
+Crossvalidated energy is centered on zero when no reproducible effect is
+present, so sampling noise produces negative estimates about half the
+time. Clipping them to zero would change the estimator and introduce
+positive bias, so
+[`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md)
+retains them and the plot draws them where they fall.
 
 ``` r
 
@@ -262,8 +266,8 @@ planted at the same amplitude — and divide it in opposite directions:
 the pattern block puts more than ten times as much into configuration as
 into coherent, the mean block puts more into coherent than into
 configuration. Outside them the mean total energy is `0.003` and roughly
-half the estimates fall below zero. This agrees with the known null in
-this generated example.
+half the estimates fall below zero. That is what a correctly centered
+null looks like, and you can see it rather than assume it.
 
 ![Cross-generalized contrast energy in the middle slice, on a scale
 centered at zero: white is the noise floor, red is reproducible energy.
@@ -279,9 +283,10 @@ evidence.
 
 ## What kind of effect is it?
 
-The left panel places every searchlight by how its estimated energy
-divides: `coherent` on the horizontal axis is the energy carried by the
-searchlight’s frame-weighted mean pattern, which is the familiar
+The left panel of the two-panel figure is the part that is hard to
+obtain elsewhere. It places every searchlight by how its reproducible
+energy divides: `coherent` on the horizontal axis is the energy carried
+by the searchlight’s frame-weighted mean pattern, which is the familiar
 univariate story, and `configuration` on the vertical axis is the
 reproducible pattern beyond that mean.
 
@@ -329,8 +334,8 @@ block puts essentially all of it into `configuration`; the mean block
 puts essentially all of it into `coherent`. That first row is the
 signature of a multivariate pattern a univariate map would miss: the
 sphere reproduces a *shape*, while its average response barely moves.
-Both components come from the same fitted effects and the same spatial
-weights.
+Nothing was removed to see this, and nothing was fitted twice; the split
+is a property of the plan.
 
 “A univariate map would miss it” is checkable here. `signed` is a first
 moment — the ordinary contrast of the frame-weighted mean pattern,
@@ -376,11 +381,12 @@ moment sees that block perfectly well. The pattern block is a different
 story. Its alternating signs do not cancel exactly, so most of its
 searchlights clear the level too — but only by about twice the noise
 level, where their energies clear it by more than fifty times. And the
-single strongest searchlight in this example has a signed contrast of
-`0.052`, *smaller* than the `0.154` noise level. A signed map ranks the
-best result in the volume below pure noise, while its total energy of
-`4.10` stands against a largest-elsewhere total of `0.03`. The energies
-see both blocks; the first moment sees only one of them clearly.
+single strongest searchlight in the whole volume, the one you would
+actually report, has a signed contrast of `0.052`, *smaller* than the
+`0.154` noise level. A signed map ranks the best result in the volume
+below pure noise, while its total energy of `4.10` stands against a
+largest-elsewhere total of `0.03`. The energies see both blocks; the
+first moment sees only one of them clearly.
 
 [`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md)
 also reports `coherence_fraction`, the share of reproducible energy
@@ -395,8 +401,8 @@ covers how to read that fraction and the three ways it can mislead you.
 
 ## Change the question without refitting
 
-The condition effects and geometry plan stay the same. Each new view
-compiles its own readout. For conditions `i` and `j`,
+The plan is unchanged, and nothing about it is recompiled below. For
+conditions `i` and `j`,
 [`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md)
 applies the fixed contrast `c = e_i - e_j` to the geometry:
 
@@ -456,20 +462,6 @@ aligns the model’s named rows and columns to the relation conditions. It
 rejects a model with missing names or a rank-deficient regression design
 before it reads geometry rows.
 
-To learn a low-rank geometry whose directions and amplitudes adapt to
-neural training data, use
-[`model_basis()`](https://bbuchsbaum.github.io/crossform/reference/model_basis.md),
-[`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md),
-then
-[`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
-on independent runs. That score measures squared-error gain over zero;
-it answers a different question from this fixed RSA coefficient. The
-[predictive geometry
-guide](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-([`vignette("predictive-geometry")`](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-offline) gives a complete four-run example with declared observation
-origins and mode-wise evidence.
-
 If you only want some pairs, ask for them. The rest is never
 materialized:
 
@@ -479,7 +471,7 @@ dim(rdm(plan, pairs = rbind(c("face", "house")))$values)
 #> [1] 280   1
 ```
 
-## Estimate uncertainty when the fit supports it
+## Uncertainty, and what the package refuses to fake
 
 The six run pairs share run estimates and are not six independent
 sampling units. Their empirical spread divided by the square root of six
@@ -502,24 +494,24 @@ distance_covariance <- rdm_sampling_covariance(
 distance_se <- sqrt(sampling_covariance(distance_covariance))
 round(distance_se, 3)
 #>  face - body face - house  face - tool body - house  body - tool house - tool 
-#>        0.021        0.238        0.249        0.232        0.243        0.027
+#>        0.016        0.237        0.248        0.231        0.242        0.021
 ```
 
 `target` is required because the two available choices answer different
 variance questions, and the package will not pick one for you.
 
 - `target = "null"` evaluates the signal-dependent variance term under a
-  fixed zero-effect null. Under the admitted covariance model it
-  supplies the variance used for a fixed, prespecified null comparison.
+  fixed zero-effect null. It is exact there, so prefer it whenever the
+  standard error is referenced to a test of no effect.
 - `target = "plugin"`, used above, substitutes the partition mean of the
-  *estimates* for the unknown signal. That substitution biases the
-  signal term upward, by an amount that shrinks like one over the
-  squared number of partitions and is largest when noise dominates the
-  true distances. Use it when reporting uncertainty around an estimated
-  nonzero distance, and read it as mildly conservative.
+  *estimates* for the unknown signal. Taken at face value that
+  substitution biases the signal term upward by as much as the whole
+  noise term, so crossform subtracts the bias exactly and clamps the
+  corrected signal at zero. Use it when reporting uncertainty around an
+  estimated nonzero distance.
 
 [`?rdm_sampling_covariance`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
-states the bias term exactly.
+states the correction exactly.
 
 The result is a within-searchlight covariance under an equal-partition,
 fixed-metric, separable error model. It is not a cross-location
@@ -530,25 +522,50 @@ can read its diagonal, selected entries, matrix action, quadratic form,
 or fixed linear transport without constructing the full
 distance-by-distance matrix.
 
-Those standard errors require retained residual information. A relation
-built from beta matrices alone cannot supply it:
+Now the part worth knowing before you need it. Those standard errors are
+available because this fit kept residuals. Build the same plan from beta
+matrices alone and the request is refused, by name:
 
 ``` r
 
-refusal <- catch_refusal(
+conditions <- c("face", "body", "house", "tool")
+betas_only_domain <- abstract_domain(40L, id = "betas-only:v1")
+
+betas_only_runs <- lapply(seq_len(4), function(run) matrix(
+  rnorm(4 * 40), nrow = 4, dimnames = list(conditions, NULL)
+))
+names(betas_only_runs) <- paste0("run", seq_len(4))
+
+betas_only <- relation(
+  betas_only_runs,
+  effects = effect_space(conditions),
+  domain = betas_only_domain
+)
+betas_only_plan <- plan_geometry(
+  betas_only,
+  compile_frame(whole_brain(), betas_only_domain),
+  cross_partitions(
+    betas_only, independence = "independent", generalizes_over = "run"
+  )
+)
+
+catch_refusal(
   rdm_sampling_covariance(betas_only_plan, betas_only, target = "null", at = 1L)
 )
-refusal$capability
-#> [1] "sampling_covariance"
+#> <effect_capability_refusal>
+#>   capability:  sampling_covariance
+#>   namespace:   evidence_sampling
+#>   reasons:
+#>     - missing_error_channel
+#>   remedies:
+#>     - Refit raw observations with `lm_relation_fit()`.
+#>   state:       refused; no partial result was produced
 ```
 
-| reason | remedy |
-|:---|:---|
-| missing_error_channel | Refit raw observations with [`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md). |
-
+That is a value, not a message:
 [`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md)
-returns the unmet requirement and its remedy as a structured condition,
-so a script can inspect them. The point estimates are unaffected —
+hands back the unmet requirement and its remedy so a script can branch
+on them. The point estimates are unaffected —
 [`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md),
 [`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md), and
 [`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md) all
@@ -584,22 +601,20 @@ domain a mask and voxel spacing and searchlights become available.
 Nothing downstream changes: the same relation, pairing, and views apply,
 and the result simply has one row per searchlight.
 
-Supply `volume_runs` as a named list of condition-by-voxel matrices and
-`mask` as the volume mask. Columns must follow the mask’s voxel order.
-The optional block below generates these inputs so the example runs as
-written.
-
-Generate example beta matrices
-
-The twelve planted voxels have alternating face-minus-house effects, so
-their regional mean is small. Replace these generated matrices with your
-estimates.
+So that there is something to find, twelve voxels below carry the same
+face-minus-house pattern in every run, alternating in sign so that the
+regional mean stays near zero — the fixture’s pattern block trick, done
+by hand. Delete `volume_planted`, `volume_pattern`, and the two lines
+that add them to `b` when you substitute your own betas.
 
 ``` r
 
 set.seed(20260816)
 condition_names <- c("face", "body", "house", "tool")
 mask <- array(TRUE, c(8L, 8L, 6L))
+mask_domain <- volume_domain(mask, spacing = c(3, 3, 3))
+volume_frame <- compile_frame(searchlights(radius = 4), mask_domain)
+
 volume_planted <- array(FALSE, dim(mask))
 volume_planted[3:4, 3:5, 3:4] <- TRUE
 volume_pattern <- rep(c(3, -3), length.out = sum(volume_planted))
@@ -618,15 +633,7 @@ volume_runs <- lapply(seq_len(4), function(run) {
   b
 })
 names(volume_runs) <- paste0("run", seq_len(4))
-```
 
-The analysis declares a domain with 3 mm voxel spacing, a 4 mm
-searchlight radius, named effects and cross-run pairing:
-
-``` r
-
-mask_domain <- volume_domain(mask, spacing = c(3, 3, 3))
-volume_frame <- compile_frame(searchlights(radius = 4), mask_domain)
 volume_relation <- relation(
   volume_runs,
   effects = effect_space(condition_names, units = "percent-signal"),
@@ -710,28 +717,25 @@ Your own data will not come with `volume_planted`, and the figure still
 works. `highlight` is optional, as the plot above shows. Read it in two
 steps.
 
-- **The right panel shows the range of estimated effects.** Large values
-  identify locations worth examining, but the observed band around zero
-  is not a calibrated null distribution or threshold.
-- **The left panel shows their estimated composition.** A high
-  configuration value attributes more energy to spatial departures from
-  the local mean; a high coherent value attributes more to that mean.
-  Independent evidence is needed to establish that a selected effect
-  reproduces.
+- **The right panel gives you candidates.** The band around zero *is*
+  the noise floor: crossvalidated energy is centered there when nothing
+  reproduces, which is why roughly half of it falls below the line.
+  Candidates are the measurements standing clear of that band.
+- **The left panel gives you their kind.** High on the vertical axis is
+  a reproducible pattern; far along the horizontal axis is a regional
+  mean that a univariate analysis would also have found.
 
-What the figure does not give you is a spatial threshold or
-selected-peak p-value. This single-participant view performs no spatial
-multiplicity or population inference and will not invent a null
-distribution over measurements. Population analysis is a separate
-declared
-[`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md)
-target. A within-measurement standard error is available, but only from
-a fit that kept residuals, which the beta matrices above did not.
-[Reading a map without ground
+What the figure does not give you is a threshold or a p-value.
+`crossform` performs no spatial and no group inference, and it will not
+invent a null distribution over measurements for you. A
+within-measurement standard error is available, but only from a fit that
+kept residuals, which the beta matrices above did not. [Reading a map
+without ground
 truth](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth)
 ([`vignette("interpreting-results")`](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md))
-works through what a candidate is and is not, including why a pointwise
-error bar does not account for selecting the peak.
+works through what a candidate is and is not, including why an error bar
+taken at [`which.max()`](https://rdrr.io/r/base/which.min.html) is not
+an error bar.
 
 ### The other starting points
 
@@ -789,26 +793,57 @@ accepted extension requirements and refusal cases are recorded in the
 policy](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html)
 ([`vignette("correlation-distance-policy")`](https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.md)).
 
+## What you just did that you could not before
+
+- **You asked four questions of one fit.** The contrast map, the RDM,
+  the RSA coefficient, and the single-pair query all read the same
+  compiled plan, so they agree by construction rather than by care. The
+  [novelty
+  ledger](https://bbuchsbaum.github.io/crossform/articles/novelty.html)
+  ([`vignette("novelty")`](https://bbuchsbaum.github.io/crossform/articles/novelty.md))
+  states what that architecture does and does not yet demonstrate.
+- **You learned what kind of effect you had found.** The exact,
+  non-destructive split into regional-mean and pattern-beyond-the-mean
+  energy came free with the contrast, and separated two blocks of equal
+  effect size into a pattern and a regional mean. [Reading the
+  results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html)
+  ([`vignette("interpreting-results")`](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md))
+  covers the traps.
+- **You saw the null.** Negative crossvalidated estimates were kept, so
+  the noise floor sat on zero in the figure instead of being clipped
+  into a positive-looking band.
+- **You were told what could not be estimated, and why.** The refusal
+  named the missing error channel and the remedy. The [failure
+  gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html)
+  ([`vignette("failure-gallery")`](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md))
+  collects six such guards, this one among them.
+
 ## Where to go next
 
-Choose the next guide by the task you have in front of you:
+- [`?plan_geometry`](https://bbuchsbaum.github.io/crossform/reference/plan_geometry.md)
+  describes rectangular cross-axis plans (`right =`), read with
+  axis-bound
+  [`pair_query()`](https://bbuchsbaum.github.io/crossform/reference/pair_query.md)s,
+  and
+  [`?coupling`](https://bbuchsbaum.github.io/crossform/reference/coupling.md)
+  takes the adjoint neural-side closure from the same plan vocabulary.
+- [`vignette("evidence-pairing")`](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md)
+  covers measurement forms and coupling views, including one bounded
+  cross-domain contraction and the Parseval reconstruction law.
+- [`?rdm_sampling_covariance`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
+  states the admitted analytic covariance contract, and
+  [`?sampling_capabilities`](https://bbuchsbaum.github.io/crossform/reference/sampling_capabilities.md)
+  answers the admission question before it is provoked.
+- The Haxby 2001 exemplar supplies public-data parity and refusal
+  evidence.
+- [Coming from
+  rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html)
+  ([`vignette("from-rmvpa")`](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.md))
+  maps the familiar objects onto this vocabulary.
 
-| Task | Guide |
-|----|----|
-| Interpret the columns, coherent shares and uncertainty | [Reading results](https://bbuchsbaum.github.io/crossform/articles/interpreting-results.md) |
-| Start from scan responses, events or an existing design matrix | [From observations to geometry](https://bbuchsbaum.github.io/crossform/articles/from-observations.md) |
-| Read and write neuroim2 image objects | [Working with neuroim2 data](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.md) |
-| Translate an rMVPA analysis | [Coming from rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.md) |
-| Account for overlapping measurements and compare spatial scales | [Conservative frames](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md) |
-| Learn a model-supported form and test it on independent runs | [Predictive geometry](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md) |
-
-For the algebra behind the fixed queries, see [Contrast, crossnobis, and
-linear RSA as one
-geometry](https://bbuchsbaum.github.io/crossform/articles/common-geometry-equivalence.md).
-The [evidence-pairing
-guide](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.md)
-extends the discussion to measurements and cross-domain forms; the
-[failure
-gallery](https://bbuchsbaum.github.io/crossform/articles/failure-gallery.md)
-helps diagnose unavailable operations. These guides are also available
-offline through `vignette("guide-name", package = "crossform")`.
+For the usual workflow, construct one plan from the fitted relation,
+spatial frame, and cross-run pairing. Then pass that plan to
+[`contrast_energy()`](https://bbuchsbaum.github.io/crossform/reference/contrast_energy.md),
+[`rdm()`](https://bbuchsbaum.github.io/crossform/reference/rdm.md), or
+[`rsa()`](https://bbuchsbaum.github.io/crossform/reference/rsa.md)
+according to the result you need.

@@ -30,48 +30,12 @@ needs. Use
 when you need the matrix block itself without claiming that it is
 covariance or connectivity.
 
-The
-[introduction](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
-explains
-[`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
-and partition pairing. Here, **experimental coordinates are rows and
-neural features are columns**. Keep these axes separate: the query
-weights rows, while node operators select or combine columns.
-
-| Stage | Choice in the first example | Result |
-|----|----|----|
-| Experimental query | Center eight time points within each session | Sample covariance over time |
-| Neural measurements | Select two scalar features | Two oriented nodes |
-| Partition pairing | Pair each session with itself | Average of two within-session covariances |
-| Readout | Normalize by the self-node variances | Signed correlation |
-
 ## Can two regional signals recover ordinary correlation?
 
-The generated example contains two sessions. In each matrix, eight
-repeated time points are rows and four native neural features are
-columns. The first two features are negatively related, which gives this
-example a known correlation sign.
-
-``` r
-
-sample_space <- effect_space(
-  paste0("time", seq_len(8)), basis_id = "demo:time:v1"
-)
-native <- abstract_domain(4, id = "demo:native:v1")
-```
-
-Store the two 8 × 4 session matrices in one relation. For your own data,
-keep the row coordinates and feature ordering consistent across
-sessions.
-
-``` r
-
-signals <- relation(
-  list(session1 = session1, session2 = session2),
-  effects = sample_space,
-  domain = native
-)
-```
+The hidden setup creates two sessions. In each matrix, eight repeated
+time points are rows and four native neural features are columns. The
+first two features are negatively related, which gives this example a
+known correlation sign.
 
 First declare two scalar measurements. Each one selects a single
 oriented feature here; a regional mean would use one row of fixed
@@ -144,28 +108,22 @@ claiming that the two sides were independently estimated.
 averages the two session products and returns the four requested blocks.
 
 Because both node measurements are scalar and oriented, the correlation
-view uses the signed Pearson normalization. It normalizes the **average
-covariance** across sessions; it does not average the two session
-correlations.
+view returns ordinary signed Pearson correlations.
 
 ``` r
 
 functional <- connectivity(measured, view = "correlation")
-knitr::kable(data.frame(
+data.frame(
   from = measured$block_index$left,
   to = measured$block_index$right,
   correlation = functional$values$correlation
-), digits = 3, caption = "Correlation after averaging the two session covariances.")
+)
+#>        from        to correlation
+#> 1  anterior  anterior   1.0000000
+#> 2 posterior  anterior  -0.9912024
+#> 3  anterior posterior  -0.9912024
+#> 4 posterior posterior   1.0000000
 ```
-
-| from      | to        | correlation |
-|:----------|:----------|------------:|
-| anterior  | anterior  |       1.000 |
-| posterior | anterior  |      -0.991 |
-| anterior  | posterior |      -0.991 |
-| posterior | posterior |       1.000 |
-
-Correlation after averaging the two session covariances. {.table}
 
 The negative cross-node value matches the generated data. Its sign is
 defined because each scalar measurement has a fixed orientation. A
@@ -256,14 +214,12 @@ information$values[
 
 ## Why can one contrast not estimate connectivity?
 
-A contrast vector $`c`$ defines the rank-one query $`H=cc^\top`$. It
-measures how nodes express one experimental direction. For a single
-self-product, the neural block is an outer product: normalizing two
-nonzero scalar effects would give magnitude one, with sign determined by
-their orientations. Averaging such products across sessions need not
-retain magnitude one, but it still does not restore repeated
-experimental directions to the query. The connectivity view therefore
-requires effective query rank above one.
+A contrast vector $`c`$ defines the rank-one query $`H=cc^\top`$. This
+query can measure whether two nodes express the same contrast, but it
+leaves only one experimental direction. Its neural block is an outer
+product, so a normalized correlation would equal one whenever both node
+effects are nonzero. The repeated variation needed to estimate
+connectivity has been removed.
 
 ``` r
 
@@ -285,19 +241,6 @@ c(
 #> effective_rank    edge_blocks 
 #>              1              4
 ```
-
-``` r
-
-rank_one_failure <- tryCatch(
-  connectivity(rank_one_form, view = "correlation"),
-  error = function(e) e
-)
-knitr::kable(data.frame(message = conditionMessage(rank_one_failure)))
-```
-
-| message |
-|:---|
-| Normalized connectivity requires an effective sampling rank above one; this variation query has effective rank 1. A rank-one variation direction carries no independent repeats to normalize by, so every edge would report a correlation of plus or minus one by construction. |
 
 [`effect_coupling()`](https://bbuchsbaum.github.io/crossform/reference/coupling_views.md)
 returns the block because it makes no covariance claim.
@@ -399,10 +342,8 @@ effect_coupling(cross_form)$values[[1]]
 #> [1,]    6   -3
 ```
 
-The returned matrix is 1 by 2. Its row belongs to the encoding seed and
-its two columns belong to the retrieval target’s retained modes. Each
-entry is a query-weighted encoding–retrieval product; its sign depends
-on the declared operators and query. No square RDM is constructed
+The returned matrix is 1 by 2. Its rows belong to the encoding seed and
+its columns belong to the retrieval target. No square RDM is constructed
 because the two experimental axes and the two neural measurements are
 different.
 
@@ -491,14 +432,9 @@ No. [`geometry_alignment()`](https://bbuchsbaum.github.io/crossform/reference/c
 compares static Gram matrices and is a rotation-invariant multivariate
 generalization of squared scalar correlation. Informational-connectivity
 analyses often correlate dynamic discriminability series estimated
-across time or trials instead. Estimating those series requires a
-dynamic-series estimator and its own training and inference contract.
-The package’s
-[`fit_geometry()`](https://bbuchsbaum.github.io/crossform/reference/fit_geometry.md)
-/
-[`score_geometry()`](https://bbuchsbaum.github.io/crossform/reference/score_geometry.md)
-workflow learns and evaluates a representational form on independent
-runs; it does not estimate those discriminability time series.
+across time or trials instead. Estimating those series requires training
+and cross-fitting stages that this fixed-form package does not
+implement.
 
 Choose the function by the question:
 
@@ -513,32 +449,6 @@ Choose the function by the question:
 - keep dynamic informational-connectivity estimators in an adjacent
   system until their training, cross-fitting, and inference contracts
   are explicit.
-
-## Pairing effects and separating model evaluation
-
-Adaptive model prediction introduces a second independence requirement.
-[`cross_partitions()`](https://bbuchsbaum.github.io/crossform/reference/cross_partitions.md)
-or an explicit independent
-[`pairing()`](https://bbuchsbaum.github.io/crossform/reference/pairing.md)
-determines which effect estimates enter each cross-product and what the
-geometry generalizes over. The training/evaluation split determines
-whether evidence for a *learned* form is independent of the observations
-that selected its directions and amplitudes.
-
-Two independent runs can supply one signed cross-product. Using that
-same product to fit and score a model does not supply independent
-predictive evidence. A fixed four-run design can use runs 1 and 2 for
-training geometry and runs 3 and 4 for evaluation geometry. Selecting
-rank, penalty or model weights also needs data inside training, or
-choices fixed in advance.
-
-The [predictive geometry
-guide](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-([`vignette("predictive-geometry")`](https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.md)
-offline) constructs this design with explicit observation origins. Both
-plans generalize over runs on the same conditions; holding out
-conditions would be a separate generalization target. Copying or
-renaming a partition does not create an independent origin.
 
 For contrasts, RDMs, RSA, and geometry spectra within one experimental
 space, continue with

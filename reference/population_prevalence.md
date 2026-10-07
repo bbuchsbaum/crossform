@@ -59,12 +59,12 @@ An `effect_population_prevalence`: `$sign` holding `$fraction`,
 `$count`, `$resolved` and `$contributing` (each a `node`-by-`query`
 matrix); `$alignment` holding `$fraction`, `$count`, `$resolved` and the
 inner product it was taken in, one entry per group node; `$coverage`;
-`$reference`, the fraction a pure-noise cell reports; `$layer` and
-`$reading`, which mark the record as descriptive; `$queries` and
-`$query_labels`, the selected rows of the bank it counted over; and the
-`$index`, `$ledger`, `$semantics`, `$normalization` and `$receipt` of
-the result it read. `as.data.frame(x, measure = )` returns one measure
-in long form.
+`$reference`, the fraction a pure-noise cell reports (`0.5` at
+`threshold = 0`, `NA` otherwise); `$layer` and `$reading`, which mark
+the record as descriptive; `$queries` and `$query_labels`, the selected
+rows of the bank it counted over; and the `$index`, `$ledger`,
+`$semantics`, `$normalization` and `$receipt` of the result it read.
+`as.data.frame(x, measure = )` returns one measure in long form.
 
 ## Details
 
@@ -84,7 +84,10 @@ keeps the sign, which is the part that carries the noise. **A group node
 and query at which nothing reproduces reports a fraction near `0.5`, not
 near `0`**, because every participant contributes an independent coin
 flip. `$reference` carries that number so the comparison is not made
-against zero by habit.
+against zero by habit. The coin-flip argument holds at `threshold = 0`,
+for noise symmetric about zero; at any other threshold the pure-noise
+fraction depends on the noise scale, and `$reference` is `NA` rather
+than a `0.5` that would be wrong.
 
 The threshold is applied strictly (`>`) and absolutely, in the ledger's
 own units, with no relative tolerance. That is the guard every per-node
@@ -139,12 +142,13 @@ The exclusion is recorded at `$receipt$prevalence$sink_excluded` and the
 per-participant sink budget stays readable at `$receipt$sink_budget`.
 
 A prevalence is uninterpretable without the number of participants
-behind it. `$coverage$contributing` is the result's exact node-query
-availability, derived from realized transported mass and query admission
-rather than from whether the observed value is nonzero. `coverage_floor`
-marks the nodes below a declared floor; it has no default because
-section 14.3 records the threshold itself as an open maintainer
-decision.
+behind it. `$coverage$contributing` counts, per node and query, the
+participants whose transported value is finite and not exactly zero — a
+proxy, read off the shipped values, for `population-form-v1` section
+7.5's `group_node_subject_coverage`, which is a property of the
+transport operators a result does not carry. `coverage_floor` marks the
+nodes below a declared floor; it has no default because section 14.3
+records the threshold itself as an open maintainer decision.
 
 ## Refusals
 
@@ -199,7 +203,6 @@ Other population transports:
 [`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
-[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -242,13 +245,13 @@ shared
 #>   group nodes:  2 (sink excluded)
 #>   queries:      face-house, face-tool
 #>   threshold:    value > 0 (ledger units, exact)
-#>   sign:         median 0.75 (range 0.5 to 1), 2 cells masked
-#>   alignment:    median 1 (range 1 to 1), 1 cell masked, leave-one-out ref...
+#>   sign:         median 0.667 (range 0.5 to 1)
+#>   alignment:    median 0.917 (range 0.833 to 1), leave-one-out reference
 #>   readout:      2 queries; bank Gram off identity by 3, not Frobenius
 #>   coverage:     minimum 5 of 6 participants contributing; no floor declared
 #>   frame:        undeclared, conservative
-#>   transport:    budget, anatomical, fixed, cross-fit not declared
-#>   estimand:     population-sha256:7ac3b9441c67...
+#>   transport:    budget, anatomical, cross-fit not declared
+#>   estimand:     population-sha256:7b32ff9246f3...
 #>   reading:      latent descriptive layer; not for inference
 #>   a cell at which nothing reproduces reports a fraction near 0.5, not near
 #>     0: thresholding a signed crossvalidated estimate keeps the sign and
@@ -263,8 +266,8 @@ shared
 shared$sign$fraction
 #>         query
 #> node     face-house face-tool
-#>   group1          1       0.5
-#>   group2         NA        NA
+#>   group1  1.0000000       0.5
+#>   group2  0.8333333       0.5
 
 # And how many participants were there to be counted at each node.
 shared$coverage$contributing

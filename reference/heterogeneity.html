@@ -47,7 +47,7 @@ geometry of those modes."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Decompose a population form into consensus and heterogeneity</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/population-heterogeneity.R" class="external-link"><code>R/population-heterogeneity.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/population-heterogeneity.R" class="external-link"><code>R/population-heterogeneity.R</code></a></small>
       <div class="d-none name"><code>heterogeneity.Rd</code></div>
     </div>
 
@@ -158,7 +158,9 @@ loadings in long form.</p>
 <p><code>$mode_forms</code> is <code>NA</code> at a <code>(node, coordinate)</code> cell the Gram could not
 see — a group node reached by no native mass under density semantics —
 because zero there is a form and would read as agreement rather than as
-absence. <code>$receipt$unresolved_columns</code> counts them.</p>
+absence. <code>$receipt$unresolved_columns</code> counts them, and
+<code>$receipt$unresolved_cells</code> lists each one with the participants whose
+non-finite value withheld it.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -278,7 +280,6 @@ single-participant form of the projection discipline.</p>
 <code><a href="population_prevalence.html">population_prevalence()</a></code>,
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>,
 <code><a href="population_views.html">population_views</a></code>,
-<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -324,7 +325,7 @@ single-participant form of the projection discipline.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   n_eff:     1 modes after psd_projection, moved mass 2.504 (84.52%)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   cross-fit: interleaved: [run1, run3] x [run2, run4]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   modes:     1 at group1 (direction: half average)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:  population-sha256:779371766677...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:  population-sha256:78c219ca45db...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   cross-fitted: indefinite by construction, and one draw of its trace is</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     not an estimate of the between-subject trace (population-form-v1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     section 6.4). Reported as-is.</span>

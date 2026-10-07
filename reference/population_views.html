@@ -45,7 +45,7 @@ participant's geometry is opened again."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Reader verbs on an estimated population form</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/population-views.R" class="external-link"><code>R/population-views.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/population-views.R" class="external-link"><code>R/population-views.R</code></a></small>
       <div class="d-none name"><code>population_views.Rd</code></div>
     </div>
 
@@ -157,9 +157,7 @@ position. Meaningful only when <code>by</code> names one of its columns.</p></dd
     <p>An <code>effect_population_view</code>: <code>$values</code>, one row per group node plus
 the sink and one column per view column; <code>$columns</code> naming those columns;
 <code>$index</code>, the group node table with the sink marked and its units; the
-<code>$ledger</code> name, <code>$term</code>, <code>$semantics</code>, <code>$normalization</code>; <code>$coverage</code>,
-preserving the exact subject set, rank, df, and estimability of each view
-cell (and refusing combinations with incompatible sets); a <code>$receipt</code>
+<code>$ledger</code> name, <code>$term</code>, <code>$semantics</code>, <code>$normalization</code>; a <code>$receipt</code>
 carrying the transport, the native frame family, the budget certificate,
 the normalization and the basis coefficients that reached this view; and
 a <code>$scientific_plan_id</code> derived from the population plan and the view's
@@ -256,10 +254,6 @@ a share of nothing.</p></li>
 normalized.</p></li>
 <li><p><code>sink_is_not_a_territory</code> — a <code>by</code> that labels a group node <code>&lt;sink&gt;</code>.
 The sink is appended as its own row automatically.</p></li>
-<li><p><code>common_population_subject_set</code> — a query recombination or spatial
-aggregation whose source coefficients were estimated from different
-subject sets. Re-estimate the desired query directly, or aggregate only
-cells with one common recoverable set.</p></li>
 <li><p><code>nondestructive_decomposition</code> and <code>guaranteed_psd</code> — <code>remove_univariate</code>
 and <code>normalize</code>, refused for the same reasons the per-participant views
 refuse them.</p></li>
@@ -284,7 +278,6 @@ runs these read, and <code><a href="contrast_energy.html">contrast_energy()</a><
 <code><a href="plan_population.html">plan_population()</a></code>,
 <code><a href="population_prevalence.html">population_prevalence()</a></code>,
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>,
-<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -328,13 +321,11 @@ runs these read, and <code><a href="contrast_energy.html">contrast_energy()</a><
 <span class="r-out co"><span class="r-pr">#&gt;</span>   group nodes:   2 + sink</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   columns:       1 (energy)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   frame:         undeclared, conservative</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:     budget, anatomical, fixed, cross-fit not declared</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:     budget, anatomical, cross-fit not declared</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   normalization: none (mean subject ledger, native evidence units)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   coverage:      all_planned; cell n 3 to 3 of 3; estimated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   inference:     conditional_on_realized_transport; uncertainty not propa...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   basis:         selection over 3 estimated queries (face-house, face-too...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   budget:        preserved, worst relative deviation 1.94e-16 against 1e-12</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:6225475610e1...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:4bb36d3c7b5f...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   next:          as.data.frame(x), contribution(x, by = ...)</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The three distances, and an RSA regression on them: both are inside the</span></span></span>
@@ -354,27 +345,13 @@ runs these read, and <code><a href="contrast_energy.html">contrast_energy()</a><
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4 group1      0 FALSE budget  rsa transported_total (Intercept)     animacy</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5 group2      4 FALSE budget  rsa transported_total (Intercept)     animacy</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6 &lt;sink&gt;     NA  TRUE budget  rsa transported_total (Intercept)     animacy</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        role coverage_policy planned_n n fraction n_eff design_rank residual_df</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 intercept     all_planned         3 3        1     3           1           2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 intercept     all_planned         3 3        1     3           1           2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 intercept     all_planned         3 3        1     3           1           2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4     model     all_planned         3 3        1     3           1           2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5     model     all_planned         3 3        1     3           1           2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6     model     all_planned         3 3        1     3           1           2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   coverage_status coefficient_estimable exclusion_reason subject_set_id</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       estimated                  TRUE             &lt;NA&gt;           set1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2       estimated                  TRUE             &lt;NA&gt;           set1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       estimated                  TRUE             &lt;NA&gt;           set1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4       estimated                  TRUE             &lt;NA&gt;           set1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5       estimated                  TRUE             &lt;NA&gt;           set1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6       estimated                  TRUE             &lt;NA&gt;           set1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   available_subjects excluded_subjects   estimate</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1        s01,s02,s03                   0.06298996</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2        s01,s02,s03                   0.05832523</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3        s01,s02,s03                   0.00000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4        s01,s02,s03                   0.09448494</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5        s01,s02,s03                   0.08748785</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6        s01,s02,s03                   0.00000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        role   estimate</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 intercept 0.06298996</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 intercept 0.05832523</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 intercept 0.00000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4     model 0.09448494</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5     model 0.08748785</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6     model 0.00000000</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The ledger adds up over the group nodes and the sink.</span></span></span>
 <span class="r-in"><span><span class="va">ledger</span> <span class="op">&lt;-</span> <span class="fu"><a href="contribution.html">contribution</a></span><span class="op">(</span><span class="va">fit</span>, by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"anterior"</span>, <span class="st">"posterior"</span><span class="op">)</span><span class="op">)</span></span></span>
@@ -386,14 +363,12 @@ runs these read, and <code><a href="contrast_energy.html">contrast_energy()</a><
 <span class="r-out co"><span class="r-pr">#&gt;</span>   group nodes:   2 territories + sink, from 2 group nodes</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   columns:       3 (face-house, face-tool, house-tool)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   frame:         undeclared, conservative</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:     budget, anatomical, fixed, cross-fit not declared</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:     budget, anatomical, cross-fit not declared</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   normalization: none (mean subject ledger, native evidence units)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   coverage:      all_planned; cell n 3 to 3 of 3; estimated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   inference:     conditional_on_realized_transport; uncertainty not propa...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   basis:         whole bank over 3 estimated queries (face-house, face-to...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   budget:        preserved, worst relative deviation 1.94e-16 against 1e-12</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   aggregation:   by group, budget-exact; the sink is its own row</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:fd4c5b6db754...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:54230de1614b...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   next:          as.data.frame(x), x$values</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># An uncentred contrast is outside the span of a zero-sum bank, and is</span></span></span>

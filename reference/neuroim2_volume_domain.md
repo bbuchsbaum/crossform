@@ -77,5 +77,5 @@ if (requireNamespace("neuroim2", quietly = TRUE) &&
 #> [1] 18
 #> [1] TRUE
 #> [1] 3 3 3
-#> [1] "sha256:ea44fad00b51f3d39"
+#> [1] "sha256:3933722abf06c22e4"
 ```

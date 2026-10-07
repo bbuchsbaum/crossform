@@ -49,7 +49,7 @@ only where it is exact."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Read the group uncertainty layers of an estimated population form</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/population-uncertainty.R" class="external-link"><code>R/population-uncertainty.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/population-uncertainty.R" class="external-link"><code>R/population-uncertainty.R</code></a></small>
       <div class="d-none name"><code>population_uncertainty.Rd</code></div>
     </div>
 
@@ -65,13 +65,7 @@ only where it is exact.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">population_uncertainty</span><span class="op">(</span></span>
-<span>  <span class="va">x</span>,</span>
-<span>  term <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  level <span class="op">=</span> <span class="fl">0.95</span>,</span>
-<span>  estimator <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"classical"</span>, <span class="st">"HC3"</span><span class="op">)</span>,</span>
-<span>  leverage_tolerance <span class="op">=</span> <span class="fl">1e-08</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">population_uncertainty</span><span class="op">(</span><span class="va">x</span>, term <span class="op">=</span> <span class="cn">NULL</span>, level <span class="op">=</span> <span class="fl">0.95</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -93,51 +87,18 @@ only where it is exact.</p>
 simulation measured; the interval is labelled uncalibrated whatever level
 is asked for.</p></dd>
 
-
-<dt id="arg-estimator">estimator<a class="anchor" aria-label="anchor" href="#arg-estimator"></a></dt>
-<dd><p>Between-subject covariance estimator. <code>"classical"</code> is
-ordinary homoskedastic OLS; <code>"HC3"</code> is the leverage-adjusted
-heteroskedasticity-robust sandwich estimator.</p></dd>
-
-
-<dt id="arg-leverage-tolerance">leverage_tolerance<a class="anchor" aria-label="anchor" href="#arg-leverage-tolerance"></a></dt>
-<dd><p>Positive tolerance below which HC3 treats
-\(1-h_i\) as numerically zero and refuses that cell.</p></dd>
-
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An <code>effect_population_uncertainty</code>: <code>$between</code> holding <code>$estimate</code>,
-<code>$covariance</code>, <code>$se</code>, <code>$t</code>, <code>$lower</code>, <code>$upper</code>, leverage, adjusted
-residuals and local design diagnostics, estimator identity, assumptions,
-status and refusal reasons;
+<code>$se</code>, <code>$t</code>, <code>$lower</code>, <code>$upper</code> (each a <code>node</code>-by-<code>query</code>-by-<code>term</code>
+array), <code>$residual_sd</code>, <code>$residual_df</code>, <code>$level</code> and <code>$calibration</code>;
 <code>$within</code> holding the transported layer's <code>$admitted</code>, <code>$coefficient</code>,
 <code>$source_node</code>, <code>$variance</code> and <code>$refusal</code>, or <code>NULL</code> when
 <code><a href="estimate_population.html">estimate_population()</a></code> was not given <code>uncertainty</code>; <code>$separation</code>
 stating that the two are never pooled; and the <code>$index</code>, <code>$queries</code>,
 <code>$ledger</code>, <code>$semantics</code>, <code>$normalization</code> and <code>$receipt</code> of the result it
 read. <code>as.data.frame(x, layer = )</code> returns one layer in long form.</p>
-    </div>
-    <div class="section level2">
-    <h2 id="classical-ols-and-hc-">Classical OLS and HC3<a class="anchor" aria-label="anchor" href="#classical-ols-and-hc-"></a></h2>
-
-
-<p><code>estimator = "classical"</code> reproduces the ordinary OLS covariance
-\(s^2(X'X)^{-1}\). <code>estimator = "HC3"</code> returns the
-heteroskedasticity-robust sandwich covariance
-\((X'X)^{-1}X'\mathrm{diag}\{e_i^2/(1-h_i)^2\}X(X'X)^{-1}\). The latter is the recommended
-sensitivity analysis when subject-level variance differs with covariates or
-transport quality. It is not a distributional calibration theorem, so both
-routes retain the <code>"uncalibrated"</code> label.</p>
-<p>Every node-query cell is computed from its exact contributing subject set.
-<code>$between</code> therefore carries the full coefficient covariance, SEs, local
-<code>n</code>, design rank and residual df, subject leverage, the residual adjustment
-actually used in the sandwich, maximum leverage, conditioning statement,
-and a cellwise status/reason. Rank-deficient and
-saturated cells are refused. HC3 also refuses a cell when any
-\(1-h_i\) is no larger than <code>leverage_tolerance</code>; dividing by an
-almost-zero leverage complement would turn a numerical singularity into a
-confident-looking result.</p>
     </div>
     <div class="section level2">
     <h2 id="the-two-layers-are-never-pooled">The two layers are never pooled<a class="anchor" aria-label="anchor" href="#the-two-layers-are-never-pooled"></a></h2>
@@ -156,8 +117,7 @@ and there is no field holding their sum.</p>
 
 
 <p><code>$between$t</code> is the estimate over its standard error. Its null distribution
-for <code>estimator = "classical"</code> has been <em>measured</em> against
-\(t_{df}\) by
+has been <em>measured</em> against \(t_{df}\) by
 <code>benchmarks/run-population-null-coverage.R</code>, a 2,000-replication null
 simulation of the group layer. Under a <strong>correctly specified</strong> group model
 the nominal 95% interval covered the null term in <strong>0.9485</strong> of
@@ -176,16 +136,6 @@ participants, because the bias is in the standard error and not in the
 sample size: at <code>N = 24</code> the nominal 5% test rejects a true null <strong>11.5%</strong>
 of the time, and the null <code>t</code> is distinguishable from \(t_{df}\) at
 <code>p = 1.2e-6</code>.</p>
-<p>Those coverage figures do not transfer to HC3. Its randomized court proves
-agreement with the defining sandwich covariance over full-rank designs and
-adversarial leverage fixtures; it does not supply a finite-sample reference
-distribution. HC3 therefore retains the same <code>"uncalibrated"</code> label.
-The expanded paired benchmark in
-<code>inst/extdata/certification/population-calibration-results.csv</code> records
-classical, HC3, and wild-bootstrap behavior across eight synthetic regimes.
-It supports only the regimes and conditional targets named there:
-informative coverage remains ineligible for a marginal claim, and no arm is
-marginal over transport estimation.</p>
 <p>A real population fit carries misspecification of unknown degree and a
 transport whose displacement, entropy and subject coverage vary across
 participants (<code>population-form-v1</code> section 7.5), which is exactly the
@@ -205,12 +155,6 @@ carry weight zero and \(\mathrm{Var} = w_x^2\,\mathrm{Var}(z_{ix})\) is exact. <
 and none would be defensible: overlapping searchlight supports under
 spatially correlated noise are positively correlated, so a diagonal sum
 would be an under-estimate in a known direction.</p>
-<p>A future joint covariance may support transported precision or a separately
-calibrated spatial procedure, but it is not required by the cellwise
-between-subject covariance computed here. Dense/sparse representation, PSD
-validation and scaling requirements are specified in
-<code>design/cross-node-covariance-contract.md</code>. maxT and multiple-comparison
-methods are optional later consumers, not part of this gate.</p>
 <p>Admission is per participant and per group column, and <code>$within$admitted</code>
 is the matrix that records it. A hard anatomical parcellation usually
 admits nothing, because every group node collects several native nodes;
@@ -235,17 +179,6 @@ The streamed route does not retain the participant residuals, by design.</p></li
 residual degrees of freedom the participants' scatter is not estimable.</p></li>
 </ul></div>
     <div class="section level2">
-    <h2 id="transport-conditioning">Transport conditioning<a class="anchor" aria-label="anchor" href="#transport-conditioning"></a></h2>
-
-
-<p>Classical and HC3 intervals use the exact subject-level residuals and may
-account for homoskedastic or heteroskedastic between-subject variation.
-They remain conditional on each realized transport. In particular, HC3
-does not include uncertainty from learning a functional transport or from
-assigning its cross-fitting folds. The complete conditioning record is
-retained in <code>$between$conditioning</code>.</p>
-    </div>
-    <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p><code>design/population-form-contract.md</code> (<code>population-form-v1</code>),
 section 7; <code>benchmarks/POPULATION-NULL-COVERAGE.md</code> for the recorded null
@@ -266,7 +199,6 @@ belong to.</p>
 <code><a href="plan_population.html">plan_population()</a></code>,
 <code><a href="population_prevalence.html">population_prevalence()</a></code>,
 <code><a href="population_views.html">population_views</a></code>,
-<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -308,20 +240,14 @@ belong to.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   group nodes:     2 + sink</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   queries:         1 (face-house)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   terms:           (Intercept), age</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   between-subject: classical_ols SE 0 to 0.06273, cell df 4 to 4, |t| up ...</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   leverage:        max h 0.5972; estimated, degenerate_residual_scale</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   assumptions:     independent_subjects, fixed_group_design, conditional_...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   between-subject: SE 0 to 0.06273, df 4, |t| up to 1.079 (2 NA)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   interval:        95% nominal, uncalibrated</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   within-subject:  absent (estimate_population() was given no `uncertainty`)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   inference:       conditional_on_realized_transport; uncertainty not pro...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   normalization:   none</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:        population-sha256:e1ed8d16b2bc...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:        population-sha256:a2c0966743eb...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   The two layers are reported separately and are never pooled: a</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     within-subject sampling variance and a between-subject residual</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     variance answer different questions, and their sum answers neither.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   These intervals condition on the realized transport. Cross-fitting limits</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     circularity but does not propagate uncertainty from estimating that</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     transport.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   The t is UNCALIBRATED for real data. Measured against t_df, the nominal</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     95% interval covers 0.948 to 0.952 of the time under a correctly</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     specified group model, and 0.885 to 0.923 when the participants' noise</span>
@@ -346,41 +272,16 @@ belong to.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 group2      4 FALSE budget between_subject transported_total face-house</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3 &lt;sink&gt;     NA  TRUE budget between_subject transported_total face-house</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4 group1      0 FALSE budget between_subject transported_total face-house</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          term     estimator</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 (Intercept) classical_ols</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 (Intercept) classical_ols</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 (Intercept) classical_ols</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4         age classical_ols</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                                                    assumptions</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 independent_subjects;fixed_group_design;conditional_on_realized_transport;conditional_on_realized_coverage;homoskedastic_subject_errors;correctly_specified_conditional_mean</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        estimate          se n design_rank residual_df max_leverage</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1  0.0677011006 0.062728222 6           2           4    0.5971698</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2  0.0134879486 0.047090859 6           2           4    0.5971698</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3  0.0000000000 0.000000000 6           2           4    0.5971698</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 -0.0007196853 0.001869364 6           2           4    0.5971698</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   max_abs_adjusted_residual        uncertainty_status</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                0.05284663                 estimated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                0.03987747                 estimated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                0.00000000 degenerate_residual_scale</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                0.05284663                 estimated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           uncertainty_reason            transport_conditioning</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                       &lt;NA&gt; conditional_on_realized_transport</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                       &lt;NA&gt; conditional_on_realized_transport</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 nonpositive_standard_error conditional_on_realized_transport</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                       &lt;NA&gt; conditional_on_realized_transport</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>              coverage_conditioning          t level        lower     upper</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 conditional_on_realized_coverage  1.0792766  0.95 -0.106460365 0.2418626</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 conditional_on_realized_coverage  0.2864239  0.95 -0.117257236 0.1442331</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 conditional_on_realized_coverage         NA  0.95           NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 conditional_on_realized_coverage -0.3849895  0.95 -0.005909871 0.0044705</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    calibration</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 uncalibrated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 uncalibrated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 uncalibrated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 uncalibrated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          term      estimate          se residual_df          t level</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 (Intercept)  0.0677011006 0.062728222           4  1.0792766  0.95</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 (Intercept)  0.0134879486 0.047090859           4  0.2864239  0.95</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 (Intercept)  0.0000000000 0.000000000           4         NA  0.95</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4         age -0.0007196853 0.001869364           4 -0.3849895  0.95</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          lower     upper  calibration</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 -0.106460365 0.2418626 uncalibrated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 -0.117257236 0.1442331 uncalibrated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3           NA        NA uncalibrated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 -0.005909871 0.0044705 uncalibrated</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

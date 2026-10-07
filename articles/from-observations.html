@@ -63,7 +63,7 @@
       <h1>Fit condition effects from observations</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/vignettes/from-observations.Rmd" class="external-link"><code>vignettes/from-observations.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/vignettes/from-observations.Rmd" class="external-link"><code>vignettes/from-observations.Rmd</code></a></small>
       <div class="d-none name"><code>from-observations.Rmd</code></div>
     </div>
 
@@ -82,45 +82,15 @@ call <code><a href="../reference/plan_relation.html">plan_relation()</a></code>,
 <code><a href="../reference/estimate_relation.html">estimate_relation()</a></code>. A separate
 <code><a href="../reference/plan_geometry.html">plan_geometry()</a></code> then states what those fitted effects must
 reproduce across.</p>
-<p>Choose your starting point:</p>
-<table class="table">
-<colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
-</colgroup>
-<thead><tr class="header">
-<th>Available input</th>
-<th>Entry point</th>
-<th>What it retains</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td>Responses, clocks, events, confounds, and a declared design</td>
-<td>Full workflow below</td>
-<td>Named effect semantics, row lineage, and residuals</td>
-</tr>
-<tr class="even">
-<td>Responses and compiled design/target matrices</td>
-<td><a href="#from-raw-responses-and-a-compiled-design">Compiled-design
-route</a></td>
-<td>Fitted effects and residuals</td>
-</tr>
-<tr class="odd">
-<td>Per-run condition estimates only</td>
-<td><a href="#from-beta-matrices-alone">Beta-matrix route</a></td>
-<td>Point geometry; no residual uncertainty</td>
-</tr>
-</tbody>
-</table>
-<p>All three routes end at <code><a href="../reference/plan_geometry.html">plan_geometry()</a></code>. Analytic
-standard errors additionally require the fit and plan to satisfy the
-declared sampling law.</p>
+<p>If you already hold a compiled design matrix, or only per-run beta
+matrices, you do not need all five steps. Those two shorter routes are
+worked at the end of this guide; the only thing that changes along the
+way is whether the residual channel — and with it the analytic standard
+error — survives.</p>
 <div class="section level2">
 <h2 id="what-data-does-the-fit-require">What data does the fit require?<a class="anchor" aria-label="anchor" href="#what-data-does-the-fit-require"></a>
 </h2>
-<p>For the full workflow, prepare the following inputs plus a design
-matrix or compiler. The example supplies all of them:</p>
+<p>Three objects, and nothing else:</p>
 <ol style="list-style-type: decimal">
 <li>
 <strong>one scan-by-feature response matrix per run</strong>, in a
@@ -136,11 +106,9 @@ carrying nuisance regressors and an optional Boolean censor column.</li>
 </ol>
 <p>The example below generates all three so the vignette can check its
 own answers. It has three runs, three named conditions, twelve neural
-features, and two censored scans per run. It is a scan-level linear
-model, with no HRF convolution; a real fMRI design compiler supplies
-that additional step. Read the code as a description of the shape your
-own data must have; substitute your matrices and tables for the
-generated ones.</p>
+features, and two censored scans per run. Read the code as a description
+of the shape your own data must have; substitute your matrices and
+tables for the generated ones.</p>
 <p>The design and the planted signal come first. Each run’s responses
 are the condition means plus a linear drift, a motion covariate, and
 noise.</p>
@@ -210,7 +178,7 @@ times; the events table then speaks the same units.</p>
 <span>    retained <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_scan</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">16L</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>The response and metadata dimensions are:</p>
+<p>That is the whole input. Its shape:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  partition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">response_runs</span><span class="op">)</span>,</span>
@@ -326,207 +294,15 @@ supplies matrices directly. An external compiler may instead build
 hemodynamic response functions and event grammars, but it must provide
 the same named condition map, row lineage, ranks, aliasing information,
 and solver diagnostics.</p>
-</div>
-<div class="section level2">
-<h2 id="declare-the-fit-and-its-assumptions">Declare the fit and its assumptions<a class="anchor" aria-label="anchor" href="#declare-the-fit-and-its-assumptions"></a>
-</h2>
-<p>The observation model states assumptions that the data tables cannot
-prove. Here the estimator is ordinary least squares (OLS), scans are the
-sampling unit, and runs are declared independently acquired conditional
-on the model. Changing any of these declarations changes the requested
-relation.</p>
+<p>Nothing declared so far names a coefficient, and that is what makes
+the request portable. A compiler that reports treatment coding — an
+intercept and two differences from <code>face</code> — describes the
+same three amplitudes on a different axis.
+<code><a href="../reference/lower_effect_map.html">lower_effect_map()</a></code> is the step that moves the request onto
+whichever axis the compiler chose; <code><a href="../reference/plan_relation.html">plan_relation()</a></code> runs it
+for every partition, and calling it directly is how you inspect what it
+produced.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">noise_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/observation_model.html">observation_model</a></span><span class="op">(</span></span>
-<span>  <span class="st">"ols"</span>,</span>
-<span>  sampling_unit <span class="op">=</span> <span class="st">"scan"</span>,</span>
-<span>  independence <span class="op">=</span> <span class="st">"runs independently acquired conditional on the model"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">relation_request</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_relation.html">plan_relation</a></span><span class="op">(</span></span>
-<span>  <span class="va">study_facts</span>,</span>
-<span>  <span class="va">declared_design</span>,</span>
-<span>  <span class="va">named_effects</span>,</span>
-<span>  <span class="va">noise_model</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">relation_request</span></span>
-<span><span class="co">#&gt; relation_plan&lt;3 partitions; semantic; uncertainty analytic&gt;</span></span>
-<span><span class="fu"><a href="../reference/compiler_conformance.html">compiler_conformance</a></span><span class="op">(</span><span class="va">relation_request</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   partition semantic_identity regressor_axis condition_lowering row_lineage</span></span>
-<span><span class="co">#&gt; 1     run-1              TRUE           TRUE               TRUE        TRUE</span></span>
-<span><span class="co">#&gt; 2     run-2              TRUE           TRUE               TRUE        TRUE</span></span>
-<span><span class="co">#&gt; 3     run-3              TRUE           TRUE               TRUE        TRUE</span></span>
-<span><span class="co">#&gt;   rank_and_aliases censor_accounting solver_diagnostics whitening_provenance</span></span>
-<span><span class="co">#&gt; 1             TRUE              TRUE               TRUE                 TRUE</span></span>
-<span><span class="co">#&gt; 2             TRUE              TRUE               TRUE                 TRUE</span></span>
-<span><span class="co">#&gt; 3             TRUE              TRUE               TRUE                 TRUE</span></span>
-<span><span class="co">#&gt;   source_revision portable_receipt</span></span>
-<span><span class="co">#&gt; 1            TRUE             TRUE</span></span>
-<span><span class="co">#&gt; 2            TRUE             TRUE</span></span>
-<span><span class="co">#&gt; 3            TRUE             TRUE</span></span></code></pre></div>
-<p><code><a href="../reference/plan_relation.html">plan_relation()</a></code> compiles and validates the design
-metadata without reading neural values. It returns an
-<code>effect_relation_plan</code>. If a requested effect is not
-estimable in a run, the call stops and names the run, rank, aliased
-regressors, cause, and possible remedies.</p>
-<p>Fit the validated plan to read the neural values and estimate the
-effects:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_relation.html">estimate_relation</a></span><span class="op">(</span><span class="va">relation_request</span><span class="op">)</span></span></code></pre></div>
-<p>The fitted relation binds the scientific request to the realized
-designs and observation revisions. You can inspect per-run compilation
-details with <code>relation_plan_receipts(relation_request)</code>.</p>
-</div>
-<div class="section level2">
-<h2 id="ask-what-reproduces-across-runs">Ask what reproduces across runs<a class="anchor" aria-label="anchor" href="#ask-what-reproduces-across-runs"></a>
-</h2>
-<p><code><a href="../reference/estimate_relation.html">estimate_relation()</a></code> emits the same
-<code>effect_relation_fit</code> consumed everywhere else in the
-package. <code><a href="../reference/cross_partitions.html">cross_partitions()</a></code> requests products between
-different runs; <code>generalizes_over = "run"</code> records that run
-is the axis across which the effect must reproduce.</p>
-<p>The frame decides where results are reported. This example uses three
-anatomical regions, so every result below has three rows. Searchlights,
-single voxels, and the whole brain are the other choices; the package
-calls any one of them a <em>measurement</em>, and nothing downstream
-changes when you swap one for another.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">frame</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="../reference/regions.html">regions</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"roi-"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4L</span><span class="op">)</span>, normalization <span class="op">=</span> <span class="st">"local"</span><span class="op">)</span>,</span>
-<span>  <span class="va">domain</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">generalization</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
-<span>  <span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
-<span>  independence <span class="op">=</span> <span class="st">"independent"</span>,</span>
-<span>  generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">geometry_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>, <span class="va">frame</span>, <span class="va">generalization</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">face_minus_body</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">1</span>, body <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>, tool <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
-<span><span class="va">effect</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/contrast_energy.html">contrast_energy</a></span><span class="op">(</span><span class="va">geometry_plan</span>, <span class="va">face_minus_body</span><span class="op">)</span></span>
-<span><span class="va">distances</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rdm.html">rdm</a></span><span class="op">(</span><span class="va">geometry_plan</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">tool_category</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/outer.html" class="external-link">outer</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">0</span>, body <span class="op">=</span> <span class="fl">0</span>, tool <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">0</span>, body <span class="op">=</span> <span class="fl">0</span>, tool <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
-<span>  <span class="kw">function</span><span class="op">(</span><span class="va">left</span>, <span class="va">right</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">left</span> <span class="op">!=</span> <span class="va">right</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">model_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rsa.html">rsa</a></span><span class="op">(</span><span class="va">geometry_plan</span>, models <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>tool <span class="op">=</span> <span class="va">tool_category</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="../reference/contrast_energy.html">contrast_energy()</a></code> returns the signed regional contrast
-and its coherent, configuration, and total cross-run energies.
-<code><a href="../reference/rdm.html">rdm()</a></code> returns the three pairwise condition distances for
-each region. <code><a href="../reference/rsa.html">rsa()</a></code> returns an intercept and the coefficient
-for the named tool-category model.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span></span>
-<span>  signed <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">signed</span>,</span>
-<span>  coherent <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">coherent</span>,</span>
-<span>  configuration <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">configuration</span>,</span>
-<span>  total <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">total</span></span>
-<span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="co">#&gt;      signed coherent configuration total</span></span>
-<span><span class="co">#&gt; [1,]  0.278    0.076         0.178 0.255</span></span>
-<span><span class="co">#&gt; [2,]  0.023   -0.001         0.113 0.112</span></span>
-<span><span class="co">#&gt; [3,] -0.590    0.339         0.089 0.428</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">distances</span><span class="op">$</span><span class="va">values</span>, <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="co">#&gt;      face - body face - tool body - tool</span></span>
-<span><span class="co">#&gt; [1,]       0.255       0.409       0.064</span></span>
-<span><span class="co">#&gt; [2,]       0.112       0.288       0.138</span></span>
-<span><span class="co">#&gt; [3,]       0.428       0.047       0.521</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">model_fit</span><span class="op">$</span><span class="va">coefficients</span>, <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="co">#&gt;      (Intercept)   tool</span></span>
-<span><span class="co">#&gt; [1,]       0.255 -0.018</span></span>
-<span><span class="co">#&gt; [2,]       0.112  0.101</span></span>
-<span><span class="co">#&gt; [3,]       0.428 -0.144</span></span></code></pre></div>
-<p>For every region, the total component must equal the coherent plus
-configurational components.</p>
-<p>Because the fit retained residuals and declared a fixed observation
-model, the package can calculate analytic standard errors for the three
-RDM distances at a selected region:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">distance_covariance</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rdm_sampling_covariance.html">rdm_sampling_covariance</a></span><span class="op">(</span></span>
-<span>  <span class="va">geometry_plan</span>, <span class="va">fit</span>, target <span class="op">=</span> <span class="st">"plugin"</span>, at <span class="op">=</span> <span class="fl">1L</span></span>
-<span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="../reference/sampling_covariance.html">sampling_covariance</a></span><span class="op">(</span><span class="va">distance_covariance</span><span class="op">)</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="co">#&gt; face - body face - tool body - tool </span></span>
-<span><span class="co">#&gt;       0.079       0.097       0.054</span></span></code></pre></div>
-<p>These are within-participant standard errors under the declared
-fixed, separable error model, which represents sampling and
-neural-feature covariance as separate factors. They are not
-population-level uncertainty. A learned whitener would still permit the
-point estimates but would not receive this analytic uncertainty
-capability.</p>
-<div class="section level3">
-<h3 id="the-assumption-those-standard-errors-rest-on">The assumption those standard errors rest on<a class="anchor" aria-label="anchor" href="#the-assumption-those-standard-errors-rest-on"></a>
-</h3>
-<p>OLS here assumes independent residuals within each run. Temporal
-correlation in fMRI can make those standard errors too large or too
-small, depending on the design. Declaring runs independent does not
-address correlation among scans in the same run.</p>
-<p>For a known temporal covariance
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">Σ</mi><mi>t</mi></msub><annotation encoding="application/x-tex">\Sigma_t</annotation></semantics></math>,
-supply a fixed whitener
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>
-satisfying
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>L</mi><mi>⊤</mi></msup><mi>L</mi><mo>=</mo><msubsup><mi mathvariant="normal">Σ</mi><mi>t</mi><mrow><mi>−</mi><mn>1</mn></mrow></msubsup></mrow><annotation encoding="application/x-tex">L^\top L = \Sigma_t^{-1}</annotation></semantics></math>.
-The fit then uses
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi><mi>X</mi></mrow><annotation encoding="application/x-tex">LX</annotation></semantics></math>
-and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi><mi>y</mi></mrow><annotation encoding="application/x-tex">Ly</annotation></semantics></math>.
-This example shows the declaration for an AR(1) covariance with a
-stipulated coefficient of 0.3; the simulated data above have independent
-errors, so it illustrates the interface rather than a correction those
-data need.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ar1_whitener</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">observations</span>, <span class="va">rho</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">covariance</span> <span class="op">&lt;-</span> <span class="va">rho</span><span class="op">^</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/outer.html" class="external-link">outer</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">observations</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">observations</span><span class="op">)</span>, <span class="st">"-"</span></span>
-<span>  <span class="op">)</span><span class="op">)</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/backsolve.html" class="external-link">backsolve</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/chol.html" class="external-link">chol</a></span><span class="op">(</span><span class="va">covariance</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">observations</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">}</span></span>
-<span></span>
-<span><span class="va">gls_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/observation_model.html">observation_model</a></span><span class="op">(</span></span>
-<span>  <span class="st">"fixed_gls"</span>,</span>
-<span>  sampling_unit <span class="op">=</span> <span class="st">"scan"</span>,</span>
-<span>  whitener <span class="op">=</span> <span class="fu">ar1_whitener</span><span class="op">(</span><span class="va">n_scan</span>, <span class="fl">0.3</span><span class="op">)</span>,</span>
-<span>  independence <span class="op">=</span> <span class="st">"runs independently acquired conditional on the model"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">gls_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_relation.html">estimate_relation</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="../reference/plan_relation.html">plan_relation</a></span><span class="op">(</span><span class="va">study_facts</span>, <span class="va">declared_design</span>, <span class="va">named_effects</span>, <span class="va">gls_model</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># A different observation model is a different relation, not a variant of the</span></span>
-<span><span class="co"># same one, and the fit says so.</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>ols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">signature</span>, <span class="fl">1</span>, <span class="fl">24</span><span class="op">)</span>,</span>
-<span>  gls <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">gls_fit</span><span class="op">$</span><span class="va">signature</span>, <span class="fl">1</span>, <span class="fl">24</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                        ols                        gls </span></span>
-<span><span class="co">#&gt; "sha256:71ac64e07fd682d71" "sha256:80844531a3eee55ad"</span></span></code></pre></div>
-<p><code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code> takes the same matrix as
-<code>observation_whitener = L</code> on the short route below.
-crossform applies the
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>
-you supply and records its revision in the observation model’s identity;
-it cannot check that
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>
-matches the autocorrelation actually present in your data, and
-estimating
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>ρ</mi><annotation encoding="application/x-tex">\rho</annotation></semantics></math>
-from the same residuals you are about to calibrate against is a
-different procedure that this package does not validate. See
-<code><a href="../reference/lm_relation_fit.html">?lm_relation_fit</a></code> and <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/evidence-sampling-contract.md" class="external-link">the
-evidence-sampling contract</a> for the full statement.</p>
-</div>
-</div>
-<div class="section level2">
-<h2 id="inspect-how-condition-effects-survive-recoding">Inspect how condition effects survive recoding<a class="anchor" aria-label="anchor" href="#inspect-how-condition-effects-survive-recoding"></a>
-</h2>
-<p>The effect request names condition amplitudes; the parameterization
-maps those amplitudes to coefficients. This separation makes the request
-portable. A compiler that reports treatment coding — an intercept and
-two differences from <code>face</code> — describes the same three
-amplitudes on a different axis. <code><a href="../reference/lower_effect_map.html">lower_effect_map()</a></code> is the
-step that moves the request onto whichever axis the compiler chose;
-<code><a href="../reference/plan_relation.html">plan_relation()</a></code> runs it for every partition, and calling it
-directly is how you inspect what it produced.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># A second compiler's coefficients. `recode` is both the change of basis on</span></span>
 <span><span class="co"># the design and, in its condition rows, the declaration that the intercept</span></span>
 <span><span class="co"># and the two differences still name `face`, `body`, and `tool`.</span></span>
@@ -584,11 +360,228 @@ directly is how you inspect what it produced.</p>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <p>The two lowered targets are different matrices over different
 columns, yet they extract the same amplitudes from their own design’s
-coefficients. The agreement checks this example numerically;
-<code>$coding_invariant</code> records that the request uses a named
-condition space. The escape hatch below, <code><a href="../reference/raw_effect_map.html">raw_effect_map()</a></code>,
-sets that flag to <code>FALSE</code> precisely because a supplied target
-matrix has no condition space to be invariant over.</p>
+coefficients. That agreement is the coding-invariance claim in the only
+form that can be checked, and <code>$coding_invariant</code> is the
+capability flag that reports it. The escape hatch below,
+<code><a href="../reference/raw_effect_map.html">raw_effect_map()</a></code>, sets that flag to <code>FALSE</code>
+precisely because a supplied target matrix has no condition space to be
+invariant over.</p>
+</div>
+<div class="section level2">
+<h2 id="declare-the-fit-and-its-assumptions">Declare the fit and its assumptions<a class="anchor" aria-label="anchor" href="#declare-the-fit-and-its-assumptions"></a>
+</h2>
+<p>The observation model states assumptions that the data tables cannot
+prove. Here the estimator is ordinary least squares (OLS), scans are the
+sampling unit, and runs are declared independently acquired conditional
+on the model. Changing any of these declarations changes the requested
+relation.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">noise_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/observation_model.html">observation_model</a></span><span class="op">(</span></span>
+<span>  <span class="st">"ols"</span>,</span>
+<span>  sampling_unit <span class="op">=</span> <span class="st">"scan"</span>,</span>
+<span>  independence <span class="op">=</span> <span class="st">"runs independently acquired conditional on the model"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">relation_request</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_relation.html">plan_relation</a></span><span class="op">(</span></span>
+<span>  <span class="va">study_facts</span>,</span>
+<span>  <span class="va">declared_design</span>,</span>
+<span>  <span class="va">named_effects</span>,</span>
+<span>  <span class="va">noise_model</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">relation_request</span></span>
+<span><span class="co">#&gt; relation_plan&lt;3 partitions; semantic; uncertainty analytic&gt;</span></span>
+<span><span class="fu"><a href="../reference/compiler_conformance.html">compiler_conformance</a></span><span class="op">(</span><span class="va">relation_request</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   partition semantic_identity regressor_axis condition_lowering row_lineage</span></span>
+<span><span class="co">#&gt; 1     run-1              TRUE           TRUE               TRUE        TRUE</span></span>
+<span><span class="co">#&gt; 2     run-2              TRUE           TRUE               TRUE        TRUE</span></span>
+<span><span class="co">#&gt; 3     run-3              TRUE           TRUE               TRUE        TRUE</span></span>
+<span><span class="co">#&gt;   rank_and_aliases censor_accounting solver_diagnostics whitening_provenance</span></span>
+<span><span class="co">#&gt; 1             TRUE              TRUE               TRUE                 TRUE</span></span>
+<span><span class="co">#&gt; 2             TRUE              TRUE               TRUE                 TRUE</span></span>
+<span><span class="co">#&gt; 3             TRUE              TRUE               TRUE                 TRUE</span></span>
+<span><span class="co">#&gt;   source_revision portable_receipt</span></span>
+<span><span class="co">#&gt; 1            TRUE             TRUE</span></span>
+<span><span class="co">#&gt; 2            TRUE             TRUE</span></span>
+<span><span class="co">#&gt; 3            TRUE             TRUE</span></span></code></pre></div>
+<p><code><a href="../reference/plan_relation.html">plan_relation()</a></code> compiles and validates the design
+metadata without reading neural values. It returns an
+<code>effect_relation_plan</code>. If a requested effect is not
+estimable in a run, the call stops and names the run, rank, aliased
+regressors, cause, and possible remedies.</p>
+<p>The plan, design receipt, and fitted relation have separate
+identities:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">receipts</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relation_plan_receipts.html">relation_plan_receipts</a></span><span class="op">(</span><span class="va">relation_request</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_relation.html">estimate_relation</a></span><span class="op">(</span><span class="va">relation_request</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  object <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"relation plan"</span>, <span class="st">"run-1 design receipt"</span>, <span class="st">"fitted relation"</span><span class="op">)</span>,</span>
+<span>  identity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="va">relation_request</span><span class="op">$</span><span class="va">relation_plan_id</span>,</span>
+<span>    <span class="va">receipts</span><span class="op">$</span><span class="va">`run-1`</span><span class="op">$</span><span class="va">design_receipt_id</span>,</span>
+<span>    <span class="va">fit</span><span class="op">$</span><span class="va">signature</span></span>
+<span>  <span class="op">)</span>, <span class="fl">1</span>, <span class="fl">32</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt;                 object                         identity</span></span>
+<span><span class="co">#&gt; 1        relation plan relation-plan-sha256:deeed8a8d2b</span></span>
+<span><span class="co">#&gt; 2 run-1 design receipt design-receipt-sha256:9afd43489d</span></span>
+<span><span class="co">#&gt; 3      fitted relation sha256:71ac64e07fd682d71af377936</span></span></code></pre></div>
+<p>Changing the solver from QR to SVD changes the design receipt, not
+the named condition-space request. A supported change from cell-means to
+treatment coding does the same. Changing the requested effects, units,
+observation law, or independence declaration changes the relation plan.
+<code>fit$signature</code> binds the plan, the realized receipts, and
+the exact observation revisions used by
+<code><a href="../reference/estimate_relation.html">estimate_relation()</a></code>.</p>
+</div>
+<div class="section level2">
+<h2 id="ask-what-reproduces-across-runs">Ask what reproduces across runs<a class="anchor" aria-label="anchor" href="#ask-what-reproduces-across-runs"></a>
+</h2>
+<p><code><a href="../reference/estimate_relation.html">estimate_relation()</a></code> emits the same
+<code>effect_relation_fit</code> consumed everywhere else in the
+package. <code><a href="../reference/cross_partitions.html">cross_partitions()</a></code> requests products between
+different runs; <code>generalizes_over = "run"</code> records that run
+is the axis across which the effect must reproduce.</p>
+<p>The frame decides where results are reported. This example uses three
+anatomical regions, so every result below has three rows. Searchlights,
+single voxels, and the whole brain are the other choices; the package
+calls any one of them a <em>measurement</em>, and nothing downstream
+changes when you swap one for another.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">frame</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/regions.html">regions</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"roi-"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4L</span><span class="op">)</span>, normalization <span class="op">=</span> <span class="st">"local"</span><span class="op">)</span>,</span>
+<span>  <span class="va">domain</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">generalization</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
+<span>  <span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
+<span>  independence <span class="op">=</span> <span class="st">"independent"</span>,</span>
+<span>  generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">geometry_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>, <span class="va">frame</span>, <span class="va">generalization</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">face_minus_body</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">1</span>, body <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>, tool <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
+<span><span class="va">effect</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/contrast_energy.html">contrast_energy</a></span><span class="op">(</span><span class="va">geometry_plan</span>, <span class="va">face_minus_body</span><span class="op">)</span></span>
+<span><span class="va">distances</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rdm.html">rdm</a></span><span class="op">(</span><span class="va">geometry_plan</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">tool_category</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/outer.html" class="external-link">outer</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">0</span>, body <span class="op">=</span> <span class="fl">0</span>, tool <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">0</span>, body <span class="op">=</span> <span class="fl">0</span>, tool <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>  <span class="kw">function</span><span class="op">(</span><span class="va">left</span>, <span class="va">right</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">left</span> <span class="op">!=</span> <span class="va">right</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">model_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rsa.html">rsa</a></span><span class="op">(</span><span class="va">geometry_plan</span>, models <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>tool <span class="op">=</span> <span class="va">tool_category</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="../reference/contrast_energy.html">contrast_energy()</a></code> returns the signed regional contrast
+and its coherent, configuration, and total cross-run energies.
+<code><a href="../reference/rdm.html">rdm()</a></code> returns the three pairwise condition distances for
+each region. <code><a href="../reference/rsa.html">rsa()</a></code> returns an intercept and the coefficient
+for the named tool-category model.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span></span>
+<span>  signed <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">signed</span>,</span>
+<span>  coherent <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">coherent</span>,</span>
+<span>  configuration <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">configuration</span>,</span>
+<span>  total <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">total</span></span>
+<span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      signed coherent configuration total</span></span>
+<span><span class="co">#&gt; [1,]  0.278    0.076         0.178 0.255</span></span>
+<span><span class="co">#&gt; [2,]  0.023   -0.001         0.113 0.112</span></span>
+<span><span class="co">#&gt; [3,] -0.590    0.339         0.089 0.428</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">distances</span><span class="op">$</span><span class="va">values</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      face - body face - tool body - tool</span></span>
+<span><span class="co">#&gt; [1,]       0.255       0.409       0.064</span></span>
+<span><span class="co">#&gt; [2,]       0.112       0.288       0.138</span></span>
+<span><span class="co">#&gt; [3,]       0.428       0.047       0.521</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">model_fit</span><span class="op">$</span><span class="va">coefficients</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      (Intercept)   tool</span></span>
+<span><span class="co">#&gt; [1,]       0.255 -0.018</span></span>
+<span><span class="co">#&gt; [2,]       0.112  0.101</span></span>
+<span><span class="co">#&gt; [3,]       0.428 -0.144</span></span></code></pre></div>
+<p>For every region, total energy must equal coherent plus configuration
+energy. The hidden check below also verifies the expected result
+dimensions and every compiler-conformance guarantee.</p>
+<p>Because the fit retained residuals and declared a fixed observation
+model, the package can calculate analytic standard errors for the three
+RDM distances at a selected region:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">distance_covariance</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/rdm_sampling_covariance.html">rdm_sampling_covariance</a></span><span class="op">(</span></span>
+<span>  <span class="va">geometry_plan</span>, <span class="va">fit</span>, target <span class="op">=</span> <span class="st">"plugin"</span>, at <span class="op">=</span> <span class="fl">1L</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="../reference/sampling_covariance.html">sampling_covariance</a></span><span class="op">(</span><span class="va">distance_covariance</span><span class="op">)</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt; face - body face - tool body - tool </span></span>
+<span><span class="co">#&gt;       0.076       0.095       0.050</span></span></code></pre></div>
+<p>These are within-participant standard errors under the declared
+fixed, separable error model, which represents sampling and
+neural-feature covariance as separate factors. They are not
+population-level uncertainty. A learned whitener would still permit the
+point estimates but would not receive this analytic uncertainty
+capability.</p>
+<div class="section level3">
+<h3 id="the-assumption-those-standard-errors-rest-on">The assumption those standard errors rest on<a class="anchor" aria-label="anchor" href="#the-assumption-those-standard-errors-rest-on"></a>
+</h3>
+<p>The analytic law assumes the observations <em>within a run</em> are
+independent given the design. fMRI residuals are not — they are
+temporally autocorrelated — and the consequence is not a rounding error.
+Under AR(1) errors with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ρ</mi><mo>=</mo><mn>0.75</mn></mrow><annotation encoding="application/x-tex">\rho = 0.75</annotation></semantics></math>
+(32 trials, four conditions, six runs, 50 features), the true spread of
+the distance estimator divided by the standard error crossform reports
+is:</p>
+<pre class="text"><code>randomly interleaved trial order   0.50   (standard error twice too large)
+blocked trial order                5.10   (standard error five times too small)
+blocked, with a correct whitener   1.03</code></pre>
+<p>A blocked design without a whitener is the dangerous case: the
+reported standard error is anticonservative by a factor of five, because
+the estimates in a block share the same slow drift. The direction flips
+for rapid event-related designs, where neighboring trials belong to
+different conditions and the same autocorrelation <em>removes</em>
+variance from a contrast.</p>
+<p>The remedy is a whitener
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>
+with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>L</mi><mi>⊤</mi></msup><mi>L</mi><mo>=</mo><msubsup><mi mathvariant="normal">Σ</mi><mi>t</mi><mrow><mi>−</mi><mn>1</mn></mrow></msubsup></mrow><annotation encoding="application/x-tex">L^\top L = \Sigma_t^{-1}</annotation></semantics></math>,
+so the fit is carried out on the whitened design
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi><mi>X</mi></mrow><annotation encoding="application/x-tex">L X</annotation></semantics></math>
+and the whitened responses
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi><mi>y</mi></mrow><annotation encoding="application/x-tex">L y</annotation></semantics></math>.
+For a known AR(1) coefficient that is one line, and it is declared the
+same way as every other assumption — as part of the observation model,
+which changes the relation’s identity:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ar1_whitener</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">observations</span>, <span class="va">rho</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">covariance</span> <span class="op">&lt;-</span> <span class="va">rho</span><span class="op">^</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/outer.html" class="external-link">outer</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">observations</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">observations</span><span class="op">)</span>, <span class="st">"-"</span></span>
+<span>  <span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/backsolve.html" class="external-link">backsolve</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/chol.html" class="external-link">chol</a></span><span class="op">(</span><span class="va">covariance</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">observations</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">gls_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/observation_model.html">observation_model</a></span><span class="op">(</span></span>
+<span>  <span class="st">"fixed_gls"</span>,</span>
+<span>  sampling_unit <span class="op">=</span> <span class="st">"scan"</span>,</span>
+<span>  whitener <span class="op">=</span> <span class="fu">ar1_whitener</span><span class="op">(</span><span class="va">n_scan</span>, <span class="fl">0.3</span><span class="op">)</span>,</span>
+<span>  independence <span class="op">=</span> <span class="st">"runs independently acquired conditional on the model"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">gls_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_relation.html">estimate_relation</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/plan_relation.html">plan_relation</a></span><span class="op">(</span><span class="va">study_facts</span>, <span class="va">declared_design</span>, <span class="va">named_effects</span>, <span class="va">gls_model</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># A different observation model is a different relation, not a variant of the</span></span>
+<span><span class="co"># same one, and the fit says so.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>ols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">signature</span>, <span class="fl">1</span>, <span class="fl">24</span><span class="op">)</span>,</span>
+<span>  gls <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">gls_fit</span><span class="op">$</span><span class="va">signature</span>, <span class="fl">1</span>, <span class="fl">24</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;                        ols                        gls </span></span>
+<span><span class="co">#&gt; "sha256:71ac64e07fd682d71" "sha256:6ef93b7a31aa80cc2"</span></span></code></pre></div>
+<p><code><a href="../reference/lm_relation_fit.html">lm_relation_fit()</a></code> takes the same matrix as
+<code>observation_whitener = L</code> on the short route below.
+crossform applies the
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>
+you supply and records its revision in the observation model’s identity;
+it cannot check that
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>
+matches the autocorrelation actually present in your data, and
+estimating
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>ρ</mi><annotation encoding="application/x-tex">\rho</annotation></semantics></math>
+from the same residuals you are about to calibrate against is a
+different procedure that this package does not validate. See
+<code><a href="../reference/lm_relation_fit.html">?lm_relation_fit</a></code> and <a href="https://github.com/bbuchsbaum/crossform/blob/main/design/evidence-sampling-contract.md" class="external-link">the
+evidence-sampling contract</a> for the full statement.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="shorter-routes-a-compiled-design-or-beta-matrices">Shorter routes: a compiled design, or beta matrices<a class="anchor" aria-label="anchor" href="#shorter-routes-a-compiled-design-or-beta-matrices"></a>
@@ -597,8 +590,10 @@ matrix has no condition space to be invariant over.</p>
 survives a change of coding, a change of solver, or a change of
 compiler. Not every project starts there. Two shorter routes reach the
 same <code><a href="../reference/plan_geometry.html">plan_geometry()</a></code>/<code><a href="../reference/contrast_energy.html">contrast_energy()</a></code> step
-from less input. They retain different amounts of design metadata and
-residual information.</p>
+from less input, and they differ in exactly one consequence: whether the
+residual channel survives, and with it the standard errors calculated
+above. <code><a href="../articles/introduction.html">vignette("introduction")</a></code> builds its worked fixture
+on the first of these and its own-data walkthrough on the second.</p>
 <div class="section level3">
 <h3 id="from-raw-responses-and-a-compiled-design">From raw responses and a compiled design<a class="anchor" aria-label="anchor" href="#from-raw-responses-and-a-compiled-design"></a>
 </h3>
@@ -610,37 +605,64 @@ nothing checks the design’s semantics against events, confounds, and
 clocks for you; in exchange it is a single call. The
 <code>effects</code> matrix says which linear combination of design
 columns each named condition is.</p>
-<p>Reuse the response matrices and design from the main example. Apply
-the same censoring explicitly, because this route has no bound confound
-table:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">keep</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_scan</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">16L</span></span>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">20260815</span><span class="op">)</span></span>
+<span><span class="va">condition_names</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"body"</span>, <span class="st">"house"</span>, <span class="st">"tool"</span><span class="op">)</span></span>
+<span><span class="va">native_domain</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/abstract_domain.html">abstract_domain</a></span><span class="op">(</span><span class="fl">60L</span>, id <span class="op">=</span> <span class="st">"short-routes:v1"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">raw_n_scan</span> <span class="op">&lt;-</span> <span class="fl">40L</span></span>
+<span><span class="va">scan_condition</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="va">condition_names</span>, length.out <span class="op">=</span> <span class="va">raw_n_scan</span><span class="op">)</span>, levels <span class="op">=</span> <span class="va">condition_names</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">design_matrix</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span></span>
+<span>  <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/model.matrix.html" class="external-link">model.matrix</a></span><span class="op">(</span><span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">scan_condition</span><span class="op">)</span>,</span>
+<span>  drift <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="op">-</span><span class="fl">1</span>, <span class="fl">1</span>, length.out <span class="op">=</span> <span class="va">raw_n_scan</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">design_matrix</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">condition_names</span>, <span class="st">"drift"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">target_matrix</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">condition_names</span><span class="op">)</span><span class="op">)</span>, drift <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dimnames.html" class="external-link">dimnames</a></span><span class="op">(</span><span class="va">target_matrix</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">condition_names</span>, <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">design_matrix</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Substitute your own: one scan-by-feature response matrix per run.</span></span>
+<span><span class="va">signal</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">condition_names</span><span class="op">)</span> <span class="op">*</span> <span class="fl">60L</span>, sd <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">condition_names</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">60L</span>, sd <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">raw_response_runs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">run</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">design_matrix</span> <span class="op"><a href="https://rdrr.io/r/base/matmult.html" class="external-link">%*%</a></span> <span class="va">signal</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">raw_n_scan</span> <span class="op">*</span> <span class="fl">60L</span><span class="op">)</span>, <span class="va">raw_n_scan</span>, <span class="fl">60L</span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">raw_response_runs</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run"</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
 <span><span class="va">raw_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lm_relation_fit.html">lm_relation_fit</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">response_runs</span>, <span class="kw">function</span><span class="op">(</span><span class="va">y</span><span class="op">)</span> <span class="va">y</span><span class="op">[</span><span class="va">keep</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span>,</span>
-<span>  design <span class="op">=</span> <span class="va">design</span><span class="op">[</span><span class="va">keep</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span>,</span>
-<span>  effects <span class="op">=</span> <span class="va">condition_from_coefficients</span>,</span>
-<span>  effect_names <span class="op">=</span> <span class="fu"><a href="../reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">conditions</span>, units <span class="op">=</span> <span class="st">"arbitrary-BOLD"</span><span class="op">)</span>,</span>
-<span>  sampling_unit <span class="op">=</span> <span class="st">"scan"</span>,</span>
-<span>  domain <span class="op">=</span> <span class="va">domain</span></span>
+<span>  <span class="va">raw_response_runs</span>,</span>
+<span>  design <span class="op">=</span> <span class="va">design_matrix</span>,</span>
+<span>  effects <span class="op">=</span> <span class="va">target_matrix</span>,</span>
+<span>  effect_names <span class="op">=</span> <span class="fu"><a href="../reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">condition_names</span>, units <span class="op">=</span> <span class="st">"percent-signal"</span><span class="op">)</span>,</span>
+<span>  sampling_unit <span class="op">=</span> <span class="st">"trial"</span>,</span>
+<span>  domain <span class="op">=</span> <span class="va">native_domain</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">raw_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span></span>
 <span>  <span class="va">raw_fit</span><span class="op">$</span><span class="va">relation</span>,</span>
-<span>  <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/whole_brain.html">whole_brain</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">domain</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/whole_brain.html">whole_brain</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">native_domain</span><span class="op">)</span>,</span>
 <span>  <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
 <span>    <span class="va">raw_fit</span><span class="op">$</span><span class="va">relation</span>,</span>
 <span>    independence <span class="op">=</span> <span class="st">"independent"</span>, generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
 <span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="../reference/whole_brain.html">whole_brain()</a></code> gives one measurement over all twelve
-features. This OLS fit retains the residuals needed for analytic
-standard errors under the same sampling assumptions as the full
-workflow:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/sampling_capabilities.html">sampling_capabilities</a></span><span class="op">(</span><span class="va">raw_plan</span>, <span class="va">raw_fit</span><span class="op">)</span></span>
+<span><span class="co">#&gt; &lt;effect_sampling_capabilities&gt;</span></span>
+<span><span class="co">#&gt;   analytic sampling law: available </span></span>
+<span><span class="co">#&gt;   metric: fixed | partitions: equal | error channel: relation_fit</span></span></code></pre></div>
+<p><code><a href="../reference/whole_brain.html">whole_brain()</a></code> reports one measurement over every feature
+in the domain, which is the simplest frame to check a pipeline against.
+Because this fit retained residuals, the analytic law is admitted and
+the standard errors from the section above are available here too:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="../reference/sampling_covariance.html">sampling_covariance</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/rdm_sampling_covariance.html">rdm_sampling_covariance</a></span><span class="op">(</span><span class="va">raw_plan</span>, <span class="va">raw_fit</span>, target <span class="op">=</span> <span class="st">"null"</span>, at <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span></span>
 <span><span class="op">)</span><span class="op">)</span>, <span class="fl">4</span><span class="op">)</span></span>
-<span><span class="co">#&gt; face - body face - tool body - tool </span></span>
-<span><span class="co">#&gt;      0.0107      0.0108      0.0118</span></span></code></pre></div>
+<span><span class="co">#&gt;  face - body face - house  face - tool body - house  body - tool house - tool </span></span>
+<span><span class="co">#&gt;       0.0150       0.0150       0.0151       0.0150       0.0150       0.0150</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="from-beta-matrices-alone">From beta matrices alone<a class="anchor" aria-label="anchor" href="#from-beta-matrices-alone"></a>
@@ -649,35 +671,36 @@ workflow:</p>
 run remain, build a point relation directly. It needs a named list of
 matrices with one row per condition, a named effect space, and a neural
 domain.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Export the condition estimates from the same censored OLS fits.</span></span>
-<span><span class="va">beta_runs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">response_runs</span>, <span class="kw">function</span><span class="op">(</span><span class="va">y</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">condition_from_coefficients</span> <span class="op"><a href="https://rdrr.io/r/base/matmult.html" class="external-link">%*%</a></span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/qr.html" class="external-link">qr.solve</a></span><span class="op">(</span><span class="va">design</span><span class="op">[</span><span class="va">keep</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span>, <span class="va">y</span><span class="op">[</span><span class="va">keep</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="op">}</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Substitute your own: one condition-by-feature matrix per run, rows named.</span></span>
+<span><span class="va">beta_runs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">run</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">condition_names</span><span class="op">)</span> <span class="op">*</span> <span class="va">native_domain</span><span class="op">$</span><span class="va">n_features</span><span class="op">)</span>,</span>
+<span>  nrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">condition_names</span><span class="op">)</span>,</span>
+<span>  dimnames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">condition_names</span>, <span class="va">native_domain</span><span class="op">$</span><span class="va">feature_ids</span><span class="op">)</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">beta_runs</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run"</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">rel</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/relation.html">relation</a></span><span class="op">(</span></span>
 <span>  <span class="va">beta_runs</span>,</span>
-<span>  effects <span class="op">=</span> <span class="fu"><a href="../reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">conditions</span>, units <span class="op">=</span> <span class="st">"arbitrary-BOLD"</span><span class="op">)</span>,</span>
-<span>  domain <span class="op">=</span> <span class="va">domain</span></span>
+<span>  effects <span class="op">=</span> <span class="fu"><a href="../reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">condition_names</span>, units <span class="op">=</span> <span class="st">"percent-signal"</span><span class="op">)</span>,</span>
+<span>  domain <span class="op">=</span> <span class="va">native_domain</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">own_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span></span>
 <span>  <span class="va">rel</span>,</span>
-<span>  <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/whole_brain.html">whole_brain</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">domain</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="../reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="../reference/whole_brain.html">whole_brain</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">native_domain</span><span class="op">)</span>,</span>
 <span>  <span class="fu"><a href="../reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span><span class="va">rel</span>, independence <span class="op">=</span> <span class="st">"independent"</span>, generalizes_over <span class="op">=</span> <span class="st">"run"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">own_plan</span></span>
 <span><span class="co">#&gt; &lt;effect_geometry_plan&gt;</span></span>
-<span><span class="co">#&gt;   effects:      3 x 3</span></span>
+<span><span class="co">#&gt;   effects:      4 x 4</span></span>
 <span><span class="co">#&gt;   measurements: 1</span></span>
-<span><span class="co">#&gt;   features:     12</span></span>
+<span><span class="co">#&gt;   features:     60</span></span>
 <span><span class="co">#&gt;   metric:       implicit identity</span></span>
 <span><span class="co">#&gt;   generalizes:  3 partition pairs over run, endpoints independent</span></span>
 <span><span class="co">#&gt;   execution:    query-first, in memory</span></span>
 <span><span class="co">#&gt;   state:        nothing computed yet</span></span>
 <span><span class="co">#&gt;   next:         contrast_energy(plan, weights), rdm(plan), rsa(plan)</span></span></code></pre></div>
-<p>These exported estimates reproduce the compiled-design route’s point
-RDM. <code>own_plan</code> supports <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code>,
+<p><code>own_plan</code> supports <code><a href="../reference/contrast_energy.html">contrast_energy()</a></code>,
 <code><a href="../reference/rdm.html">rdm()</a></code>, and <code><a href="../reference/rsa.html">rsa()</a></code> exactly as the fitted
 relations above do. What it cannot support is the analytic standard
 error: beta matrices carry no residuals and no residual degrees of
@@ -701,7 +724,7 @@ boundary; the core study object is not BIDS-shaped.</p>
 <p>The signature mirrors the <code><a href="../reference/study.html">study()</a></code> call above: an
 <code><a href="../reference/observations.html">observations()</a></code> record, then one events file and one
 confounds file per partition, in partition order.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">runs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run-"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">bids_facts</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bids_study.html">bids_study</a></span><span class="op">(</span></span>

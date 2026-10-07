@@ -2,9 +2,9 @@
 
 You already have per-run condition estimates as
 [neuroim2](https://github.com/bbuchsbaum/neuroim2) images and a brain
-mask. This guide converts those objects into a cross-run contrast map
-and returns it as a `NeuroVol`. The main steps are the orientation of
-the matrices
+mask. This guide is the shortest correct path from those objects to a
+contrast map written back as a `NeuroVol`. It covers four things that
+are easy to get wrong: the orientation of the matrices
 [`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
 expects, which searchlight provider to use, the difference between a
 *measurement* and a *feature*, and how to expand region results back to
@@ -111,7 +111,7 @@ identical(domain$feature_ids, which(mask_array != 0))
 #> [1] TRUE
 ```
 
-## Convert images to one condition-by-feature matrix per run
+## Convert images to run-by-condition matrices
 
 [`relation()`](https://bbuchsbaum.github.io/crossform/reference/relation.md)
 wants a named list with one matrix per run, each
@@ -126,10 +126,9 @@ feature ids.
 
 ``` r
 
-volume_by_voxel <- series(runs_vec, domain$feature_ids)
 run_matrices <- lapply(seq_len(n_run), function(run) {
   volumes <- ((run - 1L) * length(conditions) + 1L):(run * length(conditions))
-  m <- volume_by_voxel[volumes, , drop = FALSE]
+  m <- series(runs_vec, domain$feature_ids)[volumes, , drop = FALSE]
   rownames(m) <- conditions
   m
 })
@@ -180,10 +179,8 @@ rel <- relation(
 
 ## Two searchlight providers, one support index
 
-Use
-[`neuroim2_searchlights()`](https://bbuchsbaum.github.io/crossform/reference/neuroim2_searchlights.md)
-when you need the same neighborhoods as other neuroim2 tools. A built-in
-grid provider is also available:
+There are two ways to get spheres over this domain, and they are not
+redundant.
 
 ``` r
 
@@ -213,7 +210,7 @@ c(
 Both produce the same kind of object: an additive `effect_frame`
 carrying a **support index** (which features each measurement reads) and
 a sparse measurement-by-feature weight matrix. On a regular grid with a
-Euclidean ball the providers agree for this example:
+Euclidean ball they agree, and you can check it rather than trust it:
 
 ``` r
 
@@ -226,6 +223,21 @@ identical(
 
 ``` r
 
+frame_neuroim2$specification
+#> $kind
+#> [1] "neuroim2_searchlights"
+#> 
+#> $radius
+#> [1] 6
+#> 
+#> $units
+#> [1] "mm"
+#> 
+#> $nonzero
+#> [1] TRUE
+#> 
+#> $upstream_commit
+#> [1] "77b1ddb"
 range(Matrix::rowSums(frame_neuroim2$weights != 0))
 #> [1] 11 33
 ```
@@ -281,8 +293,9 @@ c(
 #>                -0.04201012                 1.00000000
 ```
 
-Away from the blob the mean energy is near zero. Individual
-crossvalidated estimates can be negative; see
+Away from the blob the estimate is centered near zero and is negative
+about as often as not. That is the crossvalidated estimator behaving
+correctly, not a bug; see
 [`vignette("introduction", package = "crossform")`](https://bbuchsbaum.github.io/crossform/articles/introduction.md)
 for why those values are kept rather than truncated.
 
@@ -333,6 +346,12 @@ energy_vol
 #> ── Data ──────────────────────────────────────────────────────────────────────── 
 #>   Range         : [-0.452, 1.870]
 #>   NAs           : 416
+
+# Values land at exactly the domain's voxels; everything else is `fill`.
+isTRUE(all.equal(as.numeric(energy_vol[domain$feature_ids]), effect$total))
+#> [1] TRUE
+all(is.na(as.array(energy_vol)[mask_array == 0]))
+#> [1] TRUE
 ```
 
 [`as_neurovol()`](https://bbuchsbaum.github.io/crossform/reference/as_neurovol.md)
@@ -389,9 +408,8 @@ round(region_effect$total, 3)
 
 Now there are only 3 measurements but still `domain$n_features`
 features, so `as_neurovol(region_effect$total, ...)` would be an error.
-Expand the region values to voxels first. For these disjoint regions,
-the frame’s membership pattern assigns each region value to its member
-voxels:
+Expand the region values to voxels first. The general route uses the
+frame’s own membership pattern, which works for any additive frame:
 
 ``` r
 
@@ -421,19 +439,15 @@ isTRUE(all.equal(by_lookup, voxel_values))
 #> [1] TRUE
 ```
 
-For a partially labeled atlas, decide which voxels belong in the
-analysis before building the domain. Numeric zero is a region label in
-[`regions()`](https://bbuchsbaum.github.io/crossform/reference/regions.md);
-only missing or empty labels are excluded. If zero denotes background in
-your atlas, intersect its nonzero coverage with the analysis mask and
-use that mask throughout the workflow. Missing labels otherwise yield
-`NA` in the lookup, which
+One caveat. If your atlas does not cover the whole mask,
+[`regions()`](https://bbuchsbaum.github.io/crossform/reference/regions.md)
+drops the unlabeled features, and the lookup above yields `NA` there —
+which
 [`as_neurovol()`](https://bbuchsbaum.github.io/crossform/reference/as_neurovol.md)
-does not accept.
-
-The membership expansion above is for disjoint regions. For overlapping
-measurements it sums their values at shared voxels, so it is not a
-general method for reconstructing a voxel map.
+refuses. Build the domain from the atlas coverage
+(`neuroim2_volume_domain(NeuroVol((atlas_array != 0) * 1, volume_space))`)
+so that domain and results describe the same voxels, rather than filling
+missing regions with a number that will later be read as data.
 
 ## Tidy output
 

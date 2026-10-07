@@ -79,9 +79,6 @@ if (requireNamespace("fmridesign", quietly = TRUE)) {
     adapter_version_certificate("fmridesign", installed), installed
   ))
 }
-#> Registered S3 method overwritten by 'fmridesign':
-#>   method               from   
-#>   print.sampling_frame fmrihrf
 #> [1] TRUE
 
 # An uncertified version is refused, not attempted. The refusal names the

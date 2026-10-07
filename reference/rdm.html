@@ -51,7 +51,7 @@ linear view."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Read squared experimental distances from geometry</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/views.R" class="external-link"><code>R/views.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/views.R" class="external-link"><code>R/views.R</code></a></small>
       <div class="d-none name"><code>rdm.Rd</code></div>
     </div>
 
@@ -108,7 +108,7 @@ geometry: the RDM is a view, not a mandatory intermediate object.</p></dd>
 
 
 <dt id="arg-normalize">normalize<a class="anchor" aria-label="anchor" href="#arg-normalize"></a></dt>
-<dd><p>Must be omitted. Correlation-style diagonal normalization
+<dd><p>Must be omitted (or <code>FALSE</code>). Correlation-style diagonal normalization
 of a signed cross-generalized form is refused: crossvalidated diagonals
 can be zero or negative, so <code>1 - r</code> here is not conventional Pearson
 distance. The boundary is documented in the correlation-distance policy.</p></dd>
@@ -174,7 +174,6 @@ form signals capability <code>"symmetric_self_form"</code>, both in namespace
 <code><a href="geometry_spectrum.html">geometry_spectrum()</a></code>,
 <code><a href="latent_geometry.html">latent_geometry()</a></code>,
 <code><a href="materialize_geometry.html">materialize_geometry()</a></code>,
-<code><a href="model_geometry.html">model_geometry()</a></code>,
 <code><a href="plan_crossnobis.html">plan_crossnobis()</a></code>,
 <code><a href="plan_geometry.html">plan_geometry()</a></code>,
 <code><a href="plot_views.html">plot_views</a></code>,

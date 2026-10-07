@@ -13,8 +13,10 @@ regions(labels, normalization = "local")
 
 - labels:
 
-  One region label per neural feature. Missing labels are excluded
-  unless conservative normalization is requested.
+  One region label per neural feature. Features with a missing (`NA`) or
+  empty label are always excluded from every region, so conservative
+  normalization, which must cover every feature, is refused when any
+  label is missing.
 
 - normalization:
 

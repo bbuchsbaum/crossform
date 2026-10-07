@@ -11,8 +11,8 @@
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Cross-Generalized Effect Geometry">
-<meta name="description" content="Gives univariate contrasts, multivariate distances and fixed linear representational similarity analysis, and population summaries one declared crossvalidated bilinear geometry. Reproducible effects are decomposed across spatial scales into additive coherent and configurational estimand components. Spatial measurements, independent partitions, realized population transports, units, support diagnostics, uncertainty capabilities, execution receipts, and principled refusals remain explicit. It is not a preprocessing system or a universal fMRI, RSA, prediction, or downstream-inference solution.">
-<meta property="og:description" content="Gives univariate contrasts, multivariate distances and fixed linear representational similarity analysis, and population summaries one declared crossvalidated bilinear geometry. Reproducible effects are decomposed across spatial scales into additive coherent and configurational estimand components. Spatial measurements, independent partitions, realized population transports, units, support diagnostics, uncertainty capabilities, execution receipts, and principled refusals remain explicit. It is not a preprocessing system or a universal fMRI, RSA, prediction, or downstream-inference solution.">
+<meta name="description" content="Asks where task effects and representational geometries reproduce across independent partitions of a task functional magnetic resonance imaging (fMRI) dataset, such as separate runs or sessions. The effects, the spatial measurement, and the partitions that must generalize are declared once and compiled into a single estimand-bearing effect form; crossvalidated contrast energy, squared-distance representational dissimilarity matrices, fixed linear representational similarity analysis, and ordered cross-axis hypotheses are queries against that form rather than separate pipelines. Spatial measurements, generalization pairings, units, execution receipts, uncertainty capabilities, and principled refusals remain explicit.">
+<meta property="og:description" content="Asks where task effects and representational geometries reproduce across independent partitions of a task functional magnetic resonance imaging (fMRI) dataset, such as separate runs or sessions. The effects, the spatial measurement, and the partitions that must generalize are declared once and compiled into a single estimand-bearing effect form; crossvalidated contrast energy, squared-distance representational dissimilarity matrices, fixed linear representational similarity analysis, and ordered cross-axis hypotheses are queries against that form rather than separate pipelines. Spatial measurements, generalization pairings, units, execution receipts, uncertainty capabilities, and principled refusals remain explicit.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -59,189 +59,351 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="crossform">crossform<a class="anchor" aria-label="anchor" href="#crossform"></a>
 </h1></div>
-<p><a href="https://bbuchsbaum.github.io/crossform/articles/introduction.html">Get started</a> · <a href="https://bbuchsbaum.github.io/crossform/articles/index.html">Vignettes</a> · <a href="https://bbuchsbaum.github.io/crossform/reference/index.html">API reference</a> · <a href="exemplars/">Examples</a></p>
-<p>Crossform is an R package for studying representations with univariate contrasts, multivariate distances, and representational similarity analysis (RSA). It measures effects that reproduce across independent runs and separates the contribution of a region’s average response from its spatial pattern.</p>
-<p>These readings share a declared geometry: the same condition effects, spatial measurements, partition pairing, and neural metric. You can change the question without refitting the condition effects.</p>
-<p><strong>Status:</strong> Experimental development package; APIs may change.</p>
-<div class="section level2">
-<h2 id="install">Install<a class="anchor" aria-label="anchor" href="#install"></a>
-</h2>
-<p>These guides follow the <code>elite-pass</code> development branch, currently proposed in <a href="https://github.com/bbuchsbaum/crossform/pull/3" class="external-link">PR #3</a>. Install that version from GitHub. Building from source requires an R toolchain with a C++ compiler.</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"bbuchsbaum/crossform"</span>, ref <span class="op">=</span> <span class="st">"elite-pass"</span><span class="op">)</span></span></code></pre></div>
-<p>The <a href="https://bbuchsbaum.github.io/crossform/articles/index.html">online vignettes</a> need no installation. For an offline copy, add <code>build_vignettes = TRUE</code> to the installation call; this also requires Pandoc and the vignette dependencies.</p>
+<p>Ask a task-fMRI dataset four questions from one fit, and find out what <em>kind</em> of effect you found.</p>
+<div class="float">
+<img src="reference/figures/crossform-overview.svg" alt="Effects, frame, and pairing compile into one geometry plan, which four view functions then read."><div class="figcaption">Effects, frame, and pairing compile into one geometry plan, which four view functions then read.</div>
 </div>
+<p>You declare the condition effects, the measurements you want answers at, and which runs must generalize. That compiles once into a <strong>geometry plan</strong>, which records the quantity you are estimating before any brain data is read. Contrasts, RDMs, RSA, and crossnobis distances are queries against it.</p>
+<p>A <strong>measurement</strong> is a spatial unit: a searchlight, a region, a voxel, or the whole brain. Every result has one row per measurement.</p>
 <div class="section level2">
-<h2 id="a-first-result">A first result<a class="anchor" aria-label="anchor" href="#a-first-result"></a>
+<h2 id="five-lines-to-a-first-result">Five lines to a first result<a class="anchor" aria-label="anchor" href="#five-lines-to-a-first-result"></a>
 </h2>
-<p>The built-in example has four conditions, four runs, and 280 searchlights. Each searchlight is one spatial measurement and produces one row of results.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://bbuchsbaum.github.io/crossform/">crossform</a></span><span class="op">)</span></span>
-<span><span class="va">example</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/example_fmri_effects.html">example_fmri_effects</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">example</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/example_fmri_effects.html">example_fmri_effects</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># 4 conditions, 4 runs, 280 searchlights</span></span>
 <span></span>
 <span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span></span>
 <span>  <span class="va">example</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
-<span>  at <span class="op">=</span> <span class="va">example</span><span class="op">$</span><span class="va">frame</span>,</span>
+<span>  at   <span class="op">=</span> <span class="va">example</span><span class="op">$</span><span class="va">frame</span>,</span>
 <span>  over <span class="op">=</span> <span class="fu"><a href="reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
 <span>    <span class="va">example</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
-<span>    independence <span class="op">=</span> <span class="st">"independent"</span>,</span>
+<span>    independence     <span class="op">=</span> <span class="st">"independent"</span>,</span>
 <span>    generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
+<span></span>
 <span><span class="va">effect</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/contrast_energy.html">contrast_energy</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">example</span><span class="op">$</span><span class="va">contrast</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">effect</span>, highlight <span class="op">=</span> <span class="va">example</span><span class="op">$</span><span class="va">truth</span><span class="op">$</span><span class="va">signal_measurements</span>,</span>
-<span>     highlight_label <span class="op">=</span> <span class="st">"planted signal"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">effect</span>,</span>
+<span>  highlight       <span class="op">=</span> <span class="va">example</span><span class="op">$</span><span class="va">truth</span><span class="op">$</span><span class="va">signal_measurements</span>,</span>
+<span>  highlight_label <span class="op">=</span> <span class="st">"planted signal"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <div class="float">
-<img src="reference/figures/readme-contrast-energy.png" alt="Left: coherent and configuration energy per searchlight. Right: total energy along the searchlight index. Rings mark searchlights touching planted signal."><div class="figcaption">Left: coherent and configuration energy per searchlight. Right: total energy along the searchlight index. Rings mark searchlights touching planted signal.</div>
+<img src="reference/figures/readme-contrast-energy.png" alt="Left: every searchlight in the coherent/configuration plane, on equal axes, with two arms — one along each axis. Right: total contrast energy along the searchlight index. In both panels the planted searchlights carry a black ring and a sign color, and everything else is plain gray."><div class="figcaption">Left: every searchlight in the coherent/configuration plane, on equal axes, with two arms — one along each axis. Right: total contrast energy along the searchlight index. In both panels the planted searchlights carry a black ring and a sign color, and everything else is plain gray.</div>
 </div>
-<p>The simulation plants two effects with similar total energy. One shifts nearby voxels in the same direction; the other varies across voxels. The left panel separates them, while the right shows their total energy.</p>
+<p>The fixture plants two animate-versus-inanimate blocks of 19 voxels each, at opposite ends of the volume, with the same per-voxel amplitude. In one the sign alternates between neighboring voxels, so the block’s average pattern nearly cancels. In the other every voxel shifts the same way. The analysis is not told where either is; <code>highlight</code> only colors the answer afterwards.</p>
+<p>The right panel is the whole map. The 104 largest energies in it are exactly the 104 searchlights that touch a planted block, and the largest energy anywhere else is <code>0.03</code>, against <code>4.10</code> at the peak. The rest lies <em>on</em> zero rather than above it, 45% of it below, because crossvalidated energy is centered at zero under the null and negatives are kept rather than clipped. That band is the noise floor itself. The left panel splits the same energy in two, and the two blocks separate: one arm climbs the vertical axis, the other runs out along the horizontal.</p>
+<p>Every object prints as itself.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">effect</span></span>
+<span><span class="co">#&gt; &lt;effect_contrast_view&gt;</span></span>
+<span><span class="co">#&gt;   measurements: 280</span></span>
+<span><span class="co">#&gt;   contrast:     face 0.5, body 0.5, house -0.5, tool -0.5</span></span>
+<span><span class="co">#&gt;  measurement    signed   coherent configuration      total coherence_fraction</span></span>
+<span><span class="co">#&gt;            1 -0.106479  0.0070182    -6.660e-03  0.0003580                 NA</span></span>
+<span><span class="co">#&gt;            2 -0.014663 -0.0022348     1.516e-02  0.0129223                 NA</span></span>
+<span><span class="co">#&gt;            3  0.058211  0.0012974    -3.917e-03 -0.0026194                 NA</span></span>
+<span><span class="co">#&gt;            4  0.019986 -0.0005859    -6.015e-05 -0.0006461                 NA</span></span>
+<span><span class="co">#&gt;            5  0.029592 -0.0002906     1.334e-02  0.0130512                 NA</span></span>
+<span><span class="co">#&gt;            6 -0.003182 -0.0009076     4.846e-03  0.0039387                 NA</span></span>
+<span><span class="co">#&gt;   ... 274 more measurements</span></span>
+<span><span class="co">#&gt;   coherence_fraction: 143 of 280 valid; NA where coherent and configuration</span></span>
+<span><span class="co">#&gt;     are not a nonnegative partition</span></span>
+<span></span>
+<span><span class="va">peak</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.min.html" class="external-link">which.max</a></span><span class="op">(</span><span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  searchlight   <span class="op">=</span> <span class="va">peak</span>,</span>
+<span>  signed        <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">signed</span><span class="op">[</span><span class="va">peak</span><span class="op">]</span>,</span>
+<span>  total         <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">[</span><span class="va">peak</span><span class="op">]</span>,</span>
+<span>  coherent      <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">coherent</span><span class="op">[</span><span class="va">peak</span><span class="op">]</span>,</span>
+<span>  configuration <span class="op">=</span> <span class="va">effect</span><span class="op">$</span><span class="va">configuration</span><span class="op">[</span><span class="va">peak</span><span class="op">]</span></span>
+<span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   searchlight        signed         total      coherent configuration</span></span>
+<span><span class="co">#&gt;       144.000        -0.052         4.103        -0.001         4.104</span></span></code></pre></div>
+<p>The last line of that print is not boilerplate. <code>coherence_fraction</code> is <code>NA</code> in those first rows because the two components do not form a nonnegative partition there, and a share of a negative quantity is not a share of anything.</p>
+<p>One line in the first block deserves a second look. <code><a href="reference/cross_partitions.html">cross_partitions()</a></code> pairs every partition with every other one, once. <code>generalizes_over</code> names the axis those partitions <em>are</em> — runs, sessions, tasks — and binds it into the plan’s identity, because cross-run and cross-session reproduction are different quantities at the same fold count; if your partitions are sessions, pass <code>"session"</code>. <code>independence = "independent"</code> declares that the partitions’ estimation errors are independent, which separate runs or sessions with separate noise satisfy; omit it and you keep a point estimate but earn neither cross-generalized nor analytic-uncertainty capabilities. See <code><a href="reference/cross_partitions.html">?cross_partitions</a></code>; one tier out, <code><a href="reference/pairing.html">?pairing</a></code> covers nested or directed designs.</p>
+</div>
+<div class="section level2">
+<h2 id="now-change-the-question-no-refit">Now change the question. No refit.<a class="anchor" aria-label="anchor" href="#now-change-the-question-no-refit"></a>
+</h2>
+<p><code>plan</code> holds an identity, not a matrix.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">plan</span></span>
+<span><span class="co">#&gt; &lt;effect_geometry_plan&gt;</span></span>
+<span><span class="co">#&gt;   effects:      4 x 4</span></span>
+<span><span class="co">#&gt;   measurements: 280</span></span>
+<span><span class="co">#&gt;   features:     280</span></span>
+<span><span class="co">#&gt;   metric:       implicit identity</span></span>
+<span><span class="co">#&gt;   generalizes:  6 partition pairs over run, endpoints independent</span></span>
+<span><span class="co">#&gt;   execution:    query-first, in memory</span></span>
+<span><span class="co">#&gt;   state:        nothing computed yet</span></span>
+<span><span class="co">#&gt;   next:         contrast_energy(plan, weights), rdm(plan), rsa(plan)</span></span></code></pre></div>
+<p>Save it with the analysis record; it names the conditions, domain, frame, run pairs, metric, and units. Nothing is computed until a view asks, and <code>print(plan, detail = TRUE)</code> adds the compiler’s own account of how it will do it.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">distances</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rdm.html">rdm</a></span><span class="op">(</span><span class="va">plan</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">distances</span>, measurement <span class="op">=</span> <span class="va">peak</span><span class="op">)</span></span></code></pre></div>
+<div class="float">
+<img src="reference/figures/readme-rdm.png" alt="Signed squared distances at searchlight 144: the two animate conditions and the two inanimate conditions sit near zero apart, every animate-inanimate pair near four."><div class="figcaption">Signed squared distances at searchlight 144: the two animate conditions and the two inanimate conditions sit near zero apart, every animate-inanimate pair near four.</div>
+</div>
+<p>At searchlight 144, face and body are <code>-0.004</code> apart and house and tool <code>0.009</code>, while every animate-versus-inanimate pair is above <code>3.8</code>. Nothing asked for that block structure.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">category</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rsa.html">rsa</a></span><span class="op">(</span><span class="va">plan</span>, models <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>category <span class="op">=</span> <span class="va">example</span><span class="op">$</span><span class="va">model_rdm</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">category</span><span class="op">$</span><span class="va">coefficients</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 280   2</span></span></code></pre></div>
+<p>Linear RSA against a model RDM, from the same plan: an intercept and the model.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">one_pair</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rdm.html">rdm</a></span><span class="op">(</span><span class="va">plan</span>, pairs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"house"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">one_pair</span><span class="op">$</span><span class="va">values</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 280   1</span></span></code></pre></div>
+<p>One of the six pairs; the other five are never materialized. With 100 conditions, three of the 4,950 pairs cost three pairs.</p>
+<p><code><a href="reference/rdm.html">rdm()</a></code> reports <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>d</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><msub><mi>G</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub><mo>+</mo><msub><mi>G</mi><mrow><mi>j</mi><mi>j</mi></mrow></msub><mo>−</mo><mn>2</mn><msub><mi>G</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow><annotation encoding="application/x-tex">d_{ij} = G_{ii} + G_{jj} - 2G_{ij}</annotation></semantics></math>: under cross-run pairing a signed crossvalidated squared Euclidean distance, and squared Mahalanobis (crossnobis) once you supply a fixed neural metric. It is deliberately not <code>1 - Pearson correlation</code>; see the <a href="https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html">correlation-distance policy</a>, or <code><a href="articles/correlation-distance-policy.html">vignette("correlation-distance-policy")</a></code> offline.</p>
+</div>
+<div class="section level2">
+<h2 id="what-kind-of-effect-is-it">What kind of effect is it?<a class="anchor" aria-label="anchor" href="#what-kind-of-effect-is-it"></a>
+</h2>
+<p>That left panel is the part that is hard to get elsewhere. A searchlight’s reproducible energy splits in two:</p>
+<ul>
+<li>
+<strong><code>coherent</code></strong> is the energy carried by the searchlight’s frame-weighted average pattern, which is the familiar univariate story;</li>
+<li>
+<strong><code>configuration</code></strong> is the reproducible spatial pattern beyond that mean;</li>
+<li>
+<code>coherent + configuration = total</code>, exactly, at every measurement, which is why the dashed guides are lines of constant total. The panel is drawn on equal axes so those guides really do run at slope -1.</li>
+</ul>
+<p>So you can say how much of an effect survives once its regional mean is accounted for, without a second analysis and without discarding either part.</p>
+<p>The fastest way to see it is to ask the same question of three regions instead of 280 searchlights. Nothing changes but the frame.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">truth</span>  <span class="op">&lt;-</span> <span class="va">example</span><span class="op">$</span><span class="va">truth</span></span>
+<span><span class="va">labels</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="st">"elsewhere"</span>, <span class="va">example</span><span class="op">$</span><span class="va">domain</span><span class="op">$</span><span class="va">n_features</span><span class="op">)</span></span>
+<span><span class="va">labels</span><span class="op">[</span><span class="va">truth</span><span class="op">$</span><span class="va">planted_features</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"pattern block"</span></span>
+<span><span class="va">labels</span><span class="op">[</span><span class="va">truth</span><span class="op">$</span><span class="va">mean_features</span><span class="op">]</span>    <span class="op">&lt;-</span> <span class="st">"mean-shift block"</span></span>
+<span></span>
+<span><span class="va">region_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span></span>
+<span>  <span class="va">example</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
+<span>  at   <span class="op">=</span> <span class="fu"><a href="reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="reference/regions.html">regions</a></span><span class="op">(</span><span class="va">labels</span><span class="op">)</span>, <span class="va">example</span><span class="op">$</span><span class="va">domain</span><span class="op">)</span>,</span>
+<span>  over <span class="op">=</span> <span class="fu"><a href="reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
+<span>    <span class="va">example</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">relation</span>,</span>
+<span>    independence <span class="op">=</span> <span class="st">"independent"</span>, generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/contrast_energy.html">contrast_energy</a></span><span class="op">(</span><span class="va">region_plan</span>, <span class="va">example</span><span class="op">$</span><span class="va">contrast</span><span class="op">)</span></span>
+<span><span class="co">#&gt; &lt;effect_contrast_view&gt;</span></span>
+<span><span class="co">#&gt;   measurements: 3</span></span>
+<span><span class="co">#&gt;   contrast:     face 0.5, body 0.5, house -0.5, tool -0.5</span></span>
+<span><span class="co">#&gt;       measurement  signed  coherent configuration    total coherence_fraction</span></span>
+<span><span class="co">#&gt;         elsewhere 0.01205 0.0001184      0.002417 0.002535            0.04669</span></span>
+<span><span class="co">#&gt;  mean-shift block 2.01677 4.0671067     -0.006716 4.060391                 NA</span></span>
+<span><span class="co">#&gt;     pattern block 0.51791 0.2678235      3.808338 4.076161            0.06570</span></span>
+<span><span class="co">#&gt;   coherence_fraction: 2 of 3 valid; NA where coherent and configuration are</span></span>
+<span><span class="co">#&gt;     not a nonnegative partition</span></span></code></pre></div>
+<p>The two blocks reproduce almost exactly the same total, <code>4.06</code> and <code>4.08</code>, and the split is opposite: the mean-shift block puts all of it in <code>coherent</code>, the pattern block puts 93% of it in <code>configuration</code>, and the rest of the brain reproduces <code>0.003</code>. That is the central claim, in three rows. The mean-shift block’s fraction is not reported because its configuration remainder came out very slightly negative, which is the honest answer for a block that has no pattern beyond its mean.</p>
+<p>Back at searchlight resolution: every one of the 52 searchlights touching the pattern block carries more configuration than coherent energy, and the largest coherent energy among them is <code>0.33</code> against <code>4.10</code> of configuration. The 52 touching the mean-shift block reach <code>4.01</code> of coherent energy while their configuration never exceeds <code>1.27</code>.</p>
+<p><code>signed</code>, back in that first table, is a first moment: the ordinary contrast of the region-average pattern, in your effect’s units and sign. The energies are second moments, squared and crossvalidated. So <code>signed</code> sees only the coherent half — which is exactly what separates the two blocks.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">effect</span><span class="op">)</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">144</span>, <span class="fl">137</span><span class="op">)</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"signed"</span>, <span class="st">"coherent"</span>, <span class="st">"configuration"</span>, <span class="st">"total"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     signed coherent configuration total</span></span>
 <span><span class="co">#&gt; 144 -0.052   -0.001         4.104 4.103</span></span>
 <span><span class="co">#&gt; 137  2.003    4.011         0.004 4.015</span></span></code></pre></div>
-<ul>
-<li>
-<strong><code>signed</code></strong> is the ordinary contrast of the weighted mean response.</li>
-<li>
-<strong><code>coherent</code></strong> is the crossvalidated energy in that spatial mean mode.</li>
-<li>
-<strong><code>configuration</code></strong> is the crossvalidated energy beyond the mean mode.</li>
-<li>
-<strong><code>total</code></strong> is their sum: <code>coherent + configuration = total</code>.</li>
-</ul>
-<p>Searchlight 144 has a strong spatial pattern with little average response; 137 has a strong average response. The decomposition depends on the declared spatial frame, so it describes the effect at that measurement and scale.</p>
-<p>Crossvalidated energy can be negative. Under the required independence assumptions, a null effect has expected energy zero; the observed band around zero is not a significance threshold. <code>coherence_fraction</code> is reported only when the components form a valid nonnegative partition.</p>
-<p>The example supplies independent simulated errors. With your own data, <code>independence = "independent"</code> is an assumption about estimation errors, not a guarantee created by run labels. Shared preprocessing or training can couple runs. <code>generalizes_over</code> records whether the pairing represents runs, sessions, or another declared axis.</p>
+<p>Two searchlights, one from each block, reproducing the same energy. Searchlight 137 is loud in a signed map. Searchlight 144 — the strongest measurement in the whole volume — has a signed contrast of <code>-0.052</code>, smaller than the largest signed value anywhere outside the planted blocks (<code>0.154</code>), so a signed map ranks the best result in the volume below noise.</p>
+<p>Most toolboxes ask you to choose first: remove the regional mean and the coherent half is gone, keep it and the two are summed into one number. <a href="https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html">Reading the results</a> (<code><a href="articles/interpreting-results.html">vignette("interpreting-results")</a></code>) covers the traps in the coherent share.</p>
 </div>
 <div class="section level2">
-<h2 id="read-the-same-geometry-in-other-ways">Read the same geometry in other ways<a class="anchor" aria-label="anchor" href="#read-the-same-geometry-in-other-ways"></a>
+<h2 id="your-own-data-the-same-five-lines">Your own data, the same five lines<a class="anchor" aria-label="anchor" href="#your-own-data-the-same-five-lines"></a>
 </h2>
-<p>An RDM reports signed crossvalidated squared distances between conditions:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">peak</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.min.html" class="external-link">which.max</a></span><span class="op">(</span><span class="va">effect</span><span class="op">$</span><span class="va">total</span><span class="op">)</span></span>
-<span><span class="va">distances</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rdm.html">rdm</a></span><span class="op">(</span><span class="va">plan</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">distances</span>, measurement <span class="op">=</span> <span class="va">peak</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="reference/figures/readme-rdm.png" alt="At the example’s peak searchlight, animate–inanimate distances are large and within-category distances are near zero."><div class="figcaption">At the example’s peak searchlight, animate–inanimate distances are large and within-category distances are near zero.</div>
+<p>Everything above the blank line below is your data. Everything under it is the opener again, unchanged. It runs as written.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">conditions</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"house"</span>, <span class="st">"cat"</span>, <span class="st">"chair"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">mask</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8</span>, <span class="fl">8</span>, <span class="fl">6</span><span class="op">)</span><span class="op">)</span>                       <span class="co"># substitute your mask</span></span>
+<span><span class="va">dom</span>   <span class="op">&lt;-</span> <span class="fu"><a href="reference/volume_domain.html">volume_domain</a></span><span class="op">(</span><span class="va">mask</span>, spacing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">3</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">frame</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/compile_frame.html">compile_frame</a></span><span class="op">(</span><span class="fu"><a href="reference/searchlights.html">searchlights</a></span><span class="op">(</span>radius <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>, <span class="va">dom</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Substitute your own: a trial-by-voxel beta series and its design table.</span></span>
+<span><span class="co"># Twelve voxels here carry the same face-minus-house pattern in every run,</span></span>
+<span><span class="co"># alternating in sign so the regional mean stays near zero.</span></span>
+<span><span class="va">planted</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="cn">FALSE</span>, <span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">mask</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">planted</span><span class="op">[</span><span class="fl">3</span><span class="op">:</span><span class="fl">4</span>, <span class="fl">3</span><span class="op">:</span><span class="fl">5</span>, <span class="fl">3</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
+<span><span class="va">pattern</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="op">-</span><span class="fl">3</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">planted</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">design</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/expand.grid.html" class="external-link">expand.grid</a></span><span class="op">(</span>trial <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, condition <span class="op">=</span> <span class="va">conditions</span>,</span>
+<span>                      run <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"run"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">)</span>, stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="va">series</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">design</span><span class="op">)</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">mask</span><span class="op">)</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">design</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">mask</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">is_face</span>  <span class="op">&lt;-</span> <span class="va">design</span><span class="op">$</span><span class="va">condition</span> <span class="op">==</span> <span class="st">"face"</span></span>
+<span><span class="va">is_house</span> <span class="op">&lt;-</span> <span class="va">design</span><span class="op">$</span><span class="va">condition</span> <span class="op">==</span> <span class="st">"house"</span></span>
+<span><span class="va">series</span><span class="op">[</span><span class="va">is_face</span>,  <span class="va">planted</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">series</span><span class="op">[</span><span class="va">is_face</span>,  <span class="va">planted</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span><span class="op">]</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="va">pattern</span>, each <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">is_face</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">series</span><span class="op">[</span><span class="va">is_house</span>, <span class="va">planted</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">series</span><span class="op">[</span><span class="va">is_house</span>, <span class="va">planted</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span><span class="op">]</span> <span class="op">-</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="va">pattern</span>, each <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">is_house</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">by_run</span>    <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">design</span><span class="op">)</span><span class="op">)</span>, <span class="va">design</span><span class="op">$</span><span class="va">run</span><span class="op">)</span></span>
+<span><span class="va">indicator</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">rows</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">x</span> <span class="op">&lt;-</span> <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/model.matrix.html" class="external-link">model.matrix</a></span><span class="op">(</span><span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">design</span><span class="op">$</span><span class="va">condition</span><span class="op">[</span><span class="va">rows</span><span class="op">]</span>, <span class="va">conditions</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="fu">`colnames&lt;-`</span><span class="op">(</span><span class="va">x</span>, <span class="va">conditions</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">targets</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">conditions</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dimnames.html" class="external-link">dimnames</a></span><span class="op">(</span><span class="va">targets</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">conditions</span>, <span class="va">conditions</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">own_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/lm_relation_fit.html">lm_relation_fit</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">by_run</span>, <span class="kw">function</span><span class="op">(</span><span class="va">rows</span><span class="op">)</span> <span class="va">series</span><span class="op">[</span><span class="va">rows</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span>,</span>
+<span>  design <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">by_run</span>, <span class="va">indicator</span><span class="op">)</span>, effects <span class="op">=</span> <span class="va">targets</span>, domain <span class="op">=</span> <span class="va">dom</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">own_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span><span class="va">own_fit</span><span class="op">$</span><span class="va">relation</span>, at <span class="op">=</span> <span class="va">frame</span>, over <span class="op">=</span> <span class="fu"><a href="reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
+<span>  <span class="va">own_fit</span><span class="op">$</span><span class="va">relation</span>, independence <span class="op">=</span> <span class="st">"independent"</span>, generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">own_effect</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/contrast_energy.html">contrast_energy</a></span><span class="op">(</span><span class="va">own_plan</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">1</span>, house <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>, cat <span class="op">=</span> <span class="fl">0</span>, chair <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">touching</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="fu">Matrix</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/colSums-methods.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">frame</span><span class="op">$</span><span class="va">weights</span><span class="op">[</span>, <span class="va">planted</span><span class="op">[</span><span class="va">mask</span><span class="op">]</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">own_effect</span>, highlight <span class="op">=</span> <span class="va">touching</span>, highlight_label <span class="op">=</span> <span class="st">"planted signal"</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="reference/lm_relation_fit.html">lm_relation_fit()</a></code> fits the condition estimates from the trials rather than taking them as given, which is what keeps the residual error channel the standard errors below need. Did the searchlights that actually touch the planted voxels win?</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ranked</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="va">own_effect</span><span class="op">$</span><span class="va">total</span>, decreasing <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  searchlights          <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">frame</span><span class="op">$</span><span class="va">index</span><span class="op">)</span>,</span>
+<span>  touching_signal       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">touching</span><span class="op">)</span>,</span>
+<span>  top_energies_touching <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">ranked</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">touching</span><span class="op">)</span><span class="op">]</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">touching</span><span class="op">)</span>,</span>
+<span>  peak_energy           <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">own_effect</span><span class="op">$</span><span class="va">total</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  largest_elsewhere     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">own_effect</span><span class="op">$</span><span class="va">total</span><span class="op">[</span><span class="op">-</span><span class="va">touching</span><span class="op">]</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt;          searchlights       touching_signal top_energies_touching</span></span>
+<span><span class="co">#&gt;                384.00                 44.00                 44.00</span></span>
+<span><span class="co">#&gt;           peak_energy     largest_elsewhere</span></span>
+<span><span class="co">#&gt;                 27.68                  0.56</span></span></code></pre></div>
+<p>The 44 largest energies in the map are exactly the 44 searchlights that touch the planted voxels. All 44 are configuration-dominated, and 59% of the rest fall below zero — the null here has mean <code>-0.0002</code> and is skewed right, so more than half of it lands under the line.</p>
+<p>Already have condition means instead of trials? <code><a href="reference/relation.html">relation()</a></code> takes them directly, one condition-by-voxel matrix per run with rows named by condition, and the other lines do not change:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">means</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">by_run</span>, <span class="kw">function</span><span class="op">(</span><span class="va">rows</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">conditions</span>, <span class="kw">function</span><span class="op">(</span><span class="va">condition</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">series</span><span class="op">[</span><span class="va">rows</span><span class="op">[</span><span class="va">design</span><span class="op">$</span><span class="va">condition</span><span class="op">[</span><span class="va">rows</span><span class="op">]</span> <span class="op">==</span> <span class="va">condition</span><span class="op">]</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span></span>
+<span>  <span class="op">}</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">mask</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">betas_only</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/relation.html">relation</a></span><span class="op">(</span><span class="va">means</span>, effects <span class="op">=</span> <span class="fu"><a href="reference/effect_space.html">effect_space</a></span><span class="op">(</span><span class="va">conditions</span><span class="op">)</span>, domain <span class="op">=</span> <span class="va">dom</span><span class="op">)</span></span>
+<span><span class="va">betas_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/plan_geometry.html">plan_geometry</a></span><span class="op">(</span><span class="va">betas_only</span>, at <span class="op">=</span> <span class="va">frame</span>, over <span class="op">=</span> <span class="fu"><a href="reference/cross_partitions.html">cross_partitions</a></span><span class="op">(</span></span>
+<span>  <span class="va">betas_only</span>, independence <span class="op">=</span> <span class="st">"independent"</span>, generalizes_over <span class="op">=</span> <span class="st">"run"</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">own_effect</span><span class="op">$</span><span class="va">total</span> <span class="op">-</span></span>
+<span>  <span class="fu"><a href="reference/contrast_energy.html">contrast_energy</a></span><span class="op">(</span><span class="va">betas_plan</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>face <span class="op">=</span> <span class="fl">1</span>, house <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>, cat <span class="op">=</span> <span class="fl">0</span>, chair <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">$</span><span class="va">total</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 1.065814e-14</span></span></code></pre></div>
+<p>Same estimates, same energies. What the averaged route cannot keep is the error channel, which the next section asks for.</p>
+<p>Swap <code>searchlights(radius = 4)</code> for <code>regions(labels)</code>, <code><a href="reference/voxelwise.html">voxelwise()</a></code>, or <code><a href="reference/whole_brain.html">whole_brain()</a></code>, and <code><a href="reference/volume_domain.html">volume_domain()</a></code> for <code>abstract_domain(n_features)</code> when the features are not a volume. <code>neuroim2</code> users have the optional adapter — <code><a href="reference/neuroim2_volume_domain.html">neuroim2_volume_domain()</a></code>, <code><a href="reference/neuroim2_searchlights.html">neuroim2_searchlights()</a></code>, and <code><a href="reference/as_neurovol.html">as_neurovol()</a></code>, which keep stable full-volume indices and map results back without interpolation; see <code><a href="articles/neuroim2-data.html">vignette("neuroim2-data")</a></code>. Starting from scan responses and an event table rather than betas? Use <code><a href="reference/study.html">study()</a></code>, <code><a href="reference/plan_relation.html">plan_relation()</a></code>, and <code><a href="reference/estimate_relation.html">estimate_relation()</a></code>, the ingestion spine that <a href="https://bbuchsbaum.github.io/crossform/articles/from-observations.html">from-observations</a> (<code><a href="articles/from-observations.html">vignette("from-observations")</a></code>) walks end to end.</p>
+<div class="section level3">
+<h3 id="reading-a-map-without-ground-truth">Reading a map without ground truth<a class="anchor" aria-label="anchor" href="#reading-a-map-without-ground-truth"></a>
+</h3>
+<p><code>highlight</code> is optional, and on real data you will not have it — omit it and the picture still works. In the right panel the band around zero <em>is</em> the noise floor, because crossvalidated energy is centered there when nothing reproduces; candidates are the measurements standing clear of it.</p>
+<p>What the picture does not give you is a threshold or a p-value. <code>crossform</code> does no spatial and no group inference (see <a href="#status-and-scope">Status and scope</a>), and a within-measurement standard error needs the residual channel, so fit with <code><a href="reference/lm_relation_fit.html">lm_relation_fit()</a></code> as above, or take the <a href="https://bbuchsbaum.github.io/crossform/articles/from-observations.html">from-observations</a> route (<code><a href="articles/from-observations.html">vignette("from-observations")</a></code>), rather than importing betas. <a href="https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html#reading-a-map-without-ground-truth">Reading a map without ground truth</a> is the longer version.</p>
 </div>
-<p>Fixed linear RSA fits model RDMs using the same plan:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">category</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rsa.html">rsa</a></span><span class="op">(</span><span class="va">plan</span>, models <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>category <span class="op">=</span> <span class="va">example</span><span class="op">$</span><span class="va">model_rdm</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">category</span><span class="op">$</span><span class="va">coefficients</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 280   2</span></span></code></pre></div>
-<p>The two columns are the intercept and category-model coefficient. If you need only selected distances, request those pairs directly:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">one_pair</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rdm.html">rdm</a></span><span class="op">(</span><span class="va">plan</span>, pairs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"house"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">one_pair</span><span class="op">$</span><span class="va">values</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 280   1</span></span></code></pre></div>
-<p>Each view evaluates its requested geometry query. The first-level effects are reused, and an unused full RDM need not be materialized. <code><a href="reference/rdm.html">rdm()</a></code> uses squared Euclidean distance, or squared Mahalanobis distance with a suitable fixed metric; <a href="https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html">pattern correlation</a> answers a different question.</p>
 </div>
 <div class="section level2">
-<h2 id="uncertainty-needs-an-error-model">Uncertainty needs an error model<a class="anchor" aria-label="anchor" href="#uncertainty-needs-an-error-model"></a>
+<h2 id="uncertainty-only-when-it-is-earned">Uncertainty, only when it is earned<a class="anchor" aria-label="anchor" href="#uncertainty-only-when-it-is-earned"></a>
 </h2>
-<p>The example retains a fitted residual error channel. On this admitted design, it supports within-searchlight standard errors under a declared null target:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<p><code><a href="reference/example_fmri_effects.html">example_fmri_effects()</a></code> was built by <code><a href="reference/lm_relation_fit.html">lm_relation_fit()</a></code>, so it kept its residual channel and can be asked for standard errors.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="reference/sampling_covariance.html">sampling_covariance</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="reference/rdm_sampling_covariance.html">rdm_sampling_covariance</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">example</span><span class="op">$</span><span class="va">fit</span>, target <span class="op">=</span> <span class="st">"null"</span>, at <span class="op">=</span> <span class="va">peak</span><span class="op">)</span></span>
 <span><span class="op">)</span><span class="op">)</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  face - body face - house  face - tool body - house  body - tool house - tool</span></span>
 <span><span class="co">#&gt;       0.0142       0.0142       0.0142       0.0142       0.0142       0.0142</span></span></code></pre></div>
-<p>These rely on the supported partition, metric, and error-covariance assumptions. They do not account for choosing the peak, spatial multiplicity, or population variation. Imported beta matrices alone do not supply the residual channel. The <a href="https://bbuchsbaum.github.io/crossform/articles/from-observations.html">observation-to-effects guide</a> shows how to retain it; the <a href="https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html">failure gallery</a> explains unavailable results and their remedies.</p>
+<p>These are within-searchlight standard errors under a declared equal-partition, fixed-metric, separable error model, not a random-field model, a confidence interval, or group inference. The residual covariance behind them is estimated, not known, so <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> on the covariance object reports the residual degrees of freedom and the number of residual directions the searchlight actually spends variance on — and the call refuses outright when there are too few of the first for the second.</p>
+<p>Your own fit above earns them too, because <code><a href="reference/lm_relation_fit.html">lm_relation_fit()</a></code> kept its residuals. Ask the same of the condition-means relation beside it and the answer is an object that names what is missing and how to earn it.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/catch_refusal.html">catch_refusal</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="reference/rdm_sampling_covariance.html">rdm_sampling_covariance</a></span><span class="op">(</span><span class="va">betas_plan</span>, <span class="va">betas_only</span>, target <span class="op">=</span> <span class="st">"null"</span>, at <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; &lt;effect_capability_refusal&gt;</span></span>
+<span><span class="co">#&gt;   capability:  sampling_covariance</span></span>
+<span><span class="co">#&gt;   namespace:   evidence_sampling</span></span>
+<span><span class="co">#&gt;   reasons:</span></span>
+<span><span class="co">#&gt;     - missing_error_channel</span></span>
+<span><span class="co">#&gt;   remedies:</span></span>
+<span><span class="co">#&gt;     - Refit raw observations with `lm_relation_fit()`.</span></span>
+<span><span class="co">#&gt;   state:       refused; no partial result was produced</span></span></code></pre></div>
+<p>Beta matrices hold no residuals and no residual degrees of freedom, and the six run pairs share run estimates, so their spread is not a standard error either. <code>sampling_capabilities(plan, example$fit)</code> answers the admission question before you provoke it, and the <a href="https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html">failure gallery</a> (<code><a href="articles/failure-gallery.html">vignette("failure-gallery")</a></code>) shows six realistic errors the package guards against.</p>
 </div>
 <div class="section level2">
-<h2 id="choose-your-next-step">Choose your next step<a class="anchor" aria-label="anchor" href="#choose-your-next-step"></a>
+<h2 id="why-it-is-different">Why it is different<a class="anchor" aria-label="anchor" href="#why-it-is-different"></a>
 </h2>
-<p>All 15 vignettes are available as rendered articles. The <a href="https://bbuchsbaum.github.io/crossform/articles/index.html">article index</a> groups them by task; their <a href="vignettes/">R Markdown sources</a> are also on GitHub.</p>
-<table class="table">
-<colgroup>
-<col width="50%">
-<col width="50%">
-</colgroup>
-<thead><tr>
-<th>Task</th>
-<th>Guide</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>Follow the first analysis</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/introduction.html">Introduction</a></td>
-</tr>
-<tr>
-<td>Interpret energy, sign, and spatial scale</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html">Reading results</a></td>
-</tr>
-<tr>
-<td>Fit effects from responses and events</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/from-observations.html">From observations</a></td>
-</tr>
-<tr>
-<td>Work with brain volumes</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.html">neuroim2 data</a></td>
-</tr>
-<tr>
-<td>Migrate an existing analysis</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html">From rMVPA</a></td>
-</tr>
-<tr>
-<td>Compare spatial effect types</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/matched-interpretability.html">Matched interpretability</a></td>
-</tr>
-<tr>
-<td>Account for overlapping measurements</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/conservative-frames.html">Conservative frames</a></td>
-</tr>
-<tr>
-<td>Learn a form and test independent prediction</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/predictive-geometry.html">Predictive geometry</a></td>
-</tr>
-<tr>
-<td>Relate two sets of measurements</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html">Evidence pairing</a></td>
-</tr>
-<tr>
-<td>Model participant geometries</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/population-form.html">Population forms</a></td>
-</tr>
-<tr>
-<td>Choose magnitude or pattern correlation</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html">Correlation and distance</a></td>
-</tr>
-<tr>
-<td>Diagnose an unsupported request</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html">Failure gallery</a></td>
-</tr>
-<tr>
-<td>Follow the shared algebra</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/common-geometry-equivalence.html">Common geometry</a></td>
-</tr>
-<tr>
-<td>Examine claims and their evidence</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/novelty.html">Novelty and boundaries</a></td>
-</tr>
-<tr>
-<td>Build an adapter</td>
-<td><a href="https://bbuchsbaum.github.io/crossform/articles/crossform-extending.html">Extending crossform</a></td>
-</tr>
-</tbody>
-</table>
-<p>With vignettes installed, the same guides are available offline:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/vignette.html" class="external-link">vignette</a></span><span class="op">(</span><span class="st">"introduction"</span>, package <span class="op">=</span> <span class="st">"crossform"</span><span class="op">)</span></span></code></pre></div>
+<ul>
+<li>
+<strong>One fitted geometry, many questions.</strong> A contrast map and an RDM at the same searchlights come from the same estimates by construction, and a second question costs a query rather than a refit.</li>
+<li>
+<strong>Generalization is part of what you estimated, not a fold count.</strong> The declared axis is bound into the plan’s identity, so the plan says which quantity you ran; block size and storage change only the execution record.</li>
+<li>
+<strong>The novelty is architectural.</strong> Not RSA, crossnobis, or the analytic covariance formula, which are established, but that contrast energy, squared-distance RDMs, fixed linear RSA, and ordered cross-axis hypotheses are all queries against one typed cross-partition form. <a href="https://bbuchsbaum.github.io/crossform/articles/novelty.html">What is novel in crossform?</a> (<code><a href="articles/novelty.html">vignette("novelty")</a></code>) is the ledger separating what is demonstrated from what is still gated.</li>
+</ul>
 </div>
 <div class="section level2">
-<h2 id="scope-and-evidence">Scope and evidence<a class="anchor" aria-label="anchor" href="#scope-and-evidence"></a>
+<h2 id="what-is-core-and-what-is-not">What is core, and what is not<a class="anchor" aria-label="anchor" href="#what-is-core-and-what-is-not"></a>
 </h2>
-<p>Crossform accepts condition effects or fits them from observations. Spatial frames support searchlights, regions, voxels, and whole-domain measurements. For model-supported prediction, it learns a regularized low-rank form on training data and measures signed predictive gain on independent data with the same conditions. The fitted PSD form is a separate, biased latent estimate; it does not replace the signed crossvalidated geometry.</p>
-<p>Measurement coupling and population analysis are experimental. Coupling has bounded small-node support. Population intervals are pointwise and conditional on declared transport and coverage; they do not include uncertainty from learning that transport or arbitrary missingness. Crossform does not replace image preprocessing, registration, or general spatial multiple-testing tools.</p>
-<p>Numerical equivalence is checked with independent oracles and <a href="exemplars/rsatoolbox-parity/">version-pinned rsatoolbox comparisons</a>. <a href="exemplars/">Real-data exemplars</a> illustrate workflows; <a href="benchmarks/">benchmark receipts</a> record workload-specific runtime and memory. These establish bounded computational evidence, not universal performance or neuroscientific claims. See the <a href="design/evidence-status-ledger.html">evidence ledger</a> and <a href="design/">design contracts</a> for the assumptions behind each claim.</p>
+<p>Every line of R executed above is <strong>core</strong>. That is the whole point of the tier: an ordinary representational analysis finishes without reaching past it, and the <a href="https://bbuchsbaum.github.io/crossform/reference/index.html">reference index</a> is grouped in the same order this README is.</p>
+<ul>
+<li>
+<strong>Core</strong> (21 functions) — <code><a href="reference/example_fmri_effects.html">example_fmri_effects()</a></code>, <code><a href="reference/effect_space.html">effect_space()</a></code>, <code><a href="reference/relation.html">relation()</a></code> and <code><a href="reference/lm_relation_fit.html">lm_relation_fit()</a></code>, the two domain and four frame constructors with <code><a href="reference/compile_frame.html">compile_frame()</a></code>, <code><a href="reference/cross_partitions.html">cross_partitions()</a></code>, <code><a href="reference/plan_geometry.html">plan_geometry()</a></code>, the views <code><a href="reference/contrast_energy.html">contrast_energy()</a></code> / <code><a href="reference/rdm.html">rdm()</a></code> / <code><a href="reference/rsa.html">rsa()</a></code>, the three sampling-covariance functions, <code><a href="reference/catch_refusal.html">catch_refusal()</a></code>, and <code><a href="reference/compute_policy.html">compute_policy()</a></code>. Everything this README executes is core-tier, and <code>tests/testthat/test-readme-surface.R</code> holds it that way.</li>
+<li>
+<strong>Core (ingestion)</strong> (20 more) — <code><a href="reference/study.html">study()</a></code>, <code><a href="reference/plan_relation.html">plan_relation()</a></code>, <code><a href="reference/estimate_relation.html">estimate_relation()</a></code> and the typed-facts spine, for arriving with scan responses and an event table rather than betas. A user who starts from betas meets none of it; <code><a href="articles/from-observations.html">vignette("from-observations")</a></code> is its narrative.</li>
+<li>
+<strong>Advanced</strong> — explicit geometry queries and custom bilinear operators, frame algebra and conservation certificates, fixed and learned metrics, <code><a href="reference/crossnobis.html">crossnobis()</a></code>, error-channel and residual readers, and numerical-agreement contracts. Specialist tools. The core path never needs them, and the matched-pair (ER-RSA) family inside this tier is explicitly provisional.</li>
+<li>
+<strong>Coupling and measurement — experimental, small-node only.</strong> <code><a href="reference/measurement_form.html">measurement_form()</a></code>, <code><a href="reference/coupling.html">coupling()</a></code>, the connectivity readings, and tomography relate two sets of measurements to each other rather than scoring one. The API may change. The tier is scale-gated and the package refuses brain-scale claims here: a request whose dense payload exceeds the version 0.1 small-node limit of 256 MiB is refused outright rather than approximated, with the remedy “use the support-local geometry plan; brain-scale measurement tomography is not yet exported.” <code><a href="articles/evidence-pairing.html">vignette("evidence-pairing")</a></code> is its narrative.</li>
+<li>
+<strong>Adapters</strong> — <code><a href="reference/neuroim2_volume_domain.html">neuroim2_volume_domain()</a></code>, <code><a href="reference/neuroim2_searchlights.html">neuroim2_searchlights()</a></code>, <code><a href="reference/as_neurovol.html">as_neurovol()</a></code>, <code><a href="reference/bids_study.html">bids_study()</a></code>, <code><a href="reference/fmridesign_design_model.html">fmridesign_design_model()</a></code>, <code><a href="reference/fmrireg_relation.html">fmrireg_relation()</a></code>. Every one of those dependencies is optional, and the core is not shaped by any of them.</li>
+<li>
+<strong>For extension packages</strong> — five sanctioned entry points for handing data, a design, and an error channel into the core; see <code><a href="articles/crossform-extending.html">vignette("crossform-extending")</a></code>. Not an end user’s surface.</li>
+</ul>
+<p><strong>Population (forthcoming).</strong> A population layer — mass-preserving transport of per-subject conservative geometry — is specified in <a href="design/population-form-contract.html"><code>design/population-form-contract.md</code></a> and under construction. Until it lands, <code>crossform</code> does no group inference at all.</p>
 </div>
 <div class="section level2">
-<h2 id="license">License<a class="anchor" aria-label="anchor" href="#license"></a>
+<h2 id="install">Install<a class="anchor" aria-label="anchor" href="#install"></a>
 </h2>
-<p>MIT. See <a href="LICENSE">LICENSE</a>.</p>
+<p>The repository is not yet public and the package is on neither CRAN nor R-universe, so today the route is a local checkout. Build the vignettes while you install — <code><a href="reference/crossform-package.html">?crossform</a></code> and everything under “Where next” reaches them through <code><a href="https://rdrr.io/r/utils/vignette.html" class="external-link">vignette()</a></code>, and an install without them leaves those calls dead.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_local</span><span class="op">(</span><span class="st">"."</span>, build_vignettes <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p>Or the same thing without <code>remotes</code>, from a shell in the checkout:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="ex">R</span> CMD build .</span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL crossform_<span class="pp">*</span>.tar.gz</span></code></pre></div>
+<p>Once published, <code>remotes::install_github("bbuchsbaum/crossform", build_vignettes = TRUE)</code> and the R-universe repository <code>https://bbuchsbaum.r-universe.dev</code> become the supported routes.</p>
+</div>
+<div class="section level2">
+<h2 id="where-next">Where next<a class="anchor" aria-label="anchor" href="#where-next"></a>
+</h2>
+<p>Every article below is also an installed vignette, so <code>vignette("&lt;name&gt;")</code> works offline once you have installed with vignettes.</p>
+<ul>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/introduction.html">Introduction</a> · <code><a href="articles/introduction.html">vignette("introduction")</a></code> — the entry point, from a ready relation to standard errors.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/interpreting-results.html">Reading the results</a> · <code><a href="articles/interpreting-results.html">vignette("interpreting-results")</a></code> — what each column means, and three interpretive traps.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html">Coming from rMVPA</a> · <code><a href="articles/from-rmvpa.html">vignette("from-rmvpa")</a></code> — how the familiar objects map onto this vocabulary.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/from-observations.html">Fit condition effects from observations</a> · <code><a href="articles/from-observations.html">vignette("from-observations")</a></code> — scan responses, events, confounds, censoring.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.html">neuroim2 data</a> · <code><a href="articles/neuroim2-data.html">vignette("neuroim2-data")</a></code> — <code>NeuroVol</code> and <code>NeuroVec</code> in, brain maps out.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html">Evidence pairing</a> · <code><a href="articles/evidence-pairing.html">vignette("evidence-pairing")</a></code> — <strong>experimental, small-node only</strong>: results that relate two regions, and the contracts each connectivity view requires.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/crossform-extending.html">Extending crossform</a> · <code><a href="articles/crossform-extending.html">vignette("crossform-extending")</a></code> — the five sanctioned entry points for an extension or adapter package, and what is closed to one.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/novelty.html">What is novel in crossform?</a> · <code><a href="articles/novelty.html">vignette("novelty")</a></code> — the claim ledger.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/failure-gallery.html">Failure gallery</a> · <code><a href="articles/failure-gallery.html">vignette("failure-gallery")</a></code> — six errors a conventional pipeline executes silently.</li>
+<li>
+<a href="https://bbuchsbaum.github.io/crossform/articles/correlation-distance-policy.html">Correlation-distance policy</a> · <code><a href="articles/correlation-distance-policy.html">vignette("correlation-distance-policy")</a></code> — why <code><a href="reference/rdm.html">rdm()</a></code> is not <code>1 - r</code>.</li>
+<li>
+<a href="design/"><code>design/</code></a> (contracts) · <a href="exemplars/haxby2001/"><code>exemplars/haxby2001/</code></a> (public-data comparison) · <a href="benchmarks/"><code>benchmarks/</code></a> (runtime and memory records)</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="status-and-scope">Status and scope<a class="anchor" aria-label="anchor" href="#status-and-scope"></a>
+</h2>
+<p><code>crossform</code> is experimental; exported names may still change. It runs sequentially, and it does not preprocess fMRI, register images, build hemodynamic response models, or perform group inference.</p>
+<p><strong>Demonstrated.</strong> On the <a href="exemplars/haxby2001/">Haxby 2001 exemplar</a> (eight stimulus categories over twelve runs, 577 ventral-temporal searchlights), <code>crossform</code> agrees with an independent reference loop to <code>1.33e-15</code> and with <code>rMVPA</code> to <code>8.88e-16</code> on the matched crossvalidated squared-Euclidean/crossnobis estimand; refitting the raw responses to retain the error channel reproduces the point RDM to <code>4.44e-16</code>. At 100 conditions over 1,080 searchlights, one hundred selected pairs run in 0.14 s and the fused full RDM in 1.94 s against 2.73 s for materialize-then-project — a ratio of 0.71, with a <code>4.4e-16</code> oracle (the materialized comparator is itself fast now that the packed-form kernel is native, so the query-first advantage is smaller than it was).</p>
+<p>On the same exemplar, the coherent/configuration decomposition runs on real data: <a href="exemplars/haxby2001/"><code>06-coherent-configuration.R</code></a> reads face − house at all 577 VT searchlights and at one whole-VT region from a single plan, and <code>total = coherent + configuration</code> recomposes to <code>5.55e-17</code>. The total is positive at 576 of 577 searchlights, and over the 536 with a valid coherence fraction the coherent share has median 0.53 (IQR 0.28–0.77): about half of the reproducible face/house energy in this subject’s VT is carried by the searchlight’s own weighted common spatial mode, which a demeaning analysis would discard and a total-only analysis would never see. The retained signed marginal supplies the direction the energies cannot: it is negative at 568 of 577 searchlights, so the common mode runs house above face. One subject, condition means rather than GLM betas, an identity metric, and no inference — this demonstrates the decomposition, not a result about faces.</p>
+<p>Parity with the reference implementation of the RSA literature is also demonstrated. On a deterministic fixture (6 conditions, 4 runs, 40 voxels, non-spherical residual covariance), the fixed-metric crossnobis RDM agrees with version-pinned Python <code>rsatoolbox</code> 0.3.2 to <code>3.8e-15</code> over 60 entries and the linear RSA coefficients to <code>8.6e-16</code> over 20 terms, against a declared <code>1e-10</code> tolerance, with an independent all-pairs numpy oracle as a third check: <a href="exemplars/rsatoolbox-parity/"><code>exemplars/rsatoolbox-parity</code></a>, ratcheted by <code>tests/testthat/test-rsatoolbox-parity.R</code>. Four conventions were matched exactly rather than conceded — fold pairing, division by the channel count, the pooled precision estimator, and the cosine-normalized regression objective. From the same fit <code>crossform</code> additionally returns the signed contrast energy, the exact coherent/configuration/total partition, and analytic standard errors, none of which the external RDM carries. One simulated subject, the fixed-linear subset only, no group inference, no correlation distance, and no timing claim.</p>
+<p><strong>Not demonstrated.</strong> Those results show numerical parity and an integrated uncertainty path. They do <strong>not</strong> show a matched-estimator speed advantage, and say nothing about correlation-distance RSA. A real rectangular cross-axis exemplar and an operational conservation example remain to be earned, as does any population or group-level claim; map-scale runtime and storage claims are qualified under <a href="benchmarks/"><code>benchmarks/</code></a>. The <a href="https://bbuchsbaum.github.io/crossform/articles/novelty.html">claim ledger</a> (<code><a href="articles/novelty.html">vignette("novelty")</a></code>) is the authority on which gates have landed.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

@@ -51,60 +51,49 @@
         <dd>
       </dd></dl></div>
     <div class="section ">
-      <h3>Read and interpret results</h3>
-      <div class="section-desc"><p>Understand the returned quantities, choose a distance, and diagnose unavailable results.</p></div>
-
-      <dl><dt><a href="interpreting-results.html">Reading contrast energies, RDMs, and uncertainty</a></dt>
-        <dd><p>Interpret signed energies, coherent shares, RDMs, RSA coefficients and predictive gain, with worked examples of frame dependence and uncertainty.</p>
-        </dd><dt><a href="correlation-distance-policy.html">Choosing distance: effect magnitude or pattern correlation</a></dt>
-        <dd><p>Choose between squared distance and Pearson correlation distance, understand their different scale behavior, and identify the views crossform supports.</p>
-        </dd><dt><a href="failure-gallery.html">Failure gallery</a></dt>
-        <dd><p>Six realistic analysis errors a conventional pipeline can execute silently, and the classed refusals or absent transformations that stop them.</p>
-        </dd><dt><a href="from-rmvpa.html">Coming from rMVPA</a></dt>
-        <dd><p>A concept map from rMVPA’s dataset/design/model vocabulary to crossform’s relation/frame/plan vocabulary, with an honest list of what crossform does not do.</p>
-      </dd></dl></div>
-    <div class="section ">
-      <h3>Spatial organization</h3>
-      <div class="section-desc"><p>Compare spatial patterns and account for overlapping measurements across scales.</p></div>
-
-      <dl><dt><a href="matched-interpretability.html">Equal total effects can have different spatial organization</a></dt>
-        <dd><p>A matched simulation comparing conventional summaries with coherent and configuration spectra across spatial scale.</p>
-        </dd><dt><a href="conservative-frames.html">Conservative frames: attribution, not detection</a></dt>
-        <dd><p>Partition a global contrast budget across space, compare coherent shares across scales, and distinguish signed attribution from latent descriptive summaries.</p>
-      </dd></dl></div>
-    <div class="section ">
-      <h3>Model-supported prediction</h3>
-      <div class="section-desc"><p>Learn a representational form on training runs and evaluate it on independent runs.</p></div>
-
-      <dl><dt><a href="predictive-geometry.html">Predict model-supported geometry on independent runs</a></dt>
-        <dd>
-      </dd></dl></div>
-    <div class="section ">
       <h3>Advanced evidence forms</h3>
-      <div class="section-desc"><p>Relate two sets of measurements through experimental node and edge forms with bounded scale support.</p></div>
+      <div class="section-desc"><p>Experimental. Results that relate two sets of measurements to each other, under a small-node scale gate.</p></div>
 
       <dl><dt><a href="evidence-pairing.html">Measure effects within and between neural nodes</a></dt>
         <dd>
       </dd></dl></div>
     <div class="section ">
-      <h3>Population (experimental)</h3>
-      <div class="section-desc"><p>Transport participant geometries to a shared node set, read group effects, and distinguish their uncertainty targets.</p></div>
+      <h3>Guides</h3>
+      <div class="section-desc"><p>Reading the results, and mapping in from another package’s vocabulary.</p></div>
 
-      <dl><dt><a href="population-form.html">Population form: one participant's ledger, carried to a group</a></dt>
-        <dd><p>Carry conservative participant maps to shared group nodes, estimate contrasts, and interpret conservation, heterogeneity, and conditional uncertainty.</p>
+      <dl><dt><a href="interpreting-results.html">Reading contrast energies, RDMs, and uncertainty</a></dt>
+        <dd><p>What each returned column means, how to read negatives and the coherence fraction, the three interpretive traps that make a coherent share look like a scientific finding when it is an artefact of the frame, and how to read a real map when no ground truth marks the answer.</p>
+        </dd><dt><a href="from-rmvpa.html">Coming from rMVPA</a></dt>
+        <dd><p>A concept map from rMVPA’s dataset/design/model vocabulary to crossform’s relation/frame/plan vocabulary, with an honest list of what crossform does not do.</p>
       </dd></dl></div>
     <div class="section ">
-      <h3>Algebra and evidence</h3>
-      <div class="section-desc"><p>Follow the fixed-query derivation and distinguish established methods from supported package claims.</p></div>
+      <h3>Conservative geometry</h3>
+      <div class="section-desc"><p>The attribution instrument. A conservative frame partitions one fixed global budget instead of reporting a density per neighbourhood, so its map is a ledger that adds up over territories — and its per-scale totals are the analyst’s own weights, which is why the coherence spectrum, not the energy spectrum, is the finding.</p></div>
 
-      <dl><dt><a href="common-geometry-equivalence.html">Contrast, crossnobis, and linear RSA as one geometry</a></dt>
-        <dd><p>An executable theorem, independent oracle, estimator claim table, and external parity receipt for Crossform’s fixed bilinear geometry.</p>
-        </dd><dt><a href="novelty.html">What is novel in crossform?</a></dt>
+      <dl><dt><a href="conservative-frames.html">Conservative frames: attribution, not detection</a></dt>
+        <dd><p>The second spatial instrument. A conservative frame partitions one fixed global budget instead of reporting a density per neighbourhood, so its map is a ledger you may add up over territories — and its per-scale totals are the analyst’s own weights, which is why the coherence spectrum, not the energy spectrum, is the finding.</p>
+      </dd></dl></div>
+    <div class="section ">
+      <h3>Population (experimental)</h3>
+      <div class="section-desc"><p>Experimental. Carrying each participant’s conservative ledger onto a shared group node set: the typed transport you supply and the package refuses to learn, the sink column that makes partial coverage a number you read rather than budget that went missing, the commutation that makes modelling-then-querying the same answer as querying-then-modelling, the cross-fitted subject Gram that separates consensus from disagreement, and the two error bars the layer keeps apart and labels uncalibrated.</p></div>
+
+      <dl><dt><a href="population-form.html">Population form: one participant's ledger, carried to a group</a></dt>
+        <dd><p>Experimental. A group analysis of conservative geometry is three typed objects — a per-participant plan, a transport you supply, and a group model — and one theorem: the query, the transport and the group fit act on different axes, so modelling then querying is the same number as querying then modelling. This article builds the objects on a generated six-participant fixture, asserts the commutation and the conservation identity, finds a planted odd participant with the cross-fitted subject Gram, and reports the two error bars the layer keeps apart — separately, and labelled uncalibrated.</p>
+      </dd></dl></div>
+    <div class="section ">
+      <h3>Claims and policies</h3>
+      <div class="section-desc"><p>What the package claims, what it refuses, and where the boundaries are drawn.</p></div>
+
+      <dl><dt><a href="novelty.html">What is novel in crossform?</a></dt>
         <dd><p>The evidence-pairing calculus, the executable estimand contract, and an audited ledger separating what is demonstrated from what is still gated.</p>
+        </dd><dt><a href="failure-gallery.html">Failure gallery</a></dt>
+        <dd><p>Six realistic analysis errors a conventional pipeline can execute silently, and the classed refusals or absent transformations that stop them.</p>
+        </dd><dt><a href="correlation-distance-policy.html">Correlation-distance policy</a></dt>
+        <dd><p>Why rdm() means squared Euclidean or fixed-Mahalanobis distance and never silently substitutes 1 - Pearson correlation.</p>
       </dd></dl></div>
     <div class="section ">
       <h3>For package authors</h3>
-      <div class="section-desc"><p>Build an adapter using the public extension protocol.</p></div>
+      <div class="section-desc"><p>The surface an extension package may build against, and what is closed to it.</p></div>
 
       <dl><dt><a href="crossform-extending.html">Extending crossform: the developer protocol</a></dt>
         <dd>

@@ -23,6 +23,8 @@ cross_partitions(partitions, independence = NULL, generalizes_over = NULL)
   Partition identifiers or an `effect_relation`. Pass `fit$relation`
   when starting from
   [`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md).
+  Identifiers must be unique; a repeated identifier is refused rather
+  than collapsed.
 
 - independence:
 

@@ -35,13 +35,9 @@ plan_relation(
 
   An
   [`effect_map()`](https://bbuchsbaum.github.io/crossform/reference/effect_map.md)
-  for a semantic model,
+  for a semantic model, or
   [`raw_effect_map()`](https://bbuchsbaum.github.io/crossform/reference/raw_effect_map.md)
-  for a raw design, or a
-  [`model_basis()`](https://bbuchsbaum.github.io/crossform/reference/model_basis.md)
-  built with `conditions = model$condition_space`, whose `$effect_map`
-  lowers the condition means into model coordinates through the
-  parameterization.
+  for a raw design.
 
 - observation_model:
 

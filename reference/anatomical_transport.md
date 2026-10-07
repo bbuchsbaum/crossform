@@ -94,7 +94,6 @@ Other population transports:
 [`population_prevalence()`](https://bbuchsbaum.github.io/crossform/reference/population_prevalence.md),
 [`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md),
 [`population_views`](https://bbuchsbaum.github.io/crossform/reference/population_views.md),
-[`population_wild_bootstrap()`](https://bbuchsbaum.github.io/crossform/reference/population_wild_bootstrap.md),
 [`transport_values()`](https://bbuchsbaum.github.io/crossform/reference/transport_values.md)
 
 ## Examples
@@ -121,8 +120,7 @@ transport
 #>   nodes:      5 native -> 2 group + sink
 #>   semantics:  budget
 #>   sink:       mass 1 of 5 rows, 20.0% of territory
-#>   provenance: anatomical, fixed (cross-fit: none)
+#>   provenance: anatomical (cross-fit: none)
 #>   built:      nearest group centre within radius 2, ties to the lowest gr...
-#>   inference:  conditional_on_realized_transport; uncertainty not propagated
-#>   signature:  sha256:12af484efcd1...
+#>   signature:  sha256:df387cad865b...
 ```

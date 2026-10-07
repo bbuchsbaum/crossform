@@ -1,19 +1,13 @@
 # crossform: cross-generalized effect geometry for task fMRI
 
-Crossform gives univariate contrasts, multivariate distances and fixed
-linear RSA, and population summaries one declared crossvalidated
-bilinear geometry, then decomposes each scale's reproducible effect into
-coherent and configurational estimand components.
-
-## Details
-
-You declare condition effects, spatial measurements, independent
-partitions, and — for a population — realized transports and a group
-model. The package compiles that estimand before reading outcomes.
-Supported contrasts, RDMs, fixed linear RSA, crossnobis distances, and
-population summaries then share the same geometry. Coherent and
-configurational name additive estimand components, not separate
-biological mechanisms.
+`crossform` answers one question about task-fMRI data: where does an
+experimental effect, or a whole representational geometry, reproduce
+across independent runs? You declare the condition effects you fitted,
+the spatial measurements you want answers at, and which runs must
+generalize. The package compiles that request once and reads contrasts,
+representational dissimilarity matrices (RDMs), representational
+similarity analysis (RSA) coefficients, and crossnobis distances from
+the same compiled object rather than from separate pipelines.
 
 ## The mental model
 
@@ -115,13 +109,7 @@ a query against that plan:
 - No preprocessing, registration, masking, or hemodynamic response
   modeling. Bring fitted effects, or scan responses with a design.
 
-- Population point estimates, classical and HC3 pointwise intervals,
-  null-imposed wild bootstrap, decomposition, prevalence, heterogeneity,
-  influence, and support diagnostics are implemented under their
-  declared conditional targets.
-
-- No simultaneous, transport-marginal, arbitrary cross-node, or
-  universally calibrated population inference is implied.
+- Within-participant results only. There is no group-inference path.
 
 - Crossvalidated estimates are retained when negative; they are not
   clipped.

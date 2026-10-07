@@ -45,7 +45,7 @@ the group model once at every group node and query."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Estimate a planned population form through a bank of queries</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/elite-pass/R/population-driver.R" class="external-link"><code>R/population-driver.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bbuchsbaum/crossform/blob/main/R/population-driver.R" class="external-link"><code>R/population-driver.R</code></a></small>
       <div class="d-none name"><code>estimate_population.Rd</code></div>
     </div>
 
@@ -111,12 +111,13 @@ divisor: a participant contributes a share for query <code>k</code> only when
     <p>An <code>effect_population_result</code>: a sealed record carrying
 <code>$coefficients</code> (a <code>node</code>-by-<code>query</code>-by-<code>term</code> array), <code>$values</code>,
 <code>$fitted</code> and <code>$residuals</code> (<code>node</code>-by-<code>query</code>-by-<code>subject</code>), the
-<code>$index</code> of group nodes plus the sink, <code>$queries</code>, <code>$ledger</code>, <code>$coverage</code>
-(the exact node/readout population target and provenance),
+<code>$index</code> of group nodes plus the sink, <code>$queries</code>, <code>$ledger</code>,
 <code>$uncertainty</code> (see the section above; read it through
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>), and a <code>$receipt</code> recording every
 participant's read, its
-transport signature, the budget certificate, and the normalization.
+transport signature, the budget certificate, the normalization, and
+<code>$unresolved_cells</code>: one row per node-query column left unestimated,
+naming the participants whose non-finite value withheld it.
 <code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> returns the coefficient table in long form.</p>
     </div>
     <div class="section level2">
@@ -179,36 +180,15 @@ are computed against a total read from the same data as the ledger, which
 the receipt declares (<code>budget_estimate = "same_data_ratio"</code>).</p>
     </div>
     <div class="section level2">
-    <h2 id="coverage-and-the-population-target">Coverage and the population target<a class="anchor" aria-label="anchor" href="#coverage-and-the-population-target"></a></h2>
-
-
-<p>Ordinary-node availability is derived from positive realized transported
-mass and query admission, never from whether a numeric response equals
-zero. Under the default <code>coverage_policy = "all_planned"</code>, a cell is
-unresolved if any planned participant is unavailable. The explicit
-<code>"available_at_node"</code> policy fits the exact local subject set and therefore
-names a different target. <code>$coverage</code> records the policy, planned subjects,
-stable plan and transport identifiers, operator coverage, exact analytic
-availability, recoverable dictionary-encoded subject sets, <code>n</code>, <code>n_eff</code>,
-<code>mass_n_eff</code>, local design rank and residual df, status, and
-coefficient-specific estimability and exclusion reasons. The estimates are
-conditional on the realized transport and coverage. <code>$coverage$conditioning</code>
-retains every participant's transport source, fitting sample, cross-fitting
-folds, and fixed-versus-estimated status. Transport-estimation uncertainty
-is not propagated by this contract, and cross-fitting does not make the
-result marginal over it.</p>
-    </div>
-    <div class="section level2">
     <h2 id="uncertainty">Uncertainty<a class="anchor" aria-label="anchor" href="#uncertainty"></a></h2>
 
 
 <p><code>$uncertainty</code> always carries <code>$between</code>, the ingredients of the
-between-subject layer: the subject-aligned group design, available
-estimators, estimator assumptions, and the terms they are indexed by. That
-is what <code><a href="population_uncertainty.html">population_uncertainty()</a></code> needs to reconstruct each node-query
-cell's exact local design and return either classical OLS or HC3 sandwich
-covariance. The covariances themselves are computed when read rather than
-stored beside every point estimate.</p>
+between-subject layer: the group design's unscaled covariance
+\((X'X)^{-1}\) and the terms it is indexed by. That is what
+<code><a href="population_uncertainty.html">population_uncertainty()</a></code> needs and the result does not otherwise hold;
+the standard errors themselves are computed when they are read rather than
+stored as three more <code>node</code>-by-<code>query</code>-by-<code>term</code> arrays.</p>
 <p>Supplying <code>uncertainty</code> adds two more blocks. <code>$native</code> is D8's own
 per-native-node covariance per participant, carried <strong>untransported</strong>, with
 <code>$transported</code> recording the refusal: a group node's value mixes native
@@ -217,13 +197,6 @@ produces one. <code>$within</code> is the part of that refusal E8 lifts — a gr
 column fed by exactly one native row, where the cross-node terms carry
 weight zero — admitted per participant and per column and absent
 elsewhere. No independence assumption is made anywhere.</p>
-<p>The missing joint covariance does not gate ordinary population point
-estimation: unweighted OLS operates across participants separately at each
-node-query cell. It gates covariance-dependent operations such as
-transported within-subject precision, conserved-budget variance, or later
-joint spatial inference. The future admission law is recorded in
-<code>design/cross-node-covariance-contract.md</code> and on the transported refusal's
-<code>$future</code> field with status <code>"not_implemented"</code>.</p>
 <p>The two layers are reported separately and are never pooled; there is no
 field holding their sum. See <code><a href="population_uncertainty.html">population_uncertainty()</a></code>.</p>
     </div>
@@ -239,6 +212,10 @@ the participants.</p></li>
 <li><p><code>distance_basis_query_bank</code> — an uncentred contrast in the bank when
 <code>uncertainty</code> is supplied. Point estimates admit uncentred contrasts;
 their sampling law does not.</p></li>
+<li><p><code>component_sampling_covariance</code> — <code>uncertainty</code> supplied with
+<code>component = "coherent"</code> or <code>"configuration"</code>. The sampling covariance
+is the crossvalidated distance's, which is the total geometry; it does
+not describe the other two ledgers.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -261,7 +238,6 @@ the single-participant reading of the same query.</p>
 <code><a href="population_prevalence.html">population_prevalence()</a></code>,
 <code><a href="population_uncertainty.html">population_uncertainty()</a></code>,
 <code><a href="population_views.html">population_views</a></code>,
-<code><a href="population_wild_bootstrap.html">population_wild_bootstrap()</a></code>,
 <code><a href="transport_values.html">transport_values()</a></code></p></div>
     </div>
 
@@ -302,14 +278,12 @@ the single-participant reading of the same query.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   group nodes:   2 + sink</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   queries:       2 (face-house, face+house)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   frame:         undeclared, conservative</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:     budget, anatomical, fixed, cross-fit not declared</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   transport:     budget, anatomical, cross-fit not declared</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   normalization: none (mean subject ledger, native evidence units)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   coverage:      all_planned; cell n 4 to 4 of 4; estimated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   inference:     conditional_on_realized_transport; uncertainty not propa...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   fit:           OLS (subject-constant weights), transport then fit</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   budget:        preserved, worst relative deviation 2.02e-16 against 1e-12</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   uncertainty:   between-subject covariance classical/HC3, cell df 3 to 3...</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:6300c2c34d71...</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   uncertainty:   between-subject SE, df 3 (uncalibrated)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estimand:      population-sha256:fc0f369ba976...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   next:          as.data.frame(x), x$coefficients[, , term], population_uncertainty(x)</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The group mean at each node and query, with the sink as its own row.</span></span></span>

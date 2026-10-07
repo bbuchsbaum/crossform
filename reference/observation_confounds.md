@@ -20,7 +20,10 @@ observation_confounds(
 
 - data:
 
-  A nonempty data frame with one row per observation.
+  A nonempty data frame with one row per observation. Confound value
+  columns may hold `NA` (for example a derivative with no first-row
+  value); the partition, observation-id and censor columns must be
+  complete.
 
 - partition, observation_id:
 

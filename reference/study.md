@@ -46,7 +46,10 @@ study(
 
 - clock_tolerance:
 
-  Nonnegative finite tolerance for clock coverage.
+  Nonnegative finite tolerance for clock coverage. Observation times are
+  read as volume onsets: a partition covers events from its first onset
+  to one sampling interval (the median spacing of its observation times)
+  after its last onset, plus this tolerance.
 
 - provenance:
 

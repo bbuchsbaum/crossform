@@ -70,8 +70,9 @@ of them named by measurement.
 ## Details
 
 The values returned inherit the calibration target chosen when `x` was
-built. Under `target = "plugin"` they carry the documented upward bias
-of the partition-mean plug-in policy; see the `target` argument of
+built. Under `target = "plugin"` the partition-mean plug-in's signal
+bias has been removed (with a positive-part projection that is
+conservative only when the signal is weak); see the `target` argument of
 [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md).
 Under `target = "null"` the law is exact on the variance scale.
 
