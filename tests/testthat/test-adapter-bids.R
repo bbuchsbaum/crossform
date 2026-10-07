@@ -86,3 +86,120 @@ test_that("BIDS event timing and censoring ambiguities refuse by capability", {
   expect_s3_class(censoring, "effect_capability_refusal")
   expect_identical(censoring$capability, "censoring_declared")
 })
+
+test_that("BIDS events bind runs with different columns and keep labels as text", {
+  directory <- tempfile("crossform-bids-columns-")
+  dir.create(directory)
+  first <- file.path(directory, "run-1_events.tsv")
+  second <- file.path(directory, "run-2_events.tsv")
+  writeLines(c(
+    "onset\tduration\ttrial_type\tresponse_time",
+    "0\t0.5\t01\t0.8",
+    "4\t0.5\t02\tn/a"
+  ), first)
+  writeLines(c(
+    "onset\tduration\ttrial_type",
+    "2\t1\t01"
+  ), second)
+  record <- crossform:::bids_events(
+    c(`run-1` = first, `run-2` = second)
+  )
+  expect_identical(record$data$trial_type, c("01", "02", "01"))
+  expect_identical(record$data$response_time, c("0.8", "n/a", "n/a"))
+  expect_identical(record$data$onset, c(0, 4, 2))
+  expect_identical(record$data$duration, c(0.5, 0.5, 1))
+  expect_identical(record$data$.bids_partition, c("run-1", "run-1", "run-2"))
+})
+
+test_that("BIDS header-only events refuse with a clear reason", {
+  path <- tempfile(fileext = ".tsv")
+  writeLines("onset\tduration\ttrial_type", path)
+  refusal <- catch_refusal(crossform:::bids_events(c(`run-1` = path)))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "timing_resolved")
+  expect_match(conditionMessage(refusal), "no events")
+})
+
+test_that("BIDS confounds type complete columns and bind differing columns", {
+  directory <- tempfile("crossform-bids-confounds-")
+  dir.create(directory)
+  first <- file.path(directory, "run-1_confounds.tsv")
+  second <- file.path(directory, "run-2_confounds.tsv")
+  writeLines(c(
+    "framewise_displacement\ttrans_x\trot_x\tkeep",
+    "n/a\t0.1\t1e-3\tTRUE",
+    "0.2\t0.3\t-2\tFALSE"
+  ), first)
+  writeLines(c(
+    "framewise_displacement\tkeep\trot_x\tmotion_outlier00",
+    "n/a\tTRUE\t0.5\t1",
+    "0.4\tTRUE\t0\t0"
+  ), second)
+  record <- crossform:::bids_confounds(
+    c(`run-1` = first, `run-2` = second), censor = "keep"
+  )
+  # The BIDS missing marker is read as `NA` without changing the column's
+  # type, including a column one run lacks altogether.
+  expect_identical(record$data$framewise_displacement, c(NA, 0.2, NA, 0.4))
+  expect_identical(record$data$rot_x, c(1e-3, -2, 0.5, 0))
+  expect_identical(record$data$trans_x, c(0.1, 0.3, NA, NA))
+  expect_identical(record$data$motion_outlier00, c(NA, NA, 1, 0))
+  expect_identical(record$data$keep, c(TRUE, FALSE, TRUE, TRUE))
+
+  # The same tables bind into a study; the missing values never reach the
+  # censor policy, which reads only the complete retain column.
+  value <- study(
+    observations(
+      list(`run-1` = matrix(0, 2L, 1L), `run-2` = matrix(0, 2L, 1L)),
+      list(
+        `run-1` = observation_index(1:2, "run-1"),
+        `run-2` = observation_index(1:2, "run-2")
+      ),
+      abstract_domain(1L)
+    ),
+    confounds = record
+  )
+  expect_identical(value$confounds$data$framewise_displacement,
+    c(NA, 0.2, NA, 0.4))
+})
+
+test_that("BIDS confounds refuse a censor column with missing values", {
+  path <- tempfile("crossform-bids-censor-", fileext = ".tsv")
+  writeLines(c(
+    "framewise_displacement\tkeep",
+    "n/a\tTRUE",
+    "0.2\tn/a"
+  ), path)
+  refusal <- catch_refusal(
+    crossform:::bids_confounds(c(`run-1` = path), censor = "keep")
+  )
+  expect_identical(refusal$capability, "censoring_declared")
+  expect_match(paste(refusal$reasons, collapse = " "), "missing values",
+    fixed = TRUE)
+})
+
+test_that("observation confounds allow missing values only in value columns", {
+  confounds <- data.frame(
+    partition = "run-1", observation_id = 1:3,
+    framewise_displacement = c(NA, 0.2, 0.3),
+    retained = c(TRUE, TRUE, FALSE)
+  )
+  record <- observation_confounds(confounds, censor = "retained")
+  expect_identical(record$data$framewise_displacement, c(NA, 0.2, 0.3))
+  expect_identical(
+    crossform:::.validate_observation_confounds(record)$confounds_id,
+    record$confounds_id
+  )
+  for (column in c("partition", "observation_id", "retained")) {
+    broken <- confounds
+    broken[[column]][[2L]] <- NA
+    expect_error(observation_confounds(broken, censor = "retained"),
+      column, class = "effect_input_error")
+  }
+  confounds$framewise_displacement[[2L]] <- Inf
+  expect_error(observation_confounds(confounds, censor = "retained"),
+    "framewise_displacement", class = "effect_input_error")
+  confounds$framewise_displacement[[2L]] <- NaN
+  expect_error(observation_confounds(confounds, censor = "retained"),
+    "framewise_displacement", class = "effect_input_error")
+})

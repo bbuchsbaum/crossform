@@ -13,7 +13,9 @@ observation_confounds(
 )
 }
 \arguments{
-\item{data}{A nonempty data frame with one row per observation.}
+\item{data}{A nonempty data frame with one row per observation. Confound
+value columns may hold \code{NA} (for example a derivative with no first-row
+value); the partition, observation-id and censor columns must be complete.}
 
 \item{partition, observation_id}{Columns binding rows to observation indexes.}
 

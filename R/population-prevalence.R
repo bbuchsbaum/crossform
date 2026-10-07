@@ -353,6 +353,17 @@
 
 # The record -------------------------------------------------------------------
 #
+# The pure-noise reference. A participant whose transported value is noise
+# symmetric about zero exceeds a threshold of zero with probability one half,
+# so a cell at which nothing reproduces sits at `0.5`. That argument holds at
+# `threshold = 0` only: above zero the exceedance probability depends on the
+# noise scale, which the record does not carry, so no reference is reported
+# rather than a `0.5` that would be wrong in the direction of flattering every
+# fraction below it.
+.population_prevalence_reference <- function(threshold) {
+  if (identical(as.numeric(threshold), 0)) 0.5 else NA_real_
+}
+
 # FIELD CONTRACT --- `effect_population_prevalence`
 #
 #   $layer      "latent_descriptive"; read this before any fraction
@@ -360,7 +371,8 @@
 #               carries, shared with `latent_geometry()` so the two cannot
 #               drift
 #   $measures   the fractions this record carries, by name
-#   $reference  0.5 -- the value a pure-noise cell reports, not 0
+#   $reference  0.5 at threshold 0 -- the value a pure-noise cell reports,
+#               not 0; NA at any other threshold, where it is unknown
 #   $sign       node x query: $fraction, $count, $resolved, $contributing
 #   $alignment  per node: $fraction, $count, $resolved, plus the reference and
 #               the readout inner product this bank defines
@@ -422,7 +434,7 @@
       # tolerance. This layer inherits it rather than making a private one,
       # the same way `latent_geometry()` does.
       threshold_tolerance_decision = "conservative-geometry-v1_11.4_G3",
-      null_reference = 0.5,
+      null_reference = .population_prevalence_reference(threshold),
       subjects = as.integer(subjects),
       retained_nodes = as.integer(nodes),
       sink_excluded = TRUE,
@@ -445,7 +457,7 @@
     layer = "latent_descriptive",
     reading = .latent_reading_line,
     measures = .population_prevalence_measures,
-    reference = 0.5,
+    reference = .population_prevalence_reference(threshold),
     sign = sign,
     alignment = c(alignment, list(
       reference = "leave_one_out_participant_mean",
@@ -484,9 +496,9 @@
       !identical(x$layer, "latent_descriptive") ||
       !identical(x$reading, .latent_reading_line) ||
       !identical(x$measures, .population_prevalence_measures) ||
-      !identical(x$reference, 0.5) ||
       !is.list(x$sign) || !is.list(x$alignment) || !is.list(x$coverage) ||
-      !.is_number(x$threshold) || !.is_strings(x$query_labels) ||
+      !.is_number(x$threshold) ||
+      !identical(x$reference, .population_prevalence_reference(x$threshold)) || !.is_strings(x$query_labels) ||
       !.is_strings(x$subjects, unique = TRUE) || !is.data.frame(x$index) ||
       !.is_string(x$component) || !.is_string(x$ledger) ||
       !.is_string(x$semantics) || !.is_string(x$normalization) ||
@@ -593,6 +605,9 @@
 #' which nothing reproduces reports a fraction near `0.5`, not near `0`**,
 #' because every participant contributes an independent coin flip. `$reference`
 #' carries that number so the comparison is not made against zero by habit.
+#' The coin-flip argument holds at `threshold = 0`, for noise symmetric about
+#' zero; at any other threshold the pure-noise fraction depends on the noise
+#' scale, and `$reference` is `NA` rather than a `0.5` that would be wrong.
 #'
 #' The threshold is applied strictly (`>`) and absolutely, in the ledger's own
 #' units, with no relative tolerance. That is the guard every per-node fraction
@@ -688,7 +703,8 @@
 #'   `$count`, `$resolved` and `$contributing` (each a `node`-by-`query`
 #'   matrix); `$alignment` holding `$fraction`, `$count`, `$resolved` and the
 #'   inner product it was taken in, one entry per group node; `$coverage`;
-#'   `$reference`, the fraction a pure-noise cell reports; `$layer` and
+#'   `$reference`, the fraction a pure-noise cell reports (`0.5` at
+#'   `threshold = 0`, `NA` otherwise); `$layer` and
 #'   `$reading`, which mark the record as descriptive; `$queries` and
 #'   `$query_labels`, the selected rows of the bank it counted over; and the
 #'   `$index`, `$ledger`, `$semantics`, `$normalization` and `$receipt` of the
@@ -906,11 +922,21 @@ print.effect_population_prevalence <- function(x, ...) {
     estimand = .pf_sig(x$scientific_plan_id),
     reading = x$reading
   ))
-  .pf_note(paste0(
-    "a cell at which nothing reproduces reports a fraction near ", x$reference,
-    ", not near 0: thresholding a signed crossvalidated estimate keeps the ",
-    "sign and discards the magnitude, and the sign is the noisy part."
-  ))
+  if (is.na(x$reference)) {
+    .pf_note(paste0(
+      "a cell at which nothing reproduces does not report a fraction near 0: ",
+      "at a nonzero threshold the pure-noise fraction depends on the noise ",
+      "scale, which this record does not carry, so no reference is given ",
+      "(it is 0.5 only at threshold 0)."
+    ))
+  } else {
+    .pf_note(paste0(
+      "a cell at which nothing reproduces reports a fraction near ",
+      x$reference, ", not near 0: thresholding a signed crossvalidated ",
+      "estimate keeps the sign and discards the magnitude, and the sign is ",
+      "the noisy part."
+    ))
+  }
   .pf_note(paste0(
     "descriptive only. No standard error, interval or p-value is attached to ",
     "a count of participants, and none follows from one; ",

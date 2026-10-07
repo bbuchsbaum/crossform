@@ -122,6 +122,79 @@
   invisible(TRUE)
 }
 
+.fmridesign_frame_field <- function(frame, field, block, count) {
+  value <- frame[[field]]
+  if (is.null(value) || !is.numeric(value) || length(value) < 1L) {
+    return(NULL)
+  }
+  value <- as.numeric(value)
+  if (length(value) == 1L) {
+    return(value)
+  }
+  if (length(value) != count) {
+    return(NULL)
+  }
+  value[[block]]
+}
+
+.fmridesign_assert_sampling_frame <- function(model, study, block_map) {
+  frame <- model$sampling_frame
+  lengths <- if (is.null(frame)) NULL else frame$blocklens
+  count <- length(lengths)
+  refuse <- function(partition, reason) {
+    .capability_refusal(
+      sprintf("fmridesign sampling frame disagrees with partition `%s` clock.",
+        partition),
+      capability = "timing_resolved",
+      namespace = "relation_compiler",
+      reasons = reason,
+      remedies = paste0(
+        "Construct the fmridesign sampling frame from the study observation ",
+        "clock: one block per partition with matching length, TR, and start time."
+      )
+    )
+  }
+  for (partition in study$partitions) {
+    block <- block_map[[partition]]
+    index <- study$observations$indexes[[partition]]
+    rows <- length(index$observation_id)
+    if (count < block || !is.numeric(lengths) ||
+        !isTRUE(as.numeric(lengths[[block]]) == rows)) {
+      refuse(partition, sprintf(
+        "Model block %d has %s samples; the partition has %d observations.",
+        block,
+        if (count < block) "no" else format(lengths[[block]]),
+        rows
+      ))
+    }
+    repetition <- .fmridesign_frame_field(frame, "TR", block, count)
+    start <- .fmridesign_frame_field(frame, "start_time", block, count)
+    if (is.null(repetition) || is.null(start) || !is.finite(repetition) ||
+        repetition <= 0 || !is.finite(start)) {
+      refuse(partition, sprintf(
+        "Model block %d has no readable positive TR and finite start time.",
+        block
+      ))
+    }
+    time <- index$time
+    if (is.null(time)) {
+      refuse(partition, "The observation index has no time axis.")
+    }
+    expected <- start + (seq_len(rows) - 1) * repetition
+    tolerance <- sqrt(.Machine$double.eps) * max(1, repetition) +
+      1e-6 * repetition
+    deviation <- max(abs(as.numeric(time) - expected))
+    if (!is.finite(deviation) || deviation > tolerance) {
+      refuse(partition, sprintf(
+        paste0("Model block %d samples start at %s with TR %s; observation ",
+          "times differ by up to %s."),
+        block, format(start), format(repetition), format(deviation)
+      ))
+    }
+  }
+  invisible(TRUE)
+}
+
 .fmridesign_semantic_map <- function(design, conditions, explicit = NULL) {
   coefficients <- colnames(design)
   if (!is.null(explicit)) {
@@ -259,6 +332,7 @@ fmridesign_design_model <- function(
   }
   block_map <- .fmridesign_block_map(study$partitions, model, block_map)
   .fmridesign_assert_event_binding(model, study, block_map)
+  .fmridesign_assert_sampling_frame(model, study, block_map)
   coordinates <- unname(fmridesign::conditions(model))
   conditions <- condition_space(
     coordinates, basis_id = basis_id, units = units, scale = scale,

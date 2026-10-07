@@ -55,19 +55,24 @@
   names(dimensions) <- c(
     "left_measurement", "right_measurement", "left_neural", "right_neural"
   )
+  m_l <- dimensions[["left_measurement"]]
+  m_r <- dimensions[["right_measurement"]]
+  n_l <- dimensions[["left_neural"]]
+  n_r <- dimensions[["right_neural"]]
+  # Every dense allocation `.reconstruct_neural_evidence()` makes, counted at
+  # its peak: the SVD input copy and thin factors on each side, the duals and
+  # the transposed right dual, the left-applied intermediate, and per side
+  # the stored projection, its square, and the elementwise residual
+  # temporary (the Parseval check `crossprod(F) - I` needs the same three).
   products <- c(
-    measured_form = dimensions[["left_measurement"]] *
-      dimensions[["right_measurement"]],
-    neural_operator = dimensions[["left_neural"]] *
-      dimensions[["right_neural"]],
-    frame_operators = dimensions[["left_measurement"]] *
-      dimensions[["left_neural"]] +
-      dimensions[["right_measurement"]] * dimensions[["right_neural"]],
-    dual_operators = dimensions[["left_neural"]] *
-      dimensions[["left_measurement"]] +
-      dimensions[["right_neural"]] * dimensions[["right_measurement"]],
-    projections = dimensions[["left_neural"]]^2 +
-      dimensions[["right_neural"]]^2
+    measured_form = m_l * m_r,
+    neural_operator = n_l * n_r,
+    frame_operators = m_l * n_l + m_r * n_r,
+    svd_workspace = m_l * n_l + (m_l + n_l) * min(m_l, n_l) +
+      m_r * n_r + (m_r + n_r) * min(m_r, n_r),
+    dual_operators = n_l * m_l + 2 * n_r * m_r,
+    reconstruction_intermediate = n_l * m_r,
+    projections = 3 * (n_l^2 + n_r^2)
   )
   if (any(!is.finite(products)) ||
       any(dimensions > .Machine$integer.max) ||
@@ -254,6 +259,10 @@
     t(decomposition$u[, retained, drop = FALSE])
 }
 
+# The loosest relative residual a reference check may accept and still call
+# the reconstruction numerically certified.
+.tomography_certification_ceiling <- 1e-6
+
 .tomography_reject <- function(message, diagnostics) {
   condition <- structure(list(
     message = message,
@@ -328,7 +337,9 @@
     form, left_frame, right_frame, workspace_bytes
   )
   .tomography_require_budget(resource)
-  .tomography_require_complete_edges(form)
+  # The block assembly below demands a frame-complete edge set; refuse on
+  # that here, before the SVDs of both frames are paid for.
+  .tomography_require_complete_edges(form, frame_complete = TRUE)
   left <- .tomography_stack_frame(left_frame)
   right <- .tomography_stack_frame(right_frame)
   left_diagnostics <- .tomography_frame_diagnostics(
@@ -413,7 +424,24 @@
   lossless <- full_rank && used_method != "projected_pseudoinverse"
   reference_signature <- NULL
   residual <- relative_residual <- NULL
+  # The reconstruction applies a dual on each side, so its round-off relative
+  # to the operator scales with the product of the two (retained) condition
+  # numbers times machine epsilon. The SVD cutoff `tolerance` is a floor, not
+  # the pass threshold, for a frame that is legitimately conditioned.
+  certification_tolerance <- max(tolerance,
+    10 * prod(conditions) * .Machine$double.eps)
   certified <- !is.null(reference_operator)
+  if (certified && certification_tolerance > .tomography_certification_ceiling) {
+    # Past this point the round-off bound alone would admit errors no reader
+    # could call a numerical certificate, so the check refuses instead.
+    .tomography_reject(paste0(
+      "Tomographic frames are too ill-conditioned to certify numerically: ",
+      "round-off alone allows a relative residual of ",
+      format(signif(certification_tolerance, 3)), "."
+    ), c(frame_diagnostics, list(
+      certification_tolerance = certification_tolerance
+    )))
+  }
   if (certified) {
     if (!.is_finite_matrix(reference_operator) ||
         !identical(dim(reference_operator), dim(operator))) {
@@ -424,10 +452,12 @@
     scale <- max(sqrt(sum(expected^2)), tolerance)
     relative_residual <- residual / scale
     reference_signature <- .sha256_signature(unname(reference_operator))
-    if (!is.finite(relative_residual) || relative_residual > tolerance) {
+    if (!is.finite(relative_residual) ||
+        relative_residual > certification_tolerance) {
       diagnostics <- c(frame_diagnostics, list(
         reconstruction_residual = residual,
-        relative_reconstruction_residual = relative_residual
+        relative_reconstruction_residual = relative_residual,
+        certification_tolerance = certification_tolerance
       ))
       .tomography_reject(
         "Tomographic reconstruction failed its numerical reference check.",
@@ -438,6 +468,8 @@
   diagnostics <- c(frame_diagnostics, list(
     reconstruction_residual = residual,
     relative_reconstruction_residual = relative_residual,
+    certification_tolerance = if (certified) certification_tolerance else
+      NULL,
     left_projection_residual = max(abs(
       left_projection %*% left_projection - left_projection
     )),

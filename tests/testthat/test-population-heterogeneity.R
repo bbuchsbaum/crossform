@@ -322,6 +322,25 @@ test_that("a node nobody measured is held out, not zeroed", {
 
   lines <- capture.output(print(split))
   expect_true(any(grepl("held out of the Gram", lines)))
+
+  # Who withheld it: one row per held-out column, naming the three smaller
+  # participants that reach the node with nothing, and nobody else.
+  cells <- split$receipt$unresolved_cells
+  expect_identical(nrow(cells), as.integer(width))
+  expect_true(all(cells$node == "group3"))
+  expect_setequal(cells$readout, split$coordinates$coordinate)
+  expect_true(all(cells$subjects == "s01; s02; s05"))
+  expect_true(grepl("non-finite values of s01, s02, s05;",
+    gsub("\\s+", " ", paste(lines, collapse = " ")), fixed = TRUE))
+
+  # The cross-fitted route and the result route record the same thing.
+  crossed <- heterogeneity(plan, partitions = list(c("run1", "run3"),
+    c("run2", "run4")))
+  expect_identical(crossed$receipt$unresolved_cells, cells)
+  from_result <- heterogeneity(estimate_population(plan,
+    rbind(`face-house` = c(1, -1, 0))))
+  expect_true(all(from_result$receipt$unresolved_cells$subjects ==
+    "s01; s02; s05"))
 })
 
 test_that("the sink is excluded from the Gram and said to be", {
@@ -435,16 +454,11 @@ test_that("a declared partition split is honoured and validated", {
   expect_true(any(grepl("half_carries_fewer_than_two", short$reasons)))
 })
 
-test_that("a transport that saw the split's partitions is reported", {
-  # A functional transport learned from the responses has seen some runs. If
-  # those overlap a cross-fit half then that half's inner product is not fully
-  # held out. crossform cannot repair it -- the transport is a declared input
-  # -- so it is measured, recorded and printed rather than ignored.
-  plan <- hx_plan()
+hx_functional <- function(plan, cross_fit) {
   # The same operator, redeclared as functional. `anatomical_transport()`
   # refuses a declared method, and `location_transport()` appends the sink
   # itself, so the group columns are handed over without it.
-  circular <- lapply(stats::setNames(names(hx_sizes), names(hx_sizes)),
+  lapply(stats::setNames(names(plan$transport), names(plan$transport)),
     function(id) {
       carrier <- plan$transport[[id]]
       external_transport(
@@ -453,16 +467,47 @@ test_that("a transport that saw the split's partitions is reported", {
         native_index = carrier$native_index,
         group_index = carrier$group_index,
         provenance = list(method = "functional",
-          details = "response clustering", cross_fit = c("run1", "run3")))
+          details = "response clustering", cross_fit = cross_fit))
     })
-  circular_plan <- plan_population(plan$subjects, circular)
-  split <- heterogeneity(circular_plan)
+}
 
-  overlap <- split$receipt$cross_fit$transport_partition_overlap
-  expect_length(overlap, 2L * length(hx_sizes))
-  expect_true(all(grepl("^s0[1-5]:run[13]$", overlap)))
-  lines <- capture.output(print(split))
-  expect_true(any(grepl("not fully held out", lines)))
+test_that("a transport is never evaluated on a partition it was fitted on", {
+  # population-form-v1 section 1.4: a functional transport learned from the
+  # responses has seen the runs its `cross_fit` names, and the plan refuses
+  # to evaluate it on any of them. A circular transport reports roughly three
+  # times the honest gain and is otherwise indistinguishable from it, so this
+  # is a refusal, not a footnote in a receipt.
+  plan <- hx_plan()
+  circular <- catch_refusal(
+    plan_population(plan$subjects, hx_functional(plan, c("run1", "run3"))))
+  expect_s3_class(circular, "effect_capability_refusal")
+  expect_identical(circular$capability, "held_out_transport_evaluation")
+  expect_identical(circular$namespace, "population_plans")
+  expect_setequal(circular$reasons, paste0(
+    "transport_cross_fit_partition_evaluated:",
+    rep(names(hx_sizes), each = 2L), ":", c("run1", "run3")))
+
+  # A transport fitted on a run the pairing never reads is honestly held out:
+  # the plan admits it, and the cross-fitted heterogeneity over halves that
+  # avoid that run admits it too, with an empty overlap on the receipt.
+  subjects <- lapply(plan$subjects, function(subject) {
+    held <- hx_subject(subject$task$left_relation$domain$id,
+      subject$measurements, runs = 5L)
+    plan_geometry(held$task$left_relation, held$frame,
+      cross_partitions(paste0("run", 1:4)))
+  })
+  honest <- plan_population(subjects, hx_functional(plan, "run5"))
+  expect_identical(honest$subject_index$cross_fit,
+    rep("run5", length(hx_sizes)))
+  split <- heterogeneity(honest,
+    partitions = list(c("run1", "run3"), c("run2", "run4")))
+  expect_length(split$receipt$cross_fit$transport_partition_overlap, 0L)
+
+  # Interleaving the relation's own partitions would put run5 in a half, and
+  # the split refuses it under the same capability rather than reading it.
+  interleaved <- catch_refusal(heterogeneity(honest))
+  expect_identical(interleaved$capability, "held_out_transport_evaluation")
+  expect_true(all(grepl(":run5$", interleaved$reasons)))
 
   # An anatomical transport never saw the responses and owes no such record.
   expect_length(
@@ -745,4 +790,26 @@ test_that("printing names the estimator and prints the caveat", {
   expect_identical(names(table),
     c("subject", "mode", "eigenvalue", "loading"))
   expect_identical(table$loading[1:5], unname(cross$loadings[, "mode1"]))
+})
+
+test_that("a single-partition participant reaches the named split refusal", {
+  # Interleaving one partition used to call `seq.int(2L, 1L, by = 2L)` and
+  # die with "wrong sign in 'by'" before the refusal it was meant to reach.
+  effects <- hx_effects()
+  domain <- abstract_domain(6L, coordinates = cbind(x = 0:5),
+    feature_ids = paste0("f", 1:6), id = "s01")
+  values <- matrix(c(1, -2, 0.5, 3, -1, 2, 0.25, -0.5, 1.5, -3, 2, 1,
+    0.75, -1.25, 2.5, -0.5, 1, -2), 3, 6,
+    dimnames = list(effects$coordinates, NULL))
+  rel <- relation(list(run1 = values), effects = effects, domain = domain)
+  geometry <- plan_geometry(rel, compile_frame(voxelwise(), domain),
+    pairing("run1", "run1", self_pairs = "allow_biased",
+      independence = "not_independent"))
+  plan <- plan_population(list(s01 = geometry, s02 = geometry),
+    list(s01 = hx_carrier(6L), s02 = hx_carrier(6L)))
+  refusal <- catch_refusal(heterogeneity(plan))
+  expect_s3_class(refusal, "effect_capability_refusal")
+  expect_identical(refusal$capability, "cross_fitted_subject_gram")
+  expect_true("half_carries_fewer_than_two_partitions" %in% refusal$reasons)
+  expect_true("subject_split:s01:1_partitions_split_1_0" %in% refusal$reasons)
 })

@@ -2,10 +2,13 @@
 
 .relation_plan_aliases <- function(design, tolerance) {
   decomposition <- svd(design, nu = min(dim(design)), nv = ncol(design))
-  keep <- decomposition$d > tolerance * max(decomposition$d)
-  if (all(keep)) return(character())
+  # Only min(n, p) singular values exist, so a wide design is aliased even
+  # when every one of them is kept; index `v`'s p columns by position.
+  kept <- which(decomposition$d > tolerance * max(decomposition$d))
+  if (length(kept) == ncol(design)) return(character())
   names <- colnames(design)
-  null <- decomposition$v[, !keep, drop = FALSE]
+  null <- decomposition$v[, setdiff(seq_len(ncol(design)), kept),
+    drop = FALSE]
   unique(vapply(seq_len(ncol(null)), function(index) {
     values <- null[, index]
     active <- abs(values) > tolerance * 10 * max(1, max(abs(values)))

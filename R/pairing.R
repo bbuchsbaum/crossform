@@ -190,7 +190,8 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 #' admitted analytic RDM covariance law.
 #'
 #' @param partitions Partition identifiers or an `effect_relation`. Pass
-#'   `fit$relation` when starting from `lm_relation_fit()`.
+#'   `fit$relation` when starting from `lm_relation_fit()`. Identifiers must be
+#'   unique; a repeated identifier is refused rather than collapsed.
 #' @param independence Explicit endpoint-independence declaration. Leaving it
 #'   `NULL` preserves a point estimand but does not earn cross-generalized or
 #'   analytic sampling-law capabilities.
@@ -248,13 +249,26 @@ cross_partitions <- function(partitions, independence = NULL,
     .validate_relation(partitions)
     partitions <- partitions$partitions
   }
-  supplied <- as.character(partitions)
-  partitions <- unique(supplied)
+  partitions <- as.character(partitions)
   if (anyNA(partitions) || any(partitions == "")) {
     .input_error(paste0(
       "Partition identifiers must be non-missing and nonempty; ",
       "cross-generalization needs a name for every fold."
     ))
+  }
+  # A repeated identifier is refused, not collapsed: silently de-duplicating
+  # would pair fewer folds than the caller listed and hide whichever mistake
+  # produced the repeat.
+  if (anyDuplicated(partitions)) {
+    repeated <- unique(partitions[duplicated(partitions)])
+    .input_error(sprintf(paste0(
+      "Partition identifiers must be unique; %s listed more than once. ",
+      "Each fold is paired with every other exactly once, so name each fold ",
+      "once."
+    ), .msg_names(repeated)),
+      arg = "partitions",
+      received = sprintf("repeated %s", .msg_names(repeated)),
+      expected = "unique partition identifiers")
   }
   if (length(partitions) < 2L) {
     .input_error(sprintf(paste0(

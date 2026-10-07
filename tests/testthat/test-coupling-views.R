@@ -3,6 +3,7 @@ coupling_test_fixture <- function(multivariate = FALSE, rank_one = FALSE,
                                   reducer = reduce_partitions(),
                                   zero_second = FALSE,
                                   partition_subset = NULL,
+                                  single_node = FALSE,
                                   seed = 2026081225) {
   set.seed(seed)
   q <- 8L
@@ -50,6 +51,7 @@ coupling_test_fixture <- function(multivariate = FALSE, rank_one = FALSE,
       b = matrix(c(0, 1, 0, 0), 1L)
     )
   }
+  if (single_node) operators <- operators["a"]
   legs <- Map(function(operator, node) {
     crossform:::.measurement_leg(
       operator, domain,
@@ -586,4 +588,35 @@ test_that("a coupling kind refuses values that disagree with its shape", {
     ),
     "must not record the regularization", class = "effect_contract_error"
   )
+})
+
+test_that("partitioned Pearson coupling handles a single measurement edge", {
+  first <- coupling_test_fixture(partition_subset = "run1",
+    single_node = TRUE)
+  second <- coupling_test_fixture(partition_subset = "run2",
+    single_node = TRUE)
+  forms <- list(first$form, second$form)
+  expect_identical(nrow(first$form$block_index), 1L)
+  result <- crossform:::.partitioned_pearson_coupling(
+    forms, c(0.3, 0.7), "within_partition_pair",
+    fisher_z(boundary = "clip", delta = 1e-8)
+  )
+  expect_identical(nrow(result$values), 1L)
+  expect_true(is.finite(result$values$value))
+})
+
+test_that("Gaussian information keeps the declared edge order", {
+  fixture <- coupling_test_fixture(multivariate = TRUE)
+  regularization <- crossform:::.measurement_regularization(
+    "ridge", lambda_left = 0.05, lambda_right = 0.08
+  )
+  canonical <- crossform:::.canonical_coupling(fixture$form, regularization)
+  information <- crossform:::.gaussian_information(
+    fixture$form, regularization,
+    crossform:::.gaussian_covariance_model(
+      list(assumption = "joint Gaussian observations")
+    )
+  )
+  expect_identical(information$values$edge_id,
+    unique(canonical$values$edge_id))
 })

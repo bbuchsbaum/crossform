@@ -38,7 +38,12 @@ column \code{m + 1} of the operator and has no index row.}
 \item{row_mass}{Optional declared positive territory measure, one entry per
 native node. Defaults to the unit vector.}
 
-\item{tolerance}{Positive row-sum tolerance. Group mass above \code{1 + tolerance} on any row is refused rather than renormalized.}
+\item{tolerance}{Positive row-sum tolerance. Group mass above \code{1 + tolerance} on any row is refused rather than renormalized. A row whose
+group mass exceeds one by at most \code{tolerance} is treated as rounding: it
+is rescaled to unit mass (zero sink), and the rescaled rows, the largest
+excess and the tolerance are recorded in
+\code{provenance$row_renormalization}, so the sealed operator passes the
+fit-time budget certificate.}
 }
 \value{
 An \code{effect_location_transport} carrying \verb{$matrix} (the assembled

@@ -1,5 +1,5 @@
 joint_measurement_fixture <- function(seed = 2026081215,
-                                      crossvalidated = FALSE) {
+                                      crossvalidated = FALSE, h = NULL) {
   set.seed(seed)
   q <- 5L
   p <- 4L
@@ -11,7 +11,7 @@ joint_measurement_fixture <- function(seed = 2026081215,
     run2 = matrix(rnorm(q * p), q, p)
   )
   rel <- relation(values, effects = effects, domain = domain)
-  h <- diag(q) - matrix(1 / q, q, q)
+  if (is.null(h)) h <- diag(q) - matrix(1 / q, q, q)
   query <- crossform:::.variation_pair_query(
     h, effects, sampling_axis = "trial",
     construction = "joint_covariance",
@@ -211,6 +211,32 @@ test_that("reversal transposes blocks and swaps every measurement axis", {
       t(crossform:::.measurement_block(form, edge)), tolerance = 0)
   }
   expect_silent(crossform:::.validate_measurement_form(reversed))
+})
+
+test_that("reversing a variation form with round-off asymmetric H validates", {
+  h <- diag(5L) - matrix(1 / 5, 5L, 5L)
+  h[1L, 2L] <- h[1L, 2L] + 1e-13
+  fixture <- joint_measurement_fixture(h = h)
+  run <- crossform:::.run_measurement_contraction(fixture$task,
+    route = "pull_h")
+  form <- crossform:::.measurement_form_from_contraction(fixture$task, run,
+    query_construction = "psd_variation")
+  reversed <- crossform:::.reverse_measurement_form(form)
+  query <- reversed$plan$experimental_query
+  expect_identical(query$metadata$evidence_capability$operator,
+    unname(t(h)))
+  expect_silent(crossform:::.validate_measurement_form(reversed))
+  expect_silent(crossform:::.validate_variation_pair_query(query, "trial",
+    "psd_variation"))
+})
+
+test_that("block symmetry diagnostics are relative to the block scale", {
+  block <- matrix(c(1e6, 2e6, 2e6 + 1e-5, 3e6), 2L)
+  diagnostics <- crossform:::.measurement_block_diagnostics(
+    list(edge = block), diag(2L), crossform:::.measurement_regularization()
+  )
+  expect_true(diagnostics$blocks$symmetric_observed[[1L]])
+  expect_false(is.na(diagnostics$blocks$observed_min_eigenvalue[[1L]]))
 })
 
 test_that("swapped axes, incomplete stores, and forged plan identity fail", {

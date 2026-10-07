@@ -69,11 +69,23 @@ neuroim2_volume_domain <- function(mask, id = "neuroim2-volume") {
     spacing = as.numeric(neuroim2::spacing(mask))[1:3],
     id = id, coordinate_units = "mm",
     metadata = list(
-      neuroim2_space_sha256 = .sha256_string(
-        serialize(neuroim2::space(mask), NULL, version = 3)
-      )
+      neuroim2_space_sha256 = .neuroim2_space_signature(neuroim2::space(mask))
     )
   )
+}
+
+# The space identity is a hash of its semantic geometry, not of the
+# serialized S4 object: `serialize()` writes a header carrying the R version
+# and native encoding, so hashing its bytes gave the same space a different
+# identity under another R release or locale.
+.neuroim2_space_signature <- function(space) {
+  .sha256_signature(list(
+    dim = as.integer(dim(space)),
+    spacing = as.numeric(neuroim2::spacing(space)),
+    origin = as.numeric(neuroim2::origin(space)),
+    trans = unname(matrix(as.numeric(neuroim2::trans(space)),
+      nrow = nrow(neuroim2::trans(space))))
+  ))
 }
 
 # Both entry points in this file take a `NeuroVol` mask and an optional

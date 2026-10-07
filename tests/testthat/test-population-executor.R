@@ -396,6 +396,14 @@ test_that("`unit_budget` marks a participant whose signed total is below the dec
   expect_true(all(is.na(fit$values)))
   expect_false(any(fit$receipt$subjects$contributes))
   expect_identical(fit$receipt$unresolved_columns, 8L)
+  expect_identical(nrow(fit$receipt$unresolved_cells), 8L)
+  expect_true(all(fit$receipt$unresolved_cells$subjects ==
+    paste(names(sizes), collapse = "; ")))
+  printed <- paste(utils::capture.output(print(fit)), collapse = "\n")
+  expect_match(printed, "cells not estimated (non-finite in ", fixed = TRUE)
+  expect_match(printed, names(sizes)[[1L]], fixed = TRUE)
+  expect_identical(nrow(estimate_population(plan,
+    pex_bank())$receipt$unresolved_cells), 0L)
   expect_identical(fit$receipt$normalization$floor_criterion,
     "abs(native_total) > budget_floor * sum(abs(native_ledger))")
   # One admission per participant and query, reported as admissions rather
@@ -472,6 +480,21 @@ test_that("density transports the same values through the declared ratio", {
   expect_true(all(is.na(fit$coefficients["group3", , ])))
   expect_true(all(is.finite(fit$coefficients["group1", , ])))
   expect_gt(fit$receipt$unresolved_columns, 0L)
+
+  # The estimand is unchanged, but the receipt names who withheld each
+  # unresolved column from everyone: one row per column, with its node, its
+  # query and the participants whose value there was non-finite.
+  cells <- fit$receipt$unresolved_cells
+  expect_identical(names(cells), c("node", "readout", "subjects", "nonfinite"))
+  expect_identical(nrow(cells), fit$receipt$unresolved_columns)
+  expect_true(all(cells$node == "group3"))
+  expect_setequal(cells$readout, rownames(bank))
+  missing_at <- names(which(apply(!is.finite(fit$values["group3", , ,
+    drop = FALSE]), 3L, any)))
+  expect_gt(length(missing_at), 0L)
+  expect_lt(length(missing_at), length(pex_sizes))
+  expect_true(all(cells$subjects == paste(missing_at, collapse = "; ")))
+  expect_true(all(cells$nonfinite == length(missing_at)))
 
   oracle <- pex_dense_oracle(plan, bank)
   expect_identical(as.vector(is.finite(fit$coefficients)),

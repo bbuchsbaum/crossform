@@ -124,8 +124,8 @@ diagonal_precision <- function(relative_variance_floor = 1e-8,
 #'
 #' @inheritParams diagonal_precision
 #' @param shrinkage Fixed number in `(0, 1]`.
-#' @param relative_spectral_floor Positive minimum eigenvalue relative to the
-#'   local covariance scale.
+#' @param relative_spectral_floor Minimum eigenvalue relative to the local
+#'   covariance scale after the spectral ridge, in `[1e-10, 1)`.
 #' @return An `effect_metric_recipe` whose `$hyperparameters` record the
 #'   `fixed_shrinkage_to_residual_diagonal` estimator, the fixed
 #'   `shrinkage`, and the variance and spectral floors. It is not diagonal,
@@ -162,6 +162,16 @@ shrinkage_precision <- function(shrinkage = 0.1,
   .check_number(
     relative_spectral_floor, "relative_spectral_floor", positive = TRUE
   )
+  # Below the default metric tolerance the floored precision would itself be
+  # judged singular by `neural_metric()`; at one or above, no spectrum fits.
+  if (relative_spectral_floor < 1e-10 || relative_spectral_floor >= 1) {
+    .input_error(
+      "`relative_spectral_floor` must lie in [1e-10, 1).",
+      arg = "relative_spectral_floor",
+      received = format(relative_spectral_floor),
+      expected = "a number in [1e-10, 1)"
+    )
+  }
   floors <- .validate_metric_floor(
     relative_variance_floor, absolute_variance_floor
   )
@@ -694,6 +704,19 @@ compile_metric_schedule <- function(
   )
 }
 
+# The isotropic ridge `r` that lifts the smallest eigenvalue to the declared
+# floor *relative to the post-ridge scale*: adding `r` raises the scale too, so
+# `lambda_min + r >= f * (scale + r)` is solved for `r` rather than aiming at
+# `f * scale`. The target sits a relative 1e-3 above the floor, which keeps
+# the realized ratio, and that of the inverted precision, clear of the
+# eigensolver's rounding at the floor itself.
+.metric_spectral_ridge <- function(diagnostics, floor) {
+  target <- floor + 1e-3 * floor * (1 - floor)
+  ridge <- (target * diagnostics$scale - min(diagnostics$eigenvalues)) /
+    (1 - target)
+  max(0, ridge)
+}
+
 .metric_variance_floor <- function(covariance, recipe) {
   variance <- diag(covariance)
   positive <- variance[variance > 0]
@@ -747,15 +770,25 @@ compile_metric_schedule <- function(
     covariance <- (1 - alpha) * raw_covariance +
       alpha * diag(variance$value, dimension)
     before_ridge <- .metric_covariance_diagnostics(covariance)
-    target_minimum <- recipe$hyperparameters$relative_spectral_floor *
-      before_ridge$scale
-    ridge <- max(0, target_minimum - min(before_ridge$eigenvalues))
+    ridge <- .metric_spectral_ridge(
+      before_ridge, recipe$hyperparameters$relative_spectral_floor
+    )
     if (ridge > 0) covariance <- covariance + diag(ridge, dimension)
     precision_diagonal <- NULL
     factor <- chol(covariance)
     estimator <- "fixed_shrinkage_to_residual_diagonal"
   }
-  final_diagnostics <- .metric_covariance_diagnostics(covariance)
+  # The shrinkage recipe certifies its own declared floor; that floor is never
+  # below the default metric tolerance, so the materialized precision (whose
+  # condition number equals the covariance's) is positive definite as well.
+  final_diagnostics <- if (identical(recipe$kind,
+      "fixed_diagonal_shrinkage_precision")) {
+    .metric_covariance_diagnostics(
+      covariance, recipe$hyperparameters$relative_spectral_floor
+    )
+  } else {
+    .metric_covariance_diagnostics(covariance)
+  }
   if (!is.finite(final_diagnostics$condition)) {
     .invariant_error("Regularized local covariance is not positive definite.")
   }

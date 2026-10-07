@@ -78,7 +78,10 @@
 
 # Tiling ---------------------------------------------------------------------
 
-.tile_starts <- function(n, size) seq.int(1L, n, by = size)
+.tile_starts <- function(n, size) {
+  if (n < 1L) return(integer())
+  seq.int(1L, n, by = size)
+}
 
 .validate_tile_size <- function(x, name) {
   .check_count(x, name, what = "one positive integer")

@@ -123,6 +123,34 @@ test_that("event coverage failures name events and acquisition range", {
   expect_true(any(grepl("Observation coverage", refusal$reasons)))
 })
 
+test_that("the last volume covers one sampling interval after its onset", {
+  fixture <- bound_study_fixture()
+  table <- fixture$events$data
+  last_onset <- max(fixture$fixture$indexes[["run-2"]]$time)
+  selected <- table$partition == "run-2" & table$event_id == "run-2-event-3"
+  table$onset[selected] <- last_onset
+  table$duration[selected] <- 2
+  value <- study(
+    fixture$observations,
+    observation_events(table),
+    fixture$confounds,
+    fixture$hierarchy
+  )
+  expect_true(study_capabilities(value)$timing_resolved)
+  expect_identical(value$clock_coverage[["run-2"]]$observation_range,
+    c(0, last_onset))
+
+  table$duration[selected] <- 2.5
+  refusal <- catch_refusal(study(
+    fixture$observations,
+    observation_events(table),
+    fixture$confounds,
+    fixture$hierarchy
+  ))
+  expect_identical(refusal$capability, "timing_resolved")
+  expect_true(any(grepl("[0, 18]", refusal$reasons, fixed = TRUE)))
+})
+
 test_that("hierarchy supplies explicit axis vocabulary only", {
   fixture <- bound_study_fixture()
   value <- study(

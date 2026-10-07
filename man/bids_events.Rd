@@ -24,6 +24,11 @@ basename and content revision.
 The adapter preserves arbitrary BIDS columns and adds private partition and
 event-key columns required by the generic \code{\link[=observation_events]{observation_events()}} contract.
 Partition identity is explicit rather than inferred from filenames.
+\code{onset} and \code{duration} are converted to numbers; every other column is kept
+as text (so a \code{trial_type} of \code{"01"} stays \code{"01"}), including the BIDS
+missing marker \code{"n/a"}, because study facts must be complete. Runs with
+different optional columns are bound on the union of columns, filling
+absent values with \code{"n/a"}.
 }
 \examples{
 # Stand in for one run's events.tsv.

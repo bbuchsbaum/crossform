@@ -149,51 +149,86 @@
       effective_dimension = if (raw > 0) total^2 / raw else 0
     ))
   }
-  if (!.is_number(residual_df) || residual_df %% 1 != 0 || residual_df < 2L) {
+  if (!.is_number(residual_df) || residual_df %% 1 != 0 || residual_df < 1L) {
     .input_error(paste0(
-      "Residual degrees of freedom must be one integer of at least two when ",
-      "the residual covariance is a plug-in estimate."
+      "Residual degrees of freedom must be one positive integer when the ",
+      "residual covariance is a plug-in estimate."
     ))
   }
   nu <- as.double(residual_df)
-  value <- (nu^2 / ((nu - 1) * (nu + 2))) * (raw - total^2 / nu)
+  # At nu = 1 the (nu - 1) denominator vanishes and the estimator is
+  # undefined; `.require_sufficient_residual_df()` refuses rather than divide.
+  value <- if (nu >= 2) {
+    (nu^2 / ((nu - 1) * (nu + 2))) * (raw - total^2 / nu)
+  } else {
+    NA_real_
+  }
   list(
-    value = max(value, 0), corrected = TRUE, raw = raw,
+    value = if (is.na(value)) NA_real_ else max(value, 0),
+    corrected = TRUE, raw = raw,
     residual_df = as.integer(residual_df),
-    effective_dimension = if (value > 0) total^2 / value else Inf
+    effective_dimension = if (!is.na(value) && value > 0) {
+      total^2 / value
+    } else {
+      Inf
+    }
   )
 }
 
-# nu residual degrees of freedom buy information about at most nu residual
-# directions. When the support spends its variance on more directions than
-# that, no correction rescues tr(Sigma_w^2): the corrected estimator's own
-# sampling error is of the same order as the quantity, and its clamp at zero
-# turns an unusable estimate into a confidently small standard error. crossform
-# refuses rather than reporting one.
+# What the corrected estimator needs is fixed by the estimator itself, not by
+# a comparison of nu with the size of the support:
+#
+#   * nu >= 2, because the (nu - 1) denominator vanishes at nu = 1; and
+#   * a positive estimate. Since rank(S_w) <= nu, tr(S_w^2) >= tr(S_w)^2 / nu
+#     always, so the bracket is never negative. It is zero only when S_w is
+#     zero or exactly isotropic on nu directions, where the plug-in says
+#     nothing about tr(Sigma_w^2) and a zero noise term would turn into a
+#     confidently small standard error.
+#
+# There is deliberately NO requirement that P_eff <= nu. The estimator is
+# ratio-consistent as P / nu -> infinity (Srivastava 2005), and its relative
+# sampling error FALLS as P_eff grows. Simulated over Wishart draws with a
+# mildly anisotropic Sigma at nu = 10, the coefficient of variation of the
+# estimate of tr(Sigma_w^2) is about 0.94 at P_eff = 1, 0.55 at P_eff = 3.7,
+# 0.26 at P_eff = 41 and 0.19 at P_eff = 327; at P = 800, nu = 168 it is
+# about 0.014. The worst case is the voxelwise one (P_eff = 1), whose error is
+# that of an ordinary variance-of-a-variance at nu df and which has always
+# been admitted, so the old P_eff <= nu rule refused precisely the supports
+# the estimator handles best. The floor is the one the formula sets, nu >= 2;
+# no stricter policy is imposed on one support shape and not another.
 .require_sufficient_residual_df <- function(quadratic) {
   if (!isTRUE(quadratic$corrected)) return(invisible(NULL))
   nu <- quadratic$residual_df
-  effective <- quadratic$effective_dimension
-  if (is.finite(effective) && effective <= nu) return(invisible(NULL))
+  if (nu < 2L) {
+    .capability_refusal(sprintf(paste0(
+      "This measurement's residual covariance is estimated from %d residual ",
+      "degree of freedom, and the unbiased estimator of the noise term ",
+      "tr(Sigma^2) of the sampling law needs at least two; it is undefined ",
+      "here."
+    ), nu),
+      capability = "sufficient_residual_df",
+      namespace = "evidence_sampling",
+      reasons = "residual_df_below_two",
+      remedies = paste0(
+        "Fit more partitions or observations, which raises the residual df."
+      )
+    )
+  }
+  if (is.finite(quadratic$value) && quadratic$value > 0) {
+    return(invisible(NULL))
+  }
   .capability_refusal(sprintf(paste0(
-    "This measurement's residual covariance spreads over %s effective ",
-    "directions but only %d residual degrees of freedom estimate it, so the ",
-    "noise term tr(Sigma^2) of the sampling law cannot be estimated here. ",
-    "The reported standard error would be dominated by its own estimation ",
-    "error."
-  ),
-    if (is.finite(effective)) sprintf("%.1f", effective) else "more than nu",
-    nu
-  ),
+    "This measurement's plug-in residual covariance (%d residual degrees of ",
+    "freedom) is zero or exactly isotropic on its residual directions, so the ",
+    "unbiased estimate of the noise term tr(Sigma^2) of the sampling law is ",
+    "zero and carries no information. Reporting it would give a confidently ",
+    "small standard error."
+  ), nu),
     capability = "sufficient_residual_df",
     namespace = "evidence_sampling",
-    reasons = "residual_df_below_effective_dimension",
+    reasons = "noise_trace_estimate_nonpositive",
     remedies = c(
-      "Use a smaller support, so fewer residual directions carry variance.",
-      paste0(
-        "Regularize the metric (`shrinkage_precision()` or a diagonal ",
-        "metric), which concentrates the whitened residual covariance."
-      ),
+      "Check that the residuals are not identically zero (a saturated fit).",
       "Fit more partitions or observations, which raises the residual df."
     )
   )
@@ -220,7 +255,8 @@
     plan, contrasts, signal_patterns, effect_covariance,
     residual_covariance, normalization = ncol(signal_patterns),
     residual_df = NULL, labels = NULL, source = list(),
-    xi_factor = NULL, basis = "evidence") {
+    xi_factor = NULL, basis = "evidence",
+    signal_target = c("fixed", "partition_mean_plugin")) {
   .validate_evidence_sampling_plan(plan, deep = FALSE)
   .require_sampling_covariance(plan)
   plan_coordinates <-
@@ -245,13 +281,19 @@
       nrow(signal_patterns) != ncol(contrasts) || ncol(signal_patterns) < 1L ||
       !.is_finite_matrix(effect_covariance) ||
       !identical(dim(effect_covariance), as.integer(rep(ncol(contrasts), 2L))) ||
-      max(abs(effect_covariance - t(effect_covariance))) > 1e-10 ||
+      !.sampling_symmetric_within(effect_covariance) ||
       !.is_finite_matrix(residual_covariance) ||
       nrow(residual_covariance) != ncol(signal_patterns) ||
       ncol(residual_covariance) != ncol(signal_patterns) ||
-      max(abs(residual_covariance - t(residual_covariance))) > 1e-10) {
+      !.sampling_symmetric_within(residual_covariance)) {
     .input_error("Sampling components have incompatible or non-finite axes.")
   }
+  # Both arrive as products (`R S R'`, `C Sigma_K C'`) whose rounding leaves a
+  # last-bit asymmetry; the tolerance above is relative to their scale, and
+  # the exact symmetrization here makes everything downstream see one matrix.
+  effect_covariance <- 0.5 * (effect_covariance + t(effect_covariance))
+  residual_covariance <- 0.5 * (residual_covariance + t(residual_covariance))
+  signal_target <- match.arg(signal_target)
   if (!.is_number(normalization) || normalization <= 0) {
     .input_error(
       "Sampling covariance normalization must be one positive finite value."
@@ -285,8 +327,17 @@
   )
   .require_sufficient_residual_df(quadratic)
   noise_trace <- quadratic$value / normalization^2
-  signal_factor <- (contrasts %*% signal_patterns %*% residual_root) /
-    normalization
+  if (identical(signal_target, "partition_mean_plugin")) {
+    debiased <- .sampling_debiased_plugin_signal(
+      signal_patterns, residual_root, effect_covariance, quadratic$value,
+      plan$partition$count
+    )
+    signal_factor <- (contrasts %*% debiased$root) / normalization
+  } else {
+    debiased <- NULL
+    signal_factor <- (contrasts %*% signal_patterns %*% residual_root) /
+      normalization
+  }
   .sampling_covariance_form(
     plan,
     signal_factor = signal_factor,
@@ -307,7 +358,80 @@
         "known_residual_covariance"
       },
       residual_effective_dimension = quadratic$effective_dimension
+    ), if (!is.null(debiased)) list(
+      signal_target_correction = "partition_mean_bias_removed",
+      signal_clamped_directions = debiased$clamped
     ))
+  )
+}
+
+# Relative symmetry: a covariance built as `R S R'` from data on any scale
+# carries a rounding asymmetry proportional to its own magnitude, so an
+# absolute tolerance refuses well-formed input merely for being large.
+.sampling_symmetric_within <- function(value, tolerance = 1e-10) {
+  scale <- max(abs(value))
+  max(abs(value - t(value))) <= tolerance * scale
+}
+
+# The `partition_mean_plugin` target substitutes the partition mean of the
+# whitened estimates, B_bar, for the unknown signal. Each partition estimate
+# is B + E_m with Cov(vec E_m) = Sigma_K (x) Sigma_w, so B_bar carries noise
+# Sigma_K (x) Sigma_w / M and, with S_w independent of B_bar and unbiased,
+#
+#   E[B_bar S_w B_bar'] = B Sigma_w B' + Sigma_K tr(Sigma_w^2) / M.
+#
+# Taken at face value the signal term (4 / M) Xi_rs (C H C')_rs therefore
+# carries an extra 4 Xi_rs^2 tr(Sigma_w^2) / M^2. Against the noise term
+# 2 Xi_rs^2 tr(Sigma_w^2) / (M (M - 1)) that is a ratio of 2 (M - 1) / M, so
+# the plug-in roughly TRIPLES the noise contribution under weak signal; it is
+# not a mild O(M^-2) effect. The unbiased signal Gram subtracts the bias with
+# the unbiased estimate of tr(Sigma_w^2) already used by the noise term:
+#
+#   H_hat = B_bar S_w B_bar' - Sigma_K trhat(Sigma_w^2) / M.
+#
+# H_hat need not be positive semidefinite (it rarely is when the true signal
+# is weak), and an indefinite H_hat can make whole variances negative, which
+# the factorized form cannot carry. It is projected onto the PSD cone in the
+# Sigma_K-whitened coordinates: with Z = Sigma_K^{-1/2} H Sigma_K^{-1/2},
+# the eigenvalues of Z are replaced by max(lambda - trhat / M, 0). That is the
+# positive-part estimator of the signal-to-noise spectrum. It is exactly
+# unbiased whenever no eigenvalue is clamped, and in the Loewner order it
+# always lies between H_hat and the raw plug-in H, so it is never more biased
+# upward than the plug-in it replaces. Where Sigma_K is singular the
+# projection falls back to the Euclidean one on H_hat.
+.sampling_debiased_plugin_signal <- function(signal_patterns, residual_root,
+                                             effect_covariance, noise_trace,
+                                             partitions) {
+  pattern <- signal_patterns %*% residual_root
+  gram <- tcrossprod(pattern)
+  gram <- 0.5 * (gram + t(gram))
+  shift <- noise_trace / partitions
+  spectrum <- eigen(effect_covariance, symmetric = TRUE)
+  scale <- max(abs(spectrum$values))
+  if (min(spectrum$values) > 1e-10 * scale) {
+    root <- spectrum$vectors %*% diag(sqrt(spectrum$values),
+      length(spectrum$values)) %*% t(spectrum$vectors)
+    inverse_root <- spectrum$vectors %*% diag(1 / sqrt(spectrum$values),
+      length(spectrum$values)) %*% t(spectrum$vectors)
+    whitened <- inverse_root %*% gram %*% inverse_root
+    whitened <- 0.5 * (whitened + t(whitened))
+    inner <- eigen(whitened, symmetric = TRUE)
+    values <- inner$values - shift
+    vectors <- root %*% inner$vectors
+  } else {
+    inner <- eigen(gram - effect_covariance * shift, symmetric = TRUE)
+    values <- inner$values
+    vectors <- inner$vectors
+  }
+  retained <- values > 0
+  clamped <- sum(!retained)
+  if (!any(retained)) {
+    return(list(root = matrix(0, nrow(gram), 1L), clamped = clamped))
+  }
+  list(
+    root = vectors[, retained, drop = FALSE] %*%
+      diag(sqrt(values[retained]), sum(retained)),
+    clamped = as.integer(clamped)
   )
 }
 

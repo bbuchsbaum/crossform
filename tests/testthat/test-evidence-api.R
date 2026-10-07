@@ -330,3 +330,30 @@ test_that("public reconstruction distinguishes exact and projected results", {
     form, between, workspace_bytes = 1
   ), "exceeding", class = "effect_input_error")
 })
+
+test_that("relation sameness is identity, not R object identity", {
+  # A copy of the left relation that differs only in an attribute is the
+  # same relation. `identical(left, right)` used to call it distinct, and the
+  # joint-covariance claim, which needs same-relation self-products, refused.
+  fixture <- public_measurement_fixture()
+  over <- pairing(
+    fixture$rel$partitions, fixture$rel$partitions,
+    directed = TRUE, self_pairs = "allow_biased",
+    independence = "not_independent"
+  )
+  copy <- fixture$rel
+  attr(copy, "note") <- "annotated copy"
+
+  reference <- measurement_form(
+    left = fixture$rel, between = fixture$between, by = fixture$by,
+    over = over, route = "pull_h"
+  )
+  annotated <- measurement_form(
+    left = fixture$rel, between = fixture$between, by = fixture$by,
+    over = over, right = copy, route = "pull_h"
+  )
+  expect_identical(annotated$task_id, reference$task_id)
+  expect_equal(
+    effect_coupling(annotated)$values, effect_coupling(reference)$values
+  )
+})

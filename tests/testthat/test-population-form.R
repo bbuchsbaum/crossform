@@ -239,6 +239,14 @@ test_that("the commutation survives density semantics and its NA group node", {
 
   expect_false(form$receipt$budget$asserted)
   expect_gt(form$receipt$unresolved_columns, 0L)
+  # Each unresolved column is traced to the participants that withheld it,
+  # across every coordinate tile.
+  cells <- form$receipt$unresolved_cells
+  expect_identical(nrow(cells), form$receipt$unresolved_columns)
+  expect_true(all(nzchar(cells$subjects)))
+  expect_true(all(cells$readout %in% dimnames(form$coefficient_forms)[[3L]]))
+  tiled <- materialize_population(plan, coordinate_tile = 1L)
+  expect_identical(tiled$receipt$unresolved_cells, cells)
 })
 
 

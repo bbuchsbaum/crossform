@@ -19,7 +19,8 @@ tomography_frame_from_operator <- function(operator, domain, node_widths,
 }
 
 tomography_self_fixture <- function(
-    kind = c("parseval", "general", "deficient", "ill_conditioned"),
+    kind = c("parseval", "general", "deficient", "ill_conditioned",
+             "moderate", "steep"),
     complete = TRUE, seed = 2026081226) {
   kind <- match.arg(kind)
   set.seed(seed)
@@ -48,13 +49,19 @@ tomography_self_fixture <- function(
       1, 0, 0,
       0, 1, 0
     ), 2L, 3L, byrow = TRUE),
-    ill_conditioned = diag(c(1, 1e-12))
+    ill_conditioned = diag(c(1, 1e-12)),
+    moderate = qr.Q(qr(matrix(rnorm(9L), 3L))) %*% diag(c(1, 1e-2, 1e-4)) %*%
+      t(qr.Q(qr(matrix(rnorm(9L), 3L)))),
+    steep = qr.Q(qr(matrix(rnorm(9L), 3L))) %*% diag(c(1, 1e-3, 1e-6)) %*%
+      t(qr.Q(qr(matrix(rnorm(9L), 3L))))
   )
   widths <- switch(kind,
     parseval = c(2L, 1L),
     general = c(2L, 2L),
     deficient = c(1L, 1L),
-    ill_conditioned = 2L
+    ill_conditioned = 2L,
+    moderate = c(2L, 1L),
+    steep = c(2L, 1L)
   )
   frame <- tomography_frame_from_operator(
     operator, domain, widths, paste0("tomography:", kind)
@@ -285,6 +292,70 @@ test_that("diagonal-only blocks and incompatible bases cannot claim tomography",
   expect_error(crossform:::.reconstruct_neural_evidence(
     complete$form, altered
   ), "do not match.*bases", class = "effect_contract_error")
+})
+
+test_that("certification tolerance scales with the frames' conditioning", {
+  # Condition number 1e4 on both sides: round-off in the reconstructed
+  # operator is of order 1e8 * eps, above the 1e-10 SVD cutoff but well
+  # inside what a correct reconstruction can deliver.
+  fixture <- tomography_self_fixture("moderate", seed = 7L)
+  result <- crossform:::.reconstruct_neural_evidence(
+    fixture$form, fixture$frame,
+    reference_operator = fixture$reference
+  )
+  expect_identical(result$status,
+    "numerically_certified_exact_reconstruction")
+  expect_gt(result$diagnostics$relative_reconstruction_residual, 1e-10)
+  expect_lte(result$diagnostics$relative_reconstruction_residual,
+    result$diagnostics$certification_tolerance)
+  expect_equal(result$diagnostics$certification_tolerance,
+    10 * result$diagnostics$left$condition_number *
+      result$diagnostics$right$condition_number * .Machine$double.eps)
+
+  # A wrong reference is still caught.
+  error <- tryCatch(
+    crossform:::.reconstruct_neural_evidence(
+      fixture$form, fixture$frame,
+      reference_operator = fixture$reference + diag(3)
+    ),
+    effect_tomography_rejection = identity
+  )
+  expect_s3_class(error, "effect_tomography_rejection")
+  expect_match(conditionMessage(error), "reference check")
+})
+
+test_that("tomography refuses to certify past its round-off ceiling", {
+  # Condition number 1e6 on both sides is admitted by `max_condition`, but
+  # round-off alone then allows a relative residual of about 2e-3, which no
+  # reference check can call a certificate.
+  fixture <- tomography_self_fixture("steep", seed = 7L)
+  error <- tryCatch(
+    crossform:::.reconstruct_neural_evidence(
+      fixture$form, fixture$frame,
+      reference_operator = fixture$reference
+    ),
+    effect_tomography_rejection = identity
+  )
+  expect_s3_class(error, "effect_tomography_rejection")
+  expect_match(conditionMessage(error), "too ill-conditioned to certify")
+  # Without a reference there is nothing to certify, so it still reconstructs.
+  result <- crossform:::.reconstruct_neural_evidence(
+    fixture$form, fixture$frame
+  )
+  expect_identical(result$status, "exact_algebraic_reconstruction")
+})
+
+test_that("tomography resource plans count every dense allocation", {
+  fixture <- tomography_self_fixture("general")
+  plan <- crossform:::.tomography_resource_plan(
+    fixture$form, fixture$frame, fixture$frame
+  )
+  m <- 4
+  p <- 3
+  expect_equal(plan$component_bytes[["projections"]], 3 * 2 * p^2 * 8)
+  expect_equal(plan$component_bytes[["svd_workspace"]],
+    2 * (m * p + (m + p) * min(m, p)) * 8)
+  expect_equal(plan$planned_workspace_bytes, sum(plan$component_bytes))
 })
 
 test_that("ill-conditioning is rejected with frame diagnostics", {

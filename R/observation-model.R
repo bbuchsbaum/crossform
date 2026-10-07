@@ -204,7 +204,7 @@ observation_model <- function(
       matrix <- whiteners[[partition]]
       retained <- retained_rows[[partition]]
       if (nrow(matrix) == full_rows[[partition]]) {
-        matrix <- matrix[retained, retained, drop = FALSE]
+        matrix <- .restrict_whitener(matrix, retained, partition)
       } else if (nrow(matrix) != length(retained)) {
         .study_refusal(
           sprintf("Partition `%s` whitener does not match its observation rows.",
@@ -221,4 +221,41 @@ observation_model <- function(
     }
   }
   list(sampling_unit = sampling, whiteners = whiteners)
+}
+
+# Whiteners act as `W %*% y`, so the declared error precision is
+# `crossprod(W)` and the covariance is its inverse. Censoring rows of a
+# non-diagonal whitener is not sub-indexing: the retained rows have covariance
+# `Sigma[r, r]`, whose whitener `chol(solve(Sigma[r, r]))` generally differs
+# from `W[r, r]`. A diagonal whitener restricts exactly by sub-indexing.
+.restrict_whitener <- function(matrix, retained, partition) {
+  if (length(retained) == nrow(matrix) &&
+      identical(as.integer(retained), seq_len(nrow(matrix)))) {
+    return(matrix)
+  }
+  off_diagonal <- matrix
+  diag(off_diagonal) <- 0
+  if (all(off_diagonal == 0)) {
+    return(matrix[retained, retained, drop = FALSE])
+  }
+  restricted <- tryCatch({
+    covariance <- solve(crossprod(matrix))
+    retained_precision <- solve(covariance[retained, retained, drop = FALSE])
+    retained_precision <- (retained_precision + t(retained_precision)) / 2
+    chol(retained_precision)
+  }, error = function(e) NULL)
+  if (is.null(restricted) || any(!is.finite(restricted))) {
+    .study_refusal(
+      sprintf("Partition `%s` whitener cannot be restricted to retained rows.",
+        partition),
+      capability = "aligned_observations",
+      reasons = paste(
+        "The full-axis whitener is not invertible, so the covariance of the",
+        "retained observations cannot be recovered."
+      ),
+      remedies = "Supply a whitener on the retained observation axis."
+    )
+  }
+  dimnames(restricted) <- dimnames(matrix[retained, retained, drop = FALSE])
+  restricted
 }

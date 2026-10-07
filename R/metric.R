@@ -60,7 +60,9 @@
   }
   value <- as.matrix(value)
   storage.mode(value) <- "double"
-  scale <- max(1, max(abs(value)))
+  # Relative to the matrix's own magnitude, so a small-scale metric is not
+  # judged against an absolute unit; `double.xmin` only guards the zero matrix.
+  scale <- max(abs(value), .Machine$double.xmin)
   if (max(abs(value - t(value))) > tolerance * scale) {
     .input_error(
       sprintf("%s must be symmetric within the declared tolerance.", label)
@@ -103,7 +105,7 @@
 
 .metric_spectrum <- function(value, tolerance) {
   eigenvalues <- eigen(value, symmetric = TRUE, only.values = TRUE)$values
-  scale <- max(1, max(abs(eigenvalues)), max(abs(diag(value))))
+  scale <- max(abs(eigenvalues), abs(diag(value)), .Machine$double.xmin)
   list(
     values = eigenvalues,
     scale = scale,
@@ -535,7 +537,7 @@ metric_capabilities <- function(x) {
   value <- metric$value
   decomposition <- eigen(value, symmetric = TRUE)
   eigenvalues <- decomposition$values
-  scale <- max(1, max(abs(eigenvalues)), max(abs(diag(value))))
+  scale <- max(abs(eigenvalues), abs(diag(value)), .Machine$double.xmin)
   floor <- metric$tolerance * scale
   if (min(eigenvalues) <= floor) {
     position <- which.min(eigenvalues)
@@ -956,13 +958,21 @@ coherent_functional <- function(value, domain, support = NULL,
     position <- .msg_measurement_index(
       position, nrow(frame$weights), argument = argument, subject = "frame"
     )
-    if (!is.null(support_index)) {
+    if (!is.null(support_index) && is.null(row_weights)) {
+      # A dense frame may still carry a support index; read its row at the
+      # authoritative support order rather than through absent CSR slots.
+      support_positions <- .support_index_support_trusted(
+        support_index, position
+      )
+      weight <- as.numeric(frame$weights[position, support_positions])
+    } else if (!is.null(support_index)) {
       support_positions <- .support_index_support_trusted(
         support_index, position
       )
       first <- row_weights@p[[position]] + 1L
       last <- row_weights@p[[position + 1L]]
-      slots <- seq.int(first, last)
+      # `seq.int(first, last)` would count down on an empty row.
+      slots <- seq_len(last - first + 1L) + first - 1L
       columns <- row_weights@j[slots] + 1L
       weights <- row_weights@x[slots]
       matched <- match(support_positions, columns)
@@ -975,7 +985,7 @@ coherent_functional <- function(value, domain, support = NULL,
     } else if (!is.null(row_weights)) {
       first <- row_weights@p[[position]] + 1L
       last <- row_weights@p[[position + 1L]]
-      slots <- seq.int(first, last)
+      slots <- seq_len(last - first + 1L) + first - 1L
       support_positions <- as.integer(row_weights@j[slots] + 1L)
       weight <- as.numeric(row_weights@x[slots])
     } else {
@@ -1011,7 +1021,10 @@ coherent_functional <- function(value, domain, support = NULL,
     # This is the exact diagonal specialization of
     # D(sqrt(w)) K D(sqrt(w)).  Besides avoiding a dense outer product, it
     # preserves the existing additive weights without a sqrt/square round trip.
-    diag(node_value$weight * diag(metric$value))
+    # `nrow` keeps a one-feature node a 1 x 1 matrix: `diag()` of a bare
+    # scalar would build an identity of that (truncated) size instead.
+    diag(node_value$weight * diag(metric$value),
+      nrow = length(node_value$weight))
   } else {
     metric$value * tcrossprod(root_weight)
   }

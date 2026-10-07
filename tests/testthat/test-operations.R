@@ -82,6 +82,18 @@ test_that("edge transforms carry exactly the policy their kind requires", {
   expect_identical(clipped$boundary, "clip")
   expect_identical(clipped$delta, 1e-6)
 
+  edges <- matrix(c(0.3, -0.2, 0.9, 0.1), 2,
+    dimnames = list(c("a", "b"), c("x", "y")))
+  expect_identical(
+    dimnames(crossform:::.apply_edge_transform(edges, rank_edges())),
+    dimnames(edges)
+  )
+  edges[2, 2] <- NA
+  for (transform in list(strict, clipped)) {
+    expect_error(crossform:::.apply_edge_transform(edges, transform),
+      "missing value", class = "effect_input_error")
+  }
+
   ranked <- rank_edges()
   expect_identical(ranked$kind, "rank_edges")
   expect_identical(ranked$ties, "average")

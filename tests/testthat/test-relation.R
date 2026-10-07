@@ -13,6 +13,22 @@ test_that("precomputed effect matrices form an identity relation", {
     runs$run2[, c(2, 5)], tolerance = 0)
 })
 
+test_that("partition names are filled only when every source is unnamed", {
+  effects <- c("face", "house")
+  block <- matrix(1:10, 2, 5, dimnames = list(effects, NULL))
+  unnamed <- relation(list(block, block), effects = effects)
+  expect_identical(unnamed$partitions, c("partition1", "partition2"))
+  blank <- relation(stats::setNames(list(block, block), c("", "")),
+    effects = effects)
+  expect_identical(blank$partitions, c("partition1", "partition2"))
+
+  expect_error(
+    relation(stats::setNames(list(block, block), c("run1", "")),
+      effects = effects),
+    "unique nonempty", class = "effect_input_error"
+  )
+})
+
 test_that("named precomputed partitions align to the declared effect space", {
   space <- effect_space(c("face", "house"), basis_id = "conditions:v1",
     units = "percent-signal")

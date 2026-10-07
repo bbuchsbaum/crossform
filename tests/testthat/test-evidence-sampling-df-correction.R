@@ -198,9 +198,31 @@ test_that("the correction is the Wishart-unbiased quadratic estimator", {
   expect_equal(known$value, truth)
 })
 
-test_that("too few residual df for the support is a capability refusal", {
-  # Two runs of a short design over a large support: the residual covariance
-  # spreads over more effective directions than the residual df can estimate.
+test_that("the estimator stays ratio-consistent when P_eff exceeds nu", {
+  # The rule this replaces refused whenever P_eff > nu. The Srivastava-type
+  # estimator does not need P_eff <= nu: its relative error FALLS as P_eff
+  # grows. Wishart draws only, no crossform code path in the estimate.
+  features <- 200L
+  degrees <- 20L
+  set.seed(20261006L)
+  sigma <- diag(seq(1, 0.2, length.out = features))
+  root <- sqrt(sigma)
+  truth <- sum(sigma * sigma)
+  ratio <- vapply(seq_len(200L), function(draw) {
+    noise <- matrix(rnorm(degrees * features), degrees, features) %*% root
+    crossform:::.sampling_unbiased_noise_trace(
+      crossprod(noise) / degrees, degrees
+    )$value / truth
+  }, numeric(1))
+  expect_equal(mean(ratio), 1, tolerance = 0.03)
+  expect_lt(stats::sd(ratio), 0.2)
+})
+
+test_that("a support wider than the residual df is admitted", {
+  # Three runs of a short design over a large support: P = 60 features
+  # against nu = 27 residual df. This used to refuse as
+  # `residual_df_below_effective_dimension`; the estimator is ratio-
+  # consistent here, so the law is reported, with both numbers on it.
   features <- 60L
   conditions <- 3L
   labels <- letters[seq_len(conditions)]
@@ -222,14 +244,37 @@ test_that("too few residual df for the support is a capability refusal", {
     cross_partitions(fit$relation, independence = "independent")
   )
 
-  refusal <- catch_refusal(
-    rdm_sampling_covariance(plan, fit, target = "null", at = 1L)
-  )
+  covariance <- rdm_sampling_covariance(plan, fit, target = "null", at = 1L)
 
-  expect_s3_class(refusal, "effect_capability_refusal")
-  expect_identical(refusal$capability, "sufficient_residual_df")
-  expect_identical(refusal$namespace, "evidence_sampling")
-  expect_identical(refusal$reasons, "residual_df_below_effective_dimension")
-  expect_match(conditionMessage(refusal), "residual degrees of freedom")
-  expect_match(refusal$remedies, "smaller support", all = FALSE)
+  expect_s3_class(covariance, "effect_sampling_covariance")
+  expect_identical(covariance$source$residual_df, 27L)
+  expect_gt(covariance$source$residual_effective_dimension,
+    covariance$source$residual_df)
+  expect_gt(covariance$noise_trace, 0)
+  expect_true(all(is.finite(sampling_covariance(covariance))))
+})
+
+test_that("the residual-df refusal is grounded in the estimator", {
+  # nu = 1 makes the (nu - 1) denominator vanish: undefined, so refused.
+  undefined <- catch_refusal(crossform:::.require_sufficient_residual_df(
+    crossform:::.sampling_unbiased_noise_trace(diag(3), 1L)
+  ))
+  expect_s3_class(undefined, "effect_capability_refusal")
+  expect_identical(undefined$capability, "sufficient_residual_df")
+  expect_identical(undefined$namespace, "evidence_sampling")
+  expect_identical(undefined$reasons, "residual_df_below_two")
+
+  # A zero plug-in residual covariance (a saturated fit) estimates
+  # tr(Sigma^2) as zero, which would be a confidently small standard error.
+  degenerate <- catch_refusal(crossform:::.require_sufficient_residual_df(
+    crossform:::.sampling_unbiased_noise_trace(matrix(0, 4, 4), 10L)
+  ))
+  expect_identical(degenerate$capability, "sufficient_residual_df")
+  expect_identical(degenerate$reasons, "noise_trace_estimate_nonpositive")
+  expect_match(conditionMessage(degenerate), "residual degrees of freedom")
+
+  # nu = 2 is the floor and is admitted.
+  expect_null(crossform:::.require_sufficient_residual_df(
+    crossform:::.sampling_unbiased_noise_trace(diag(c(2, 1)), 2L)
+  ))
 })

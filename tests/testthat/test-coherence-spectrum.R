@@ -124,6 +124,22 @@ test_that("the plan route and the evaluated-view route agree exactly", {
     "frame family", fixed = TRUE)
 })
 
+test_that("scales that print alike at 15 digits stay distinct groups", {
+  fixture <- spectrum_plan(spectrum_smooth_signal(), id = "d5-close-scales")
+  view <- contrast_energy(fixture$plan, spectrum_contrast)
+  metadata <- fixture$frame$index
+  reference <- coherence_spectrum(view, using = metadata)
+  # 0.3 and 0.1 + 0.2 are distinct doubles that format identically.
+  metadata$scale[metadata$scale == 0.5] <- 0.3
+  metadata$scale[metadata$scale == 1.01] <- 0.1 + 0.2
+  spectrum <- coherence_spectrum(view, using = metadata)
+
+  expect_identical(length(spectrum$total), 3L)
+  expect_identical(anyDuplicated(spectrum$index$measurement), 0L)
+  expect_identical(spectrum$total, reference$total)
+  expect_identical(spectrum$coherent, reference$coherent)
+})
+
 # (a) A point effect: the share falls as the neighborhood outgrows it --------
 
 test_that("a single-voxel effect loses coherent share as the radius grows", {

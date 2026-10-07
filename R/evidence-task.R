@@ -471,14 +471,16 @@
     experimental_boundary, neural_boundary, stages, materialization) {
   .validate_relation(left_relation)
   .validate_relation(right_relation)
+  # Validated before its first use, so a malformed flag is refused rather
+  # than read through `isTRUE()` as FALSE.
+  if (!.is_flag(same_relation)) {
+    .input_error("Evidence-task `same_relation` must be TRUE or FALSE.")
+  }
   left_relation$capabilities <- .relation_source_capabilities(left_relation)
-  right_relation$capabilities <- if (isTRUE(same_relation)) {
+  right_relation$capabilities <- if (same_relation) {
     left_relation$capabilities
   } else {
     .relation_source_capabilities(right_relation)
-  }
-  if (!.is_flag(same_relation)) {
-    .input_error("Evidence-task `same_relation` must be TRUE or FALSE.")
   }
   left_id <- .relation_family_identity(left_relation)
   right_id <- if (same_relation) left_id else

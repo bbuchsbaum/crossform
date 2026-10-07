@@ -447,7 +447,9 @@ alongside `normalization`.
 **The target is part of that declaration, not a footnote.** Documented on the
 `target` parameter of `rdm_sampling_covariance()`: because `"plugin"`
 substitutes the partition mean of the *estimates* for the unknown signal, its
-signal term is biased upward by `4Ξ_rs² tr(Σ_wΣ_w)/M²`, while `"null"` is
+face-value signal term is biased upward by `4Ξ_rs² tr(Σ_wΣ_w)/M²`; the
+implementation subtracts that bias and clamps the corrected signal Gram at
+zero, so it is unbiased only where nothing is clamped, while `"null"` is
 exact. Two blocks agreeing on every other field but differing in target are
 therefore **not** interchangeable inputs to a precision: a `π` built from one
 and weighed against a `π` built from the other reweights subjects by an

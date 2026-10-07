@@ -459,6 +459,33 @@ test_that("every printed and tabulated surface carries the uncalibrated label", 
   expect_output(print(fit), "population_uncertainty")
 })
 
+test_that("the within layer refuses a component its covariance does not describe", {
+  # `rdm_sampling_covariance()` is the law of the crossvalidated distance --- the
+  # total geometry. Carrying it beside a coherent or configuration ledger
+  # would print the total's error bars under another estimand's name.
+  built <- list(u01 = pu_subject("u01", 4L, 41L), u02 = pu_subject("u02", 5L, 52L))
+  plan <- plan_population(
+    lapply(built, `[[`, "plan"),
+    lapply(built, function(value) pu_carrier(value$features))
+  )
+  uncertainty <- lapply(built, function(value)
+    rdm_sampling_covariance(value$plan, value$fit, target = "null",
+      at = seq_len(value$features)))
+  for (component in c("coherent", "configuration")) {
+    refusal <- catch_refusal(estimate_population(plan, pu_bank(),
+      component = component, uncertainty = uncertainty))
+    expect_s3_class(refusal, "effect_capability_refusal")
+    expect_identical(refusal$capability, "component_sampling_covariance")
+    expect_true(paste0("requested_component:", component) %in%
+      refusal$reasons)
+    # The point estimate and the between-subject layer stay available.
+    fit <- estimate_population(plan, pu_bank(), component = component)
+    expect_null(fit$uncertainty$within)
+  }
+  total <- estimate_population(plan, pu_bank(), uncertainty = uncertainty)
+  expect_false(is.null(total$uncertainty$within))
+})
+
 test_that("the reader verb validates its own arguments", {
   fit <- estimate_population(pu_population(pu_sizes, pu_gains), pu_bank())
   expect_error(population_uncertainty(fit, term = "absent"), "term")
@@ -468,6 +495,11 @@ test_that("the reader verb validates its own arguments", {
     dim(population_uncertainty(fit, term = "(Intercept)")$between$se)[[3L]], 1L
   )
   expect_identical(population_uncertainty(fit, term = 1L)$term, "(Intercept)")
+  expect_identical(population_uncertainty(fit, term = 1)$term, "(Intercept)")
+  # A fractional position selects no column; it is refused, not truncated.
+  expect_error(population_uncertainty(fit, term = 1.5), "whole-number")
+  expect_error(population_uncertainty(fit, term = 0), "term")
+  expect_error(population_uncertainty(fit, term = 2L), "term")
   expect_error(population_uncertainty(fit$receipt), "effect_population_result")
 
   # The level moves the interval and nothing else.

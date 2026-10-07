@@ -418,3 +418,20 @@ test_that("a metadata table must cover every measurement exactly once", {
   expect_error(contribution(view, by = "family", using = "family"),
     "must be a nonempty data frame", class = "effect_input_error")
 })
+
+test_that("numeric group keys that print alike are not merged", {
+  fixture <- contribution_relation(id = "d4-close-keys")
+  labels <- rep(paste0("r", 1:4), each = 3L)
+  frame <- compile_frame(regions(labels, "conservative"), fixture$domain)
+  view <- contribution_view(fixture, frame)
+  # 0.3 and 0.1 + 0.2 are distinct doubles that format identically.
+  by <- c(0.3, 0.1 + 0.2, 0.3, 1)
+  ledger <- contribution(view, by = by)
+
+  expect_identical(length(ledger$total), 3L)
+  expect_identical(anyDuplicated(ledger$index$measurement), 0L)
+  expect_identical(ledger$index$n_rows, c(2L, 1L, 1L))
+  expect_equal(ledger$total,
+    c(sum(view$total[c(1L, 3L)]), view$total[[2L]], view$total[[4L]]),
+    tolerance = 1e-12)
+})

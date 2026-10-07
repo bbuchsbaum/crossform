@@ -633,6 +633,9 @@ NULL
         match(reference$block_index$edge_id, result$values$edge_id)
       ]
     }, numeric(nrow(reference$block_index)))
+    # vapply() drops a one-edge result to a vector; keep it edges x forms.
+    correlations <- matrix(correlations,
+      nrow = nrow(reference$block_index), ncol = length(forms))
     transformed <- apply(correlations, 2L, function(value) {
       drop(.apply_edge_transform(matrix(value, ncol = 1L), transform))
     })
@@ -805,9 +808,11 @@ NULL
   units <- match.arg(units)
   model <- .validate_gaussian_covariance_model(model)
   canonical <- .canonical_coupling(x, regularization, tolerance)
+  # Keep the declared edge order; a character split would sort it.
   split_values <- split(
     canonical$values$canonical_correlation,
-    canonical$values$edge_id
+    factor(canonical$values$edge_id,
+      levels = unique(canonical$values$edge_id))
   )
   rows <- lapply(names(split_values), function(edge_id) {
     rho <- split_values[[edge_id]]

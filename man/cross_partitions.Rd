@@ -8,7 +8,8 @@ cross_partitions(partitions, independence = NULL, generalizes_over = NULL)
 }
 \arguments{
 \item{partitions}{Partition identifiers or an \code{effect_relation}. Pass
-\code{fit$relation} when starting from \code{lm_relation_fit()}.}
+\code{fit$relation} when starting from \code{lm_relation_fit()}. Identifiers must be
+unique; a repeated identifier is refused rather than collapsed.}
 
 \item{independence}{Explicit endpoint-independence declaration. Leaving it
 \code{NULL} preserves a point estimand but does not earn cross-generalized or

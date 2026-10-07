@@ -83,7 +83,12 @@
 #' @param row_mass Optional declared positive territory measure, one entry per
 #'   native node. Defaults to the unit vector.
 #' @param tolerance Positive row-sum tolerance. Group mass above `1 +
-#'   tolerance` on any row is refused rather than renormalized.
+#'   tolerance` on any row is refused rather than renormalized. A row whose
+#'   group mass exceeds one by at most `tolerance` is treated as rounding: it
+#'   is rescaled to unit mass (zero sink), and the rescaled rows, the largest
+#'   excess and the tolerance are recorded in
+#'   `provenance$row_renormalization`, so the sealed operator passes the
+#'   fit-time budget certificate.
 #' @return An `effect_location_transport` carrying `$matrix` (the assembled
 #'   sparse operator, sink included), `$native_index`, `$group_index`,
 #'   `$semantics`, `$row_mass`, `$provenance`, and a content-addressed
@@ -196,6 +201,37 @@ location_transport <- function(matrix, native_index, group_index, semantics,
     ), worst, format(1 - deficit[[worst]])), arg = "matrix",
       received = sprintf("worst row mass %s", format(max(1 - deficit))),
       expected = "row mass at most one")
+  }
+  # A row whose group mass exceeds one by no more than `tolerance` is
+  # rounding in whatever program wrote the operator, not a declaration of
+  # negative sink mass. Leaving it as stated would admit a row summing to
+  # `1 + tolerance` that the fit-time budget certificate (relative tolerance
+  # `1e-12`, section 2) then refuses, so the constructor rescales such a row to
+  # unit mass here --- once, visibly, in `provenance$row_renormalization` ---
+  # and the operator it seals is row-stochastic to rounding.
+  excess <- which(deficit < 0)
+  if (length(excess)) {
+    if (!is.null(provenance$row_renormalization)) {
+      .input_error(paste0(
+        "`provenance$row_renormalization` is where the constructor records ",
+        "rows it rescaled to unit mass; it cannot also be declared by the ",
+        "caller."
+      ), arg = "provenance$row_renormalization")
+    }
+    masses <- 1 - deficit
+    factor <- rep(1, n_native)
+    factor[excess] <- 1 / masses[excess]
+    group <- Matrix::drop0(Matrix::Diagonal(x = factor) %*% group)
+    group <- methods::as(
+      methods::as(methods::as(group, "dMatrix"), "generalMatrix"),
+      "CsparseMatrix"
+    )
+    provenance$row_renormalization <- list(
+      rows = as.integer(excess),
+      max_excess = max(masses[excess] - 1),
+      tolerance = tolerance
+    )
+    deficit <- 1 - as.numeric(Matrix::rowSums(group))
   }
   deficit[deficit < 0] <- 0
 

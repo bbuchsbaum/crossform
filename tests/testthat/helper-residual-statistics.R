@@ -107,8 +107,11 @@ oracle_shrinkage_covariance <- function(raw, recipe) {
   value <- (1 - alpha) * raw + alpha * diag(target_variance, nrow(raw))
   spectrum <- eigen(value, symmetric = TRUE, only.values = TRUE)$values
   scale <- max(abs(spectrum), max(abs(diag(value))), .Machine$double.xmin)
-  ridge <- max(0,
-    recipe$hyperparameters$relative_spectral_floor * scale - min(spectrum))
+  # The floor binds after the ridge, whose own size raises the scale; the
+  # target carries the declared 1e-3 relative margin above the floor.
+  floor <- recipe$hyperparameters$relative_spectral_floor
+  target <- floor * (1 + 1e-3 * (1 - floor))
+  ridge <- max(0, (target * scale - min(spectrum)) / (1 - target))
   if (ridge > 0) value <- value + diag(ridge, nrow(value))
   value
 }

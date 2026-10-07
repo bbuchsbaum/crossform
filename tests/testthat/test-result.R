@@ -229,3 +229,13 @@ test_that("full certification probes manifests, readers, indices, and receipts",
     metadata = list(scientific_plan_id = "different")
   ), "different scientific plans", class = "effect_contract_error")
 })
+
+test_that("coherence fractions mask a missing component instead of failing", {
+  got <- crossform:::.coherence_fraction(
+    total = c(2, 2, 2, 2),
+    coherent = c(1, NA, 1, -1),
+    configuration = c(1, 1, NA, 3)
+  )
+  expect_identical(got$valid, c(TRUE, FALSE, FALSE, FALSE))
+  expect_identical(got$fraction, c(0.5, NA, NA, NA))
+})

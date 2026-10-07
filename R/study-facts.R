@@ -19,7 +19,9 @@
   unname(value)
 }
 
-.canonical_fact_table <- function(value, name) {
+# `complete` names the columns that may not hold `NA`; `NULL` means every
+# column. Non-finite numbers other than `NA` are refused in every column.
+.canonical_fact_table <- function(value, name, complete = NULL) {
   if (!is.data.frame(value) || nrow(value) < 1L || ncol(value) < 1L ||
       is.null(names(value)) || anyNA(names(value)) || any(!nzchar(names(value))) ||
       anyDuplicated(names(value))) {
@@ -27,15 +29,21 @@
       "`%s` must be a nonempty data frame with unique column names; received %s.",
       name, .msg_value(value)))
   }
-  bad <- vapply(value, function(column) {
+  required <- if (is.null(complete)) names(value) else
+    intersect(complete, names(value))
+  bad <- vapply(names(value), function(column_name) {
+    column <- value[[column_name]]
+    missing <- is.na(column)
     is.list(column) || is.matrix(column) || is.data.frame(column) ||
-      anyNA(column) || (is.numeric(column) && any(!is.finite(column)))
+      (column_name %in% required && any(missing)) ||
+      (is.numeric(column) && any(!is.finite(column[!missing]))) ||
+      (is.double(column) && any(is.nan(column)))
   }, logical(1))
   if (any(bad)) {
-    .input_error(sprintf(
-      "`%s` columns must be complete finite atomic or factor values; invalid: %s.",
-      name, paste(names(value)[bad], collapse = ", ")
-    ))
+    .input_error(sprintf(paste0(
+      "`%s` columns must be %sfinite atomic or factor values; invalid: %s."
+    ), name, if (is.null(complete)) "complete " else "",
+      paste(names(value)[bad], collapse = ", ")))
   }
   rownames(value) <- NULL
   value
@@ -539,7 +547,9 @@ observation_events <- function(data, partition = "partition",
 #' outlier columns: to exclude observations you must name an explicit logical
 #' retain column.
 #'
-#' @param data A nonempty data frame with one row per observation.
+#' @param data A nonempty data frame with one row per observation. Confound
+#'   value columns may hold `NA` (for example a derivative with no first-row
+#'   value); the partition, observation-id and censor columns must be complete.
 #' @param partition,observation_id Columns binding rows to observation indexes.
 #' @param censor Optional logical censor column. `TRUE` means retained.
 #' @param provenance Portable confound provenance.
@@ -577,7 +587,10 @@ observation_confounds <- function(
       "observation and, at minimum, the partition and observation-id columns."
     ))
   }
-  data <- .canonical_fact_table(data, "data")
+  # Confound values may be missing (fMRIPrep's derivative columns have no
+  # first-row value); the columns that bind and censor rows may not.
+  data <- .canonical_fact_table(data, "data",
+    complete = c(partition, observation_id, censor))
   if (!all(c(partition, observation_id) %in% names(data))) {
     .input_error(sprintf(paste0(
       "`data` is missing the %s column%s. `observation_confounds()` reads the ",

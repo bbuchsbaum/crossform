@@ -1,5 +1,5 @@
 sampling_product_fixture <- function(conditions = 4L, features = 6L,
-                                     partitions = 4L) {
+                                     partitions = 4L, scale = 1) {
   set.seed(81331)
   observations <- 64L
   condition <- factor(rep(seq_len(conditions), length.out = observations))
@@ -16,9 +16,9 @@ sampling_product_fixture <- function(conditions = 4L, features = 6L,
     id = "sampling-product-domain", coordinate_units = "mm"
   )
   sources <- stats::setNames(lapply(seq_len(partitions), function(run) {
-    design %*% signal +
+    scale * (design %*% signal +
       matrix(rnorm(observations * features), observations, features) %*%
-        factor
+        factor)
   }), paste0("run", seq_len(partitions)))
   fit <- lm_relation_fit(
     sources, design, effects, sampling_unit = "trial", domain = domain
@@ -111,11 +111,19 @@ test_that("relation-fit product agrees with an independent direct oracle", {
     )
     # `residual_whitened` is the pooled plug-in with `total_df` degrees of
     # freedom, so the oracle corrects the quadratic noise term exactly as the
-    # package does; the signal term is linear and is left alone.
-    expected <- sampling_oracle_eq13(
-      components$differences, components$xi, residual_whitened,
-      length(fixture$fit$relation$partitions),
-      residual_df = total_df
+    # package does. The signal is the partition mean of noisy estimates, so
+    # its Gram carries the bias Sigma_K tr(Sigma^2) / M, which `target =
+    # "plugin"` removes (positive part in Sigma_K-whitened coordinates).
+    # Eq. 13 carries the explicit 1 / P^2 normalization on both terms.
+    partitions <- length(fixture$fit$relation$partitions)
+    normalization <- ncol(whitened_signal)
+    noise_trace <- sampling_oracle_noise_trace(residual_whitened, total_df)
+    expected <- sampling_oracle_eq13_terms(
+      sampling_oracle_plugin_signal_gram(
+        components$contrasts, whitened_signal, residual_whitened, sigma_k,
+        noise_trace, partitions
+      ) / normalization^2,
+      components$xi, noise_trace / normalization^2, partitions
     )$covariance
 
     expect_equal(unname(observed), unname(expected), tolerance = 4e-12,
@@ -404,4 +412,132 @@ test_that("an RDM sampling covariance and its batch render for a reader", {
   expect_snapshot(print(single), transform = mask_sampling_digest)
   expect_snapshot(format(single))
   expect_snapshot(print(batched), transform = mask_sampling_digest)
+})
+
+# Audit fixes, 2026-10 ------------------------------------------------------
+
+sampling_weak_signal_plugin_diagonals <- function(replications = 40L,
+                                                  partitions = 4L,
+                                                  features = 20L) {
+  labels <- c("a", "b", "c")
+  design <- stats::model.matrix(~ 0 + factor(rep(labels, each = 4L)))
+  colnames(design) <- labels
+  effects <- diag(3L)
+  dimnames(effects) <- list(labels, labels)
+  domain <- abstract_domain(features, id = "plugin-bias")
+  set.seed(20261006L)
+  draws <- vapply(seq_len(replications), function(index) {
+    sources <- stats::setNames(lapply(seq_len(partitions), function(run) {
+      matrix(rnorm(nrow(design) * features), nrow(design), features)
+    }), paste0("run", seq_len(partitions)))
+    fit <- lm_relation_fit(
+      sources, design, effects, sampling_unit = "trial", domain = domain
+    )
+    plan <- plan_geometry(
+      fit$relation, compile_frame(whole_brain("none"), domain),
+      cross_partitions(fit$relation, independence = "independent")
+    )
+    covariance <- rdm_sampling_covariance(
+      plan, fit, target = "plugin", at = 1L
+    )
+    value <- sampling_covariance(covariance, "materialize")
+    c(diag(value), min(eigen(value, symmetric = TRUE)$values))
+  }, numeric(4L))
+  contrasts <- sampling_oracle_condition_contrasts(3L)
+  xi <- contrasts %*% solve(crossprod(design)) %*% t(contrasts)
+  # Null truth, Sigma_R = I: the exact variance is the noise term alone, and
+  # the face-value plug-in adds 4 Xi^2 tr(Sigma_R^2) / M^2 on top of it.
+  exact <- diag(2 * xi^2 * features / (partitions * (partitions - 1L)))
+  face_value <- exact + diag(4 * xi^2 * features / partitions^2)
+  list(diagonals = draws[1:3, , drop = FALSE], minimum = draws[4L, ],
+    exact = exact, face_value = face_value)
+}
+
+test_that("the plug-in target removes the partition-mean signal bias", {
+  # At M = 4 the face-value plug-in bias is 2 (M - 1) / M = 1.5 times the
+  # noise term itself, so the face-value plug-in reported 2.5 times the true
+  # null variance. Under a null truth the debiased Gram is clamped to its
+  # positive part, which leaves a modest conservative residue -- never the
+  # face-value inflation, and never an anticonservative mean.
+  draws <- sampling_weak_signal_plugin_diagonals()
+  mean_diagonal <- rowMeans(draws$diagonals)
+  standard_error <- apply(draws$diagonals, 1L, stats::sd) /
+    sqrt(ncol(draws$diagonals))
+
+  expect_true(all(mean_diagonal < 0.75 * draws$face_value))
+  expect_true(all(mean_diagonal > draws$exact - 4 * standard_error))
+  # The positive-part projection keeps every reported covariance PSD.
+  expect_true(all(draws$minimum > -1e-10 * max(draws$diagonals)))
+})
+
+test_that("the plug-in debias is recorded on the result", {
+  fixture <- sampling_product_fixture()
+  plugin <- rdm_sampling_covariance(
+    fixture$evidence, fixture$fit, target = "plugin", at = 1L
+  )
+  null <- rdm_sampling_covariance(
+    fixture$evidence, fixture$fit, target = "null", at = 1L
+  )
+  expect_identical(plugin$source$signal_target_correction,
+    "partition_mean_bias_removed")
+  expect_true(is.integer(plugin$source$signal_clamped_directions))
+  expect_null(null$source$signal_target_correction)
+})
+
+test_that("symmetry checks are relative to the scale of the data", {
+  # Data in large raw units with a dense fixed metric: the whitened residual
+  # covariance `R S R'` carries a rounding asymmetry proportional to its
+  # magnitude, which an absolute 1e-10 tolerance used to refuse with
+  # "Sampling components have incompatible or non-finite axes".
+  scale <- 1e5
+  unit <- sampling_product_fixture()
+  scaled <- sampling_product_fixture(scale = scale)
+  scaled_covariance <- rdm_sampling_covariance(
+    scaled$evidence, scaled$fit, target = "null", at = 1L
+  )
+  unit_covariance <- rdm_sampling_covariance(
+    unit$evidence, unit$fit, target = "null", at = 1L
+  )
+  # Distances scale by scale^2, so their covariance scales by scale^4.
+  expect_equal(
+    unname(sampling_covariance(scaled_covariance)) / scale^4,
+    unname(sampling_covariance(unit_covariance)), tolerance = 1e-8
+  )
+})
+
+test_that("a batch refuses repeated measurement indices", {
+  fixture <- sampling_product_fixture(features = 9L)
+  frame <- compile_frame(searchlights(2.01), fixture$domain)
+  evidence <- plan_geometry(
+    fixture$fit$relation, frame,
+    cross_partitions(fixture$fit$relation, independence = "independent"),
+    metric = noise_precision(
+      solve(fixture$covariance), fixture$domain,
+      covariance = fixture$covariance,
+      provenance = list(source = "simulation_truth")
+    )
+  )
+  # A batch is read by measurement, `values[[measurement]]`; a repeated
+  # index used to yield two blocks under one name, the second unreachable.
+  expect_error(
+    rdm_sampling_covariance(evidence, fixture$fit, target = "null",
+      at = c(1L, 4L, 1L)),
+    "name each measurement once", class = "effect_input_error"
+  )
+})
+
+test_that("the common residual covariance assumption is disclosed", {
+  fixture <- sampling_product_fixture()
+  covariance <- rdm_sampling_covariance(
+    fixture$evidence, fixture$fit, target = "null", at = 1L
+  )
+  expect_identical(covariance$source$residual_covariance_model,
+    "common_across_partitions")
+  per_partition <- vapply(fixture$fit$relation$partitions, function(part) {
+    block <- residual_block(fixture$fit, part,
+      seq_len(fixture$fit$relation$n_features))
+    sum(block^2) / residual_df(fixture$fit, part)
+  }, numeric(1))
+  expect_equal(covariance$source$residual_partition_variance_ratio,
+    max(per_partition) / min(per_partition))
 })

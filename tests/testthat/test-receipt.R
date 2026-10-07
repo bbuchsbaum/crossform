@@ -162,3 +162,18 @@ test_that("receipt rejects noncanonical execution objects", {
     "nonempty character"
   , class = "effect_input_error")
 })
+
+test_that("observed cleanup outcomes must be known once cleanup was attempted", {
+  observed <- crossform:::.empty_execution_observations()
+  expect_identical(crossform:::.validate_execution_observations(observed),
+    observed)
+  for (success in c(TRUE, FALSE)) {
+    observed$cleanup <- list(attempted = TRUE, success = success,
+      message = NULL)
+    expect_identical(crossform:::.validate_execution_observations(observed),
+      observed)
+  }
+  observed$cleanup <- list(attempted = TRUE, success = NA, message = NULL)
+  expect_error(crossform:::.validate_execution_observations(observed),
+    "cleanup outcome", class = "effect_input_error")
+})

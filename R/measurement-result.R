@@ -399,7 +399,8 @@
   query_self <- .same_effect_space(
     plan$left_effect_space, plan$right_effect_space
   ) && nrow(h) == ncol(h)
-  query_symmetric <- query_self && max(abs(h - t(h))) <= plan$tolerance
+  query_symmetric <- query_self &&
+    max(abs(h - t(h))) <= plan$tolerance * max(abs(h))
   frame_self <- identical(plan$left_frame$signature,
     plan$right_frame$signature)
   self_form <- isTRUE(plan$same_relation) && query_self && frame_self
@@ -453,7 +454,7 @@
     threshold <- if (length(singular)) max(singular) * tolerance else 0
     retained <- singular[singular > threshold]
     symmetric <- nrow(value) == ncol(value) &&
-      max(abs(value - t(value))) <= tolerance
+      max(abs(value - t(value))) <= tolerance * max(abs(value))
     eigenvalues <- if (symmetric) {
       eigen((value + t(value)) / 2, symmetric = TRUE,
         only.values = TRUE)$values
@@ -775,9 +776,20 @@
   fields$left_frame <- frames$left
   fields$right_frame <- frames$right
   query <- plan$experimental_query
+  metadata <- query$metadata
+  capability <- metadata$evidence_capability
+  if (is.list(capability) && !is.null(capability$operator)) {
+    # The construction proof pins the operator exactly; the reversed query
+    # stores t(H), so its proof must too, or an H symmetric only to round-off
+    # no longer matches its own provenance.
+    capability$operator <- t(capability$operator)
+    capability$signature <- .sha256_signature(c(list(schema_version = 1L),
+      capability[setdiff(names(capability), "signature")]))
+    metadata$evidence_capability <- capability
+  }
   fields$experimental_query <- pair_query(
     t(as.matrix(query$operator)), query$right_space, query$left_space,
-    query$metadata
+    metadata
   )
   reversed_edges <- fields$edges
   reversed_edges$left <- fields$edges$right

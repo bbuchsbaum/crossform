@@ -31,7 +31,13 @@ original confound column plus the private \code{.bids_partition} and
 \description{
 All columns are preserved without assigning them target or nuisance roles.
 If \code{censor} is supplied it must name a complete logical retain column; no
-censor policy is inferred from motion or outlier columns.
+censor policy is inferred from motion or outlier columns. Columns whose
+values are all numbers become numeric and columns of \code{TRUE}/\code{FALSE} become
+logical. The BIDS missing marker \code{"n/a"} (such as fMRIPrep's first
+\code{framewise_displacement} row) is read as \code{NA} without changing the column's
+type, and a column absent from some runs is \code{NA} in those runs; resolve
+missing values explicitly before using a column as a regressor. The censor
+column must be complete.
 }
 \examples{
 # Stand in for one run's fMRIPrep confounds table.

@@ -185,8 +185,8 @@ Rcpp::NumericMatrix coherent_effect_form_atoms_cpp(
   std::fill(tile.begin(), tile.end(), 0.0);
   const double* left_ptr = REAL(left_first);
   const double* right_ptr = REAL(right_first);
-  const int left_plane = n_meas * q_left;
-  const int right_plane = n_meas * q_right;
+  const R_xlen_t left_plane = static_cast<R_xlen_t>(n_meas) * q_left;
+  const R_xlen_t right_plane = static_cast<R_xlen_t>(n_meas) * q_right;
   const int row0 = row_start - 1;
   const double off_diag = std::sqrt(2.0);
 
