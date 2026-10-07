@@ -45,10 +45,10 @@
   )
 }
 
-# "n/a" is the BIDS missing-value marker. Study fact tables must be complete
-# (`observation_events()` and `observation_confounds()` refuse `NA`), so the
-# adapters never turn the marker into `NA`: a column that contains it stays
-# text and keeps the marker literally, and the caller decides what it means.
+# "n/a" is the BIDS missing-value marker. Event tables must be complete
+# (`observation_events()` refuses `NA`), so the event adapter keeps the marker
+# literally in text columns. Confound value columns may be missing, so the
+# confound adapter reads the marker as `NA`.
 .bids_missing <- "n/a"
 
 # Numeric conversion that refuses to guess: `NULL` unless every value is a
@@ -58,24 +58,33 @@
   if (!length(column) || anyNA(converted)) NULL else converted
 }
 
-# Confound columns are regressors or explicit retain flags: a column whose
-# values are all numbers becomes numeric, one whose values are all
-# `TRUE`/`FALSE` becomes logical, and anything else -- including a numeric
-# column with "n/a" entries -- stays text.
-.bids_type_confounds <- function(value) {
-  value[] <- lapply(value, function(column) {
-    if (length(column) && all(column %in% c("TRUE", "FALSE"))) {
-      return(as.logical(column))
+# Confound columns are regressors or explicit retain flags. "n/a" is read as
+# missing; a column whose remaining values are all numbers becomes numeric,
+# one whose remaining values are all `TRUE`/`FALSE` becomes logical, and
+# anything else stays text with `NA` for the marker. A column that is missing
+# everywhere becomes numeric `NA`, the type of every fMRIPrep regressor.
+.bids_type_confounds <- function(value, columns = names(value)) {
+  value[columns] <- lapply(value[columns], function(column) {
+    missing <- column == .bids_missing
+    present <- column[!missing]
+    if (!length(present)) return(rep(NA_real_, length(column)))
+    typed <- if (all(present %in% c("TRUE", "FALSE"))) {
+      as.logical(present)
+    } else {
+      .bids_as_numeric(present)
     }
-    converted <- .bids_as_numeric(column)
-    if (is.null(converted)) column else converted
+    if (is.null(typed)) typed <- present
+    result <- rep(typed[NA_integer_], length(column))
+    result[!missing] <- typed
+    result
   })
   value
 }
 
 # Runs may carry different optional columns; the union is kept, and a column
-# a run lacks is filled with the BIDS missing marker. Such a column becomes
-# text in every run so that the marker is not coerced into a number.
+# a run lacks is filled with the BIDS missing marker. Such a column is bound as
+# text, so the marker is never coerced into a number here; the event adapter
+# keeps it as text and the confound adapter types it afterwards.
 .bind_bids_tables <- function(tables) {
   columns <- unique(unlist(lapply(tables, names), use.names = FALSE))
   partial <- columns[!vapply(columns, function(column) {
@@ -200,9 +209,11 @@ bids_events <- function(files, partitions = names(files), units = "seconds") {
 #' If `censor` is supplied it must name a complete logical retain column; no
 #' censor policy is inferred from motion or outlier columns. Columns whose
 #' values are all numbers become numeric and columns of `TRUE`/`FALSE` become
-#' logical. Study facts must be complete, so a column holding the BIDS missing
-#' marker `"n/a"` (such as fMRIPrep's first `framewise_displacement` row) stays
-#' text; resolve it explicitly before using it as a regressor.
+#' logical. The BIDS missing marker `"n/a"` (such as fMRIPrep's first
+#' `framewise_displacement` row) is read as `NA` without changing the column's
+#' type, and a column absent from some runs is `NA` in those runs; resolve
+#' missing values explicitly before using a column as a regressor. The censor
+#' column must be complete.
 #'
 #' @param files Character confound-TSV paths, one per partition.
 #' @param partitions Explicit ordered partition identifiers.
@@ -252,7 +263,7 @@ bids_confounds <- function(files, partitions = names(files),
     )
   }
   tables <- lapply(names(files), function(partition) {
-    value <- .bids_type_confounds(.read_bids_table(files[[partition]]))
+    value <- .read_bids_table(files[[partition]])
     if (any(c(".bids_partition", ".bids_observation_id") %in% names(value))) {
       .input_error(
         "Confound tables may not use crossform's private adapter columns."
@@ -274,21 +285,32 @@ bids_confounds <- function(files, partitions = names(files),
         remedies = "Supply exactly one confound row per acquired volume."
       )
     }
-    if (!is.null(censor) &&
-        (!censor %in% names(value) || !is.logical(value[[censor]]))) {
-      .capability_refusal(
-        sprintf("Confound censor policy is unresolved for `%s`.", partition),
-        capability = "censoring_declared",
-        namespace = "bids_adapter",
-        reasons = "The named censor column is absent or is not logical.",
-        remedies = "Create an explicit logical retain column before import."
-      )
-    }
     value$.bids_partition <- partition
     value$.bids_observation_id <- ids
     value
   })
+  # Types are resolved on the combined table, so a column one run lacks (filled
+  # with the missing marker) keeps the type the other runs give it.
   data <- .bind_bids_tables(tables)
+  data <- .bids_type_confounds(data,
+    setdiff(names(data), c(".bids_partition", ".bids_observation_id")))
+  for (partition in names(files)) {
+    rows <- data$.bids_partition == partition
+    if (!is.null(censor) &&
+        (!censor %in% names(data) || !is.logical(data[[censor]]) ||
+         anyNA(data[[censor]][rows]))) {
+      .capability_refusal(
+        sprintf("Confound censor policy is unresolved for `%s`.", partition),
+        capability = "censoring_declared",
+        namespace = "bids_adapter",
+        reasons = paste0(
+          "The named censor column is absent, is not logical, or has ",
+          "missing values."
+        ),
+        remedies = "Create an explicit logical retain column before import."
+      )
+    }
+  }
   observation_confounds(
     data,
     partition = ".bids_partition",

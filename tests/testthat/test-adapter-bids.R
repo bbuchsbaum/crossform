@@ -138,11 +138,68 @@ test_that("BIDS confounds type complete columns and bind differing columns", {
   record <- crossform:::bids_confounds(
     c(`run-1` = first, `run-2` = second), censor = "keep"
   )
-  # Study facts must be complete, so the BIDS missing marker stays literal.
-  expect_identical(record$data$framewise_displacement,
-    c("n/a", "0.2", "n/a", "0.4"))
+  # The BIDS missing marker is read as `NA` without changing the column's
+  # type, including a column one run lacks altogether.
+  expect_identical(record$data$framewise_displacement, c(NA, 0.2, NA, 0.4))
   expect_identical(record$data$rot_x, c(1e-3, -2, 0.5, 0))
-  expect_identical(record$data$trans_x, c("0.1", "0.3", "n/a", "n/a"))
-  expect_identical(record$data$motion_outlier00, c("n/a", "n/a", "1", "0"))
+  expect_identical(record$data$trans_x, c(0.1, 0.3, NA, NA))
+  expect_identical(record$data$motion_outlier00, c(NA, NA, 1, 0))
   expect_identical(record$data$keep, c(TRUE, FALSE, TRUE, TRUE))
+
+  # The same tables bind into a study; the missing values never reach the
+  # censor policy, which reads only the complete retain column.
+  value <- study(
+    observations(
+      list(`run-1` = matrix(0, 2L, 1L), `run-2` = matrix(0, 2L, 1L)),
+      list(
+        `run-1` = observation_index(1:2, "run-1"),
+        `run-2` = observation_index(1:2, "run-2")
+      ),
+      abstract_domain(1L)
+    ),
+    confounds = record
+  )
+  expect_identical(value$confounds$data$framewise_displacement,
+    c(NA, 0.2, NA, 0.4))
+})
+
+test_that("BIDS confounds refuse a censor column with missing values", {
+  path <- tempfile("crossform-bids-censor-", fileext = ".tsv")
+  writeLines(c(
+    "framewise_displacement\tkeep",
+    "n/a\tTRUE",
+    "0.2\tn/a"
+  ), path)
+  refusal <- catch_refusal(
+    crossform:::bids_confounds(c(`run-1` = path), censor = "keep")
+  )
+  expect_identical(refusal$capability, "censoring_declared")
+  expect_match(paste(refusal$reasons, collapse = " "), "missing values",
+    fixed = TRUE)
+})
+
+test_that("observation confounds allow missing values only in value columns", {
+  confounds <- data.frame(
+    partition = "run-1", observation_id = 1:3,
+    framewise_displacement = c(NA, 0.2, 0.3),
+    retained = c(TRUE, TRUE, FALSE)
+  )
+  record <- observation_confounds(confounds, censor = "retained")
+  expect_identical(record$data$framewise_displacement, c(NA, 0.2, 0.3))
+  expect_identical(
+    crossform:::.validate_observation_confounds(record)$confounds_id,
+    record$confounds_id
+  )
+  for (column in c("partition", "observation_id", "retained")) {
+    broken <- confounds
+    broken[[column]][[2L]] <- NA
+    expect_error(observation_confounds(broken, censor = "retained"),
+      column, class = "effect_input_error")
+  }
+  confounds$framewise_displacement[[2L]] <- Inf
+  expect_error(observation_confounds(confounds, censor = "retained"),
+    "framewise_displacement", class = "effect_input_error")
+  confounds$framewise_displacement[[2L]] <- NaN
+  expect_error(observation_confounds(confounds, censor = "retained"),
+    "framewise_displacement", class = "effect_input_error")
 })
