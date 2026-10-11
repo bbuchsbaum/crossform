@@ -104,17 +104,6 @@ describe_edges <- function(rows) {
   sort(paste(rows$from, "->", rows$to, ":", rows$symbol))
 }
 
-find_source_dir <- function() {
-  candidates <- c(
-    "../../R",                       # testthat::test_local / devtools::test
-    "../../../R",
-    "../../00_pkg_src/crossform/R"   # R CMD check on a built tarball
-  )
-  hit <- candidates[dir.exists(candidates)]
-  if (!length(hit)) return(NULL)
-  normalizePath(hit[[1L]])
-}
-
 .graph_cache <- new.env(parent = emptyenv())
 
 internal_call_graph <- function(dir) {
@@ -220,7 +209,7 @@ tarjan_scc <- function(nodes, edges) {
 }
 
 test_that("every source file has a declared layer", {
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   files <- basename(list.files(dir, pattern = "[.]R$"))
 
@@ -228,7 +217,7 @@ test_that("every source file has a declared layer", {
 })
 
 test_that("no file calls upward through the layering, outside the register", {
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
   edges <- edges[edges$from %in% names(layer_of) &
@@ -260,7 +249,7 @@ test_that("the file call graph has no component larger than the ratchet", {
   # evidence-sampling triple -- each have a test of their own above, because
   # each has a story worth telling. This test is the general case: it does
   # not know which cycle to expect, only that there is to be none.
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
   # Isolated files are nodes too -- a file nothing calls and that calls
@@ -295,7 +284,7 @@ test_that("the compute core never calls into results, views, or printing", {
   # would permit a sideways call, but a kernel that builds a result record is
   # a kernel that has stopped being a numerical primitive. Only the executor
   # constructs results.
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
   presentation <- c("result.R", "views.R", "population-views.R",
@@ -333,7 +322,7 @@ test_that("a receipt records canonical values and depends on none of them", {
   # now calls down to the value it records. That is a legitimate edge and a
   # list check cannot tell it from an illegitimate one. What distinguishes
   # them is whether it closes a loop, so that is what is asserted.
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
   value_cycle <- c("effect-map.R", "effect-space.R",
@@ -356,7 +345,7 @@ test_that("a receipt records canonical values and depends on none of them", {
 })
 
 test_that("primitives depend on nothing above the primitive layer", {
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
   primitive_files <- names(layer_of)[layer_of == 1L]
@@ -369,7 +358,7 @@ test_that("primitives depend on nothing above the primitive layer", {
 test_that("values never reach into the compiler or the executor", {
   # Registered exceptions are declaration constructors and capability records
   # rather than compilation; see `allowed_upward`.
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   edges <- internal_call_graph(dir)
   engine <- names(layer_of)[layer_of == 4L]
@@ -392,7 +381,7 @@ test_that("the evidence-sampling triple is a DAG", {
   # sideways call back down the flow turns the triple into one component and
   # makes the three files unreadable in isolation, which is what ticket C3
   # removed; see design/architecture.md, "The evidence-sampling triple".
-  dir <- find_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   triple <- c("evidence-sampling.R", "evidence-sampling-kernel.R",
     "evidence-sampling-product.R")
