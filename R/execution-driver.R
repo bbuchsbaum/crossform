@@ -63,7 +63,8 @@
   }
 }
 
-.open_execution_storage <- function(storage, storage_path, dim) {
+.open_execution_storage <- function(storage, storage_path, dim,
+                                    codec = "symmetric_packed") {
   storage <- match.arg(storage, c("memory", "block"))
   if (storage == "memory") {
     if (!is.null(storage_path)) {
@@ -91,9 +92,11 @@
   if (file.exists(total_path) || file.exists(coherent_path)) {
     .input_error("Refusing to overwrite an existing geometry component.")
   }
-  total <- .file_geometry_store(total_path, dim, create = TRUE)
+  # The store manifest records the codec, so it must be the plan's: a
+  # rectangular form stamped as symmetric-packed is refused on assembly.
+  total <- .file_geometry_store(total_path, dim, create = TRUE, codec = codec)
   coherent <- tryCatch(
-    .file_geometry_store(coherent_path, dim, create = TRUE),
+    .file_geometry_store(coherent_path, dim, create = TRUE, codec = codec),
     error = function(error) {
       unlink(total_path)
       if (created_directory) unlink(storage_path, recursive = TRUE)
@@ -656,7 +659,9 @@
   planned_receipt <- .planned_execution_receipt(plan, validate = FALSE)
   geometry_storage <- .open_execution_storage(
     plan$storage, plan$storage_path,
-    c(nrow(plan$frame$weights), plan$output_width)
+    c(nrow(plan$frame$weights), plan$output_width),
+    codec = if (isTRUE(task$same_relation)) "symmetric_packed" else
+      "rectangular"
   )
   completed <- new.env(parent = emptyenv())
   completed$value <- FALSE
