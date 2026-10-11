@@ -19,6 +19,10 @@ jobs:
       # scheduled court and would dominate the runtime here without adding
       # covered lines that the fast suite does not already reach.
       _R_CHECK_FORCE_SUGGESTS_: false
+      # testthat skips snapshot tests on CRAN, and covr runs the suite outside
+      # `R CMD check`, so without this every print and format method that is
+      # exercised only through `expect_snapshot()` would count as uncovered.
+      NOT_CRAN: "true"
     steps:
     - uses: actions/checkout@v4
     - uses: r-lib/actions/setup-r@v2

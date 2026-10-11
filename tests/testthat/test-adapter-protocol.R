@@ -125,17 +125,6 @@ adapter_exported_calls <- list(
   )
 )
 
-protocol_source_dir <- function() {
-  candidates <- c(
-    "../../R",                       # testthat::test_local / devtools::test
-    "../../../R",
-    "../../00_pkg_src/crossform/R"   # R CMD check on a built tarball
-  )
-  hit <- candidates[dir.exists(candidates)]
-  if (!length(hit)) return(NULL)
-  normalizePath(hit[[1L]])
-}
-
 # Every top-level `name <- function(...)` in R/, mapped to its defining file.
 protocol_definitions <- function(parsed) {
   defs <- new.env(parent = emptyenv())
@@ -225,7 +214,7 @@ test_that("the five sanctioned developer entry points are exported", {
 })
 
 test_that("adapters call no crossform internal outside the protocol", {
-  dir <- protocol_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   parsed <- protocol_parsed_sources(dir)
   expect_true(all(adapter_files %in% names(parsed)))
@@ -254,7 +243,7 @@ test_that("adapters call no crossform internal outside the protocol", {
 test_that("adapters use only layer-1 internals plus the exported surface", {
   # The same rule stated positively, so a reader of the failure sees what the
   # protocol allows rather than only what it forbids.
-  dir <- protocol_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   parsed <- protocol_parsed_sources(dir)
   defs <- protocol_definitions(parsed)
@@ -281,7 +270,7 @@ test_that("the ledger's record of what an adapter calls is still true", {
   # by four when the register closed, which is the shape of the whole exercise:
   # an adapter that reaches for an internal makes no exported call, and an
   # adapter written within the protocol makes one.
-  dir <- protocol_source_dir()
+  dir <- package_source_dir()
   skip_if(is.null(dir), "package sources are not available under this runner")
   parsed <- protocol_parsed_sources(dir)
   defs <- protocol_definitions(parsed)

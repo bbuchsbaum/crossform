@@ -53,9 +53,9 @@ cost a second one.}
 takes \verb{min(3, residual df)}.}
 
 \item{partitions}{Optional list of two character vectors naming the
-partition halves the cross-fit reads across. \code{NULL} interleaves each
-participant's own partitions, which balances the halves against anything
-drifting across a session.}
+partition halves the cross-fit reads across. \code{NULL} interleaves the
+partitions each participant's pairing evaluates, which balances the halves
+against anything drifting across a session.}
 
 \item{projection}{The named PSD projection the latent layer is built with,
 from \code{\link[=latent_geometry]{latent_geometry()}}'s closed set. It is validated on either method
@@ -137,8 +137,13 @@ estimate of the between-participant trace: measured standard deviation
 repaired.
 
 \code{estimator = "cross_fit"} re-plans each participant over two disjoint halves
-of their partitions, so it needs at least four partitions per participant and
-costs a second streaming read. \code{estimator = "plug_in"} reads one pass and is
+of the partitions their pairing evaluates, so it needs at least four such
+partitions per participant and costs a second streaming read. A partition
+the pairing holds out --- such as the run a functional transport was fitted
+on --- is never placed in a half. Each half is planned over the
+participant's \emph{original} pairing restricted to the edges inside that half,
+with its weights renormalized to unit mass, so both halves estimate the same
+quantity as the full plan rather than an all-pairs substitute. \code{estimator = "plug_in"} reads one pass and is
 admissible for loading \emph{directions}, which section 6.3 measures surviving
 the inflation; its \verb{$latent} layer is \code{NULL}, and the refusal that says why
 travels on \verb{$receipt$latent_refusal} as a record rather than an error.
@@ -174,10 +179,13 @@ projection moved; \verb{$spectrum} stays signed and carries none of them.
 
 Each is an \code{effect_capability_refusal} (see \code{\link[=catch_refusal]{catch_refusal()}}).
 \itemize{
-\item \code{cross_fitted_subject_gram} --- fewer than four partitions, a declared
-split that shares a partition between halves or names one a participant
-does not carry, or a metric schedule that cannot be re-planned onto a
-half.
+\item \code{cross_fitted_subject_gram} --- fewer than four evaluated partitions, a
+half that contains no edge of the participant's pairing, a declared split
+that shares a partition between halves or names one a participant does not
+carry or whose pairing does not evaluate, or a metric schedule that cannot
+be re-planned onto a half.
+\item \code{held_out_transport_evaluation} --- a declared half naming a partition a
+transport's \code{provenance$cross_fit} says it was fitted on.
 \item \code{identified_heterogeneity} --- a saturated group design, where no residual
 degree of freedom is left for participants to differ in.
 \item \code{query_space_cross_fit} --- \code{estimator = "cross_fit"} on an estimated
