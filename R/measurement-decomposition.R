@@ -250,14 +250,30 @@
   x$blocks[[position]]
 }
 
+# Numerical tolerances in the coupling and decomposition views are relative:
+# a cutoff is `tolerance` times the magnitude of the quantity it is compared
+# against (the largest eigenvalue, the largest entry, the largest variance),
+# never an absolute number in the data's own units. An absolute cutoff makes
+# the answer depend on the units the data were recorded in: rescaled by 1e-6
+# every self-variance falls under 1e-10 and is treated as zero; rescaled by
+# 1e4 ordinary round-off asymmetry exceeds 1e-10 and is treated as structural.
+# The `double.xmin` guard keeps an all-zero reference from producing a zero
+# cutoff, so exactly-zero quantities still fail a strict `> cutoff` test.
+.relative_tolerance_floor <- function(tolerance, magnitude) {
+  magnitude <- if (length(magnitude)) max(abs(magnitude)) else 0
+  if (!is.finite(magnitude)) magnitude <- 0
+  tolerance * max(magnitude, .Machine$double.xmin)
+}
+
 .decomposition_inverse_sqrt <- function(value, tolerance, ridge = 0) {
   value <- (value + t(value)) / 2
   if (ridge > 0) value <- value + diag(ridge, nrow(value))
   decomposition <- eigen(value, symmetric = TRUE)
-  if (min(decomposition$values) < -tolerance) {
+  cutoff <- .relative_tolerance_floor(tolerance, decomposition$values)
+  if (min(decomposition$values) < -cutoff) {
     .input_error("Invariant canonical summaries require positive self-blocks.")
   }
-  retained <- decomposition$values > tolerance
+  retained <- decomposition$values > cutoff
   scale <- numeric(length(decomposition$values))
   scale[retained] <- 1 / sqrt(decomposition$values[retained])
   decomposition$vectors %*% diag(scale, length(scale)) %*%

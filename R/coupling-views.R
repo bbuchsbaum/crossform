@@ -340,58 +340,140 @@ NULL
   rebuilt
 }
 
-.coupling_blocks <- function(x) {
-  stats::setNames(lapply(seq_len(nrow(x$block_index)), function(edge) {
-    .measurement_block(x, edge)
-  }), x$block_index$edge_id)
+# Validate a measurement form once and return a reader for its blocks.
+#
+# `.measurement_block()` revalidates the whole form -- signatures, plan, and
+# the full block index -- on every read, which is O(edges) per block and so
+# O(edges^2) = O(nodes^4) for a view that reads every edge. A view that walks
+# every edge validates once here and then reads each block with the same
+# per-block checks `.read_measurement_store()` applies.
+.measurement_block_reader <- function(x) {
+  .validate_measurement_form(x, probe = FALSE)
+  store <- x$store
+  index <- store$index
+  function(position) {
+    value <- store$read(position)
+    if (!.is_finite_matrix(value) ||
+        !identical(dim(value),
+          c(index$d_left[[position]], index$d_right[[position]]))) {
+      .input_error("Measurement-store reader returned an invalid logical block.")
+    }
+    value
+  }
 }
 
-.coupling_self_blocks <- function(x, edge, tolerance = 1e-10,
-                                  ridge_left = 0, ridge_right = 0,
-                                  require_positive = TRUE) {
-  .validate_measurement_form(x, probe = FALSE)
-  position <- .measurement_edge_position(x$block_index, edge)
-  row <- x$block_index[position, , drop = FALSE]
+# Keyed (left, right) -> block position lookup, built once per index rather
+# than a `which()` scan of the index per node pair. A pair that is absent or
+# that appears more than once maps to NA, matching the `length(which()) != 1`
+# refusals it replaces.
+.block_pair_lookup <- function(index) {
+  keys <- paste(index$left, index$right, sep = "\r")
+  keys[keys %in% keys[duplicated(keys)]] <- NA_character_
+  function(left, right) {
+    match(paste(left, right, sep = "\r"), keys, incomparables = NA)
+  }
+}
+
+.coupling_blocks <- function(x) {
+  read <- .measurement_block_reader(x)
+  stats::setNames(lapply(seq_len(nrow(x$block_index)), read),
+    x$block_index$edge_id)
+}
+
+# Per-form state for the normalized views: one validation, one keyed edge
+# lookup, and each node's self-block (with its symmetry verdict and
+# eigenvalues) read and decomposed once, however many edges share the node.
+.coupling_context <- function(x, tolerance = 1e-10,
+                              ridge_left = 0, ridge_right = 0,
+                              require_positive = TRUE) {
+  read <- .measurement_block_reader(x)
   if (!identical(x$left_frame$signature, x$right_frame$signature)) {
     .input_error(
       "Normalized coupling requires one compatible self-measurement frame."
     )
   }
-  locate <- function(left, right) {
-    which(x$block_index$left == left & x$block_index$right == right)
+  index <- x$block_index
+  lookup <- .block_pair_lookup(index)
+  cache <- new.env(parent = emptyenv())
+  self_info <- function(position) {
+    key <- paste0("self:", position)
+    info <- cache[[key]]
+    if (is.null(info)) {
+      block <- read(position)
+      # Symmetry is judged relative to the block's own magnitude, and
+      # definiteness relative to its largest eigenvalue, so the verdict does
+      # not change when the data are rescaled.
+      eigenvalues <- eigen((block + t(block)) / 2,
+        symmetric = TRUE, only.values = TRUE)$values
+      info <- list(
+        block = block,
+        asymmetric = max(abs(block - t(block))) >
+          .relative_tolerance_floor(tolerance, block),
+        indefinite = min(eigenvalues) <
+          -.relative_tolerance_floor(tolerance, eigenvalues),
+        eigenvalues = eigenvalues
+      )
+      assign(key, info, envir = cache)
+    }
+    info
   }
-  left_position <- locate(row$left[[1L]], row$left[[1L]])
-  right_position <- locate(row$right[[1L]], row$right[[1L]])
-  if (length(left_position) != 1L || length(right_position) != 1L) {
-    .input_error(
-      "Normalized coupling requires explicit left and right self-blocks."
+  edge_blocks <- function(edge) {
+    position <- .measurement_edge_position(index, edge)
+    left <- index$left[[position]]
+    right <- index$right[[position]]
+    left_position <- lookup(left, left)
+    right_position <- lookup(right, right)
+    if (is.na(left_position) || is.na(right_position)) {
+      .input_error(
+        "Normalized coupling requires explicit left and right self-blocks."
+      )
+    }
+    cross <- read(position)
+    left_info <- self_info(left_position)
+    right_info <- self_info(right_position)
+    if (left_info$asymmetric || right_info$asymmetric) {
+      .input_error("Coupling self-blocks must be symmetric.")
+    }
+    if (require_positive &&
+        (left_info$indefinite || right_info$indefinite)) {
+      .input_error("Indefinite self-blocks cannot normalize coupling.")
+    }
+    list(
+      edge_id = index$edge_id[[position]],
+      cross = cross,
+      left_self = left_info$block,
+      right_self = right_info$block,
+      left_regularized = left_info$block +
+        diag(ridge_left, nrow(left_info$block)),
+      right_regularized = right_info$block +
+        diag(ridge_right, nrow(right_info$block)),
+      left_eigenvalues = left_info$eigenvalues,
+      right_eigenvalues = right_info$eigenvalues
     )
   }
-  cross <- .measurement_block(x, position)
-  left_self <- .measurement_block(x, left_position)
-  right_self <- .measurement_block(x, right_position)
-  if (max(abs(left_self - t(left_self))) > tolerance ||
-      max(abs(right_self - t(right_self))) > tolerance) {
-    .input_error("Coupling self-blocks must be symmetric.")
+  # The whitening factor of a regularized self-block, cached per side and
+  # node: the left and right ridges may differ, so the side is in the key.
+  inverse_sqrt <- function(blocks, side) {
+    node <- index[[side]][[blocks$position]]
+    key <- paste0(side, ":", node)
+    value <- cache[[key]]
+    if (is.null(value)) {
+      value <- .decomposition_inverse_sqrt(
+        blocks[[paste0(side, "_regularized")]], tolerance
+      )
+      assign(key, value, envir = cache)
+    }
+    value
   }
-  left_eigen <- eigen((left_self + t(left_self)) / 2,
-    symmetric = TRUE, only.values = TRUE)$values
-  right_eigen <- eigen((right_self + t(right_self)) / 2,
-    symmetric = TRUE, only.values = TRUE)$values
-  if (require_positive &&
-      (min(left_eigen) < -tolerance || min(right_eigen) < -tolerance)) {
-    .input_error("Indefinite self-blocks cannot normalize coupling.")
-  }
-  list(
-    edge_id = row$edge_id[[1L]],
-    cross = cross,
-    left_self = left_self,
-    right_self = right_self,
-    left_regularized = left_self + diag(ridge_left, nrow(left_self)),
-    right_regularized = right_self + diag(ridge_right, nrow(right_self)),
-    left_eigenvalues = left_eigen,
-    right_eigenvalues = right_eigen
-  )
+  list(edge_blocks = edge_blocks, inverse_sqrt = inverse_sqrt)
+}
+
+.coupling_self_blocks <- function(x, edge, tolerance = 1e-10,
+                                  ridge_left = 0, ridge_right = 0,
+                                  require_positive = TRUE) {
+  .coupling_context(
+    x, tolerance, ridge_left, ridge_right, require_positive
+  )$edge_blocks(edge)
 }
 
 # The one edge-reduction loop behind the four block-reducing coupling views.
@@ -404,18 +486,22 @@ NULL
 #     reduces to a validation sweep (`.covariance_coupling()` proves every
 #     edge has symmetric positive self-blocks and then reports the raw
 #     blocks); a view that returns a one-row data frame reports one number per
-#     edge; a view that returns several rows reports a spectrum.
+#     edge; a view that returns several rows reports a spectrum. It receives
+#     the edge's blocks and a `whiten(side)` function returning the inverse
+#     square root of that side's regularized self-block, cached per node.
 #   * the ridge, which is where the normalization is *placed*. Pearson and
 #     geometry alignment divide by a scalar built from the untouched
 #     self-blocks, so their ridge is zero; canonical coupling whitens by the
 #     inverse square root of the self-blocks, so its ridge has to be applied
-#     inside `.coupling_self_blocks()`, before this loop sees them.
+#     inside `.coupling_context()`, before this loop sees them.
 .coupling_edge_reduce <- function(x, statistic, tolerance = 1e-10,
                                   ridge_left = 0, ridge_right = 0) {
+  context <- .coupling_context(x, tolerance, ridge_left, ridge_right)
   rows <- lapply(seq_len(nrow(x$block_index)), function(edge) {
-    statistic(.coupling_self_blocks(
-      x, edge, tolerance, ridge_left, ridge_right
-    ))
+    blocks <- context$edge_blocks(edge)
+    statistic(blocks, function(side) {
+      context$inverse_sqrt(c(blocks, position = edge), side)
+    })
   })
   if (all(vapply(rows, is.null, logical(1)))) return(invisible(NULL))
   do.call(rbind, rows)
@@ -478,7 +564,7 @@ NULL
   .require_measurement_view_capabilities(
     x, "canonical_coupling", positive_self_blocks = TRUE
   )
-  .coupling_edge_reduce(x, function(blocks) NULL, tolerance)
+  .coupling_edge_reduce(x, function(blocks, whiten) NULL, tolerance)
   .new_coupling_result(
     "covariance_coupling",
     .coupling_blocks(x),
@@ -496,22 +582,28 @@ NULL
   .require_measurement_view_capabilities(
     x, "canonical_coupling", positive_self_blocks = TRUE
   )
-  values <- .coupling_edge_reduce(x, function(blocks) {
+  values <- .coupling_edge_reduce(x, function(blocks, whiten) {
     if (!identical(dim(blocks$cross), c(1L, 1L))) {
       .input_error("Pearson coupling requires rank-one measurement axes.")
     }
     denominator <- sqrt(blocks$left_self[[1L]] * blocks$right_self[[1L]])
-    if (!is.finite(denominator) || denominator <= tolerance) {
+    # The floor is relative to the larger of the two variances, so the
+    # verdict is the same whatever units the data were recorded in.
+    variance_floor <- .relative_tolerance_floor(
+      tolerance, c(blocks$left_self[[1L]], blocks$right_self[[1L]])
+    )
+    if (!is.finite(denominator) || denominator <= variance_floor) {
       # A correlation divides by this; a node that does not vary has no
       # correlation to report, which is a capability refusal and not an
       # arithmetic accident.
       .capability_refusal(sprintf(paste0(
         "Pearson coupling requires strictly positive scalar self-variance; ",
-        "edge %s has self-variances %s and %s, whose geometric mean is %s at ",
-        "tolerance %s. A node with no measured variation has no correlation."
+        "edge %s has self-variances %s and %s, whose geometric mean is %s, ",
+        "at or below the floor %s (relative tolerance %s times the larger ",
+        "variance). A node with no measured variation has no correlation."
       ), .msg_names(blocks$edge_id), format(blocks$left_self[[1L]]),
         format(blocks$right_self[[1L]]), format(denominator),
-        format(tolerance)),
+        format(variance_floor), format(tolerance)),
         capability = "nondegenerate_self_variance",
         namespace = "coupling_views",
         reasons = "self_variance_not_strictly_positive",
@@ -580,13 +672,12 @@ NULL
   if (!is.list(blocks) || length(blocks) != nrow(form$block_index)) {
     .input_error("Scalar coupling blocks are absent or incomplete.")
   }
-  vapply(seq_len(nrow(form$block_index)), function(edge) {
-    row <- form$block_index[edge, , drop = FALSE]
-    left_self <- which(form$block_index$left == row$left[[1L]] &
-      form$block_index$right == row$left[[1L]])
-    right_self <- which(form$block_index$left == row$right[[1L]] &
-      form$block_index$right == row$right[[1L]])
-    if (length(left_self) != 1L || length(right_self) != 1L ||
+  index <- form$block_index
+  lookup <- .block_pair_lookup(index)
+  vapply(seq_len(nrow(index)), function(edge) {
+    left_self <- lookup(index$left[[edge]], index$left[[edge]])
+    right_self <- lookup(index$right[[edge]], index$right[[edge]])
+    if (is.na(left_self) || is.na(right_self) ||
         !identical(dim(blocks[[edge]]), c(1L, 1L)) ||
         !identical(dim(blocks[[left_self]]), c(1L, 1L)) ||
         !identical(dim(blocks[[right_self]]), c(1L, 1L))) {
@@ -598,7 +689,10 @@ NULL
     denominator <- sqrt(
       blocks[[left_self]][[1L]] * blocks[[right_self]][[1L]]
     )
-    if (!is.finite(denominator) || denominator <= tolerance) {
+    variance_floor <- .relative_tolerance_floor(
+      tolerance, c(blocks[[left_self]][[1L]], blocks[[right_self]][[1L]])
+    )
+    if (!is.finite(denominator) || denominator <= variance_floor) {
       .input_error(
         "Partitioned Pearson coupling requires positive self-variance."
       )
@@ -704,13 +798,9 @@ NULL
       "view applies it to its self-blocks."
     ))
   }
-  values <- .coupling_edge_reduce(x, function(blocks) {
-    left_inverse <- .decomposition_inverse_sqrt(
-      blocks$left_regularized, tolerance
-    )
-    right_inverse <- .decomposition_inverse_sqrt(
-      blocks$right_regularized, tolerance
-    )
+  values <- .coupling_edge_reduce(x, function(blocks, whiten) {
+    left_inverse <- whiten("left")
+    right_inverse <- whiten("right")
     values <- svd(left_inverse %*% blocks$cross %*% right_inverse,
       nu = 0L, nv = 0L)$d
     if (any(values > 1 + 10 * tolerance)) {
@@ -746,9 +836,16 @@ NULL
       "Geometry alignment requires a coherent positive joint covariance."
     )
   }
-  values <- .coupling_edge_reduce(x, function(blocks) {
+  values <- .coupling_edge_reduce(x, function(blocks, whiten) {
+    left_norm <- sqrt(sum(blocks$left_self^2))
+    right_norm <- sqrt(sum(blocks$right_self^2))
     denominator <- sqrt(sum(blocks$left_self^2) * sum(blocks$right_self^2))
-    if (!is.finite(denominator) || denominator <= tolerance) {
+    # Relative to the larger self-geometry squared, matching the units of
+    # the denominator (a product of two Frobenius norms).
+    geometry_floor <- .relative_tolerance_floor(
+      tolerance, max(left_norm, right_norm)^2
+    )
+    if (!is.finite(denominator) || denominator <= geometry_floor) {
       .input_error("Geometry alignment requires nonzero self-geometries.")
     }
     value <- sum(blocks$cross^2) / denominator
