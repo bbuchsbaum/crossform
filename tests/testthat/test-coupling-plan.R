@@ -19,8 +19,10 @@ coupling_plan_fixture <- local({
     values <- list(run1 = run1, run2 = run2)
     relation <- relation(values, effects = effects, domain = domain)
     frame <- compile_frame(regions(c("r1", "r1", "r2", "r2")), domain)
+    # Self-products carry no endpoint order, and a self-form geometry plan
+    # requires a self-adjoint (undirected) pairing.
     over <- pairing(
-      relation$partitions, relation$partitions, directed = TRUE,
+      relation$partitions, relation$partitions,
       self_pairs = "allow_biased", independence = "not_independent"
     )
     built <<- list(

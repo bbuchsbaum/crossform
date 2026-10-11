@@ -18,9 +18,13 @@ pairing(
 \item{left, right}{Equal-length vectors naming partition endpoints.}
 
 \item{weight}{Optional finite nonnegative edge weights. They are normalized
-to sum to one.}
+to sum to one. Every declared edge is validated, then edges whose weight
+is exactly zero are dropped: they contribute nothing to the estimator.}
 
-\item{directed}{Whether endpoint roles have scientific meaning.}
+\item{directed}{Whether endpoint roles have scientific meaning. A directed
+pairing of one relation is read by a rectangular plan
+(\code{plan_geometry(x, at, over, right = x)}); self-form plans require an
+undirected pairing.}
 
 \item{self_pairs}{Whether diagonal self-products are forbidden or explicitly
 admitted as noise-biased estimates.}
@@ -35,7 +39,10 @@ generalizes across, such as \code{"run"}, \code{"session"}, or \code{"task"}. Th
 is part of the scientific estimand: cross-run and cross-session
 reproduction are different quantities even at identical fold counts, so
 the declared axis is bound into every plan identity built from this
-pairing. Leaving it \code{NULL} records the axis as undeclared.}
+pairing. Leaving it \code{NULL} records the axis as undeclared. Axis names are
+free text, because a study's \code{\link[=partition_hierarchy]{partition_hierarchy()}} declares its own
+axes; the plural of a conventional axis (such as \code{"runs"} for \code{"run"})
+signals an \code{effect_axis_name_warning} and is kept as given.}
 }
 \value{
 An \code{effect_pairing} data frame with \code{left}, \code{right}, and unit-mass

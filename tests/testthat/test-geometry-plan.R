@@ -474,3 +474,96 @@ test_that("fixed native-diagonal metrics retain the additive query collapse", {
     ignore_attr = TRUE
   )
 })
+
+# A self form's packed codec can only carry a symmetric form. A directed
+# pairing with cross-partition edges builds `sum_e w_e B_a K B_b'`, which is
+# not symmetric, so `plan_geometry()` refuses it before any source read on
+# every metric route instead of letting the dense-metric route encode only the
+# lower triangle of a nonsymmetric form while the additive routes fail at
+# execution.
+test_that("self-form plans refuse directed pairings before any source read", {
+  reads <- new.env(parent = emptyenv())
+  reads$count <- 0L
+  fixture <- geometry_plan_fixture(reads, effects = 3L, features = 10L)
+  raw <- matrix(seq_len(100) / 137, 10, 10)
+  dense <- neural_metric(crossprod(raw) + diag(0.75, 10), fixture$domain)
+  diagonal <- neural_metric(diag(seq(0.5, 1.4, length.out = 10)),
+    fixture$domain)
+  directed <- pairing("run1", "run2", directed = TRUE,
+    independence = "independent")
+  self_products <- pairing(c("run1", "run2"), c("run1", "run2"),
+    directed = TRUE, self_pairs = "allow_biased",
+    independence = "not_independent")
+  for (metric in list(NULL, diagonal, dense)) {
+    refusal <- catch_refusal(plan_geometry(
+      fixture$relation, fixture$frame, directed, metric = metric
+    ))
+    expect_s3_class(refusal, "effect_capability_refusal")
+    expect_identical(refusal$capability, "symmetric_self_form")
+    expect_identical(refusal$namespace, "geometry_plans")
+    expect_identical(refusal$reasons, "directed_pairing_not_self_adjoint")
+    expect_true(any(grepl("directed = FALSE", refusal$remedies)))
+    expect_true(any(grepl("right = ", refusal$remedies)))
+
+    self_refusal <- catch_refusal(plan_geometry(
+      fixture$relation, fixture$frame, self_products, metric = metric
+    ))
+    expect_identical(self_refusal$capability, "symmetric_self_form")
+    expect_identical(self_refusal$reasons,
+      "directed_self_products_carry_no_direction")
+  }
+  expect_identical(reads$count, 0L)
+})
+
+test_that("directed self-form remedies agree with the ordered-edge oracle", {
+  fixture <- geometry_plan_fixture(effects = 3L, features = 10L)
+  run1 <- matrix(seq_len(30) / 10, 3L, 10L)
+  run2 <- matrix(rev(seq_len(30)) / 11, 3L, 10L)
+  directed <- pairing("run1", "run2", directed = TRUE,
+    independence = "independent")
+  # The rectangular remedy keeps the ordered, nonsymmetric estimand.
+  rectangular <- plan_geometry(fixture$relation, fixture$frame, directed,
+    right = fixture$relation)
+  form <- materialize_geometry(rectangular)
+  expect_identical(form$codec, "rectangular")
+  weights <- as.matrix(fixture$frame$weights)
+  oracle <- t(vapply(seq_len(nrow(weights)), function(node) {
+    as.vector(run1 %*% (weights[node, ] * t(run2)))
+  }, numeric(9)))
+  expect_equal(geometry_component(form, "total"), oracle,
+    tolerance = 1e-12, ignore_attr = TRUE)
+  # The undirected remedy is its self-adjoint part, and the direct and
+  # materialized routes agree on it with and without a dense metric.
+  raw <- matrix(seq_len(100) / 137, 10, 10)
+  K <- crossprod(raw) + diag(0.75, 10)
+  undirected <- pairing("run1", "run2", independence = "independent")
+  h <- matrix(c(0, 1, 0, 1, 0, 0, 0, 0, 0), 3, 3)
+  sym_oracle <- vapply(seq_len(nrow(weights)), function(node) {
+    form <- matrix(oracle[node, ], 3, 3)
+    sum(h * (form + t(form)) / 2)
+  }, numeric(1))
+  for (metric in list(NULL, neural_metric(K, fixture$domain))) {
+    plan <- plan_geometry(fixture$relation, fixture$frame, undirected,
+      metric = metric)
+    direct <- evaluate_geometry(plan, query = bilinear_query(h))$values
+    late <- query_geometry(materialize_geometry(plan),
+      bilinear_query(h))$values
+    expect_equal(direct, late, tolerance = 1e-10)
+    if (is.null(metric)) {
+      expect_equal(drop(direct), sym_oracle, tolerance = 1e-10,
+        ignore_attr = TRUE)
+    }
+  }
+})
+
+test_that("a forged self-form plan with declared-order edges is refused", {
+  fixture <- geometry_plan_fixture(effects = 3L, features = 10L)
+  plan <- plan_geometry(fixture$relation, fixture$frame, fixture$pairing)
+  forged <- plan
+  forged$pairing <- pairing("run1", "run2", directed = TRUE)
+  forged$task <- crossform:::.compile_effect_evidence_task(
+    fixture$relation, forged$pairing
+  )
+  expect_error(crossform:::.validate_geometry_plan(forged, deep = FALSE),
+    "self-adjoint", class = "effect_contract_error")
+})

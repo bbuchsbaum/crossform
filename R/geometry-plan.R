@@ -371,6 +371,61 @@
   .sha256_signature(fields)
 }
 
+# A self-form plan stores its complete form in the symmetric-packed codec,
+# and `effect-form-v1` forbids that codec without a *constructed* `symmetric`
+# guarantee (sections 3 and 4). For one relation, that guarantee comes from
+# the undirected pairing's self-adjoint half-edge expansion -- never from
+# symmetrizing a kernel result. A directed pairing with cross-partition edges
+# forms `sum_e w_e B_a K B_b'`, which is not symmetric: packing it keeps only
+# one triangle and every later view reads a different estimand than the
+# query-first route. A directed pairing of self-products has no direction to
+# declare (`B_a K B_a'` is its own transpose), and its declared-order
+# expansion is not the self-adjoint one the packed kernels require. Both are
+# refused here, on every metric route, before any source is read.
+.require_self_adjoint_pairing <- function(over) {
+  if (!isTRUE(attr(over, "directed", exact = TRUE))) return(invisible(over))
+  self_products <- all(over$left == over$right)
+  if (self_products) {
+    .capability_refusal(paste0(
+      "A self-form geometry plan needs a self-adjoint pairing, and this ",
+      "pairing is `directed = TRUE` over self-products only. A self-product ",
+      "has no endpoint order to declare, so the direction adds nothing to ",
+      "the estimand; declare the same edges with `directed = FALSE`."
+    ),
+      capability = "symmetric_self_form",
+      namespace = "geometry_plans",
+      reasons = "directed_self_products_carry_no_direction",
+      remedies = paste0(
+        "Rebuild the pairing with `pairing(..., directed = FALSE, ",
+        "self_pairs = \"allow_biased\", independence = \"not_independent\")`; ",
+        "the self-form estimate is numerically the same."
+      )
+    )
+  }
+  .capability_refusal(paste0(
+    "A self-form geometry plan stores a symmetric form, and this pairing is ",
+    "`directed = TRUE` with cross-partition edges. Its ordered products ",
+    "`B_left K B_right'` do not form a symmetric matrix, so the self-form ",
+    "codec cannot represent them without silently changing the estimand."
+  ),
+    capability = "symmetric_self_form",
+    namespace = "geometry_plans",
+    reasons = "directed_pairing_not_self_adjoint",
+    remedies = c(
+      paste0(
+        "For the symmetric (endpoint-order-free) estimand, declare the ",
+        "pairing with `directed = FALSE` or use `cross_partitions()`."
+      ),
+      paste0(
+        "To keep endpoint order, build a rectangular plan with ",
+        "`plan_geometry(x, at, over, right = x)`; it stores the complete ",
+        "ordered form and is read with `pair_query()` (rectangular plans ",
+        "are compiled on the implicit identity metric only)."
+      )
+    )
+  )
+}
+
 # Shared entry validation for the plan constructors: a relation, the frame
 # it is measured at, and the pairing it may form must agree on the exact
 # neural domain and on the feature and partition axes before anything is
@@ -441,7 +496,11 @@
 #' @param at A compiled additive `effect_frame`.
 #' @param over An `effect_pairing`. Rectangular plans require directed
 #'   pairings whose left endpoints identify partitions of `x` and right
-#'   endpoints identify partitions of `right`.
+#'   endpoints identify partitions of `right`. Self-form plans (no `right`)
+#'   store a symmetric form and so require an undirected pairing; a
+#'   `directed = TRUE` pairing is refused before any source read with an
+#'   `effect_capability_refusal` (capability `"symmetric_self_form"`). To keep
+#'   endpoint order on one relation, pass `right = x` for a rectangular plan.
 #' @param compute A sequential `compute_policy()`.
 #' @param metric Optional fixed `neural_metric()`, or an on-demand metric
 #'   recipe such as [shrinkage_precision()]. A domain-wide fixed metric is
@@ -645,6 +704,7 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
   }
   compute <- .validate_compute_policy(compute)
   .validate_geometry_plan_inputs(x, at, over, right = right)
+  if (is.null(right)) .require_self_adjoint_pairing(over)
   if (!is.null(right) && !is.null(metric)) {
     .capability_refusal(paste0(
       "Fixed neural metrics are not yet admitted on rectangular ",
@@ -853,6 +913,16 @@ plan_geometry <- function(x, at, over, compute = compute_policy(),
     .contract_error(
       "Geometry-plan axes, frame, or materialization are inconsistent."
     )
+  }
+  # The packed self-form codec is licensed only by the self-adjoint half-edge
+  # expansion; see `.require_self_adjoint_pairing()`.
+  if (same && !identical(
+      attr(x$task$ordered_partition_products, "expansion", exact = TRUE),
+      "self_adjoint_half_edges")) {
+    .contract_error(paste0(
+      "A self-form geometry plan must carry self-adjoint partition edges; ",
+      "its symmetric-packed codec cannot hold a directed form."
+    ))
   }
   if (!is.null(metric_schedule$metric)) {
     metric <- metric_schedule$metric

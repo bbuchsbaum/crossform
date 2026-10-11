@@ -192,3 +192,73 @@ test_that("cross_partitions() refuses repeated partition identifiers", {
     nrow(cross_partitions(c("run-1", "run-2", "run-3"))), 3L
   )
 })
+
+test_that("pairing() drops zero-weight edges", {
+  # A zero-weight edge contributes nothing to the estimator; keeping it bound
+  # its endpoints into marginals, plan identity, and source reads anyway.
+  over <- pairing(c("run1", "run1"), c("run2", "run3"), weight = c(1, 0),
+    directed = TRUE, independence = "independent")
+  expect_identical(nrow(over), 1L)
+  expect_identical(over$left, "run1")
+  expect_identical(over$right, "run2")
+  expect_identical(over$weight, 1)
+  expect_identical(rownames(over), "1")
+  expect_identical(
+    over,
+    pairing("run1", "run2", directed = TRUE, independence = "independent")
+  )
+  # Marginals only see the surviving endpoints.
+  local <- array(seq_len(2 * 2 * 3), c(2, 2, 3),
+    dimnames = list(NULL, c("a", "b"), c("run1", "run2", "run3")))
+  expect_equal(crossform:::pairing_marginals(local, over)$right,
+    local[, , "run2"], ignore_attr = TRUE)
+
+  expect_error(pairing(c("a", "b"), c("b", "c"), weight = c(0, 0)),
+    "positive total mass", class = "effect_input_error")
+  # Validation still covers the declared edges, not only the surviving ones.
+  expect_error(pairing(c("a", "a"), c("b", "b"), weight = c(1, 0)),
+    "duplicate", class = "effect_input_error")
+
+  forged <- pairing(c("a", "b"), c("b", "c"))
+  forged$weight <- c(1, 0)
+  expect_error(crossform:::.validate_pairing(forged), "zero-weight",
+    class = "effect_input_error")
+})
+
+test_that("pairing declarations name their allowed values", {
+  for (call in list(
+    quote(pairing("a", "b", independence = TRUE)),
+    quote(cross_partitions(c("a", "b"), independence = TRUE)),
+    quote(cross_partitions(c("a", "b"), independence = "yes"))
+  )) {
+    error <- tryCatch(eval(call), error = identity)
+    expect_s3_class(error, "effect_input_error")
+    expect_match(conditionMessage(error), "\"independent\"", fixed = TRUE)
+    expect_match(conditionMessage(error), "\"not_independent\"", fixed = TRUE)
+    expect_identical(error$arg, "independence")
+  }
+  error <- tryCatch(pairing("a", "a", self_pairs = TRUE), error = identity)
+  expect_s3_class(error, "effect_input_error")
+  expect_match(conditionMessage(error), "\"allow_biased\"", fixed = TRUE)
+  # Unambiguous abbreviations keep their `match.arg()` meaning.
+  expect_identical(
+    attr(pairing("a", "b", independence = "indep"), "independence"),
+    "independent"
+  )
+})
+
+test_that("generalizes_over warns on plural near-misses of common axes", {
+  expect_warning(
+    over <- cross_partitions(c("a", "b"), generalizes_over = "runs"),
+    "did you mean \"run\"", class = "effect_axis_name_warning"
+  )
+  # The declared name is kept as given: axis names are user vocabulary.
+  expect_identical(attr(over, "generalizes_over"), "runs")
+  expect_warning(
+    pairing("a", "b", generalizes_over = "Sessions"),
+    "did you mean \"session\"", class = "effect_axis_name_warning"
+  )
+  expect_silent(cross_partitions(c("a", "b"), generalizes_over = "run"))
+  expect_silent(cross_partitions(c("a", "b"), generalizes_over = "acquisition"))
+  expect_silent(cross_partitions(c("a", "b"), generalizes_over = "session"))
+})

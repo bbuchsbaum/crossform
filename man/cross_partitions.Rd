@@ -17,7 +17,8 @@ analytic sampling-law capabilities.}
 
 \item{generalizes_over}{Optional name of the sampling axis the partitions
 represent, such as \code{"run"} or \code{"session"}; see \code{\link[=pairing]{pairing()}}. The declared
-axis is bound into every plan identity built from this pairing.}
+axis is bound into every plan identity built from this pairing, and a
+plural near-miss such as \code{"runs"} signals a warning.}
 }
 \value{
 An undirected pairing containing one row per unordered pair, with

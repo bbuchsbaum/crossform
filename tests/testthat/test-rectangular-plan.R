@@ -202,3 +202,32 @@ test_that("rectangular compiler memory plans size q_left * q_right coordinates",
   expect_equal(narrow$categories[["local_state"]],
     (m * 3 * 2 + m * 2 * 2) * 8)
 })
+
+test_that("a rectangular plan materializes to block storage like memory", {
+  # The block stores used to be stamped with the symmetric-packed codec
+  # regardless of the plan, so `effect_form()` refused the rectangular result
+  # as an inconsistent store manifest.
+  fixture <- rectangular_fixture()
+  plan <- plan_geometry(
+    fixture$encoding, fixture$frame, fixture$over,
+    right = fixture$retrieval
+  )
+  path <- tempfile("rectangular-block-")
+  on.exit(unlink(path, recursive = TRUE), add = TRUE)
+  memory <- materialize_geometry(plan)
+  block <- materialize_geometry(plan, storage = "block", storage_path = path)
+  expect_s3_class(block, "effect_form")
+  expect_identical(block$codec, "rectangular")
+  expect_identical(block$logical_shape, c(3L, 2L))
+  for (component in c("total", "coherent", "configuration")) {
+    expect_equal(geometry_component(block, component),
+      geometry_component(memory, component), tolerance = 1e-12,
+      ignore_attr = TRUE)
+  }
+  query <- pair_query(
+    matrix(c(1, -1, 0.5, 0, 2, -0.25), 3L, 2L),
+    fixture$encoding$effect_space, fixture$retrieval$effect_space
+  )
+  expect_equal(query_geometry(block, query)$values,
+    query_geometry(memory, query)$values, tolerance = 1e-12)
+})
