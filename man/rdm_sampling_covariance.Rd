@@ -35,16 +35,22 @@ small correction: at \eqn{M=4}{M = 4} under a null truth it would report
 2.5 times the true variance. crossform therefore subtracts the bias,
 using the same unbiased estimate of
 \eqn{\mathrm{tr}(\Sigma_w^2)}{tr(Sigma_w^2)} as the noise term, and
-projects the resulting effect-space signal Gram onto the positive
-semidefinite cone (eigenvalue positive part in
-\eqn{\Sigma_K}{Sigma_K}-whitened coordinates) so the reported covariance
-stays a covariance. The result is unbiased whenever no direction is
-clamped, and when the true signal is weak the clamp leaves a modest
-conservative residue (never the face-value inflation). The number of
-clamped directions is reported as \verb{$source$signal_clamped_directions}.
-Prefer \code{"null"} for calibrating a test of no effect, where it is exact;
-use \code{"plugin"} when reporting uncertainty around an estimated nonzero
-distance.}
+projects the resulting signal Gram onto the positive semidefinite cone
+so the reported covariance stays a covariance. The projection is the
+eigenvalue positive part in \eqn{\Sigma_K}{Sigma_K}-whitened coordinates
+\emph{within the span of the distance contrasts} (the centred condition
+subspace), so a pattern shared by every condition, which no distance can
+see, cannot change the result. The result is unbiased whenever no
+direction is clamped, and with a clearly nonzero signal it matches the
+exact law. When the true signal is weak the clamp is not a small
+correction: it leaves an upward bias that in simulation (\eqn{M=4}{M = 4},
+four conditions, zero true signal) reported about 1.5 times the true
+variance at \eqn{P=6}{P = 6} and 1.3 times at \eqn{P=20}{P = 20}, against
+2.5 times for the face-value plug-in. The number of clamped directions is
+reported as \verb{$source$signal_clamped_directions}; a nonzero count is a
+sign the variance is inflated. Use \code{"null"} for calibrating a test of no
+effect, where it is exact; use \code{"plugin"} when reporting uncertainty
+around an estimated distance that is clearly nonzero.}
 
 \item{at}{One measurement position, or a vector of positions, in the
 compiled frame. Required, with no default: the analytic law is local, so
