@@ -996,7 +996,7 @@ Everything above audits the 105 exports the subtraction release inherited and
 the 97 it left. This section is the append-only register of exports added
 *after* that release, so the historical arithmetic above stays readable as the
 record of what it actually decided. The binding total is the sum of the two:
-**97 + 15 = 112**, which is what `tests/testthat/test-api-surface.R` pins. A
+**97 + 17 = 114**, which is what `tests/testthat/test-api-surface.R` pins. A
 row short of it is a missing justification, which is exactly the failure this
 ledger exists to force.
 
@@ -1032,9 +1032,13 @@ ledger exists to force.
 
 | `adapter_version_certificate()` | `R/compiler-conformance.R` | developer | adapter-protocol (debt-register ticket) | the only addition in this register that closes a gap rather than adding a capability, and the only one the package was already *obliging* users to make. `vignette("crossform-extending")` states two binding obligations on an adapter author, and the first is to certify against *installed* package versions and record them, as the two shipped compiler adapters do. Until this row, the vignette discharged that obligation by naming `.require_adapter_version()` — a protocol that requires a behaviour and then points, as its worked example, at a function reachable only through `:::`. It was one of the twelve entries in `tests/testthat/test-adapter-protocol.R`'s debt register, and the only one of the four groups there whose honest closure was an export: the other eleven were redundant re-validation (deleted), an executor seam that turned out to be expressible from documented plan fields plus `source_capabilities()` (rewritten), and provider capabilities that belonged inside `volume_domain()` and `additive_frame()` (moved there). What it is, precisely, is the two-refusal check `first-moment-relation-v1` conformance rests on: `installed_compiler_adapter` when the upstream package is absent, `supported_compiler_version` when the installed version is not the certified one, both in the `relation_compiler` namespace, returning the version string an adapter records in its provenance. Hand-rolling it is possible — the condition classes are documented under `crossform_conditions` — and that is exactly the failure mode, because a hand-rolled refusal that gets the capability name or the namespace wrong is invisible to `catch_refusal()` branching and to every conformance report downstream of it. Developer tier because no analyst calls it: its whole audience is the extension author the vignette addresses. Users: T:1 (`test-compiler-conformance.R`, `test-adapter-protocol.R`), plus both in-tree compiler adapters | keep |
 
-Tier arithmetic after this section: core 21 → **23**; advanced 33 → **35**;
+| `measurement_id()` | `R/message-helpers.R` | core | measurement-selector fix | closes a silent wrong-measurement bug rather than adding a capability. Every view prints its frame's `$index$measurement` under `measurement`, and on a masked `volume_domain()` those are full-volume voxel indices, not row positions; but `rdm_sampling_covariance(at = )` and `plot(measurement = , highlight = )` read a bare number as a position, so `117` copied from a print silently selected the 117th row — a different voxel, with a valid-looking covariance. A bare number cannot carry which of the two the caller meant, so on such frames it is now refused, and this constructor is the explicit identifier spelling (a character id remains equivalent). Core because every real fMRI analysis is a masked volume, so the core sampling-covariance and plotting verbs need it on their ordinary path. Users: T:1 (`test-measurement-selectors.R`) | keep |
+
+| `measurement_position()` | `R/message-helpers.R` | core | measurement-selector fix | the positional half of the same pair, documented on the same page: the spelling for `which.max(view$total)` and `order()` results once a bare number is refused as ambiguous. Without it a masked-volume user would have to round-trip a position through its identifier (`as.character(view$index[p])`) to reach a row they already hold. Users: T:1 (`test-measurement-selectors.R`) | keep |
+
+Tier arithmetic after this section: core 21 → **25**; advanced 33 → **35**;
 advanced (experimental) 16 → **26**, of which the ten new ones are the
-population sub-label; developer 5 → **6**; total 97 → **112**.
+population sub-label; developer 5 → **6**; total 97 → **114**.
 
 ### Shape changes that add no export (ws-e, ticket E6)
 

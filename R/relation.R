@@ -215,6 +215,40 @@ relation <- function(sources, extract = NULL, effects = NULL,
   if (!is.list(source_dims) || length(source_dims) != length(sources)) {
     .input_error("`source_dims` must provide one entry per source.")
   }
+  # Each source is a numeric matrix, a source descriptor, or a reader
+  # function with declared dimensions. Anything else (a data frame, most
+  # often) is named here, before any dimension is read from it, so the
+  # message never reports a count it could not compute.
+  for (i in seq_along(sources)) {
+    source <- sources[[i]]
+    if (is.matrix(source) || inherits(source, "effect_source_descriptor")) {
+      next
+    }
+    if (is.function(source)) {
+      if (is.null(source_dims[[i]])) {
+        .input_error(sprintf(paste0(
+          "Partition `%s` is a reader function, so its dimensions must be ",
+          "declared: pass `source_dims` with one c(effects, features) pair ",
+          "per source."
+        ), partitions[[i]]),
+          arg = "source_dims", received = "NULL",
+          expected = "c(effects, features) for each function source")
+      }
+      next
+    }
+    hint <- if (is.data.frame(source)) {
+      paste0(" Convert it with `as.matrix()`, keeping effect names as ",
+             "row names, e.g. `as.matrix(df)`.")
+    } else {
+      ""
+    }
+    .input_error(sprintf(paste0(
+      "Partition `%s` must be an effect-by-feature numeric matrix, a source ",
+      "descriptor, or a reader function; received %s.%s"
+    ), partitions[[i]], .msg_value(source), hint),
+      arg = "sources", received = .msg_value(source),
+      expected = "an effect-by-feature numeric matrix")
+  }
   declared_effect_space <- !is.null(effects)
   if (is.null(extract)) {
     first_dimension <- if (is.matrix(sources[[1L]])) {

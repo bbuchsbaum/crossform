@@ -232,6 +232,7 @@ available before provoking a refusal, and \code{\link[=rdm]{rdm()}} for the poin
 it describes.
 
 Other sampling uncertainty: 
+\code{\link{measurement_id}()},
 \code{\link{reconstruct_evidence}()},
 \code{\link{sampling_capabilities}()},
 \code{\link{sampling_covariance}()}

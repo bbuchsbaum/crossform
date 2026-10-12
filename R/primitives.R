@@ -338,6 +338,25 @@
 
 # Contrast alignment ---------------------------------------------------------
 
+# A complete, copyable contrast for a message: the supplied named weights
+# where given, 0 for every declared effect that has none.
+.contrast_example <- function(value, effects, max_shown = 8L) {
+  weights <- stats::setNames(numeric(length(effects)), effects)
+  if (!is.null(value) && !is.null(names(value))) {
+    known <- intersect(names(value), effects)
+    weights[known] <- value[known]
+  } else if (length(effects) >= 2L) {
+    weights[1:2] <- c(1, -1)
+  }
+  shown <- seq_len(min(length(weights), max_shown))
+  name <- names(weights)[shown]
+  name <- ifelse(make.names(name) == name, name, paste0("`", name, "`"))
+  body <- paste0(name, " = ", format(weights[shown], trim = TRUE,
+    scientific = FALSE, drop0trailing = TRUE), collapse = ", ")
+  if (length(weights) > max_shown) body <- paste0(body, ", ...")
+  sprintf("`c(%s)`", body)
+}
+
 .align_contrast <- function(value, effects, label = "weights") {
   if (!is.numeric(value) || is.matrix(value)) {
     .input_error(sprintf(paste0(
@@ -346,12 +365,15 @@
     ), label, .msg_value(value), .msg_count(length(effects), "effect"),
       .msg_names(effects)))
   }
-  if (length(value) != length(effects)) {
+  named <- !is.null(names(value))
+  if (!named && length(value) != length(effects)) {
     .input_error(sprintf(paste0(
       "`%s` has %s but the relation declares %s (%s). Supply one weight per ",
-      "effect, or name the weights to have them aligned for you."
+      "effect in that order, or name the weights (e.g. %s) to have them ",
+      "aligned by name."
     ), label, .msg_count(length(value), "value"),
-      .msg_count(length(effects), "effect"), .msg_names(effects)))
+      .msg_count(length(effects), "effect"), .msg_names(effects),
+      .contrast_example(NULL, effects)))
   }
   if (any(!is.finite(value))) {
     .input_error(sprintf(paste0(
@@ -362,7 +384,7 @@
         if (is.null(names(value))) effects else names(value)),
       if (sum(!is.finite(value)) == 1L) "is" else "are"))
   }
-  if (!is.null(names(value))) {
+  if (named) {
     supplied <- names(value)
     if (anyNA(supplied) || any(!nzchar(supplied))) {
       .input_error(sprintf(paste0(
@@ -379,13 +401,27 @@
       unknown <- setdiff(supplied, effects)
       absent <- setdiff(effects, supplied)
       detail <- c(
-        if (length(unknown)) sprintf("%s is not a declared effect",
-          .msg_names(unknown)),
-        if (length(absent)) sprintf("%s has no weight", .msg_names(absent))
+        if (length(unknown)) sprintf("%s %s not a declared effect",
+          .msg_names(unknown), if (length(unknown) == 1L) "is" else "are"),
+        if (length(absent)) sprintf("%s %s no weight", .msg_names(absent),
+          if (length(absent) == 1L) "has" else "have")
       )
+      # Missing effects are never defaulted to zero: a contrast that silently
+      # drops an effect is a different hypothesis. The message spells out the
+      # complete vector instead, with explicit zeros for the absent effects.
+      advice <- if (length(absent) && !length(unknown)) {
+        sprintf(paste0(
+          " Every declared effect needs a weight; give the absent %s an ",
+          "explicit 0 to exclude %s, e.g. %s."
+        ), if (length(absent) == 1L) "effect" else "effects",
+          if (length(absent) == 1L) "it" else "them",
+          .contrast_example(value, effects))
+      } else {
+        ""
+      }
       .input_error(sprintf(
-        "`%s` does not match the relation's effects (%s): %s.",
-        label, .msg_names(effects), paste(detail, collapse = "; ")))
+        "`%s` does not match the relation's effects (%s): %s.%s",
+        label, .msg_names(effects), paste(detail, collapse = "; "), advice))
     }
     value <- value[effects]
   }

@@ -128,6 +128,7 @@ refusal$remedies
 directed node pair for a lossless claim.
 
 Other sampling uncertainty: 
+\code{\link{measurement_id}()},
 \code{\link{rdm_sampling_covariance}()},
 \code{\link{sampling_capabilities}()},
 \code{\link{sampling_covariance}()}

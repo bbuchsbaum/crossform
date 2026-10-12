@@ -61,7 +61,11 @@ reported.
 \item \verb{$weights}: the contrast, reordered to the relation's effect order and
 named. Print it to confirm the alignment.
 \item \verb{$index}: the measurement identifiers, one per value, carried from the
-frame's \verb{$index$measurement}.
+frame's \verb{$index$measurement}. It is that column as a plain vector (the
+frame's \verb{$index} is a data frame), and it is what the print shows under
+\code{measurement}. On a masked \code{\link[=volume_domain]{volume_domain()}} these are full-volume voxel
+indices, not row positions: select by them with \code{\link[=measurement_id]{measurement_id()}} and
+by position with \code{\link[=measurement_position]{measurement_position()}}.
 \item \verb{$receipt}: the execution receipt for the run that produced the values.
 }
 
