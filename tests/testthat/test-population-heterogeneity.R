@@ -503,15 +503,85 @@ test_that("a transport is never evaluated on a partition it was fitted on", {
     partitions = list(c("run1", "run3"), c("run2", "run4")))
   expect_length(split$receipt$cross_fit$transport_partition_overlap, 0L)
 
-  # Interleaving the relation's own partitions would put run5 in a half, and
-  # the split refuses it under the same capability rather than reading it.
-  interleaved <- catch_refusal(heterogeneity(honest))
-  expect_identical(interleaved$capability, "held_out_transport_evaluation")
-  expect_true(all(grepl(":run5$", interleaved$reasons)))
+  # The default split interleaves the partitions the pairing evaluates, not
+  # every partition the relation carries, so run5 --- correctly held out of
+  # the plan --- never lands in a half and the honest plan is admitted.
+  interleaved <- heterogeneity(honest)
+  record <- interleaved$receipt$cross_fit
+  expect_identical(record$split, "interleaved_partitions")
+  expect_identical(record$partitions[["s01"]],
+    list(a = c("run1", "run3"), b = c("run2", "run4")))
+  expect_length(record$transport_partition_overlap, 0L)
+  expect_equal(interleaved$gram, split$gram, tolerance = 1e-12)
+
+  # A genuinely circular split still refuses: a declared half that names the
+  # transport's training run is the evaluation section 1.4 forbids.
+  circular_half <- catch_refusal(heterogeneity(honest,
+    partitions = list(c("run1", "run3", "run5"), c("run2", "run4"))))
+  expect_identical(circular_half$capability, "held_out_transport_evaluation")
+  expect_true(all(grepl(":run5$", circular_half$reasons)))
 
   # An anatomical transport never saw the responses and owes no such record.
   expect_length(
     heterogeneity(plan)$receipt$cross_fit$transport_partition_overlap, 0L)
+})
+
+test_that("each half restricts the original pairing, not all pairs", {
+  # A weighted edge subset over six runs: interleaving gives halves
+  # {run1, run3, run5} and {run2, run4, run6}. Inside the first half the
+  # pairing has only run1-run3 (weight 3) and run3-run5 (weight 1); all-pairs
+  # would add run1-run5 and weight every edge equally, which is a different
+  # estimand from the one the full plan declares.
+  base <- hx_plan(runs = 6L)
+  left <- c("run1", "run3", "run2", "run4", "run1", "run5")
+  right <- c("run3", "run5", "run4", "run6", "run2", "run6")
+  weight <- c(3, 1, 1, 2, 1, 1)
+  subjects <- lapply(base$subjects, function(subject)
+    plan_geometry(subject$task$left_relation, subject$frame,
+      pairing(left, right, weight = weight), compute = subject$compute))
+  plan <- plan_population(subjects, base$transport)
+
+  split <- heterogeneity(plan)
+  record <- split$receipt$cross_fit
+  expect_identical(record$partitions[["s01"]],
+    list(a = c("run1", "run3", "run5"), b = c("run2", "run4", "run6")))
+
+  restricted <- list(
+    a = pairing(c("run1", "run3"), c("run3", "run5"), weight = c(3, 1)),
+    b = pairing(c("run2", "run4"), c("run4", "run6"), weight = c(1, 2))
+  )
+  half_plans <- lapply(c(a = "a", b = "b"), function(side) {
+    halves <- stats::setNames(lapply(names(plan$subjects), function(label) {
+      subject <- plan$subjects[[label]]
+      plan_geometry(subject$task$left_relation, subject$frame,
+        restricted[[side]], compute = subject$compute)
+    }), names(plan$subjects))
+    plan_population(halves, plan$transport)
+  })
+  # The halves are exactly the restricted-pairing plans ...
+  expect_identical(unname(record$half_plan_ids),
+    unname(vapply(half_plans, `[[`, character(1), "scientific_plan_id")))
+  # ... and not the all-pairs re-plans the split used to build.
+  all_pairs <- stats::setNames(lapply(names(plan$subjects), function(label) {
+    subject <- plan$subjects[[label]]
+    plan_geometry(subject$task$left_relation, subject$frame,
+      cross_partitions(c("run1", "run3", "run5")), compute = subject$compute)
+  }), names(plan$subjects))
+  expect_false(identical(record$half_plan_ids[["a"]],
+    plan_population(all_pairs, plan$transport)$scientific_plan_id))
+
+  # The Gram is section 6.4's matrix built from those two restricted halves.
+  deviations <- lapply(half_plans, hx_dense_deviations)
+  cross <- tcrossprod(deviations[[1L]], deviations[[2L]])
+  expected <- (cross + t(cross)) / 2 / split$residual_df
+  expect_lt(max(abs(split$gram - expected)), 1e-12)
+
+  # A half that holds partitions but none of the pairing's edges is refused
+  # rather than re-planned over an empty pairing.
+  edgeless <- catch_refusal(heterogeneity(plan,
+    partitions = list(c("run1", "run4"), c("run2", "run3"))))
+  expect_identical(edgeless$capability, "cross_fitted_subject_gram")
+  expect_true(any(grepl("half_carries_no_pairing_edge", edgeless$reasons)))
 })
 
 test_that("a whitened metric schedule cannot be split into halves", {
@@ -812,4 +882,17 @@ test_that("a single-partition participant reaches the named split refusal", {
   expect_identical(refusal$capability, "cross_fitted_subject_gram")
   expect_true("half_carries_fewer_than_two_partitions" %in% refusal$reasons)
   expect_true("subject_split:s01:1_partitions_split_1_0" %in% refusal$reasons)
+})
+
+test_that("heterogeneity node selectors follow the measurement selector rule", {
+  pick <- crossform:::.heterogeneity_nodes
+  # Non-numeric identifiers: bare numbers stay positions.
+  expect_identical(pick(c(2, 1), c("group1", "group2", "group3")), 1:2)
+  # Whole-number identifiers that are not 1..n: a bare number is ambiguous.
+  labels <- c("12", "40", "7")
+  expect_error(pick(2, labels), "measurement_id\\(2\\)",
+    class = "effect_input_error")
+  expect_identical(pick(measurement_id(c(7, 12)), labels), c(1L, 3L))
+  expect_identical(pick(measurement_position(2), labels), 2L)
+  expect_identical(pick("40", labels), 2L)
 })

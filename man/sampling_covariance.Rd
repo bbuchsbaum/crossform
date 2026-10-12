@@ -55,10 +55,12 @@ automatic confidence interval.
 \details{
 The values returned inherit the calibration target chosen when \code{x} was
 built. Under \code{target = "plugin"} the partition-mean plug-in's signal bias
-has been removed (with a positive-part projection that is conservative
-only when the signal is weak); see the \code{target} argument of
-\code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Under \code{target = "null"} the law is exact on
-the variance scale.
+has been removed with a positive-part projection that is exact when no
+direction is clamped but inflates variances when the signal is weak (by
+roughly 30-50\% at zero true signal in simulation); see the \code{target}
+argument of \code{\link[=rdm_sampling_covariance]{rdm_sampling_covariance()}}. Under \code{target = "null"} the law
+is exact on the variance scale, and it is the target to use for null
+calibration.
 
 In both cases the residual covariance behind the law is a plug-in with
 \eqn{\nu}{nu} degrees of freedom, so its \emph{quadratic} contribution carries the
@@ -188,6 +190,7 @@ catch_refusal(
 \code{\link[=contrast_energy]{contrast_energy()}} for the point estimates a query bank describes.
 
 Other sampling uncertainty: 
+\code{\link{measurement_id}()},
 \code{\link{rdm_sampling_covariance}()},
 \code{\link{reconstruct_evidence}()},
 \code{\link{sampling_capabilities}()}

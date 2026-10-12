@@ -661,9 +661,12 @@ round(rbind(distance = distances$values[peak, ],
   around a nonzero estimate. Taken at face value the partition mean carries
   its own noise into the signal term, an upward bias as large as the whole
   noise term; crossform subtracts that bias exactly and clamps the corrected
-  signal at zero, so the result is unbiased wherever nothing is clamped and
-  conservative where the signal is indistinguishable from noise. See
-  `?rdm_sampling_covariance` for the exact expression.
+  signal at zero, so the result is unbiased wherever nothing is clamped. Where
+  the signal is indistinguishable from noise the clamp leaves a real upward
+  bias: in simulation at four partitions and zero true signal, about 1.3 to
+  1.5 times the true variance (`$source$signal_clamped_directions` counts the
+  clamped directions). Use `"null"`, not `"plugin"`, to calibrate a test of
+  no effect. See `?rdm_sampling_covariance` for the exact expression.
 
 Both targets share one estimated ingredient: the residual covariance
 \(\Sigma_w\). "Exact" above means exact *given* that covariance — and because

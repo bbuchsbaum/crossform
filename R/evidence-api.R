@@ -448,7 +448,10 @@ measurement_form <- function(
 #' informational-connectivity analyses.
 #'
 #' @param x A complete `effect_measurement_form`.
-#' @param tolerance Positive numerical tolerance.
+#' @param tolerance Positive relative numerical tolerance. Every cutoff is this
+#'   multiple of the magnitude it is compared against (the largest eigenvalue or
+#'   entry of a self-block, or the larger self-variance of an edge), so results do
+#'   not depend on the units of the data.
 #' @return An `effect_coupling_result`. `$values` is one entry per edge (a
 #'   matrix block for `effect_coupling()` and `covariance_coupling()`, a data
 #'   frame of `canonical_correlation` per mode for `canonical_coupling()`,
@@ -612,7 +615,10 @@ gaussian_covariance_model <- function(provenance = list()) {
 #'   views.
 #' @param model A [gaussian_covariance_model()] for Gaussian information.
 #' @param units Information units, when applicable.
-#' @param tolerance Positive numerical tolerance.
+#' @param tolerance Positive relative numerical tolerance. Every cutoff is this
+#'   multiple of the magnitude it is compared against (the largest eigenvalue or
+#'   entry of a self-block, or the larger self-variance of an edge), so results do
+#'   not depend on the units of the data.
 #' @return An `effect_coupling_result` whose `$values` data frame carries one
 #'   row per edge with the view's column (`correlation`,
 #'   `canonical_correlation` per `mode`, `geometry_alignment`, or

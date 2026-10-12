@@ -25,7 +25,11 @@ fit's residual channel.}
 
 \item{over}{An \code{effect_pairing}. Rectangular plans require directed
 pairings whose left endpoints identify partitions of \code{x} and right
-endpoints identify partitions of \code{right}.}
+endpoints identify partitions of \code{right}. Self-form plans (no \code{right})
+store a symmetric form and so require an undirected pairing; a
+\code{directed = TRUE} pairing is refused before any source read with an
+\code{effect_capability_refusal} (capability \code{"symmetric_self_form"}). To keep
+endpoint order on one relation, pass \code{right = x} for a rectangular plan.}
 
 \item{compute}{A sequential \code{compute_policy()}.}
 

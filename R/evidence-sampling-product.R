@@ -515,18 +515,28 @@
 #'   2.5 times the true variance. crossform therefore subtracts the bias,
 #'   using the same unbiased estimate of
 #'   \eqn{\mathrm{tr}(\Sigma_w^2)}{tr(Sigma_w^2)} as the noise term, and
-#'   projects the resulting effect-space signal Gram onto the positive
-#'   semidefinite cone (eigenvalue positive part in
-#'   \eqn{\Sigma_K}{Sigma_K}-whitened coordinates) so the reported covariance
-#'   stays a covariance. The result is unbiased whenever no direction is
-#'   clamped, and when the true signal is weak the clamp leaves a modest
-#'   conservative residue (never the face-value inflation). The number of
-#'   clamped directions is reported as `$source$signal_clamped_directions`.
-#'   Prefer `"null"` for calibrating a test of no effect, where it is exact;
-#'   use `"plugin"` when reporting uncertainty around an estimated nonzero
-#'   distance.
-#' @param at One measurement position, or a vector of positions, in the
-#'   compiled frame. Required, with no default: the analytic law is local, so
+#'   projects the resulting signal Gram onto the positive semidefinite cone
+#'   so the reported covariance stays a covariance. The projection is the
+#'   eigenvalue positive part in \eqn{\Sigma_K}{Sigma_K}-whitened coordinates
+#'   *within the span of the distance contrasts* (the centred condition
+#'   subspace), so a pattern shared by every condition, which no distance can
+#'   see, cannot change the result. The result is unbiased whenever no
+#'   direction is clamped, and with a clearly nonzero signal it matches the
+#'   exact law. When the true signal is weak the clamp is not a small
+#'   correction: it leaves an upward bias that in simulation (\eqn{M=4}{M = 4},
+#'   four conditions, zero true signal) reported about 1.5 times the true
+#'   variance at \eqn{P=6}{P = 6} and 1.3 times at \eqn{P=20}{P = 20}, against
+#'   2.5 times for the face-value plug-in. The number of clamped directions is
+#'   reported as `$source$signal_clamped_directions`; a nonzero count is a
+#'   sign the variance is inflated. Use `"null"` for calibrating a test of no
+#'   effect, where it is exact; use `"plugin"` when reporting uncertainty
+#'   around an estimated distance that is clearly nonzero.
+#' @param at One measurement, or a vector of measurements, in the compiled
+#'   frame: [measurement_id()] or a character id for the identifier a view
+#'   prints, [measurement_position()] for a row. A bare number is read as a
+#'   position only where the frame's identifiers are `1..n` or not whole
+#'   numbers; on a masked volume, whose identifiers are voxel indices, a bare
+#'   number is refused as ambiguous. Required, with no default: the analytic law is local, so
 #'   a covariance without a named measurement would be a covariance of
 #'   nothing in particular. A length-1 `at` keeps the historical single-node
 #'   object. A longer `at` compiles the plan, contrast transport, and any
@@ -657,7 +667,8 @@ rdm_sampling_covariance <- function(
   at <- .msg_measurement_indices(
     at,
     if (is.null(x$measurements)) nrow(x$frame$weights) else x$measurements,
-    argument = "at", subject = "plan"
+    argument = "at", subject = "plan",
+    ids = .msg_frame_measurement_ids(x$frame)
   )
   # A batch is read by measurement (`values[[measurement]]`), so a repeated
   # index would produce two elements under one name and every reader would
@@ -1075,10 +1086,12 @@ print.effect_sampling_capabilities <- function(x, ...) {
 #'
 #' The values returned inherit the calibration target chosen when `x` was
 #' built. Under `target = "plugin"` the partition-mean plug-in's signal bias
-#' has been removed (with a positive-part projection that is conservative
-#' only when the signal is weak); see the `target` argument of
-#' [rdm_sampling_covariance()]. Under `target = "null"` the law is exact on
-#' the variance scale.
+#' has been removed with a positive-part projection that is exact when no
+#' direction is clamped but inflates variances when the signal is weak (by
+#' roughly 30-50% at zero true signal in simulation); see the `target`
+#' argument of [rdm_sampling_covariance()]. Under `target = "null"` the law
+#' is exact on the variance scale, and it is the target to use for null
+#' calibration.
 #'
 #' In both cases the residual covariance behind the law is a plug-in with
 #' \eqn{\nu}{nu} degrees of freedom, so its *quadratic* contribution carries the

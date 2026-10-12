@@ -436,6 +436,15 @@
   .validate_ordered_partition_edges(
     ordered_edges, partitions, partitions, TRUE
   )
+  # This kernel encodes its complete output with the symmetric-packed codec,
+  # which keeps only one triangle. A declared-order edge set forms a
+  # nonsymmetric sum, so it is refused here exactly as the additive kernels
+  # refuse it, rather than silently packing a different estimand.
+  if (!identical(attr(ordered_edges, "expansion"), "self_adjoint_half_edges")) {
+    .input_error(
+      "Symmetric-packed streaming requires a self-adjoint self form."
+    )
+  }
   if (!.is_flag(form_total) || !.is_flag(form_coherent) ||
       !.is_flag(retain_first_moments) ||
       (!form_total && !form_coherent && !retain_first_moments)) {

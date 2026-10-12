@@ -109,6 +109,44 @@
       )))
 }
 
+# The partitions a participant's plan actually evaluates: every endpoint of
+# its pairing, in the relation's own partition order. A partition the pairing
+# holds out --- most importantly the training run of a functional transport,
+# which `plan_population()` already refuses to evaluate --- is not part of the
+# estimand, so it is never placed in a half.
+.heterogeneity_evaluated_partitions <- function(subject) {
+  used <- .population_evaluated_partitions(subject)
+  order <- subject$task$left_relation$partitions
+  c(order[order %in% used], setdiff(used, order))
+}
+
+# The edges of a participant's pairing that lie entirely inside one half. A
+# half re-plans over exactly these edges, so it estimates the same quantity as
+# the full plan restricted to its own partitions --- not the all-pairs
+# quantity `cross_partitions()` would put there whenever the original pairing
+# is an edge subset or carries unequal weights.
+.heterogeneity_half_edges <- function(over, half) {
+  over$left %in% half & over$right %in% half & over$weight > 0
+}
+
+# The original pairing restricted to one half. Weights are carried over and
+# renormalized to unit mass by `pairing()` itself, which owns the package's one
+# weight semantics; directedness, the self-product policy, the independence
+# declaration and the generalization axis are inherited unchanged, so a half
+# makes no claim on the estimand that the original did not make. `pairing()`
+# stores an undeclared independence as `"undeclared"` and takes it back as
+# `NULL`.
+.heterogeneity_restrict_pairing <- function(over, half) {
+  keep <- .heterogeneity_half_edges(over, half)
+  independence <- attr(over, "independence", exact = TRUE)
+  if (identical(independence, "undeclared")) independence <- NULL
+  pairing(over$left[keep], over$right[keep], weight = over$weight[keep],
+    directed = isTRUE(attr(over, "directed", exact = TRUE)),
+    self_pairs = attr(over, "self_pairs", exact = TRUE),
+    independence = independence,
+    generalizes_over = attr(over, "generalizes_over", exact = TRUE))
+}
+
 # `plan_geometry()` derives the whole plan from the relation, the frame and the
 # pairing, so a restricted pairing is a new plan over the same source. What must
 # not change is everything else the plan fixes: a re-plan that lands on a
@@ -133,14 +171,9 @@
         "Gram is the estimand you want."
       ))
   }
-  # The half inherits the declared semantics of the pairing it restricts: a
-  # half that silently declared independence the original did not would put a
-  # claim on the estimand that nobody made. `pairing()` stores an undeclared
-  # axis as `"undeclared"` and takes it back as `NULL`.
-  independence <- attr(subject$pairing, "independence", exact = TRUE)
-  if (identical(independence, "undeclared")) independence <- NULL
-  over <- cross_partitions(partitions, independence = independence,
-    generalizes_over = attr(subject$pairing, "generalizes_over", exact = TRUE))
+  # The half is the original pairing restricted to edges inside it, never a
+  # fresh all-pairs pairing: see `.heterogeneity_restrict_pairing()`.
+  over <- .heterogeneity_restrict_pairing(subject$pairing, partitions)
   restricted <- plan_geometry(subject$task$left_relation, subject$frame, over,
     compute = subject$compute, metric = schedule$metric)
   if (!identical(restricted$metric_schedule$signature, schedule$signature) ||
@@ -160,11 +193,15 @@
 # The split. `NULL` interleaves --- odd-numbered partitions to the first half,
 # even to the second --- because runs are usually acquired in order and a
 # contiguous split confounds the two halves with anything that drifts across a
-# session. A caller who knows better names the halves.
+# session. A caller who knows better names the halves. Either way the halves
+# are drawn from the partitions each participant's pairing evaluates, not from
+# every partition its relation carries: a held-out partition has no place in
+# the estimand, and placing it in a half would both change the quantity and
+# --- for a transport's training run --- read the run the transport was fitted
+# on.
 .heterogeneity_partition_split <- function(plan, partitions) {
   labels <- names(plan$subjects)
-  available <- lapply(plan$subjects,
-    function(subject) subject$task$left_relation$partitions)
+  available <- lapply(plan$subjects, .heterogeneity_evaluated_partitions)
   if (is.null(partitions)) {
     split <- lapply(available, function(value) list(
       a = value[seq_along(value) %% 2L == 1L],
@@ -192,8 +229,10 @@
           .msg_names(shared), " appears in both."
         ))
     }
+    carried <- lapply(plan$subjects,
+      function(subject) subject$task$left_relation$partitions)
     missing_from <- unlist(lapply(labels, function(label) {
-      absent <- setdiff(c(halves$a, halves$b), available[[label]])
+      absent <- setdiff(c(halves$a, halves$b), carried[[label]])
       if (length(absent)) paste0(label, ":", absent) else NULL
     }), use.names = FALSE)
     if (length(missing_from)) {
@@ -201,10 +240,31 @@
         reasons = paste0("partition_absent_for_subject:", missing_from),
         remedies = paste0(
           "Name only partitions every participant carries, or pass NULL and ",
-          "let each participant's own partitions be interleaved."
+          "let each participant's own evaluated partitions be interleaved."
         ))
     }
     split <- stats::setNames(rep(list(halves), length(labels)), labels)
+    # A declared half that names a transport's training run is the circular
+    # evaluation section 1.4 forbids, and is refused as such before anything
+    # else is said about it.
+    .population_admit_cross_fit(plan$subjects, plan$transport,
+      evaluated = split)
+    # Any other partition the pairing holds out is not part of the estimand:
+    # the half would re-plan over the same edges with or without it, and the
+    # recorded split would claim a partition that contributed nothing.
+    unevaluated <- unlist(lapply(labels, function(label) {
+      outside <- setdiff(c(halves$a, halves$b), available[[label]])
+      if (length(outside)) paste0(label, ":", outside) else NULL
+    }), use.names = FALSE)
+    if (length(unevaluated)) {
+      .heterogeneity_partition_refusal(
+        reasons = paste0("partition_not_evaluated_by_pairing:", unevaluated),
+        remedies = paste0(
+          "Name only partitions every participant's pairing evaluates, or ",
+          "pass NULL and let each participant's own evaluated partitions be ",
+          "interleaved."
+        ))
+    }
     kind <- "declared"
   }
   short <- unlist(lapply(labels, function(label) {
@@ -223,6 +283,26 @@
       remedies = paste0(
         "Plan the participants over at least four partitions, so that each ",
         "half holds a cross-generalized estimate."
+      ))
+  }
+  # Two partitions in a half are not enough on their own: the half re-plans
+  # over the original pairing's edges inside it, and a sparse pairing (a
+  # chain, a directed design, zero-weight edges) can leave a half with
+  # partitions but no edge to estimate from.
+  edgeless <- unlist(lapply(labels, function(label) {
+    over <- plan$subjects[[label]]$pairing
+    empty <- vapply(split[[label]], function(half)
+      !any(.heterogeneity_half_edges(over, half)), logical(1))
+    if (any(empty)) paste0(label, ":", names(split[[label]])[empty]) else NULL
+  }), use.names = FALSE)
+  if (length(edgeless)) {
+    .heterogeneity_partition_refusal(
+      reasons = c("half_carries_no_pairing_edge",
+        paste0("subject_half:", edgeless)),
+      remedies = paste0(
+        "Each half re-plans over the participant's own pairing restricted to ",
+        "that half. Declare halves that each contain at least one weighted ",
+        "edge of the pairing, or plan the participants over a denser pairing."
       ))
   }
   list(split = split, kind = kind)
@@ -254,10 +334,12 @@
 # A transport learned from the data has seen the partitions its
 # `provenance$cross_fit` names, and `population-form-v1` section 1.4 forbids
 # evaluating it on any of them. `plan_population()` already refuses a pairing
-# that reads one; the split is checked against the same rule because it reads
-# each relation's partitions directly, so a partition the full plan's pairing
-# held out could otherwise land in a half. The receipt keeps the (necessarily
-# empty) overlap so a reader can see the check was made.
+# that reads one. The split draws its halves from the pairing's own
+# endpoints and refuses a declared partition outside them, so a held-out run
+# cannot land in a half; the halves are checked against the same rule anyway,
+# as a guard on that invariant rather than as the thing enforcing it. The
+# receipt keeps the (necessarily empty) overlap so a reader can see the check
+# was made.
 .heterogeneity_transport_overlap <- function(plan, split) {
   .population_admit_cross_fit(plan$subjects, plan$transport,
     evaluated = split)
@@ -532,6 +614,20 @@
 # first pass alone.
 .heterogeneity_nodes <- function(nodes, node_labels) {
   if (is.null(nodes)) return(integer())
+  # The same selector rule as `at =`: `measurement_id()` names identifiers,
+  # `measurement_position()` names positions, and a bare number is refused
+  # where whole-number identifiers would shadow positions.
+  if (inherits(nodes, "crossform_measurement_id")) {
+    keys <- .msg_id_key(nodes$values)
+    matched <- match(keys, .msg_id_key(node_labels))
+    nodes <- ifelse(is.na(matched), keys, node_labels[matched])
+  } else if (inherits(nodes, "crossform_measurement_position")) {
+    nodes <- nodes$values
+  } else if (is.numeric(nodes) &&
+             .msg_ids_shadow_positions(node_labels, length(node_labels))) {
+    .msg_ambiguous_measurement(nodes, node_labels, length(node_labels),
+      argument = "nodes", subject = "population")
+  }
   if (is.numeric(nodes)) {
     positions <- suppressWarnings(as.integer(nodes))
     if (anyNA(positions) || any(positions != nodes) ||
@@ -895,8 +991,13 @@
 #' repaired.
 #'
 #' `estimator = "cross_fit"` re-plans each participant over two disjoint halves
-#' of their partitions, so it needs at least four partitions per participant and
-#' costs a second streaming read. `estimator = "plug_in"` reads one pass and is
+#' of the partitions their pairing evaluates, so it needs at least four such
+#' partitions per participant and costs a second streaming read. A partition
+#' the pairing holds out --- such as the run a functional transport was fitted
+#' on --- is never placed in a half. Each half is planned over the
+#' participant's *original* pairing restricted to the edges inside that half,
+#' with its weights renormalized to unit mass, so both halves estimate the same
+#' quantity as the full plan rather than an all-pairs substitute. `estimator = "plug_in"` reads one pass and is
 #' admissible for loading *directions*, which section 6.3 measures surviving
 #' the inflation; its `$latent` layer is `NULL`, and the refusal that says why
 #' travels on `$receipt$latent_refusal` as a record rather than an error.
@@ -928,10 +1029,13 @@
 #' @section Refusals:
 #' Each is an `effect_capability_refusal` (see [catch_refusal()]).
 #'
-#' * `cross_fitted_subject_gram` --- fewer than four partitions, a declared
-#'   split that shares a partition between halves or names one a participant
-#'   does not carry, or a metric schedule that cannot be re-planned onto a
-#'   half.
+#' * `cross_fitted_subject_gram` --- fewer than four evaluated partitions, a
+#'   half that contains no edge of the participant's pairing, a declared split
+#'   that shares a partition between halves or names one a participant does not
+#'   carry or whose pairing does not evaluate, or a metric schedule that cannot
+#'   be re-planned onto a half.
+#' * `held_out_transport_evaluation` --- a declared half naming a partition a
+#'   transport's `provenance$cross_fit` says it was fitted on.
 #' * `identified_heterogeneity` --- a saturated group design, where no residual
 #'   degree of freedom is left for participants to differ in.
 #' * `query_space_cross_fit` --- `estimator = "cross_fit"` on an estimated
@@ -956,16 +1060,19 @@
 #' @param component Which component of each participant's conservative geometry
 #'   to carry: `"total"` (the default), `"coherent"` or `"configuration"`, as
 #'   in [materialize_population()].
-#' @param nodes Group nodes whose mode geometry is reconstructed, by identifier
-#'   or position. `NULL`, the default, reconstructs none: the Gram, the
+#' @param nodes Group nodes whose mode geometry is reconstructed: identifiers
+#'   (character, or [measurement_id()]) or positions ([measurement_position()],
+#'   or bare numbers where the node identifiers are not whole numbers other
+#'   than `1..n`, which would make a bare number ambiguous). `NULL`, the
+#'   default, reconstructs none: the Gram, the
 #'   spectrum and the loadings come out of the first pass, and the mode forms
 #'   cost a second one.
 #' @param modes Number of leading modes to reconstruct at those nodes. `NULL`
 #'   takes `min(3, residual df)`.
 #' @param partitions Optional list of two character vectors naming the
-#'   partition halves the cross-fit reads across. `NULL` interleaves each
-#'   participant's own partitions, which balances the halves against anything
-#'   drifting across a session.
+#'   partition halves the cross-fit reads across. `NULL` interleaves the
+#'   partitions each participant's pairing evaluates, which balances the halves
+#'   against anything drifting across a session.
 #' @param projection The named PSD projection the latent layer is built with,
 #'   from [latent_geometry()]'s closed set. It is validated on either method
 #'   and enters the record's identity, but it does no work on a result: the

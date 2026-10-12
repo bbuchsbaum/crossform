@@ -56,9 +56,13 @@ exactly its family weight times the whole-domain total, so that panel
 draws the analyst's own weights rather than anything about spatial scale
 (\code{design/conservative-geometry-contract.md} section 3.1).}
 
-\item{highlight}{Optional measurements to mark: positions, a logical mask
-with one value per measurement, or measurement identifiers. Measurements
-outside the view are an error rather than a silent drop.}
+\item{highlight}{Optional measurements to mark: row positions, a logical
+mask with one value per measurement, or measurement identifiers (a
+character vector, or \code{\link[=measurement_id]{measurement_id()}}). Measurements outside the view
+are an error rather than a silent drop. Where the view's identifiers are
+whole numbers that differ from its positions (any masked volume), a bare
+number is refused as ambiguous; wrap it in \code{\link[=measurement_id]{measurement_id()}} or
+\code{\link[=measurement_position]{measurement_position()}}.}
 
 \item{highlight_label}{What the highlighted measurements are, named in the
 legend alongside their count, as in \code{"planted signal (104 measurements)"}.
@@ -78,9 +82,13 @@ draw every measurement, where it is otherwise unused.}
 for each panel, such as \code{pch}, \code{cex}, \code{xlim}, or \code{col}.}
 
 \item{measurement}{Which measurement to draw. For an \code{effect_rdm_view},
-one position or identifier, or the string \code{"mean"} for the mean
-dissimilarity matrix over measurements. The default is the measurement
-with the largest mean distance.}
+one row position, one identifier as the view prints it in its
+\code{measurement} column (a string, or \code{\link[=measurement_id]{measurement_id()}}), or the string
+\code{"mean"} for the mean dissimilarity matrix over measurements. The
+default is the measurement with the largest mean distance. On a masked
+volume the identifiers are voxel indices that are not row positions, so
+a bare number is refused as ambiguous: say \code{measurement_id(117)} or
+\code{measurement_position(5)}.}
 
 \item{annotate}{Whether to print the numeric distance inside each cell of
 an RDM heatmap. The default prints them when there are at most eight

@@ -33,7 +33,8 @@ crossform_public_api <- c(
   "location_transport", "lower_effect_map", "match_control", "match_coupling",
   "materialize_geometry", "materialize_population",
   "measurement_components",
-  "measurement_form", "measurement_frame", "metric_capabilities",
+  "measurement_form", "measurement_frame", "measurement_id",
+  "measurement_position", "metric_capabilities",
   "metric_training_policy", "neural_metric", "neuroim2_searchlights",
   "neuroim2_volume_domain", "noise_precision", "numerical_agreement",
   "numerical_contract", "observation_confounds",
@@ -73,9 +74,12 @@ test_that("the exported surface is exactly the ledgered set", {
   # `adapter_version_certificate()` -- the one addition that closed a gap
   # rather than adding a capability: the extending vignette obliges an adapter
   # author to certify against installed versions, and the refusal that
-  # discharges that obligation was reachable only with `:::`
+  # discharges that obligation was reachable only with `:::`, and the
+  # measurement-selector pair `measurement_id()` / `measurement_position()`,
+  # which let a masked-volume caller say whether a number is a printed
+  # identifier or a row position
   # (`design/api-tiers.md`, "Additions after the subtraction release").
-  expect_identical(length(exports), 112L)
+  expect_identical(length(exports), 114L)
 })
 
 test_that("NAMESPACE and the loaded namespace agree", {

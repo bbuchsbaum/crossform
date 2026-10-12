@@ -9,8 +9,12 @@
 #'
 #' @param left,right Equal-length vectors naming partition endpoints.
 #' @param weight Optional finite nonnegative edge weights. They are normalized
-#'   to sum to one.
-#' @param directed Whether endpoint roles have scientific meaning.
+#'   to sum to one. Every declared edge is validated, then edges whose weight
+#'   is exactly zero are dropped: they contribute nothing to the estimator.
+#' @param directed Whether endpoint roles have scientific meaning. A directed
+#'   pairing of one relation is read by a rectangular plan
+#'   (`plan_geometry(x, at, over, right = x)`); self-form plans require an
+#'   undirected pairing.
 #' @param self_pairs Whether diagonal self-products are forbidden or explicitly
 #'   admitted as noise-biased estimates.
 #' @param independence Whether distinct endpoint estimates are declared
@@ -22,7 +26,10 @@
 #'   is part of the scientific estimand: cross-run and cross-session
 #'   reproduction are different quantities even at identical fold counts, so
 #'   the declared axis is bound into every plan identity built from this
-#'   pairing. Leaving it `NULL` records the axis as undeclared.
+#'   pairing. Leaving it `NULL` records the axis as undeclared. Axis names are
+#'   free text, because a study's [partition_hierarchy()] declares its own
+#'   axes; the plural of a conventional axis (such as `"runs"` for `"run"`)
+#'   signals an `effect_axis_name_warning` and is kept as given.
 #' @return An `effect_pairing` data frame with `left`, `right`, and unit-mass
 #'   `weight` columns, plus the `directed`, `self_pairs`, `independence`,
 #'   `generalizes_over`, and derived `estimate` attributes that name the
@@ -69,11 +76,15 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
       received = "no argument",
       expected = "one partition identifier per edge")
   }
-  self_pairs <- match.arg(self_pairs)
+  self_pairs <- if (missing(self_pairs)) "forbid" else
+    .match_pairing_declaration(self_pairs, c("forbid", "allow_biased"),
+      "self_pairs")
   independence <- if (is.null(independence)) {
     "undeclared"
   } else {
-    match.arg(independence, c("independent", "not_independent"))
+    .match_pairing_declaration(independence,
+      c("independent", "not_independent"), "independence",
+      null_meaning = "`NULL` leaves it undeclared")
   }
   if (!is.null(generalizes_over) &&
       (!is.character(generalizes_over) || length(generalizes_over) != 1L ||
@@ -82,6 +93,7 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
       arg = "generalizes_over", received = .msg_value(generalizes_over),
       expected = "NULL or one nonempty axis name")
   }
+  .warn_axis_near_miss(generalizes_over)
   if (length(left) != length(right) || length(left) < 1L) {
     .input_error(sprintf(paste0(
       "`left` and `right` must name one partition each per edge, so they ",
@@ -146,6 +158,15 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
     .input_error("The pairing contains duplicate edges.")
   }
 
+  # Every declared edge is validated above; an edge whose weight is exactly
+  # zero then contributes nothing to the estimator and is dropped, so it
+  # cannot bind its endpoints into marginals, plan identity, or source reads.
+  keep <- weight > 0
+  left <- left[keep]
+  right <- right[keep]
+  weight <- weight[keep]
+  is_self <- is_self[keep]
+
   scaled_weight <- weight / max(weight)
   normalized_weight <- scaled_weight / sum(scaled_weight)
   if (any(!is.finite(normalized_weight)) || sum(normalized_weight) <= 0 ||
@@ -197,7 +218,8 @@ pairing <- function(left, right, weight = NULL, directed = FALSE,
 #'   analytic sampling-law capabilities.
 #' @param generalizes_over Optional name of the sampling axis the partitions
 #'   represent, such as `"run"` or `"session"`; see [pairing()]. The declared
-#'   axis is bound into every plan identity built from this pairing.
+#'   axis is bound into every plan identity built from this pairing, and a
+#'   plural near-miss such as `"runs"` signals a warning.
 #' @return An undirected pairing containing one row per unordered pair, with
 #'   normalized estimator weights. Its rows are computational contributions,
 #'   not a declaration of edge-level sampling independence.
@@ -284,6 +306,63 @@ cross_partitions <- function(partitions, independence = NULL,
   pairing(edges[1L, ], edges[2L, ], directed = FALSE,
     independence = independence,
     generalizes_over = generalizes_over)
+}
+
+# `match.arg()` reports a non-character value as "'arg' must be NULL or a
+# character vector", which names neither the argument nor what it accepts.
+# This keeps `match.arg()`'s exact and unambiguous-prefix matching and says
+# both.
+.match_pairing_declaration <- function(value, choices, arg,
+                                       null_meaning = NULL) {
+  allowed <- paste0("\"", choices, "\"", collapse = " or ")
+  matched <- if (is.character(value) && length(value) == 1L &&
+      !is.na(value) && nzchar(value)) {
+    choices[pmatch(value, choices)]
+  } else {
+    NA_character_
+  }
+  if (is.na(matched)) {
+    .input_error(sprintf(
+      "`%s` must be %s%s; received %s.", arg, allowed,
+      if (is.null(null_meaning)) "" else paste0(" (", null_meaning, ")"),
+      .msg_value(value)
+    ),
+      arg = arg, received = .msg_value(value),
+      expected = paste0("one of ", allowed))
+  }
+  matched
+}
+
+# Generalization axes are user vocabulary: `partition_hierarchy()` declares
+# whatever axis names a study has, and the ingestion contract leaves their
+# spelling open, so an unknown name cannot be refused. The declared name is
+# bound into plan identity, though, so a plural slip ("runs" for "run") would
+# silently give a different estimand identity than the conventional singular.
+# That near-miss earns a warning, and the name is kept exactly as given.
+.conventional_generalization_axes <- c(
+  "trial", "block", "run", "session", "subject", "participant", "task",
+  "fold", "day", "site", "scan", "acquisition"
+)
+
+.warn_axis_near_miss <- function(axis) {
+  if (is.null(axis)) return(invisible(NULL))
+  lowered <- tolower(axis)
+  singular <- sub("s$", "", lowered)
+  if (identical(lowered, singular) ||
+      !singular %in% .conventional_generalization_axes) {
+    return(invisible(NULL))
+  }
+  warning(structure(class = c("effect_axis_name_warning", "warning",
+    "condition"), list(
+    message = sprintf(paste0(
+      "`generalizes_over = \"%s\"` looks like the plural of the axis ",
+      "\"%s\"; did you mean \"%s\"? The axis name is bound into plan ",
+      "identity, so \"%s\" and \"%s\" name different estimands. It is kept ",
+      "as given; use the singular unless your study hierarchy declares \"%s\"."
+    ), axis, singular, singular, axis, singular, axis),
+    call = NULL
+  )))
+  invisible(NULL)
 }
 
 .partition_reducer <- function(kind = "weighted_sum") {
@@ -518,6 +597,12 @@ pairing_marginals <- function(local, over, mass = 1) {
     .input_error(paste0(
       "Pairing weights must be finite, nonnegative, and normalized to unit ",
       "mass."
+    ))
+  }
+  if (any(over$weight == 0)) {
+    .input_error(paste0(
+      "Pairing edges must carry positive weight; `pairing()` drops ",
+      "zero-weight edges, so a zero-weight row is noncanonical."
     ))
   }
 

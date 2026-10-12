@@ -41,7 +41,11 @@
 #' - `$weights`: the contrast, reordered to the relation's effect order and
 #'   named. Print it to confirm the alignment.
 #' - `$index`: the measurement identifiers, one per value, carried from the
-#'   frame's `$index$measurement`.
+#'   frame's `$index$measurement`. It is that column as a plain vector (the
+#'   frame's `$index` is a data frame), and it is what the print shows under
+#'   `measurement`. On a masked [volume_domain()] these are full-volume voxel
+#'   indices, not row positions: select by them with [measurement_id()] and
+#'   by position with [measurement_position()].
 #' - `$receipt`: the execution receipt for the run that produced the values.
 #'
 #' Any element not listed here is internal and may change.

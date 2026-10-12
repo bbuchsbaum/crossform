@@ -35,19 +35,29 @@ small correction: at \eqn{M=4}{M = 4} under a null truth it would report
 2.5 times the true variance. crossform therefore subtracts the bias,
 using the same unbiased estimate of
 \eqn{\mathrm{tr}(\Sigma_w^2)}{tr(Sigma_w^2)} as the noise term, and
-projects the resulting effect-space signal Gram onto the positive
-semidefinite cone (eigenvalue positive part in
-\eqn{\Sigma_K}{Sigma_K}-whitened coordinates) so the reported covariance
-stays a covariance. The result is unbiased whenever no direction is
-clamped, and when the true signal is weak the clamp leaves a modest
-conservative residue (never the face-value inflation). The number of
-clamped directions is reported as \verb{$source$signal_clamped_directions}.
-Prefer \code{"null"} for calibrating a test of no effect, where it is exact;
-use \code{"plugin"} when reporting uncertainty around an estimated nonzero
-distance.}
+projects the resulting signal Gram onto the positive semidefinite cone
+so the reported covariance stays a covariance. The projection is the
+eigenvalue positive part in \eqn{\Sigma_K}{Sigma_K}-whitened coordinates
+\emph{within the span of the distance contrasts} (the centred condition
+subspace), so a pattern shared by every condition, which no distance can
+see, cannot change the result. The result is unbiased whenever no
+direction is clamped, and with a clearly nonzero signal it matches the
+exact law. When the true signal is weak the clamp is not a small
+correction: it leaves an upward bias that in simulation (\eqn{M=4}{M = 4},
+four conditions, zero true signal) reported about 1.5 times the true
+variance at \eqn{P=6}{P = 6} and 1.3 times at \eqn{P=20}{P = 20}, against
+2.5 times for the face-value plug-in. The number of clamped directions is
+reported as \verb{$source$signal_clamped_directions}; a nonzero count is a
+sign the variance is inflated. Use \code{"null"} for calibrating a test of no
+effect, where it is exact; use \code{"plugin"} when reporting uncertainty
+around an estimated distance that is clearly nonzero.}
 
-\item{at}{One measurement position, or a vector of positions, in the
-compiled frame. Required, with no default: the analytic law is local, so
+\item{at}{One measurement, or a vector of measurements, in the compiled
+frame: \code{\link[=measurement_id]{measurement_id()}} or a character id for the identifier a view
+prints, \code{\link[=measurement_position]{measurement_position()}} for a row. A bare number is read as a
+position only where the frame's identifiers are \verb{1..n} or not whole
+numbers; on a masked volume, whose identifiers are voxel indices, a bare
+number is refused as ambiguous. Required, with no default: the analytic law is local, so
 a covariance without a named measurement would be a covariance of
 nothing in particular. A length-1 \code{at} keeps the historical single-node
 object. A longer \code{at} compiles the plan, contrast transport, and any
@@ -232,6 +242,7 @@ available before provoking a refusal, and \code{\link[=rdm]{rdm()}} for the poin
 it describes.
 
 Other sampling uncertainty: 
+\code{\link{measurement_id}()},
 \code{\link{reconstruct_evidence}()},
 \code{\link{sampling_capabilities}()},
 \code{\link{sampling_covariance}()}

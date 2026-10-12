@@ -168,24 +168,36 @@
   right <- .tomography_stack_frame(right_frame)
   value <- matrix(0, left$dimensions[["measurement"]],
     right$dimensions[["measurement"]])
-  for (left_node in names(left$ranges)) {
-    for (right_node in names(right$ranges)) {
-      position <- which(form$block_index$left == left_node &
-        form$block_index$right == right_node)
-      if (length(position) != 1L) {
+  # One validation and one keyed pair lookup for the whole sweep; a `which()`
+  # scan and a full form revalidation per node pair made this O(nodes^4).
+  read <- .measurement_block_reader(form)
+  left_nodes <- names(left$ranges)
+  right_nodes <- names(right$ranges)
+  positions <- matrix(
+    .block_pair_lookup(form$block_index)(
+      rep(left_nodes, each = length(right_nodes)),
+      rep(right_nodes, times = length(left_nodes))
+    ),
+    nrow = length(right_nodes)
+  )
+  for (i in seq_along(left_nodes)) {
+    left_range <- left$ranges[[i]]
+    for (j in seq_along(right_nodes)) {
+      position <- positions[[j, i]]
+      if (is.na(position)) {
         .input_error(
           "Complete tomography requires one block for every ordered node pair."
         )
       }
-      block <- .measurement_block(form, position)
-      expected <- c(length(left$ranges[[left_node]]),
-        length(right$ranges[[right_node]]))
+      block <- read(position)
+      right_range <- right$ranges[[j]]
+      expected <- c(length(left_range), length(right_range))
       if (!identical(dim(block), expected)) {
         .contract_error(
           "Tomography block dimensions disagree with the frame axes."
         )
       }
-      value[left$ranges[[left_node]], right$ranges[[right_node]]] <- block
+      value[left_range, right_range] <- block
     }
   }
   fields <- list(

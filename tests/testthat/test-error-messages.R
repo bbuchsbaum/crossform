@@ -236,12 +236,17 @@ test_that("an out-of-range measurement index names the argument and range", {
     sprintf("`at` = 0 is outside the plan's 1\\.\\.%d measurements",
       measurements)
   , class = "effect_input_error")
+  # A character `at` is a measurement identifier (what a view prints under
+  # `measurement`), so an unknown one is named rather than called the wrong
+  # type.
   expect_error(
     rdm_sampling_covariance(plan, example$fit, target = "null", at = "peak"),
-    sprintf(
-      "`at` must be one measurement index in 1\\.\\.%d; received a character",
-      measurements)
+    "`at` names 1 measurement identifier that the plan does not carry: `peak`"
   , class = "effect_input_error")
+  expect_error(
+    rdm_sampling_covariance(plan, example$fit, target = "null", at = NA),
+    "`at` must be one measurement index in 1\\.\\.",
+    class = "effect_input_error")
 
   # The compiled accessor reports the same way when it is reached directly.
   read_node <- crossform:::.frame_metric_node_accessor(example$frame)
