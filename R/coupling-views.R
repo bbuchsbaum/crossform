@@ -362,10 +362,11 @@ NULL
   }
 }
 
-# Keyed (left, right) -> block position lookup, built once per index rather
-# than a `which()` scan of the index per node pair. A pair that is absent or
-# that appears more than once maps to NA, matching the `length(which()) != 1`
-# refusals it replaces.
+# Keyed (left, right) -> block position lookup replacing a `which()` scan of
+# the index per node pair. A pair that is absent or that appears more than
+# once maps to NA, matching the `length(which()) != 1` refusals it replaces.
+# Call it once with every pair needed: `match()` hashes the key table on each
+# call, so a call per pair would still be O(edges) per lookup.
 .block_pair_lookup <- function(index) {
   keys <- paste(index$left, index$right, sep = "\r")
   keys[keys %in% keys[duplicated(keys)]] <- NA_character_
@@ -394,6 +395,8 @@ NULL
   }
   index <- x$block_index
   lookup <- .block_pair_lookup(index)
+  left_self_positions <- lookup(index$left, index$left)
+  right_self_positions <- lookup(index$right, index$right)
   cache <- new.env(parent = emptyenv())
   self_info <- function(position) {
     key <- paste0("self:", position)
@@ -419,10 +422,8 @@ NULL
   }
   edge_blocks <- function(edge) {
     position <- .measurement_edge_position(index, edge)
-    left <- index$left[[position]]
-    right <- index$right[[position]]
-    left_position <- lookup(left, left)
-    right_position <- lookup(right, right)
+    left_position <- left_self_positions[[position]]
+    right_position <- right_self_positions[[position]]
     if (is.na(left_position) || is.na(right_position)) {
       .input_error(
         "Normalized coupling requires explicit left and right self-blocks."
@@ -674,9 +675,11 @@ NULL
   }
   index <- form$block_index
   lookup <- .block_pair_lookup(index)
+  left_self_positions <- lookup(index$left, index$left)
+  right_self_positions <- lookup(index$right, index$right)
   vapply(seq_len(nrow(index)), function(edge) {
-    left_self <- lookup(index$left[[edge]], index$left[[edge]])
-    right_self <- lookup(index$right[[edge]], index$right[[edge]])
+    left_self <- left_self_positions[[edge]]
+    right_self <- right_self_positions[[edge]]
     if (is.na(left_self) || is.na(right_self) ||
         !identical(dim(blocks[[edge]]), c(1L, 1L)) ||
         !identical(dim(blocks[[left_self]]), c(1L, 1L)) ||
