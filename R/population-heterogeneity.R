@@ -614,6 +614,20 @@
 # first pass alone.
 .heterogeneity_nodes <- function(nodes, node_labels) {
   if (is.null(nodes)) return(integer())
+  # The same selector rule as `at =`: `measurement_id()` names identifiers,
+  # `measurement_position()` names positions, and a bare number is refused
+  # where whole-number identifiers would shadow positions.
+  if (inherits(nodes, "crossform_measurement_id")) {
+    keys <- .msg_id_key(nodes$values)
+    matched <- match(keys, .msg_id_key(node_labels))
+    nodes <- ifelse(is.na(matched), keys, node_labels[matched])
+  } else if (inherits(nodes, "crossform_measurement_position")) {
+    nodes <- nodes$values
+  } else if (is.numeric(nodes) &&
+             .msg_ids_shadow_positions(node_labels, length(node_labels))) {
+    .msg_ambiguous_measurement(nodes, node_labels, length(node_labels),
+      argument = "nodes", subject = "population")
+  }
   if (is.numeric(nodes)) {
     positions <- suppressWarnings(as.integer(nodes))
     if (anyNA(positions) || any(positions != nodes) ||
@@ -1046,8 +1060,11 @@
 #' @param component Which component of each participant's conservative geometry
 #'   to carry: `"total"` (the default), `"coherent"` or `"configuration"`, as
 #'   in [materialize_population()].
-#' @param nodes Group nodes whose mode geometry is reconstructed, by identifier
-#'   or position. `NULL`, the default, reconstructs none: the Gram, the
+#' @param nodes Group nodes whose mode geometry is reconstructed: identifiers
+#'   (character, or [measurement_id()]) or positions ([measurement_position()],
+#'   or bare numbers where the node identifiers are not whole numbers other
+#'   than `1..n`, which would make a bare number ambiguous). `NULL`, the
+#'   default, reconstructs none: the Gram, the
 #'   spectrum and the loadings come out of the first pass, and the mode forms
 #'   cost a second one.
 #' @param modes Number of leading modes to reconstruct at those nodes. `NULL`

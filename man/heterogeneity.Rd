@@ -44,8 +44,11 @@ the section above; the choice is part of the record's identity.}
 to carry: \code{"total"} (the default), \code{"coherent"} or \code{"configuration"}, as
 in \code{\link[=materialize_population]{materialize_population()}}.}
 
-\item{nodes}{Group nodes whose mode geometry is reconstructed, by identifier
-or position. \code{NULL}, the default, reconstructs none: the Gram, the
+\item{nodes}{Group nodes whose mode geometry is reconstructed: identifiers
+(character, or \code{\link[=measurement_id]{measurement_id()}}) or positions (\code{\link[=measurement_position]{measurement_position()}},
+or bare numbers where the node identifiers are not whole numbers other
+than \verb{1..n}, which would make a bare number ambiguous). \code{NULL}, the
+default, reconstructs none: the Gram, the
 spectrum and the loadings come out of the first pass, and the mode forms
 cost a second one.}
 

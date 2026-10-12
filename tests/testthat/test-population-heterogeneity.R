@@ -883,3 +883,16 @@ test_that("a single-partition participant reaches the named split refusal", {
   expect_true("half_carries_fewer_than_two_partitions" %in% refusal$reasons)
   expect_true("subject_split:s01:1_partitions_split_1_0" %in% refusal$reasons)
 })
+
+test_that("heterogeneity node selectors follow the measurement selector rule", {
+  pick <- crossform:::.heterogeneity_nodes
+  # Non-numeric identifiers: bare numbers stay positions.
+  expect_identical(pick(c(2, 1), c("group1", "group2", "group3")), 1:2)
+  # Whole-number identifiers that are not 1..n: a bare number is ambiguous.
+  labels <- c("12", "40", "7")
+  expect_error(pick(2, labels), "measurement_id\\(2\\)",
+    class = "effect_input_error")
+  expect_identical(pick(measurement_id(c(7, 12)), labels), c(1L, 3L))
+  expect_identical(pick(measurement_position(2), labels), 2L)
+  expect_identical(pick("40", labels), 2L)
+})

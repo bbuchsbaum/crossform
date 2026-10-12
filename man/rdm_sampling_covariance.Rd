@@ -52,8 +52,12 @@ sign the variance is inflated. Use \code{"null"} for calibrating a test of no
 effect, where it is exact; use \code{"plugin"} when reporting uncertainty
 around an estimated distance that is clearly nonzero.}
 
-\item{at}{One measurement position, or a vector of positions, in the
-compiled frame. Required, with no default: the analytic law is local, so
+\item{at}{One measurement, or a vector of measurements, in the compiled
+frame: \code{\link[=measurement_id]{measurement_id()}} or a character id for the identifier a view
+prints, \code{\link[=measurement_position]{measurement_position()}} for a row. A bare number is read as a
+position only where the frame's identifiers are \verb{1..n} or not whole
+numbers; on a masked volume, whose identifiers are voxel indices, a bare
+number is refused as ambiguous. Required, with no default: the analytic law is local, so
 a covariance without a named measurement would be a covariance of
 nothing in particular. A length-1 \code{at} keeps the historical single-node
 object. A longer \code{at} compiles the plan, contrast transport, and any
