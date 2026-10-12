@@ -19,7 +19,10 @@ geometry_alignment(x, tolerance = 1e-10)
 \arguments{
 \item{x}{A complete \code{effect_measurement_form}.}
 
-\item{tolerance}{Positive numerical tolerance.}
+\item{tolerance}{Positive relative numerical tolerance. Every cutoff is this
+multiple of the magnitude it is compared against (the largest eigenvalue or
+entry of a self-block, or the larger self-variance of an edge), so results do
+not depend on the units of the data.}
 
 \item{ridge, ridge_right}{Positive ridge values for the left and right
 covariance blocks.}
