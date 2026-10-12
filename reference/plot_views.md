@@ -75,9 +75,17 @@ plot(x, estimate = NULL, level = 0.95, sort = TRUE, main = NULL, ...)
 
 - highlight:
 
-  Optional measurements to mark: positions, a logical mask with one
-  value per measurement, or measurement identifiers. Measurements
-  outside the view are an error rather than a silent drop.
+  Optional measurements to mark: row positions, a logical mask with one
+  value per measurement, or measurement identifiers (a character vector,
+  or
+  [`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)).
+  Measurements outside the view are an error rather than a silent drop.
+  Where the view's identifiers are whole numbers that differ from its
+  positions (any masked volume), a bare number is refused as ambiguous;
+  wrap it in
+  [`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)
+  or
+  [`measurement_position()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md).
 
 - highlight_label:
 
@@ -106,10 +114,15 @@ plot(x, estimate = NULL, level = 0.95, sort = TRUE, main = NULL, ...)
 
 - measurement:
 
-  Which measurement to draw. For an `effect_rdm_view`, one position or
-  identifier, or the string `"mean"` for the mean dissimilarity matrix
-  over measurements. The default is the measurement with the largest
-  mean distance.
+  Which measurement to draw. For an `effect_rdm_view`, one row position,
+  one identifier as the view prints it in its `measurement` column (a
+  string, or
+  [`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)),
+  or the string `"mean"` for the mean dissimilarity matrix over
+  measurements. The default is the measurement with the largest mean
+  distance. On a masked volume the identifiers are voxel indices that
+  are not row positions, so a bare number is refused as ambiguous: say
+  `measurement_id(117)` or `measurement_position(5)`.
 
 - annotate:
 

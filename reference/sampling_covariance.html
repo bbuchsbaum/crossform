@@ -119,10 +119,12 @@ of them named by measurement.</p>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The values returned inherit the calibration target chosen when <code>x</code> was
 built. Under <code>target = "plugin"</code> the partition-mean plug-in's signal bias
-has been removed (with a positive-part projection that is conservative
-only when the signal is weak); see the <code>target</code> argument of
-<code><a href="rdm_sampling_covariance.html">rdm_sampling_covariance()</a></code>. Under <code>target = "null"</code> the law is exact on
-the variance scale.</p>
+has been removed with a positive-part projection that is exact when no
+direction is clamped but inflates variances when the signal is weak (by
+roughly 30-50% at zero true signal in simulation); see the <code>target</code>
+argument of <code><a href="rdm_sampling_covariance.html">rdm_sampling_covariance()</a></code>. Under <code>target = "null"</code> the law
+is exact on the variance scale, and it is the target to use for null
+calibration.</p>
 <p>In both cases the residual covariance behind the law is a plug-in with
 \(\nu\) degrees of freedom, so its <em>quadratic</em> contribution carries the
 Wishart finite-sample correction described under
@@ -186,6 +188,7 @@ covariance.</p>
 <code><a href="sampling_capabilities.html">sampling_capabilities()</a></code> to check the law is available first, and
 <code><a href="contrast_energy.html">contrast_energy()</a></code> for the point estimates a query bank describes.</p>
 <p>Other sampling uncertainty:
+<code><a href="measurement_id.html">measurement_id()</a></code>,
 <code><a href="rdm_sampling_covariance.html">rdm_sampling_covariance()</a></code>,
 <code><a href="reconstruct_evidence.html">reconstruct_evidence()</a></code>,
 <code><a href="sampling_capabilities.html">sampling_capabilities()</a></code></p></div>

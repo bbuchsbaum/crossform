@@ -87,6 +87,7 @@ and
 which must supply every directed node pair for a lossless claim.
 
 Other sampling uncertainty:
+[`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md),
 [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md),
 [`sampling_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/sampling_capabilities.md),
 [`sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/sampling_covariance.md)

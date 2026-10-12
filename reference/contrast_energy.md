@@ -80,7 +80,15 @@ order.
   named. Print it to confirm the alignment.
 
 - `$index`: the measurement identifiers, one per value, carried from the
-  frame's `$index$measurement`.
+  frame's `$index$measurement`. It is that column as a plain vector (the
+  frame's `$index` is a data frame), and it is what the print shows
+  under `measurement`. On a masked
+  [`volume_domain()`](https://bbuchsbaum.github.io/crossform/reference/volume_domain.md)
+  these are full-volume voxel indices, not row positions: select by them
+  with
+  [`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)
+  and by position with
+  [`measurement_position()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md).
 
 - `$receipt`: the execution receipt for the run that produced the
   values.

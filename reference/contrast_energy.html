@@ -116,7 +116,11 @@ reported.</p></li>
 <li><p><code>$weights</code>: the contrast, reordered to the relation's effect order and
 named. Print it to confirm the alignment.</p></li>
 <li><p><code>$index</code>: the measurement identifiers, one per value, carried from the
-frame's <code>$index$measurement</code>.</p></li>
+frame's <code>$index$measurement</code>. It is that column as a plain vector (the
+frame's <code>$index</code> is a data frame), and it is what the print shows under
+<code>measurement</code>. On a masked <code><a href="volume_domain.html">volume_domain()</a></code> these are full-volume voxel
+indices, not row positions: select by them with <code><a href="measurement_id.html">measurement_id()</a></code> and
+by position with <code><a href="measurement_id.html">measurement_position()</a></code>.</p></li>
 <li><p><code>$receipt</code>: the execution receipt for the run that produced the values.</p></li>
 </ul><p>Any element not listed here is internal and may change.</p>
     </div>

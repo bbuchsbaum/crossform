@@ -682,7 +682,7 @@ round(rbind(distance = distances$values[peak, ],
 #>          face - body face - house face - tool body - house body - tool
 #> distance     -0.0043       4.0781      4.3337       3.8806      4.1245
 #> null          0.0142       0.0142      0.0142       0.0142      0.0142
-#> plugin        0.0163       0.2372      0.2481       0.2314      0.2421
+#> plugin        0.0162       0.2372      0.2481       0.2314      0.2421
 #>          house - tool
 #> distance       0.0092
 #> null           0.0142
@@ -702,8 +702,12 @@ round(rbind(distance = distances$values[peak, ],
   partition mean carries its own noise into the signal term, an upward
   bias as large as the whole noise term; crossform subtracts that bias
   exactly and clamps the corrected signal at zero, so the result is
-  unbiased wherever nothing is clamped and conservative where the signal
-  is indistinguishable from noise. See
+  unbiased wherever nothing is clamped. Where the signal is
+  indistinguishable from noise the clamp leaves a real upward bias: in
+  simulation at four partitions and zero true signal, about 1.3 to 1.5
+  times the true variance (`$source$signal_clamped_directions` counts
+  the clamped directions). Use `"null"`, not `"plugin"`, to calibrate a
+  test of no effect. See
   [`?rdm_sampling_covariance`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
   for the exact expression.
 

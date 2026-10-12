@@ -38,7 +38,7 @@ cross_partitions(partitions, independence = NULL, generalizes_over = NULL)
   `"run"` or `"session"`; see
   [`pairing()`](https://bbuchsbaum.github.io/crossform/reference/pairing.md).
   The declared axis is bound into every plan identity built from this
-  pairing.
+  pairing, and a plural near-miss such as `"runs"` signals a warning.
 
 ## Value
 

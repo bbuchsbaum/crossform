@@ -77,11 +77,15 @@ case.</p>
 
 <dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
 <dd><p>Optional finite nonnegative edge weights. They are normalized
-to sum to one.</p></dd>
+to sum to one. Every declared edge is validated, then edges whose weight
+is exactly zero are dropped: they contribute nothing to the estimator.</p></dd>
 
 
 <dt id="arg-directed">directed<a class="anchor" aria-label="anchor" href="#arg-directed"></a></dt>
-<dd><p>Whether endpoint roles have scientific meaning.</p></dd>
+<dd><p>Whether endpoint roles have scientific meaning. A directed
+pairing of one relation is read by a rectangular plan
+(<code>plan_geometry(x, at, over, right = x)</code>); self-form plans require an
+undirected pairing.</p></dd>
 
 
 <dt id="arg-self-pairs">self_pairs<a class="anchor" aria-label="anchor" href="#arg-self-pairs"></a></dt>
@@ -102,7 +106,10 @@ generalizes across, such as <code>"run"</code>, <code>"session"</code>, or <code
 is part of the scientific estimand: cross-run and cross-session
 reproduction are different quantities even at identical fold counts, so
 the declared axis is bound into every plan identity built from this
-pairing. Leaving it <code>NULL</code> records the axis as undeclared.</p></dd>
+pairing. Leaving it <code>NULL</code> records the axis as undeclared. Axis names are
+free text, because a study's <code><a href="partition_hierarchy.html">partition_hierarchy()</a></code> declares its own
+axes; the plural of a conventional axis (such as <code>"runs"</code> for <code>"run"</code>)
+signals an <code>effect_axis_name_warning</code> and is kept as given.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -120,9 +120,13 @@ draws the analyst's own weights rather than anything about spatial scale
 
 
 <dt id="arg-highlight">highlight<a class="anchor" aria-label="anchor" href="#arg-highlight"></a></dt>
-<dd><p>Optional measurements to mark: positions, a logical mask
-with one value per measurement, or measurement identifiers. Measurements
-outside the view are an error rather than a silent drop.</p></dd>
+<dd><p>Optional measurements to mark: row positions, a logical
+mask with one value per measurement, or measurement identifiers (a
+character vector, or <code><a href="measurement_id.html">measurement_id()</a></code>). Measurements outside the view
+are an error rather than a silent drop. Where the view's identifiers are
+whole numbers that differ from its positions (any masked volume), a bare
+number is refused as ambiguous; wrap it in <code><a href="measurement_id.html">measurement_id()</a></code> or
+<code><a href="measurement_id.html">measurement_position()</a></code>.</p></dd>
 
 
 <dt id="arg-highlight-label">highlight_label<a class="anchor" aria-label="anchor" href="#arg-highlight-label"></a></dt>
@@ -152,9 +156,13 @@ for each panel, such as <code>pch</code>, <code>cex</code>, <code>xlim</code>, o
 
 <dt id="arg-measurement">measurement<a class="anchor" aria-label="anchor" href="#arg-measurement"></a></dt>
 <dd><p>Which measurement to draw. For an <code>effect_rdm_view</code>,
-one position or identifier, or the string <code>"mean"</code> for the mean
-dissimilarity matrix over measurements. The default is the measurement
-with the largest mean distance.</p></dd>
+one row position, one identifier as the view prints it in its
+<code>measurement</code> column (a string, or <code><a href="measurement_id.html">measurement_id()</a></code>), or the string
+<code>"mean"</code> for the mean dissimilarity matrix over measurements. The
+default is the measurement with the largest mean distance. On a masked
+volume the identifiers are voxel indices that are not row positions, so
+a bare number is refused as ambiguous: say <code>measurement_id(117)</code> or
+<code>measurement_position(5)</code>.</p></dd>
 
 
 <dt id="arg-annotate">annotate<a class="anchor" aria-label="anchor" href="#arg-annotate"></a></dt>

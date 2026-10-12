@@ -75,6 +75,9 @@ for it was never earned.
 - [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
   : Construct exact analytic sampling covariance for crossvalidated
   distances
+- [`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)
+  [`measurement_position()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)
+  : Select measurements by identifier or by position
 - [`sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/sampling_covariance.md)
   : Query an exact factorized sampling-covariance form
 - [`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md)

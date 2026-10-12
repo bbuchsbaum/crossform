@@ -65,10 +65,15 @@ heterogeneity(
 
 - nodes:
 
-  Group nodes whose mode geometry is reconstructed, by identifier or
-  position. `NULL`, the default, reconstructs none: the Gram, the
-  spectrum and the loadings come out of the first pass, and the mode
-  forms cost a second one.
+  Group nodes whose mode geometry is reconstructed: identifiers
+  (character, or
+  [`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md))
+  or positions
+  ([`measurement_position()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md),
+  or bare numbers where the node identifiers are not whole numbers other
+  than `1..n`, which would make a bare number ambiguous). `NULL`, the
+  default, reconstructs none: the Gram, the spectrum and the loadings
+  come out of the first pass, and the mode forms cost a second one.
 
 - modes:
 
@@ -78,9 +83,9 @@ heterogeneity(
 - partitions:
 
   Optional list of two character vectors naming the partition halves the
-  cross-fit reads across. `NULL` interleaves each participant's own
-  partitions, which balances the halves against anything drifting across
-  a session.
+  cross-fit reads across. `NULL` interleaves the partitions each
+  participant's pairing evaluates, which balances the halves against
+  anything drifting across a session.
 
 - projection:
 
@@ -161,12 +166,18 @@ deviation `3.58` against a mean of `10.81`. Both facts are reported and
 never repaired.
 
 `estimator = "cross_fit"` re-plans each participant over two disjoint
-halves of their partitions, so it needs at least four partitions per
-participant and costs a second streaming read. `estimator = "plug_in"`
-reads one pass and is admissible for loading *directions*, which section
-6.3 measures surviving the inflation; its `$latent` layer is `NULL`, and
-the refusal that says why travels on `$receipt$latent_refusal` as a
-record rather than an error.
+halves of the partitions their pairing evaluates, so it needs at least
+four such partitions per participant and costs a second streaming read.
+A partition the pairing holds out — such as the run a functional
+transport was fitted on — is never placed in a half. Each half is
+planned over the participant's *original* pairing restricted to the
+edges inside that half, with its weights renormalized to unit mass, so
+both halves estimate the same quantity as the full plan rather than an
+all-pairs substitute. `estimator = "plug_in"` reads one pass and is
+admissible for loading *directions*, which section 6.3 measures
+surviving the inflation; its `$latent` layer is `NULL`, and the refusal
+that says why travels on `$receipt$latent_refusal` as a record rather
+than an error.
 
 **One departure from section 6.4, stated rather than buried.** Its
 literal text refuses "any spectrum, variance-explained figure or
@@ -200,10 +211,14 @@ moved; `$spectrum` stays signed and carries none of them.
 Each is an `effect_capability_refusal` (see
 [`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md)).
 
-- `cross_fitted_subject_gram` — fewer than four partitions, a declared
+- `cross_fitted_subject_gram` — fewer than four evaluated partitions, a
+  half that contains no edge of the participant's pairing, a declared
   split that shares a partition between halves or names one a
-  participant does not carry, or a metric schedule that cannot be
-  re-planned onto a half.
+  participant does not carry or whose pairing does not evaluate, or a
+  metric schedule that cannot be re-planned onto a half.
+
+- `held_out_transport_evaluation` — a declared half naming a partition a
+  transport's `provenance$cross_fit` says it was fitted on.
 
 - `identified_heterogeneity` — a saturated group design, where no
   residual degree of freedom is left for participants to differ in.

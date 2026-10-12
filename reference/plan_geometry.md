@@ -40,7 +40,11 @@ plan_geometry(
 
   An `effect_pairing`. Rectangular plans require directed pairings whose
   left endpoints identify partitions of `x` and right endpoints identify
-  partitions of `right`.
+  partitions of `right`. Self-form plans (no `right`) store a symmetric
+  form and so require an undirected pairing; a `directed = TRUE` pairing
+  is refused before any source read with an `effect_capability_refusal`
+  (capability `"symmetric_self_form"`). To keep endpoint order on one
+  relation, pass `right = x` for a rectangular plan.
 
 - compute:
 

@@ -146,7 +146,7 @@ the two shortened signatures.</p>
 <span class="r-in"><span>  effect_input_error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  effect_contract_error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="st">"these objects do not belong together"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "`weights` has 3 values but the relation declares 2 effects (`x`, `y`). Supply one weight per effect, or name the weights to have them aligned for you."</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "`weights` has 3 values but the relation declares 2 effects (`x`, `y`). Supply one weight per effect in that order, or name the weights (e.g. `c(x = 1, y = -1)`) to have them aligned by name."</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># A guard-raised error additionally names the argument and the value.</span></span></span>
 <span class="r-in"><span><span class="va">guarded</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span></span>

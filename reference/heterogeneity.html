@@ -115,8 +115,11 @@ in <code><a href="materialize_population.html">materialize_population()</a></cod
 
 
 <dt id="arg-nodes">nodes<a class="anchor" aria-label="anchor" href="#arg-nodes"></a></dt>
-<dd><p>Group nodes whose mode geometry is reconstructed, by identifier
-or position. <code>NULL</code>, the default, reconstructs none: the Gram, the
+<dd><p>Group nodes whose mode geometry is reconstructed: identifiers
+(character, or <code><a href="measurement_id.html">measurement_id()</a></code>) or positions (<code><a href="measurement_id.html">measurement_position()</a></code>,
+or bare numbers where the node identifiers are not whole numbers other
+than <code>1..n</code>, which would make a bare number ambiguous). <code>NULL</code>, the
+default, reconstructs none: the Gram, the
 spectrum and the loadings come out of the first pass, and the mode forms
 cost a second one.</p></dd>
 
@@ -128,9 +131,9 @@ takes <code>min(3, residual df)</code>.</p></dd>
 
 <dt id="arg-partitions">partitions<a class="anchor" aria-label="anchor" href="#arg-partitions"></a></dt>
 <dd><p>Optional list of two character vectors naming the
-partition halves the cross-fit reads across. <code>NULL</code> interleaves each
-participant's own partitions, which balances the halves against anything
-drifting across a session.</p></dd>
+partition halves the cross-fit reads across. <code>NULL</code> interleaves the
+partitions each participant's pairing evaluates, which balances the halves
+against anything drifting across a session.</p></dd>
 
 
 <dt id="arg-projection">projection<a class="anchor" aria-label="anchor" href="#arg-projection"></a></dt>
@@ -208,8 +211,13 @@ estimate of the between-participant trace: measured standard deviation
 <code>3.58</code> against a mean of <code>10.81</code>. Both facts are reported and never
 repaired.</p>
 <p><code>estimator = "cross_fit"</code> re-plans each participant over two disjoint halves
-of their partitions, so it needs at least four partitions per participant and
-costs a second streaming read. <code>estimator = "plug_in"</code> reads one pass and is
+of the partitions their pairing evaluates, so it needs at least four such
+partitions per participant and costs a second streaming read. A partition
+the pairing holds out — such as the run a functional transport was fitted
+on — is never placed in a half. Each half is planned over the
+participant's <em>original</em> pairing restricted to the edges inside that half,
+with its weights renormalized to unit mass, so both halves estimate the same
+quantity as the full plan rather than an all-pairs substitute. <code>estimator = "plug_in"</code> reads one pass and is
 admissible for loading <em>directions</em>, which section 6.3 measures surviving
 the inflation; its <code>$latent</code> layer is <code>NULL</code>, and the refusal that says why
 travels on <code>$receipt$latent_refusal</code> as a record rather than an error.</p>
@@ -243,10 +251,13 @@ projection moved; <code>$spectrum</code> stays signed and carries none of them.<
     <h2 id="refusals">Refusals<a class="anchor" aria-label="anchor" href="#refusals"></a></h2>
 
 
-<p>Each is an <code>effect_capability_refusal</code> (see <code><a href="catch_refusal.html">catch_refusal()</a></code>).</p><ul><li><p><code>cross_fitted_subject_gram</code> — fewer than four partitions, a declared
-split that shares a partition between halves or names one a participant
-does not carry, or a metric schedule that cannot be re-planned onto a
-half.</p></li>
+<p>Each is an <code>effect_capability_refusal</code> (see <code><a href="catch_refusal.html">catch_refusal()</a></code>).</p><ul><li><p><code>cross_fitted_subject_gram</code> — fewer than four evaluated partitions, a
+half that contains no edge of the participant's pairing, a declared split
+that shares a partition between halves or names one a participant does not
+carry or whose pairing does not evaluate, or a metric schedule that cannot
+be re-planned onto a half.</p></li>
+<li><p><code>held_out_transport_evaluation</code> — a declared half naming a partition a
+transport's <code>provenance$cross_fit</code> says it was fitted on.</p></li>
 <li><p><code>identified_heterogeneity</code> — a saturated group design, where no residual
 degree of freedom is left for participants to differ in.</p></li>
 <li><p><code>query_space_cross_fit</code> — <code>estimator = "cross_fit"</code> on an estimated

@@ -29,7 +29,10 @@ geometry_alignment(x, tolerance = 1e-10)
 
 - tolerance:
 
-  Positive numerical tolerance.
+  Positive relative numerical tolerance. Every cutoff is this multiple
+  of the magnitude it is compared against (the largest eigenvalue or
+  entry of a self-block, or the larger self-variance of an edge), so
+  results do not depend on the units of the data.
 
 - ridge, ridge_right:
 

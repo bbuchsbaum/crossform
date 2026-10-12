@@ -51,6 +51,7 @@ the call this inspection describes, and
 for branching on a refusal that has already happened.
 
 Other sampling uncertainty:
+[`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md),
 [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md),
 [`reconstruct_evidence()`](https://bbuchsbaum.github.io/crossform/reference/reconstruct_evidence.md),
 [`sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/sampling_covariance.md)

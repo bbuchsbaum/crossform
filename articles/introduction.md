@@ -507,8 +507,11 @@ variance questions, and the package will not pick one for you.
   *estimates* for the unknown signal. Taken at face value that
   substitution biases the signal term upward by as much as the whole
   noise term, so crossform subtracts the bias exactly and clamps the
-  corrected signal at zero. Use it when reporting uncertainty around an
-  estimated nonzero distance.
+  corrected signal at zero. That is unbiased when nothing is clamped,
+  but under weak signal the clamp still overstates the variance (by
+  roughly 30-50% at zero true signal in simulation), so use it when
+  reporting uncertainty around an estimated distance that is clearly
+  nonzero, not for null calibration.
 
 [`?rdm_sampling_covariance`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
 states the correction exactly.

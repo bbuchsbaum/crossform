@@ -428,9 +428,9 @@ when nothing reproduces; candidates are the measurements standing clear
 of it.
 
 What the picture does not give you is a threshold or a p-value.
-`crossform` does no spatial and no group inference (see [Status and
-scope](#status-and-scope)), and a within-measurement standard error
-needs the residual channel, so fit with
+`crossform` does no spatial inference and no calibrated group inference
+(see [Status and scope](#status-and-scope)), and a within-measurement
+standard error needs the residual channel, so fit with
 [`lm_relation_fit()`](https://bbuchsbaum.github.io/crossform/reference/lm_relation_fit.md)
 as above, or take the
 [from-observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
@@ -583,11 +583,21 @@ grouped in the same order this README is.
   [`vignette("crossform-extending")`](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.md).
   Not an end user’s surface.
 
-**Population (forthcoming).** A population layer — mass-preserving
-transport of per-subject conservative geometry — is specified in
+**Population (experimental).** A population layer carries each
+participant’s conservative geometry onto shared group nodes by
+mass-preserving transport and fits one group model there:
+[`plan_population()`](https://bbuchsbaum.github.io/crossform/reference/plan_population.md)
+declares the group estimand,
+[`estimate_population()`](https://bbuchsbaum.github.io/crossform/reference/estimate_population.md)
+computes it, and
+[`population_uncertainty()`](https://bbuchsbaum.github.io/crossform/reference/population_uncertainty.md)
+reports the between- and within-subject error bars separately. The API
+may change, and its group `t` is labelled *uncalibrated* — it is not yet
+calibrated group inference.
+[`vignette("population-form")`](https://bbuchsbaum.github.io/crossform/articles/population-form.md)
+is its narrative and
 [`design/population-form-contract.md`](https://bbuchsbaum.github.io/crossform/design/population-form-contract.md)
-and under construction. Until it lands, `crossform` does no group
-inference at all.
+its contract.
 
 ## Install
 
@@ -646,6 +656,18 @@ vignettes.
   ·
   [`vignette("neuroim2-data")`](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.md)
   — `NeuroVol` and `NeuroVec` in, brain maps out.
+- [Conservative
+  frames](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.html)
+  ·
+  [`vignette("conservative-frames")`](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.md)
+  — the attribution instrument: a map that partitions one fixed budget,
+  so it adds up over territories.
+- [Population
+  form](https://bbuchsbaum.github.io/crossform/articles/population-form.html)
+  ·
+  [`vignette("population-form")`](https://bbuchsbaum.github.io/crossform/articles/population-form.md)
+  — **experimental**: carrying each participant’s ledger to a group
+  model, with the two error bars kept apart and labelled uncalibrated.
 - [Evidence
   pairing](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html)
   ·
@@ -686,7 +708,10 @@ vignettes.
 
 `crossform` is experimental; exported names may still change. It runs
 sequentially, and it does not preprocess fMRI, register images, build
-hemodynamic response models, or perform group inference.
+hemodynamic response models, or perform calibrated group inference: the
+experimental population layer
+([`vignette("population-form")`](https://bbuchsbaum.github.io/crossform/articles/population-form.md))
+fits group models but labels its group statistics uncalibrated.
 
 **Demonstrated.** On the [Haxby 2001
 exemplar](https://bbuchsbaum.github.io/crossform/exemplars/haxby2001/)
@@ -825,6 +850,9 @@ for it was never earned.
 - [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md)
   : Construct exact analytic sampling covariance for crossvalidated
   distances
+- [`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)
+  [`measurement_position()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md)
+  : Select measurements by identifier or by position
 - [`sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/sampling_covariance.md)
   : Query an exact factorized sampling-covariance form
 - [`catch_refusal()`](https://bbuchsbaum.github.io/crossform/reference/catch_refusal.md)

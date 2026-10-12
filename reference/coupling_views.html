@@ -83,7 +83,10 @@ informational-connectivity analyses.</p>
 
 
 <dt id="arg-tolerance">tolerance<a class="anchor" aria-label="anchor" href="#arg-tolerance"></a></dt>
-<dd><p>Positive numerical tolerance.</p></dd>
+<dd><p>Positive relative numerical tolerance. Every cutoff is this
+multiple of the magnitude it is compared against (the largest eigenvalue or
+entry of a self-block, or the larger self-variance of an edge), so results do
+not depend on the units of the data.</p></dd>
 
 
 <dt id="arg-ridge-ridge-right">ridge, ridge_right<a class="anchor" aria-label="anchor" href="#arg-ridge-ridge-right"></a></dt>

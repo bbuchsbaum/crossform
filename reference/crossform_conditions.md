@@ -102,7 +102,7 @@ tryCatch(
   effect_input_error = function(e) conditionMessage(e),
   effect_contract_error = function(e) "these objects do not belong together"
 )
-#> [1] "`weights` has 3 values but the relation declares 2 effects (`x`, `y`). Supply one weight per effect, or name the weights to have them aligned for you."
+#> [1] "`weights` has 3 values but the relation declares 2 effects (`x`, `y`). Supply one weight per effect in that order, or name the weights (e.g. `c(x = 1, y = -1)`) to have them aligned by name."
 
 # A guard-raised error additionally names the argument and the value.
 guarded <- tryCatch(

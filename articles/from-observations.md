@@ -496,7 +496,7 @@ distance_covariance <- rdm_sampling_covariance(
 )
 round(sqrt(sampling_covariance(distance_covariance)), 3)
 #> face - body face - tool body - tool 
-#>       0.076       0.095       0.050
+#>       0.076       0.095       0.048
 ```
 
 These are within-participant standard errors under the declared fixed,

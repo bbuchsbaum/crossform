@@ -71,10 +71,13 @@ of them named by measurement.
 
 The values returned inherit the calibration target chosen when `x` was
 built. Under `target = "plugin"` the partition-mean plug-in's signal
-bias has been removed (with a positive-part projection that is
-conservative only when the signal is weak); see the `target` argument of
+bias has been removed with a positive-part projection that is exact when
+no direction is clamped but inflates variances when the signal is weak
+(by roughly 30-50% at zero true signal in simulation); see the `target`
+argument of
 [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md).
-Under `target = "null"` the law is exact on the variance scale.
+Under `target = "null"` the law is exact on the variance scale, and it
+is the target to use for null calibration.
 
 In both cases the residual covariance behind the law is a plug-in with
 \\\nu\\ degrees of freedom, so its *quadratic* contribution carries the
@@ -144,6 +147,7 @@ to check the law is available first, and
 for the point estimates a query bank describes.
 
 Other sampling uncertainty:
+[`measurement_id()`](https://bbuchsbaum.github.io/crossform/reference/measurement_id.md),
 [`rdm_sampling_covariance()`](https://bbuchsbaum.github.io/crossform/reference/rdm_sampling_covariance.md),
 [`reconstruct_evidence()`](https://bbuchsbaum.github.io/crossform/reference/reconstruct_evidence.md),
 [`sampling_capabilities()`](https://bbuchsbaum.github.io/crossform/reference/sampling_capabilities.md)
