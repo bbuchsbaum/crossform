@@ -574,22 +574,42 @@ evaluated at \(C\widehat H C^\top\); this is exactly equivalent to using the
 noise coefficient \(2/(M(M-1))-4/M^2\) under the plug-in target. That
 coefficient is negative for \(M>2\), and \(\widehat H\) is often indefinite
 when the true signal is weak, so an unprojected estimate can report negative
-variances. \(\widehat H\) is therefore projected onto the PSD cone in
-\(\Sigma_K\)-whitened coordinates: with
-\(Z=\Sigma_K^{-1/2}\bar B S_R\bar B^\top\Sigma_K^{-1/2}=V\Lambda V^\top\), the
-retained Gram is
-\(\Sigma_K^{1/2}V\max(\Lambda-\widehat{\operatorname{tr}}/M,0)V^\top\Sigma_K^{1/2}\),
-the positive-part estimator of the signal-to-noise spectrum (Euclidean
-projection of \(\widehat H\) where \(\Sigma_K\) is singular). The projection is
-exactly unbiased whenever no eigenvalue is clamped, and in the Loewner order
-it lies between \(\widehat H\) and the face-value plug-in, so it is never more
-biased than what it replaced. Under weak signal the residue is conservative
-(simulated at \(M=4\), null truth, \(P=20\): about \(1.4\times\) the true
-variance, against \(2.5\times\) face-value). Every plug-in result records
+variances. \(\widehat H\) is therefore projected onto the PSD cone, and the
+projection acts only in the subspace the law can see. The law depends on
+\(\widehat H\) only through \(C\widehat H C^\top\); with \(U\) an orthonormal
+basis of the row space of \(C\) (for distances the centred subspace, of
+dimension \(K-1\); query banks are linear in the distances and share it),
+that is \(U^\top\widehat H U\). A projection on the full \(K\times K\) Gram
+would let the eigenvalue clamp rotate the direction \(C\) annihilates (a
+pattern shared by every condition) into the retained directions, so the
+reported covariance would change when a common pattern is added to every
+condition although no distance does. (Until 2026-10 crossform projected the
+full Gram; a common pattern moved plug-in variances by up to 25%.) With
+\(H_c=U^\top\bar B S_R\bar B^\top U\), \(\Sigma_c=U^\top\Sigma_K U\) and
+\(Z=\Sigma_c^{-1/2}H_c\Sigma_c^{-1/2}=V\Lambda V^\top\), the retained Gram is
+\(U\Sigma_c^{1/2}V\max(\Lambda-\widehat{\operatorname{tr}}/M,0)V^\top\Sigma_c^{1/2}U^\top\),
+the positive-part estimator of the signal-to-noise spectrum of the estimable
+subspace (Euclidean projection of \(U^\top\widehat H U\) where \(\Sigma_c\) is
+singular). Since \(CUU^\top=C\), the projection is exactly unbiased whenever
+no eigenvalue is clamped, it is invariant to any pattern shared by all
+conditions, and in the Loewner order it lies between \(U^\top\widehat H U\)
+and the face-value plug-in, so it is never more biased than what it
+replaced.
+
+The clamp is not a small correction under weak signal. Simulated at
+\(M=4\), \(K=4\), three trials per condition, identity residual covariance,
+300 replications: at zero true signal the mean plug-in variance is about
+\(1.5\times\) the exact variance at \(P=6\) and \(1.3\times\) at \(P=20\)
+(the full-Gram projection it replaced gave \(1.6\times\) and \(1.4\times\);
+the face-value plug-in \(2.5\times\)). With a clearly nonzero signal
+(distances 0.7 to 4 against a null standard deviation of 0.11) the mean is
+within Monte Carlo error of the exact law (ratio \(1.02\pm0.02\)). Every
+plug-in result records
 `$source$signal_target_correction = "partition_mean_bias_removed"` and the
-number of clamped directions, `$source$signal_clamped_directions`.
-`target = "null"` remains the exact choice for calibrating a test of no
-effect. The separate noise-trace inflation is corrected in §4.
+number of clamped directions, `$source$signal_clamped_directions`; a nonzero
+count signals an inflated variance. `target = "null"` is the exact choice,
+and the one to use, for calibrating a test of no effect. The separate
+noise-trace inflation is corrected in §4.
 
 An analytic z-test, confidence interval, contrast test, LD-t, bootstrap,
 permutation distribution, and population resampling are different calibration

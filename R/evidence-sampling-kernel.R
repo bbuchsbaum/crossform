@@ -330,7 +330,7 @@
   if (identical(signal_target, "partition_mean_plugin")) {
     debiased <- .sampling_debiased_plugin_signal(
       signal_patterns, residual_root, effect_covariance, quadratic$value,
-      plan$partition$count
+      plan$partition$count, contrasts
     )
     signal_factor <- (contrasts %*% debiased$root) / normalization
   } else {
@@ -391,24 +391,42 @@
 #
 # H_hat need not be positive semidefinite (it rarely is when the true signal
 # is weak), and an indefinite H_hat can make whole variances negative, which
-# the factorized form cannot carry. It is projected onto the PSD cone in the
-# Sigma_K-whitened coordinates: with Z = Sigma_K^{-1/2} H Sigma_K^{-1/2},
-# the eigenvalues of Z are replaced by max(lambda - trhat / M, 0). That is the
-# positive-part estimator of the signal-to-noise spectrum. It is exactly
-# unbiased whenever no eigenvalue is clamped, and in the Loewner order it
-# always lies between H_hat and the raw plug-in H, so it is never more biased
-# upward than the plug-in it replaces. Where Sigma_K is singular the
-# projection falls back to the Euclidean one on H_hat.
+# the factorized form cannot carry, so it is projected onto the PSD cone.
+#
+# The projection acts only inside the subspace the law can see. The law
+# depends on H only through C H C', i.e. on V' H V for V an orthonormal basis
+# of the row space of C (for distances the centred subspace of dimension
+# K - 1, since every distance contrast sums to zero; query banks are linear
+# in the distances and so share it). A pattern common to every condition
+# moves H along 1, which C annihilates; an eigenvalue clamp on the full K x K
+# Gram would rotate that invisible direction into the retained ones and make
+# the reported covariance depend on it. So with
+#
+#   H_c = V' H V,   Sigma_c = V' Sigma_K V,
+#
+# the clamp works in Sigma_c-whitened coordinates: with
+# Z = Sigma_c^{-1/2} H_c Sigma_c^{-1/2}, the eigenvalues of Z are replaced by
+# max(lambda - trhat / M, 0), and the root is mapped back through V
+# (C V V' = C, so C root root' C' is the projected C H_hat C'). That is the
+# positive-part estimator of the signal-to-noise spectrum of the estimable
+# subspace. It is exactly unbiased whenever no eigenvalue is clamped, it is
+# invariant to any pattern shared by all conditions, and in the Loewner order
+# it lies between H_c_hat and the raw plug-in H_c, so it is never more biased
+# upward than the plug-in it replaces. Where Sigma_c is singular the
+# projection falls back to the Euclidean one on H_c_hat.
 .sampling_debiased_plugin_signal <- function(signal_patterns, residual_root,
                                              effect_covariance, noise_trace,
-                                             partitions) {
-  pattern <- signal_patterns %*% residual_root
+                                             partitions, contrasts) {
+  space <- .sampling_contrast_row_space(contrasts)
+  pattern <- crossprod(space, signal_patterns %*% residual_root)
   gram <- tcrossprod(pattern)
   gram <- 0.5 * (gram + t(gram))
+  covariance <- crossprod(space, effect_covariance %*% space)
+  covariance <- 0.5 * (covariance + t(covariance))
   shift <- noise_trace / partitions
-  spectrum <- eigen(effect_covariance, symmetric = TRUE)
+  spectrum <- eigen(covariance, symmetric = TRUE)
   scale <- max(abs(spectrum$values))
-  if (min(spectrum$values) > 1e-10 * scale) {
+  if (scale > 0 && min(spectrum$values) > 1e-10 * scale) {
     root <- spectrum$vectors %*% diag(sqrt(spectrum$values),
       length(spectrum$values)) %*% t(spectrum$vectors)
     inverse_root <- spectrum$vectors %*% diag(1 / sqrt(spectrum$values),
@@ -419,20 +437,32 @@
     values <- inner$values - shift
     vectors <- root %*% inner$vectors
   } else {
-    inner <- eigen(gram - effect_covariance * shift, symmetric = TRUE)
+    inner <- eigen(gram - covariance * shift, symmetric = TRUE)
     values <- inner$values
     vectors <- inner$vectors
   }
   retained <- values > 0
-  clamped <- sum(!retained)
+  clamped <- as.integer(sum(!retained))
   if (!any(retained)) {
-    return(list(root = matrix(0, nrow(gram), 1L), clamped = clamped))
+    return(list(root = matrix(0, nrow(signal_patterns), 1L), clamped = clamped))
   }
   list(
-    root = vectors[, retained, drop = FALSE] %*%
+    root = space %*% vectors[, retained, drop = FALSE] %*%
       diag(sqrt(values[retained]), sum(retained)),
-    clamped = as.integer(clamped)
+    clamped = clamped
   )
+}
+
+# Orthonormal basis (K x r) of the row space of a contrast matrix acting on
+# the K conditions: the only condition-space directions a contrast law sees.
+.sampling_contrast_row_space <- function(contrasts) {
+  decomposition <- svd(contrasts, nu = 0L)
+  scale <- max(decomposition$d)
+  keep <- decomposition$d > max(dim(contrasts)) * .Machine$double.eps * scale
+  if (!any(keep)) {
+    .input_error("Sampling contrasts carry no estimable direction.")
+  }
+  decomposition$v[, keep, drop = FALSE]
 }
 
 .validate_sampling_covariance <- function(x, deep = TRUE) {

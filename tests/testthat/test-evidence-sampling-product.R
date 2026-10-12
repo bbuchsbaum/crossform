@@ -457,8 +457,9 @@ test_that("the plug-in target removes the partition-mean signal bias", {
   # At M = 4 the face-value plug-in bias is 2 (M - 1) / M = 1.5 times the
   # noise term itself, so the face-value plug-in reported 2.5 times the true
   # null variance. Under a null truth the debiased Gram is clamped to its
-  # positive part, which leaves a modest conservative residue -- never the
-  # face-value inflation, and never an anticonservative mean.
+  # positive part, which leaves a real upward residue (about 1.3 times the
+  # exact variance at P = 20 in a four-condition simulation) -- never the face-value
+  # inflation, and never an anticonservative mean.
   draws <- sampling_weak_signal_plugin_diagonals()
   mean_diagonal <- rowMeans(draws$diagonals)
   standard_error <- apply(draws$diagonals, 1L, stats::sd) /
@@ -482,6 +483,59 @@ test_that("the plug-in debias is recorded on the result", {
     "partition_mean_bias_removed")
   expect_true(is.integer(plugin$source$signal_clamped_directions))
   expect_null(null$source$signal_target_correction)
+})
+
+test_that("a pattern shared by every condition leaves the plug-in law alone", {
+  # Distances annihilate any pattern common to all conditions, so the rdm is
+  # unchanged by one; the plug-in covariance must be too. Before the clamp was
+  # restricted to the contrast row space, the eigenvalue positive part acted
+  # on the full condition-space Gram and rotated that invisible direction into
+  # the retained ones, moving the variances by up to 25%.
+  conditions <- paste0("c", 1:4)
+  features <- 6L
+  design <- stats::model.matrix(~ 0 + factor(rep(conditions, each = 3L)))
+  colnames(design) <- conditions
+  effects <- diag(4L)
+  dimnames(effects) <- list(conditions, conditions)
+  domain <- abstract_domain(features, id = "plugin-common-pattern")
+  set.seed(3L)
+  truth <- 0.3 * matrix(rnorm(4L * features), 4L, features)
+  noise <- lapply(1:4, function(run) {
+    matrix(rnorm(nrow(design) * features), nrow(design), features)
+  })
+  common <- list(rep(0, features), rep(5, features), 3 * rnorm(features))
+  results <- lapply(common, function(pattern) {
+    sources <- stats::setNames(lapply(1:4, function(run) {
+      design %*% truth +
+        matrix(pattern, nrow(design), features, byrow = TRUE) + noise[[run]]
+    }), paste0("run", 1:4))
+    fit <- lm_relation_fit(
+      sources, design, effects, sampling_unit = "trial", domain = domain
+    )
+    plan <- plan_geometry(
+      fit$relation, compile_frame(whole_brain(), domain),
+      cross_partitions(fit$relation, independence = "independent"),
+      metric = noise_precision(diag(features), domain)
+    )
+    covariance <- rdm_sampling_covariance(plan, fit, "plugin", at = 1L)
+    list(
+      distances = rdm(plan)$values[1L, ],
+      covariance = sampling_covariance(covariance, "materialize"),
+      clamped = covariance$source$signal_clamped_directions
+    )
+  })
+  reference <- results[[1L]]
+  # The fixture must actually exercise the clamp, or the test proves nothing.
+  expect_gt(reference$clamped, 0L)
+  for (other in results[-1L]) {
+    expect_equal(other$distances, reference$distances, tolerance = 1e-10)
+    expect_identical(other$clamped, reference$clamped)
+    expect_lt(
+      max(abs(other$covariance - reference$covariance)) /
+        max(abs(reference$covariance)),
+      1e-10
+    )
+  }
 })
 
 test_that("symmetry checks are relative to the scale of the data", {

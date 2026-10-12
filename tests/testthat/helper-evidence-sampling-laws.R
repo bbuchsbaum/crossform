@@ -164,8 +164,12 @@ sampling_oracle_eq13 <- function(differences, xi, sigma_r, partitions,
 # face-value plug-in inflates the signal term by 4 Xi^2 tr(Sigma_R^2) / M^2.
 # The unbiased effect-space Gram subtracts Sigma_K * noise_trace / M and is
 # then projected onto the PSD cone in Sigma_K-whitened coordinates (eigenvalue
-# positive part). Written with a Cholesky root, not the package's symmetric
-# root: the projection is invariant to that choice, so agreement is evidence.
+# positive part), restricted to the row space of the contrasts: the law sees
+# H only through C H C', so the clamp must not mix in condition-space
+# directions C annihilates (a pattern shared by every condition). Written
+# with a QR basis and a Cholesky root, not the package's SVD basis and
+# symmetric root: the projection is invariant to both choices, so agreement
+# is evidence.
 sampling_oracle_plugin_signal_gram <- function(contrasts, mean_patterns,
                                                sigma_r, sigma_k, noise_trace,
                                                partitions) {
@@ -175,13 +179,17 @@ sampling_oracle_plugin_signal_gram <- function(contrasts, mean_patterns,
   sigma_k <- sampling_oracle_matrix(sigma_k, "effect covariance",
     symmetric = TRUE)
   partitions <- sampling_oracle_partitions(partitions)
-  gram <- mean_patterns %*% sigma_r %*% t(mean_patterns)
-  lower <- t(chol(sigma_k))
+  decomposition <- qr(t(contrasts), tol = 1e-10)
+  basis <- qr.Q(decomposition)[, seq_len(decomposition$rank), drop = FALSE]
+  gram <- t(basis) %*% mean_patterns %*% sigma_r %*% t(mean_patterns) %*%
+    basis
+  restricted_k <- t(basis) %*% sigma_k %*% basis
+  lower <- t(chol((restricted_k + t(restricted_k)) / 2))
   lower_inverse <- solve(lower)
   whitened <- lower_inverse %*% gram %*% t(lower_inverse)
   spectrum <- eigen((whitened + t(whitened)) / 2, symmetric = TRUE)
   kept <- pmax(spectrum$values - noise_trace / partitions, 0)
-  vectors <- lower %*% spectrum$vectors
+  vectors <- basis %*% lower %*% spectrum$vectors
   effect_gram <- vectors %*% diag(kept, length(kept)) %*% t(vectors)
   contrasts %*% effect_gram %*% t(contrasts)
 }
