@@ -87,18 +87,51 @@
 .measurement_ids <- function(index) {
   if (is.data.frame(index)) {
     if ("measurement" %in% names(index)) {
-      return(as.character(index$measurement))
+      return(.msg_id_key(index$measurement))
     }
     return(as.character(seq_len(nrow(index))))
   }
-  as.character(index)
+  .msg_id_key(index)
+}
+
+# The raw identifiers a view carries, for the positions-versus-identifiers
+# check: a bare number is refused where whole-number identifiers differ from
+# positions, exactly as `at =` is in `rdm_sampling_covariance()`.
+.view_measurement_ids <- function(index) {
+  if (is.data.frame(index)) {
+    if ("measurement" %in% names(index)) return(index$measurement)
+    return(NULL)
+  }
+  index
+}
+
+# Unwrap `measurement_id()` / `measurement_position()` into the character
+# identifiers or numeric positions the resolvers below already accept, and
+# refuse a bare number that could be read as either.
+.unwrap_measurement_selector <- function(value, index, n, argument) {
+  if (inherits(value, "crossform_measurement_id")) {
+    return(.msg_id_key(value$values))
+  }
+  if (inherits(value, "crossform_measurement_position")) {
+    return(value$values)
+  }
+  if (is.numeric(value) &&
+      .msg_ids_shadow_positions(.view_measurement_ids(index), n)) {
+    .msg_ambiguous_measurement(value, .view_measurement_ids(index), n,
+      argument = argument, subject = "view")
+  }
+  value
 }
 
 # Accepts positions, a logical mask, or measurement identifiers, and always
 # returns positions. An out-of-range request is an error, not a silent drop:
 # a highlight set that quietly loses members would misreport ground truth.
+# Where the view's identifiers are whole numbers that are not its positions
+# (a masked volume), a bare number is refused as ambiguous, and
+# `measurement_id()` or `measurement_position()` says which is meant.
 .resolve_highlight <- function(highlight, index, n) {
   if (is.null(highlight)) return(integer())
+  highlight <- .unwrap_measurement_selector(highlight, index, n, "highlight")
   if (is.logical(highlight)) {
     if (length(highlight) != n || anyNA(highlight)) {
       .input_error(paste0(
@@ -125,6 +158,8 @@
 }
 
 .resolve_measurement <- function(measurement, index, n) {
+  measurement <- .unwrap_measurement_selector(measurement, index, n,
+    "measurement")
   if (is.character(measurement)) {
     if (length(measurement) != 1L || is.na(measurement)) {
       .input_error(
@@ -475,16 +510,24 @@
 #'   exactly its family weight times the whole-domain total, so that panel
 #'   draws the analyst's own weights rather than anything about spatial scale
 #'   (`design/conservative-geometry-contract.md` section 3.1).
-#' @param highlight Optional measurements to mark: positions, a logical mask
-#'   with one value per measurement, or measurement identifiers. Measurements
-#'   outside the view are an error rather than a silent drop.
+#' @param highlight Optional measurements to mark: row positions, a logical
+#'   mask with one value per measurement, or measurement identifiers (a
+#'   character vector, or [measurement_id()]). Measurements outside the view
+#'   are an error rather than a silent drop. Where the view's identifiers are
+#'   whole numbers that differ from its positions (any masked volume), a bare
+#'   number is refused as ambiguous; wrap it in [measurement_id()] or
+#'   [measurement_position()].
 #' @param highlight_label What the highlighted measurements are, named in the
 #'   legend alongside their count, as in `"planted signal (104 measurements)"`.
 #'   Say what the set means rather than that it was selected.
 #' @param measurement Which measurement to draw. For an `effect_rdm_view`,
-#'   one position or identifier, or the string `"mean"` for the mean
-#'   dissimilarity matrix over measurements. The default is the measurement
-#'   with the largest mean distance.
+#'   one row position, one identifier as the view prints it in its
+#'   `measurement` column (a string, or [measurement_id()]), or the string
+#'   `"mean"` for the mean dissimilarity matrix over measurements. The
+#'   default is the measurement with the largest mean distance. On a masked
+#'   volume the identifiers are voxel indices that are not row positions, so
+#'   a bare number is refused as ambiguous: say `measurement_id(117)` or
+#'   `measurement_position(5)`.
 #' @param annotate Whether to print the numeric distance inside each cell of
 #'   an RDM heatmap. The default prints them when there are at most eight
 #'   experimental effects.
@@ -751,7 +794,9 @@ plot.effect_rdm_view <- function(x, measurement = NULL, annotate = NULL,
     if (is.null(measurement)) {
       means <- rowMeans(values, na.rm = TRUE)
       means[!is.finite(means)] <- -Inf
-      measurement <- which.max(means)
+      # The default is a row position the package chose itself, so it is
+      # passed as one rather than as a bare number a masked view would refuse.
+      measurement <- measurement_position(which.max(means))
     }
     position <- .resolve_measurement(measurement, x$index, nrow(values))
     row <- values[position, ]

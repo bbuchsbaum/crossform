@@ -360,7 +360,7 @@ floor, because crossvalidated energy is centered there when nothing reproduces;
 candidates are the measurements standing clear of it.
 
 What the picture does not give you is a threshold or a p-value. `crossform`
-does no spatial and no group inference (see [Status and scope](#status-and-scope)),
+does no spatial inference and no calibrated group inference (see [Status and scope](#status-and-scope)),
 and a within-measurement standard error needs the residual channel, so fit with
 `lm_relation_fit()` as above, or take the
 [from-observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html)
@@ -472,11 +472,15 @@ is grouped in the same order this README is.
   a design, and an error channel into the core; see
   `vignette("crossform-extending")`. Not an end user's surface.
 
-**Population (forthcoming).** A population layer — mass-preserving transport
-of per-subject conservative geometry — is specified in
-[`design/population-form-contract.md`](design/population-form-contract.md) and
-under construction. Until it lands, `crossform` does no group inference at
-all.
+**Population (experimental).** A population layer carries each participant's
+conservative geometry onto shared group nodes by mass-preserving transport and
+fits one group model there: `plan_population()` declares the group estimand,
+`estimate_population()` computes it, and `population_uncertainty()` reports
+the between- and within-subject error bars separately. The API may change, and
+its group `t` is labelled *uncalibrated* — it is not yet calibrated group
+inference. `vignette("population-form")` is its narrative and
+[`design/population-form-contract.md`](design/population-form-contract.md)
+its contract.
 
 ## Install
 
@@ -510,6 +514,8 @@ works offline once you have installed with vignettes.
 - [Coming from rMVPA](https://bbuchsbaum.github.io/crossform/articles/from-rmvpa.html) · `vignette("from-rmvpa")` — how the familiar objects map onto this vocabulary.
 - [Fit condition effects from observations](https://bbuchsbaum.github.io/crossform/articles/from-observations.html) · `vignette("from-observations")` — scan responses, events, confounds, censoring.
 - [neuroim2 data](https://bbuchsbaum.github.io/crossform/articles/neuroim2-data.html) · `vignette("neuroim2-data")` — `NeuroVol` and `NeuroVec` in, brain maps out.
+- [Conservative frames](https://bbuchsbaum.github.io/crossform/articles/conservative-frames.html) · `vignette("conservative-frames")` — the attribution instrument: a map that partitions one fixed budget, so it adds up over territories.
+- [Population form](https://bbuchsbaum.github.io/crossform/articles/population-form.html) · `vignette("population-form")` — **experimental**: carrying each participant's ledger to a group model, with the two error bars kept apart and labelled uncalibrated.
 - [Evidence pairing](https://bbuchsbaum.github.io/crossform/articles/evidence-pairing.html) · `vignette("evidence-pairing")` — **experimental, small-node only**: results that relate two regions, and the contracts each connectivity view requires.
 - [Extending crossform](https://bbuchsbaum.github.io/crossform/articles/crossform-extending.html) · `vignette("crossform-extending")` — the five sanctioned entry points for an extension or adapter package, and what is closed to one.
 - [What is novel in crossform?](https://bbuchsbaum.github.io/crossform/articles/novelty.html) · `vignette("novelty")` — the claim ledger.
@@ -521,7 +527,9 @@ works offline once you have installed with vignettes.
 
 `crossform` is experimental; exported names may still change. It runs
 sequentially, and it does not preprocess fMRI, register images, build
-hemodynamic response models, or perform group inference.
+hemodynamic response models, or perform calibrated group inference: the
+experimental population layer (`vignette("population-form")`) fits group
+models but labels its group statistics uncalibrated.
 
 **Demonstrated.** On the [Haxby 2001 exemplar](exemplars/haxby2001/) (eight
 stimulus categories over twelve runs, 577 ventral-temporal searchlights),

@@ -126,6 +126,7 @@ reference:
   - plot_views
   - sampling_capabilities
   - rdm_sampling_covariance
+  - measurement_id
   - sampling_covariance
   - catch_refusal
   - crossform_conditions

@@ -663,7 +663,8 @@ rdm_sampling_covariance <- function(
   at <- .msg_measurement_indices(
     at,
     if (is.null(x$measurements)) nrow(x$frame$weights) else x$measurements,
-    argument = "at", subject = "plan"
+    argument = "at", subject = "plan",
+    ids = .msg_frame_measurement_ids(x$frame)
   )
   # A batch is read by measurement (`values[[measurement]]`), so a repeated
   # index would produce two elements under one name and every reader would

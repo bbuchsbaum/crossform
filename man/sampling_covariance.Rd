@@ -190,6 +190,7 @@ catch_refusal(
 \code{\link[=contrast_energy]{contrast_energy()}} for the point estimates a query bank describes.
 
 Other sampling uncertainty: 
+\code{\link{measurement_id}()},
 \code{\link{rdm_sampling_covariance}()},
 \code{\link{reconstruct_evidence}()},
 \code{\link{sampling_capabilities}()}
